@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.config import settings
+from app.modules import CAPABILITY_MODULES
 
 from . import BaseTool, RiskTier
 
@@ -72,6 +73,15 @@ class CreateAgentTool(BaseTool):
                 "items": {"type": "string"},
                 "description": "Tool names to assign (default: basic file + memory tools)",
             },
+            "modules": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Capability module names to compose the agent from. "
+                    "Available: file_ops, web_research, config_management, "
+                    "code_analysis, memory_management. Additive with 'tools'."
+                ),
+            },
             "temporary": {
                 "type": "boolean",
                 "description": "If true, agent self-terminates after task and is auto-deleted when result is read.",
@@ -92,6 +102,7 @@ class CreateAgentTool(BaseTool):
         model = params.get("model", "claude-sonnet-4-6")
         adapter = params.get("adapter", "anthropic")
         tools = params.get("tools", _DEFAULT_TOOLS)
+        modules = params.get("modules") or []
         temporary = params.get("temporary", False)
 
         # Validate name
@@ -103,15 +114,40 @@ class CreateAgentTool(BaseTool):
         if name in _PROTECTED_NAMES:
             return f"ERROR: '{name}' is a protected agent name and cannot be created."
 
+        # Validate modules
+        unknown = [m for m in modules if m not in CAPABILITY_MODULES]
+        if unknown:
+            return f"ERROR: Unknown capability module(s): {', '.join(unknown)}. Available: {', '.join(CAPABILITY_MODULES)}"
+
         agent_dir = settings.agents_dir / name
         if agent_dir.exists():
             return f"ERROR: Agent directory already exists: {agent_dir}"
 
+        # Resolve modules — merge tools and prompt fragments
+        prompt_fragments: list[str] = []
+        sandbox_hints: dict[str, list[str]] = {}
+        if modules:
+            for mod_name in modules:
+                mod = CAPABILITY_MODULES[mod_name]
+                # Merge tools (union, no duplicates)
+                for t in mod.tools:
+                    if t not in tools:
+                        tools.append(t) if isinstance(tools, list) else None
+                prompt_fragments.append(mod.prompt_fragment)
+                # Merge sandbox hints
+                for key, vals in mod.sandbox_hints.items():
+                    sandbox_hints.setdefault(key, []).extend(
+                        v for v in vals if v not in sandbox_hints.get(key, [])
+                    )
+
         # Create directory
         agent_dir.mkdir(parents=True)
 
-        # Write PROMPT.MD
-        (agent_dir / "PROMPT.MD").write_text(prompt, encoding="utf-8")
+        # Write PROMPT.MD (with module prompt fragments appended)
+        full_prompt = prompt
+        if prompt_fragments:
+            full_prompt += "\n\n" + "\n\n".join(prompt_fragments)
+        (agent_dir / "PROMPT.MD").write_text(full_prompt, encoding="utf-8")
 
         # Write CONFIG.md
         tools_block = "\n".join(f"  - {t}" for t in tools)
@@ -130,6 +166,12 @@ class CreateAgentTool(BaseTool):
         )
         if temporary:
             config += "lifecycle:\n  temporary: true\n"
+        if sandbox_hints:
+            config += "sandbox:\n"
+            for hint_key, hint_vals in sandbox_hints.items():
+                config += f"  {hint_key}:\n"
+                for v in hint_vals:
+                    config += f"    - {v}\n"
         (agent_dir / "CONFIG.md").write_text(config, encoding="utf-8")
 
         # Write empty standard files
@@ -164,7 +206,8 @@ class CreateAgentTool(BaseTool):
         (agent_dir / "__init__.py").write_text(init_py, encoding="utf-8")
 
         suffix = " [temporary]" if temporary else ""
-        return f"Created agent '{name}' at {agent_dir} with {len(tools)} tools{suffix}"
+        mod_note = f" (modules: {', '.join(modules)})" if modules else ""
+        return f"Created agent '{name}' at {agent_dir} with {len(tools)} tools{suffix}{mod_note}"
 
 
 class DeleteAgentTool(BaseTool):
@@ -208,5 +251,30 @@ class DeleteAgentTool(BaseTool):
             except (json.JSONDecodeError, KeyError):
                 pass
 
+        # Promote learnings before deletion
+        promoted = 0
+        learnings_path = agent_dir / "LEARNINGS.MD"
+        if learnings_path.exists():
+            learnings_text = learnings_path.read_text(encoding="utf-8").strip()
+            if learnings_text:
+                knowledge_path = settings.agents_dir / "shared" / "KNOWLEDGE.MD"
+                knowledge_path.parent.mkdir(parents=True, exist_ok=True)
+                from datetime import datetime
+                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                entry = (
+                    f"\n[{now}] category: discovery | source: {name} (promoted)\n"
+                    f"{learnings_text}\n"
+                )
+                try:
+                    with open(knowledge_path, "a", encoding="utf-8") as f:
+                        f.write(entry)
+                    promoted = len([
+                        l for l in learnings_text.splitlines()
+                        if l.strip().startswith("### ")
+                    ]) or 1
+                except OSError:
+                    pass
+
         shutil.rmtree(agent_dir)
-        return f"Deleted agent '{name}'"
+        promo_note = f" ({promoted} learning(s) promoted to shared knowledge)" if promoted else ""
+        return f"Deleted agent '{name}'{promo_note}"

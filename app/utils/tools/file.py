@@ -1,3 +1,7 @@
+import base64
+import csv
+import io
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -6,8 +10,9 @@ from typing import Any
 import aiofiles
 
 from app.config import settings
+from app.utils.secrets import scrub_pii
 
-from . import BaseTool, RiskTier
+from . import BaseTool, RiskTier, TOOL_OUTPUT_CHAR_CAP, truncate_tool_output
 
 _MAX_READ_CHARS = 18000
 
@@ -305,3 +310,169 @@ class FileDeleteTool(BaseTool):
             return f"ERROR: {exc}"
 
         return f"Deleted {params['path']}"
+
+
+# ── Image & CSV tools ────────────────────────────────────────────────────────
+
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+_MIME_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+class ImageReadTool(BaseTool):
+    name = "image_read"
+    description = (
+        "Read an image file, base64-encode it, and return metadata + encoded data. "
+        "Supports PNG, JPG, JPEG, GIF, WEBP. Max 5MB."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Image file path relative to project root",
+            },
+        },
+        "required": ["path"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        try:
+            resolved = _sandbox(params["path"])
+        except ValueError as exc:
+            return f"ERROR: {exc}"
+
+        if not resolved.exists():
+            return f"ERROR: File not found: {params['path']}"
+        if not resolved.is_file():
+            return f"ERROR: Not a file: {params['path']}"
+
+        ext = resolved.suffix.lower()
+        if ext not in _IMAGE_EXTENSIONS:
+            return (
+                f"ERROR: Unsupported image extension '{ext}'. "
+                f"Supported: {', '.join(sorted(_IMAGE_EXTENSIONS))}"
+            )
+
+        size = resolved.stat().st_size
+        if size > _MAX_IMAGE_BYTES:
+            return (
+                f"ERROR: Image too large ({size:,} bytes). "
+                f"Maximum: {_MAX_IMAGE_BYTES:,} bytes (5MB)"
+            )
+
+        try:
+            data = resolved.read_bytes()
+        except Exception as exc:
+            return f"ERROR: {exc}"
+
+        b64 = base64.b64encode(data).decode("ascii")
+        media_type = _MIME_MAP[ext]
+
+        result = json.dumps({
+            "type": "image_read",
+            "media_type": media_type,
+            "data": b64,
+            "size_bytes": size,
+            "path": params["path"],
+        })
+        return result
+
+
+class ParseCsvTool(BaseTool):
+    name = "parse_csv"
+    description = (
+        "Parse a CSV file and return its contents as a markdown table. "
+        "Supports column filtering and row limiting. PII is automatically scrubbed."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "CSV file path relative to project root",
+            },
+            "max_rows": {
+                "type": "integer",
+                "description": "Maximum rows to return (default: 100)",
+                "default": 100,
+            },
+            "columns": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Column names to include (default: all columns)",
+            },
+        },
+        "required": ["path"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        try:
+            resolved = _sandbox(params["path"])
+        except ValueError as exc:
+            return f"ERROR: {exc}"
+
+        if not resolved.exists():
+            return f"ERROR: File not found: {params['path']}"
+        if not resolved.is_file():
+            return f"ERROR: Not a file: {params['path']}"
+
+        max_rows = params.get("max_rows", 100)
+        col_filter = params.get("columns") or []
+
+        try:
+            text = resolved.read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:
+            return f"ERROR: {exc}"
+
+        # Scrub PII from data files
+        text = scrub_pii(text)
+
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames:
+            return "ERROR: CSV file has no headers"
+
+        # Apply column filter
+        columns = [c for c in reader.fieldnames if c in col_filter] if col_filter else list(reader.fieldnames)
+        if col_filter and not columns:
+            return (
+                f"ERROR: None of the requested columns found. "
+                f"Available: {', '.join(reader.fieldnames)}"
+            )
+
+        # Read rows
+        rows: list[dict[str, str]] = []
+        total_in_file = 0
+        for row in reader:
+            total_in_file += 1
+            if len(rows) < max_rows:
+                rows.append({c: (row.get(c) or "") for c in columns})
+
+        # Build markdown table
+        header = "| " + " | ".join(columns) + " |"
+        separator = "| " + " | ".join("---" for _ in columns) + " |"
+        lines = [header, separator]
+        for row in rows:
+            line = "| " + " | ".join(row.get(c, "") for c in columns) + " |"
+            lines.append(line)
+
+        table = "\n".join(lines)
+
+        # Summary
+        truncated = total_in_file > max_rows
+        summary = (
+            f"\n\n**Summary:** {len(rows)} rows shown"
+            f" (of {total_in_file} total)"
+            f" | {len(columns)} columns: {', '.join(columns)}"
+        )
+        if truncated:
+            summary += f" | Truncated at max_rows={max_rows}"
+
+        result = table + summary
+        return truncate_tool_output(result)

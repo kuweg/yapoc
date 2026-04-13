@@ -79,6 +79,21 @@
 | Peer delegation audit trail | Done | `[PEER DELEGATION]` logged to master's HEALTH.MD |
 | Peer delegation prompts | Done | Builder, keeper, master PROMPT.MD updated |
 
+**Implemented in M9 (2026-04-13):**
+
+| Capability | Status | Key files |
+|---|---|---|
+| Capability module library (5 modules) | Done | `app/modules/capabilities.py` |
+| CreateAgentTool `modules` parameter | Done | `app/utils/tools/agent_mgmt.py` |
+| Learning promotion on agent deletion | Done | `app/utils/tools/agent_mgmt.py` |
+| `image_read` tool | Done | `app/utils/tools/file.py` |
+| `parse_csv` tool (with PII scrubbing) | Done | `app/utils/tools/file.py` |
+| PII detection (`scrub_pii`) | Done | `app/utils/secrets.py` |
+| Goal reasoning (Planning prompt) | Done | `app/agents/planning/PROMPT.MD` |
+| Budget enforcement (per-task, per-agent) | Done | `app/agents/base/__init__.py`, `app/config/settings.py` |
+| Runaway cost detection (Doctor) | Done | `app/agents/doctor/agent.py` |
+| Cost dashboard endpoints | Done | `app/backend/routers/metrics.py` |
+
 **Not yet implemented:**
 
 | Capability | Notes |
@@ -258,40 +273,47 @@ Not needed yet. Doctor currently only writes warnings — no autonomous correcti
 
 ---
 
-## Milestone 9: Advanced Capabilities (Long-term)
+## Milestone 9: Advanced Capabilities — DONE
 
-These depend on M1–M8 being stable. Brief descriptions only — full plans to be written when the time comes.
+**Status:** Fully implemented. All 4 sub-features operational.
 
-### 9A. Dynamic Agent Composition
+### 9A. Dynamic Agent Composition — Done
 
-**What exists:** `create_agent` and `delete_agent` tools. Temporary agent lifecycle. Builder creates agents from prompts.
+- Created `app/modules/` capability module library with 5 pre-built modules: `file_ops`, `web_research`, `config_management`, `code_analysis`, `memory_management`
+- Extended `CreateAgentTool` with `modules` parameter — merges tools and prompt fragments from modules
+- `DeleteAgentTool` now promotes LEARNINGS.MD entries to shared KNOWLEDGE.MD before deletion
+- Master PROMPT.MD updated with module documentation
 
-**What to add:** A capability module library (`app/modules/`) with reusable prompt fragments + tool configs. Master composes new agents from modules instead of writing prompts from scratch. Auto-delete after task with learning promotion (extract LEARNINGS.MD before deletion).
+**Key files:** `app/modules/__init__.py`, `app/modules/capabilities.py`, `app/utils/tools/agent_mgmt.py`
 
-### 9B. Multi-Modal Input
+### 9B. Multi-Modal Input — Done
 
-**What exists:** Claude already has vision. `file_read` tool exists.
+- `ImageReadTool` — reads image files (PNG/JPG/GIF/WEBP), base64-encodes, returns metadata + data as JSON. 5MB cap.
+- `ParseCsvTool` — parses CSV files to markdown tables with column filtering, row limits, and automatic PII scrubbing
+- Extended `app/utils/secrets.py` with `scrub_pii()` — detects emails, US phone numbers, credit card numbers, SSNs
+- Both tools registered in `TOOL_REGISTRY`, added to builder/master CONFIG.md
 
-**What to add:** An `image_read` tool that loads a local image file, base64-encodes it, and passes it as an image content block to the LLM. A `parse_csv` tool for structured data. PII detection before processing data files.
+**Key files:** `app/utils/tools/file.py`, `app/utils/secrets.py`, `app/utils/tools/__init__.py`
 
-### 9C. Goal Reasoning
+### 9C. Goal Reasoning — Done
 
-**Mechanism:** Prompt engineering in Planning agent. Add hierarchical goal decomposition:
-- Surface instruction (what was literally asked)
-- Immediate goal (what the instruction is trying to achieve)
-- Underlying intent (the broader outcome the user cares about)
+- Added `## Goal Reasoning` section to Planning PROMPT.MD with 3-level analysis framework
+- Surface instruction → Immediate goal → Underlying intent
+- `[GOAL CONFLICT]` escalation when surface and intent conflict
+- Sub-goal decomposition with success criteria, prerequisites, and complexity estimates
+- Progress tracking after sub-agent results
+- Decision logging updated to include intent analysis
 
-When surface and immediate conflict, Planning surfaces the conflict instead of guessing. This is a prompt pattern, not infrastructure — implement via PROMPT.MD changes and evaluate empirically.
+**Key files:** `app/agents/planning/PROMPT.MD`
 
-### 9D. Resource & Cost Governance
+### 9D. Resource & Cost Governance — Done
 
-**What exists:** Per-agent cost tracking (USAGE.json), per-model pricing, context compaction.
+- Added `budget_per_task_usd`, `budget_per_agent_usd`, `cost_runaway_multiplier` to Settings
+- Budget enforcement in `BaseAgent.run_stream_with_tools()` — checks both per-agent and per-task limits after each turn
+- Runaway detection in `DoctorAgent._detect_runaway_agents()` — flags agents exceeding multiplier × median cost
+- Cost dashboard: `GET /metrics/usage` (all agents) and `GET /metrics/usage/{name}` (single agent)
 
-**What to add:**
-- Per-project budget limits in settings (hard pause when exceeded)
-- Model routing: cheap model (haiku) for simple sub-tasks, expensive model (sonnet/opus) for complex reasoning
-- Runaway detection: if an agent exceeds 5x estimated cost, pause and alert
-- Cost dashboard endpoint in backend
+**Key files:** `app/config/settings.py`, `app/agents/base/__init__.py`, `app/agents/doctor/agent.py`, `app/backend/routers/metrics.py`
 
 ---
 
@@ -309,7 +331,7 @@ M2: Safety Baseline
 M3: Explainability
  └─► M8: Inter-Agent Collaboration (needs audit trail)
 
-M4 + M5 + M6 + M7 ─► M9: Advanced Capabilities
+M4 + M5 + M6 + M7 ─► M9: Advanced Capabilities ✓
 ```
 
 **Rule:** A milestone may not begin until all its dependencies are verified working.

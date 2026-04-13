@@ -217,6 +217,57 @@ class DoctorAgent(BaseAgent):
 
         return findings
 
+    # ── Runaway cost detection ───────────────────────────────────────
+
+    def _detect_runaway_agents(
+        self, agents_dir: Path, agent_dirs: list[Path],
+    ) -> list[tuple[str, str]]:
+        """Detect agents whose cost exceeds the runaway threshold.
+
+        Compares each agent's total_cost_usd against the median cost
+        multiplied by ``settings.cost_runaway_multiplier``. Returns
+        (agent_name, diagnostic_message) for flagged agents.
+        """
+        costs: dict[str, float] = {}
+        for agent_dir in agent_dirs:
+            usage_path = agent_dir / "USAGE.json"
+            if not usage_path.exists():
+                continue
+            try:
+                data = json.loads(usage_path.read_text(encoding="utf-8"))
+                cost = data.get("total_cost_usd", 0.0)
+                if cost > 0:
+                    costs[agent_dir.name] = cost
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        if len(costs) < 2:
+            return []
+
+        sorted_costs = sorted(costs.values())
+        mid = len(sorted_costs) // 2
+        if len(sorted_costs) % 2 == 0:
+            median = (sorted_costs[mid - 1] + sorted_costs[mid]) / 2
+        else:
+            median = sorted_costs[mid]
+
+        if median <= 0:
+            return []
+
+        multiplier = settings.cost_runaway_multiplier
+        threshold = median * multiplier
+        findings: list[tuple[str, str]] = []
+
+        for name, cost in costs.items():
+            if cost > threshold:
+                findings.append((
+                    name,
+                    f"RUNAWAY_COST: ${cost:.4f} exceeds {multiplier}x median "
+                    f"(${median:.4f} median, ${threshold:.4f} threshold)",
+                ))
+
+        return findings
+
     # ── Health check ──────────────────────────────────────────────────
 
     async def run_health_check(self) -> str:
@@ -342,6 +393,23 @@ class DoctorAgent(BaseAgent):
                 except OSError:
                     pass
             sections.append("\n".join(pattern_section))
+
+        # ── Runaway cost detection (M9D) ──
+        runaway_findings = self._detect_runaway_agents(agents_dir, agent_dirs)
+        if runaway_findings:
+            runaway_section = ["## Runaway Cost Alerts\n"]
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            for agent_name, diag in runaway_findings:
+                runaway_section.append(f"  - **{agent_name}**: {diag}")
+                issues_found += 1
+                # Write to master's HEALTH.MD
+                master_health = agents_dir / "master" / "HEALTH.MD"
+                try:
+                    with open(master_health, "a", encoding="utf-8") as f:
+                        f.write(f"[{now_str}] WARNING: [doctor] {agent_name}: {diag}\n")
+                except OSError:
+                    pass
+            sections.append("\n".join(runaway_section))
 
         # Summary line
         status = "ISSUES DETECTED" if issues_found > 0 else "ALL CLEAR"

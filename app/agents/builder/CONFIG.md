@@ -21,6 +21,8 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
+  - image_read
+  - parse_csv
   # ── Peer delegation ────────────────────────────────────────────────────
   - spawn_agent
   - wait_for_agent

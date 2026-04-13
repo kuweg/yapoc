@@ -170,7 +170,7 @@ class BaseTool(ABC):
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 
-from .file import FileDeleteTool, FileEditTool, FileListTool, FileReadTool, FileWriteTool
+from .file import FileDeleteTool, FileEditTool, FileListTool, FileReadTool, FileWriteTool, ImageReadTool, ParseCsvTool
 from .memory import AddTaskTraceTool, AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, MemoryAppendTool, NotesAppendTool, NotesReadTool, NotesWriteTool, SharedKnowledgeAppendTool
 from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
@@ -231,6 +231,8 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "search_memory": SearchMemoryTool,
     "manage_tickets": ManageTicketsTool,
     "shared_knowledge_append": SharedKnowledgeAppendTool,
+    "image_read": ImageReadTool,
+    "parse_csv": ParseCsvTool,
 }
 
 # Tools that need agent_dir injected

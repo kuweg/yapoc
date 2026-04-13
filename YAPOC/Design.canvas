@@ -1,0 +1,14 @@
+{
+	"nodes":[
+		{"id":"a2310c5df7c70666","x":-300,"y":-480,"width":250,"height":100,"type":"text","text":"Memory.md\n---\nMain project file with timeline"},
+		{"id":"f5d784c0f9011a36","x":0,"y":-480,"width":250,"height":100,"type":"text","text":"Task.md\n---\nMain file with the last task to main agent.\nCan be filled by *Planner Agent*.\nWill be used as \"local RAG\" for more proper task execution."},
+		{"id":"4901e905cc978c04","x":-340,"y":-172,"width":250,"height":252,"type":"text","text":"# Main Agent \nBase\n---\nMain entry point to interact with.\nShould be directly capable of changing system configs, creating-deleting agents, delegating tasks."},
+		{"id":"0ee00355c1ae712d","x":180,"y":-172,"width":250,"height":172,"type":"text","text":"# Planner agent\nBase\n---\nUsing to create execution plan. \nWrite to md only"},
+		{"id":"ba7a5545a610092b","x":180,"y":40,"width":250,"height":240,"type":"text","text":"# Agent Builder\nBase\n---\nCalled to create a special agent with unique prompt.\nWill be created directory with md files for prompt, memory, notes and etc. WIP"},
+		{"id":"7ea6631e26616b77","x":-740,"y":-360,"width":250,"height":148,"type":"text","text":"Ping Pong\n----\nCron task to check the status of all agents."}
+	],
+	"edges":[
+		{"id":"815630d8300cebba","fromNode":"4901e905cc978c04","fromSide":"right","toNode":"0ee00355c1ae712d","toSide":"left","label":"Tool 1"},
+		{"id":"c59bda83e7e6a671","fromNode":"4901e905cc978c04","fromSide":"right","toNode":"ba7a5545a610092b","toSide":"left","label":"Tool 2"}
+	]
+}

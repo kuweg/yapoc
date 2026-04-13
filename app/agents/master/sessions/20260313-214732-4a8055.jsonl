@@ -1,0 +1,2 @@
+{"role": "user", "content": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again."}
+{"role": "assistant", "content": "RESUME.MD is empty (just contains `-n` from a previous echo command artifact). There's no pending task to resume.\n\nI'm fully restarted and ready. How can I help you?"}

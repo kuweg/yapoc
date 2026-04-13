@@ -1,0 +1,75 @@
+{
+  "total_input_tokens": 148803,
+  "total_output_tokens": 94393,
+  "total_cache_creation_tokens": 103863,
+  "total_cache_read_tokens": 291295,
+  "total_tool_calls": 72,
+  "total_turns": 139,
+  "total_cost_usd": 0.319384,
+  "by_model": {
+    "claude-haiku-4-5-20251001": {
+      "input_tokens": 85289,
+      "output_tokens": 16301,
+      "cache_creation_tokens": 99588,
+      "cache_read_tokens": 283346,
+      "cost_usd": 0.319384,
+      "turns": 81,
+      "tool_calls": 70
+    },
+    "lmstudio-community/nvidia/nemotron-3-nano-4b": {
+      "input_tokens": 4014,
+      "output_tokens": 4382,
+      "cache_creation_tokens": 4275,
+      "cache_read_tokens": 7949,
+      "cost_usd": 0.0,
+      "turns": 7,
+      "tool_calls": 2
+    },
+    "lmstudio-community/openai/gpt-oss-20b": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 1,
+      "tool_calls": 0
+    },
+    "lmstudio-community/deepseek/deepseek-r1-0528-qwen3-8b": {
+      "input_tokens": 59500,
+      "output_tokens": 73710,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 47,
+      "tool_calls": 0
+    },
+    "nvidia/nemotron-3-nano-4b": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 1,
+      "tool_calls": 0
+    },
+    "google/gemma-3-4b": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 1,
+      "tool_calls": 0
+    },
+    "google/gemma-4-31b": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 1,
+      "tool_calls": 0
+    }
+  },
+  "last_updated": "2026-04-13T10:25:04Z"
+}

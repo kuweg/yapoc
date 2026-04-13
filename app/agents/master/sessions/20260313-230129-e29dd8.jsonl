@@ -1,0 +1,4 @@
+{"role": "user", "content": "Hello, remember the number 42"}
+{"role": "assistant", "content": "Got it! I've logged it to my memory. The number **42** has been remembered. 🧠"}
+{"role": "user", "content": "what nuber i mentioned"}
+{"role": "assistant", "content": "You mentioned the number **42**! 🎯You mentioned the number **42**! 🎯"}

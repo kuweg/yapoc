@@ -1,0 +1,1 @@
+{"role": "user", "content": "create a 3 temporary dummy agents, let each one complete the phrase \"My name is <> and I will <>\", then accumulate the result. Continuesly provide status"}

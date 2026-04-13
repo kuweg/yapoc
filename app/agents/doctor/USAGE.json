@@ -1,0 +1,75 @@
+{
+  "total_input_tokens": 160754,
+  "total_output_tokens": 79856,
+  "total_cache_creation_tokens": 219229,
+  "total_cache_read_tokens": 767208,
+  "total_tool_calls": 374,
+  "total_turns": 131,
+  "total_cost_usd": 0.785374,
+  "by_model": {
+    "gpt-4o-mini": {
+      "input_tokens": 8520,
+      "output_tokens": 507,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.001582,
+      "turns": 3,
+      "tool_calls": 11
+    },
+    "claude-haiku-4-5-20251001": {
+      "input_tokens": 101714,
+      "output_tokens": 66360,
+      "cache_creation_tokens": 219229,
+      "cache_read_tokens": 767208,
+      "cost_usd": 0.783793,
+      "turns": 108,
+      "tool_calls": 349
+    },
+    "lmstudio-community/deepseek/deepseek-r1-0528-qwen3-8b": {
+      "input_tokens": 8600,
+      "output_tokens": 12285,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 3,
+      "tool_calls": 0
+    },
+    "lmstudio-community/nvidia/nemotron-3-nano-4b": {
+      "input_tokens": 3933,
+      "output_tokens": 60,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 2,
+      "tool_calls": 1
+    },
+    "nvidia/nemotron-3-nano-4b": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 1,
+      "tool_calls": 0
+    },
+    "google/gemma-3-4b": {
+      "input_tokens": 37987,
+      "output_tokens": 644,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 13,
+      "tool_calls": 13
+    },
+    "google/gemma-4-31b": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0,
+      "turns": 1,
+      "tool_calls": 0
+    }
+  },
+  "last_updated": "2026-04-13T10:25:05Z"
+}

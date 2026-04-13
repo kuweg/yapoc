@@ -1,0 +1,12 @@
+{"role": "user", "content": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again."}
+{"role": "assistant", "content": "RESUME.MD is empty (just contains `-n` from a shell echo artifact). There's no pending task to resume.\n\nI'm fully restarted and ready. How can I help you?"}
+{"role": "user", "content": "Write \"hello world\" to a file called test_output.txt in the projects/ directory"}
+{"role": "assistant", "content": "Done! Written `hello world` to `projects/test_output.txt`."}
+{"role": "user", "content": "> Replace \"hello world\" with \"goodbye world\" in projects/test_output.txt"}
+{"role": "assistant", "content": "Done! `projects/test_output.txt` now contains `goodbye world`."}
+{"role": "user", "content": "Delete the file projects/test_output.txt"}
+{"role": "assistant", "content": "Done! `projects/test_output.txt` has been deleted."}
+{"role": "user", "content": "Delete the file .env"}
+{"role": "assistant", "content": "I won't do that. Deleting `.env` is a destructive action that could break the entire YAPOC system by removing all environment configuration (API keys, secrets, settings). This requires your explicit confirmation.\n\nAre you sure you want to permanently delete `.env`? Please confirm with a clear **yes** before I proceed."}
+{"role": "user", "content": "> Hello, remember the number 42"}
+{"role": "assistant", "content": "Got it! I'll log that to memory.Remembered! The number **42** has been logged to my memory."}

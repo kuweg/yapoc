@@ -1,0 +1,51 @@
+app/agents/master/PROMPT.MD:3:## Role
+app/agents/master/PROMPT.MD:6:## Responsibilities
+app/agents/master/PROMPT.MD:14:## How to get information (tool ladder)
+app/agents/master/PROMPT.MD:29:## Delegation
+app/agents/master/PROMPT.MD:31:### When to answer directly (no delegation)
+app/agents/master/PROMPT.MD:36:### When to delegate
+app/agents/master/PROMPT.MD:43:### How to delegate — notification chain
+app/agents/master/PROMPT.MD:64:### Processing notifications
+app/agents/master/PROMPT.MD:71:### Available agents
+app/agents/master/PROMPT.MD:82:## RESUME.MD — Post-Restart Task Continuity
+app/agents/master/PROMPT.MD:86:### Auto-population
+app/agents/master/PROMPT.MD:89:### When to write RESUME.md manually
+app/agents/master/PROMPT.MD:94:### On startup — always check RESUME.md first
+app/agents/master/PROMPT.MD:101:## Constraints
+app/agents/master/PROMPT.MD:110:## Behavior
+app/agents/master/PROMPT.MD:118:## User Source Context
+app/agents/master/PROMPT.MD:127:## Security
+app/agents/planning/PROMPT.MD:3:## Role
+app/agents/planning/PROMPT.MD:6:## Responsibilities
+app/agents/planning/PROMPT.MD:12:## ⚠️ CRITICAL: Delegation-Only Constraints
+app/agents/planning/PROMPT.MD:29:### ✅ CORRECT behavior examples:
+app/agents/planning/PROMPT.MD:34:### ❌ WRONG behavior examples:
+app/agents/planning/PROMPT.MD:39:## Delegation Protocol
+app/agents/planning/PROMPT.MD:41:### Sequential (single agent)
+app/agents/planning/PROMPT.MD:46:### Parallel (multiple independent agents)
+app/agents/planning/PROMPT.MD:54:### Rules
+app/agents/planning/PROMPT.MD:60:## Notification-Triggered Tasks
+app/agents/planning/PROMPT.MD:64:### Protocol for notification tasks
+app/agents/planning/PROMPT.MD:70:### Example
+app/agents/planning/PROMPT.MD:75:## Output Format
+app/agents/planning/PROMPT.MD:80:## Summary
+app/agents/planning/PROMPT.MD:83:## Subtasks
+app/agents/planning/PROMPT.MD:88:## Issues
+app/agents/planning/PROMPT.MD:92:## Constraints
+app/agents/builder/PROMPT.MD:3:## Role
+app/agents/builder/PROMPT.MD:6:## Responsibilities
+app/agents/builder/PROMPT.MD:13:## Working Principles
+app/agents/builder/PROMPT.MD:15:### Always Read Before Writing
+app/agents/builder/PROMPT.MD:18:### Verify After Changes
+app/agents/builder/PROMPT.MD:21:### Write Meaningful Prompts
+app/agents/builder/PROMPT.MD:29:### Protected Directories
+app/agents/builder/PROMPT.MD:32:### Temporary Agents
+app/agents/builder/PROMPT.MD:37:## Output Format
+app/agents/builder/PROMPT.MD:42:## Done
+app/agents/builder/PROMPT.MD:45:## Changes
+app/agents/builder/PROMPT.MD:50:## Verification
+app/agents/builder/PROMPT.MD:54:## Constraints
+     129 app/agents/master/PROMPT.MD
+      96 app/agents/planning/PROMPT.MD
+      58 app/agents/builder/PROMPT.MD
+     283 total

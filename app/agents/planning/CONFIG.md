@@ -1,0 +1,29 @@
+adapter: anthropic
+model: claude-sonnet-4-6
+temperature: 0.3
+tools:
+  - spawn_agent
+  - ping_agent
+  - kill_agent
+  - wait_for_agent
+  - wait_for_agents
+  - check_task_status
+  - read_task_result
+  - notify_parent
+  - memory_append
+  - notes_read
+  - notes_write
+  - notes_append
+  - health_log
+  - add_task_trace
+  - search_memory
+  - learnings_append
+  - shared_knowledge_append
+runner:
+  max_turns: 30
+  task_timeout: 600
+  poll_interval: 30
+  retry_attempts: 3
+  context_memory_limit: 20
+  context_health_limit: 10
+  context_notes_limit: 3000

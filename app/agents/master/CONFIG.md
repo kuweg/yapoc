@@ -30,6 +30,7 @@ tools:
   - learnings_append
   - manage_tickets
   - shared_knowledge_append
+  - image_read
 sandbox:
   # Master can read anything but writes must go through a sub-agent.
   forbidden:

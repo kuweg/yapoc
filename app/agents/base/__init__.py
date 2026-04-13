@@ -659,6 +659,8 @@ class BaseAgent:
                     adapter.context_window_size() * settings.context_compact_threshold
                 )
                 _tool_start_times: dict[str, float] = {}
+                _task_cost_usd: float = 0.0  # accumulator for per-task budget
+                _budget_exceeded = False
 
                 for _turn in range(max_turns):
                     # Auto-compact if approaching context limit
@@ -731,6 +733,34 @@ class BaseAgent:
                                 cache_read_tokens=event.cache_read_tokens,
                             )
                             yield event
+                            # ── Budget enforcement ──
+                            _turn_cost = _calc_turn_cost(
+                                config.model, event.input_tokens, event.output_tokens,
+                                event.cache_creation_tokens, event.cache_read_tokens,
+                            )
+                            _task_cost_usd += _turn_cost
+                            # Per-agent lifetime budget
+                            if settings.budget_per_agent_usd > 0:
+                                _usage_snap = self._usage.snapshot()
+                                if _usage_snap["total_cost_usd"] >= settings.budget_per_agent_usd:
+                                    _budget_msg = (
+                                        f"[BUDGET EXCEEDED] Agent '{self._name}' lifetime cost "
+                                        f"${_usage_snap['total_cost_usd']:.4f} >= "
+                                        f"budget ${settings.budget_per_agent_usd:.4f}. Stopping."
+                                    )
+                                    await self._append_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
+                                    yield TextDelta(text=f"\n\n{_budget_msg}")
+                                    _budget_exceeded = True
+                            # Per-task budget
+                            if not _budget_exceeded and settings.budget_per_task_usd > 0:
+                                if _task_cost_usd >= settings.budget_per_task_usd:
+                                    _budget_msg = (
+                                        f"[BUDGET EXCEEDED] Task cost ${_task_cost_usd:.4f} >= "
+                                        f"budget ${settings.budget_per_task_usd:.4f}. Stopping."
+                                    )
+                                    await self._append_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
+                                    yield TextDelta(text=f"\n\n{_budget_msg}")
+                                    _budget_exceeded = True
                             _cost = _calc_turn_cost(
                                 config.model, event.input_tokens, event.output_tokens,
                                 event.cache_creation_tokens, event.cache_read_tokens,
@@ -754,6 +784,9 @@ class BaseAgent:
                             turn_complete = event
 
                     if turn_complete is None:
+                        break
+
+                    if _budget_exceeded:
                         break
 
                     # Append assistant message to conversation

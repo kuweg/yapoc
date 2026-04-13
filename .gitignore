@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Runtime data
+data/notification_queue.json
+data/notification_queue.lock
+data/spawn_registry.json
+
+# Agent runtime state (ephemeral — not needed in repo)
+app/agents/*/TASK.MD
+app/agents/*/STATUS.json
+app/agents/*/RESULT.MD
+app/agents/*/CRASH.MD
+app/agents/*/OUTPUT.MD
+app/agents/*/HEALTH.MD
+app/agents/*/HEALTH_SUMMARY.MD
+app/agents/*/SERVER_CRASH.MD
+app/agents/*/SERVER_OUTPUT.MD
+
+# Builder output workspace
+projects/
+
+# Personal notes
+personal_notes_do_not_read.md
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Runtime
+.yapoc.pid
+
+# Agent session logs (may contain secrets)
+app/agents/*/sessions/
+
+# Claude Code local settings
+.claude/

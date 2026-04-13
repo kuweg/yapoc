@@ -1,0 +1,147 @@
+{
+  "version": 2,
+  "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk \u2014 keys are always resolved from the environment via app.config.settings at runtime.",
+  "default_n_fallbacks_models": 3,
+  "agents": {
+    "master": {
+      "adapter": "anthropic",
+      "model": "claude-sonnet-4-5",
+      "temperature": 0.3,
+      "max_tokens": 8096,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-haiku-4-5-20251001"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-4o-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash"
+        }
+      ]
+    },
+    "planning": {
+      "adapter": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "temperature": 0.3,
+      "max_tokens": 8096,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-haiku-4-5-20251001"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-4o-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash"
+        }
+      ]
+    },
+    "builder": {
+      "adapter": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "temperature": 0.2,
+      "max_tokens": 8096,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-opus-4-6"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-5.2"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-pro"
+        }
+      ]
+    },
+    "keeper": {
+      "adapter": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "temperature": 0.2,
+      "max_tokens": 4096,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-sonnet-4-6"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-4o-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash-lite"
+        }
+      ]
+    },
+    "cron": {
+      "adapter": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "temperature": 0.2,
+      "max_tokens": 4096,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-sonnet-4-6"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-4o-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash-lite"
+        }
+      ]
+    },
+    "doctor": {
+      "adapter": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "temperature": 0.2,
+      "max_tokens": 4096,
+      "fallbacks": [
+        {
+          "adapter": "openai",
+          "model": "gpt-4o-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash"
+        },
+        {
+          "adapter": "anthropic",
+          "model": "claude-sonnet-4-6"
+        }
+      ]
+    },
+    "model_manager": {
+      "adapter": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "temperature": 0.2,
+      "max_tokens": 4096,
+      "fallbacks": [
+        {
+          "adapter": "openai",
+          "model": "gpt-4o-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash-lite"
+        },
+        {
+          "adapter": "anthropic",
+          "model": "claude-sonnet-4-6"
+        }
+      ]
+    }
+  }
+}

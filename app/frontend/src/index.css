@@ -1,0 +1,886 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   YAPOC Theme System — Retro Terminal Edition
+   CSS custom properties for both dark (default) and light themes.
+   Applied via data-theme attribute on <html>.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Dark theme — Amber Phosphor Terminal ────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  /* Terminal palette */
+  --color-bg-primary:   #0a0a0a;
+  --color-bg-secondary: #111111;
+  --color-bg-tertiary:  #161616;
+  --color-bg-panel:     #0f0f0f;
+
+  /* Legacy aliases (used by components via hardcoded hex overrides) */
+  --color-bg-base:       #0a0a0a;
+  --color-bg-overlay:    #111111;
+  --color-bg-raised:     #161616;
+  --color-bg-subtle:     #1a1a0f;
+  --color-bg-muted:      #111111;
+
+  /* Borders */
+  --color-border:         #2a2a1a;
+  --color-border-accent:  #FFB633;
+  --color-border-default: #2a2a1a;
+  --color-border-muted:   #1a1a0f;
+  --color-border-subtle:  #3a3a2a;
+
+  /* Text */
+  --color-text-primary:   #e8e8d8;
+  --color-text-secondary: #a0a090;
+  --color-text-muted:     #606050;
+  --color-text-disabled:  #3a3a2a;
+
+  /* Accent — amber phosphor */
+  --color-accent:         #FFB633;
+  --color-accent-dim:     #8a6010;
+  --color-accent-glow:    rgba(255, 182, 51, 0.15);
+
+  /* Legacy accent aliases */
+  --color-accent-blue:    #FFB633;
+  --color-accent-green:   #33ff66;
+  --color-accent-yellow:  #FFB633;
+  --color-accent-red:     #ff3333;
+  --color-accent-purple:  #cc88ff;
+  --color-accent-orange:  #ff8833;
+
+  /* Status */
+  --color-success: #33ff66;
+  --color-warning: #FFB633;
+  --color-error:   #ff3333;
+  --color-info:    #33aaff;
+
+  /* Status badge backgrounds — retro terminal style */
+  --color-status-running-bg:     #1a1500;
+  --color-status-running-border: #FFB633;
+  --color-status-error-bg:       #1a0000;
+  --color-status-error-border:   #ff3333;
+  --color-status-done-bg:        #001a08;
+  --color-status-done-border:    #33ff66;
+  --color-status-idle-bg:        #111111;
+  --color-status-idle-border:    #2a2a1a;
+
+  /* Zinc-scale aliases (for chat/sidebar components) */
+  --color-zinc-950: #050505;
+  --color-zinc-900: #0a0a0a;
+  --color-zinc-800: #111111;
+  --color-zinc-700: #1a1a0f;
+  --color-zinc-600: #2a2a1a;
+  --color-zinc-500: #606050;
+  --color-zinc-400: #a0a090;
+  --color-zinc-300: #c8c8b8;
+  --color-zinc-200: #e0e0d0;
+  --color-zinc-100: #e8e8d8;
+
+  /* Shadows */
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.8);
+  --shadow-card:  0 2px 8px rgba(0, 0, 0, 0.6);
+
+  /* SVG / chart text */
+  --color-chart-text:     #606050;
+  --color-chart-grid:     #1a1a0f;
+  --color-tooltip-bg:     #111111;
+  --color-tooltip-border: #2a2a1a;
+  --color-tooltip-text:   #e8e8d8;
+
+  /* Terminal specifics */
+  --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
+  --border-terminal:  1px solid var(--color-border);
+  --border-accent:    1px solid var(--color-border-accent);
+  --scanline-opacity: 0.03;
+}
+
+/* ── Light theme — Paper Terminal ────────────────────────────────────────────── */
+[data-theme="light"] {
+  /* Backgrounds */
+  --color-bg-primary:   #f5f0e8;
+  --color-bg-secondary: #ede8dc;
+  --color-bg-tertiary:  #e0dbd0;
+  --color-bg-panel:     #f0ebe0;
+
+  /* Legacy aliases */
+  --color-bg-base:       #f5f0e8;
+  --color-bg-overlay:    #ede8dc;
+  --color-bg-raised:     #e8e3d8;
+  --color-bg-subtle:     #e0dbd0;
+  --color-bg-muted:      #ede8dc;
+
+  /* Borders */
+  --color-border:         #c8c0a8;
+  --color-border-accent:  #8a6010;
+  --color-border-default: #c8c0a8;
+  --color-border-muted:   #d8d0b8;
+  --color-border-subtle:  #b0a888;
+
+  /* Text */
+  --color-text-primary:   #1a1a0a;
+  --color-text-secondary: #4a4a3a;
+  --color-text-muted:     #8a8a7a;
+  --color-text-disabled:  #c0b8a0;
+
+  /* Accent */
+  --color-accent:         #8a6010;
+  --color-accent-dim:     #c89020;
+  --color-accent-glow:    rgba(138, 96, 16, 0.12);
+
+  /* Legacy accent aliases */
+  --color-accent-blue:    #8a6010;
+  --color-accent-green:   #1a6a2a;
+  --color-accent-yellow:  #9a6700;
+  --color-accent-red:     #8a1a1a;
+  --color-accent-purple:  #5a2a8a;
+  --color-accent-orange:  #8a3a10;
+
+  /* Status */
+  --color-success: #1a6a2a;
+  --color-warning: #8a6010;
+  --color-error:   #8a1a1a;
+  --color-info:    #1a4a8a;
+
+  /* Status badge backgrounds */
+  --color-status-running-bg:     #f5e8c8;
+  --color-status-running-border: #8a6010;
+  --color-status-error-bg:       #f5e0e0;
+  --color-status-error-border:   #8a1a1a;
+  --color-status-done-bg:        #e0f0e8;
+  --color-status-done-border:    #1a6a2a;
+  --color-status-idle-bg:        #ede8dc;
+  --color-status-idle-border:    #c8c0a8;
+
+  /* Zinc-scale aliases — light equivalents */
+  --color-zinc-950: #f5f0e8;
+  --color-zinc-900: #ede8dc;
+  --color-zinc-800: #e0dbd0;
+  --color-zinc-700: #c8c0a8;
+  --color-zinc-600: #b0a888;
+  --color-zinc-500: #8a8a7a;
+  --color-zinc-400: #4a4a3a;
+  --color-zinc-300: #2a2a1a;
+  --color-zinc-200: #1a1a0a;
+  --color-zinc-100: #0a0a00;
+
+  /* Shadows — softer for light mode */
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.15);
+  --shadow-card:  0 2px 8px rgba(0, 0, 0, 0.10);
+
+  /* SVG / chart text */
+  --color-chart-text:     #8a8a7a;
+  --color-chart-grid:     #e0dbd0;
+  --color-tooltip-bg:     #ede8dc;
+  --color-tooltip-border: #c8c0a8;
+  --color-tooltip-text:   #1a1a0a;
+
+  /* Terminal specifics */
+  --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
+  --border-terminal:  1px solid var(--color-border);
+  --border-accent:    1px solid var(--color-border-accent);
+  --scanline-opacity: 0.015;
+}
+
+/* ── Base styles ─────────────────────────────────────────────────────────────── */
+html, body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  /* Subtle scanline effect */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, var(--scanline-opacity)) 2px,
+    rgba(0, 0, 0, var(--scanline-opacity)) 4px
+  );
+  /* Standard anti-aliasing for smooth, readable text */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Terminal window chrome ──────────────────────────────────────────────────── */
+.terminal-window {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  position: relative;
+}
+.terminal-window::before {
+  content: '■ ■ ■';
+  display: block;
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  letter-spacing: 4px;
+}
+
+/* ── Retro card/panel styles ─────────────────────────────────────────────────── */
+.card, .panel {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  border-radius: 0;
+}
+.card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent-glow), inset 0 0 8px var(--color-accent-glow);
+}
+
+/* ── Retro buttons ───────────────────────────────────────────────────────────── */
+button, .btn {
+  font-family: var(--font-mono);
+}
+
+/* ── Status badges — retro style ─────────────────────────────────────────────── */
+.status-badge {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border-radius: 0;
+  border: 1px solid currentColor;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Terminal prompt headings ────────────────────────────────────────────────── */
+h1, h2, h3 {
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* ── Input fields ────────────────────────────────────────────────────────────── */
+input, textarea, select {
+  font-family: var(--font-mono);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  border-radius: 0;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent-glow);
+}
+
+/* ── Scrollbar theming — retro thin ─────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent-dim);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+/* ── Table styles ────────────────────────────────────────────────────────────── */
+table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+}
+th {
+  color: var(--color-accent);
+  border-bottom: 1px solid var(--color-border-accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+td {
+  border-bottom: 1px solid var(--color-border);
+}
+tr:hover td {
+  background: var(--color-accent-glow);
+}
+
+/* ── Blinking cursor animation ───────────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cursor::after {
+  content: '█';
+  animation: blink 1s step-end infinite;
+  color: var(--color-accent);
+  margin-left: 2px;
+}
+
+/* ── Amber glow for status states ────────────────────────────────────────────── */
+.status-running, .status-active {
+  color: var(--color-accent);
+  text-shadow: 0 0 8px var(--color-accent);
+}
+.status-error {
+  color: var(--color-error);
+  text-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
+}
+.status-done, .status-success {
+  color: var(--color-success);
+  text-shadow: 0 0 6px rgba(51, 255, 102, 0.3);
+}
+
+/* ── Navigation/sidebar ──────────────────────────────────────────────────────── */
+nav a, .nav-link {
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  display: block;
+  padding: 6px 12px;
+  border-left: 2px solid transparent;
+}
+nav a:hover, .nav-link:hover {
+  color: var(--color-accent);
+  border-left-color: var(--color-accent);
+  background: var(--color-accent-glow);
+}
+nav a.active, .nav-link.active {
+  color: var(--color-accent);
+  border-left-color: var(--color-accent);
+}
+
+/* ── highlight.js theme overrides — amber phosphor terminal ─────────────────── */
+.hljs {
+  background: var(--color-bg-overlay) !important;
+  color: var(--color-text-primary) !important;
+  padding: 0 !important;
+}
+.hljs-keyword, .hljs-selector-tag, .hljs-tag,
+.hljs-operator, .hljs-punctuation                 { color: #FFB633 !important; }
+.hljs-string, .hljs-attr, .hljs-template-literal  { color: #33ff66 !important; }
+.hljs-comment, .hljs-quote                         { color: #606050 !important; font-style: italic; }
+.hljs-number, .hljs-literal, .hljs-boolean         { color: #ff8833 !important; }
+.hljs-variable, .hljs-name                         { color: #cc88ff !important; }
+.hljs-title, .hljs-title.class_, .hljs-type        { color: #33aaff !important; }
+.hljs-built_in, .hljs-function                     { color: #FFB633cc !important; }
+.hljs-meta, .hljs-doctag                           { color: #a0a090 !important; }
+.hljs-deletion                                     { background: rgba(255,51,51,0.2) !important; }
+.hljs-addition                                     { background: rgba(51,255,102,0.15) !important; }
+
+/* Vault code block wrapper */
+.vault-code-pre {
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  background: var(--color-bg-overlay);
+  font-family: Monaco, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+  height: 100%;
+  box-sizing: border-box;
+}
+.vault-code-pre code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Vault markdown prose styles */
+.vault-markdown { color: var(--color-text-primary); }
+.vault-markdown h1, .vault-markdown h2, .vault-markdown h3,
+.vault-markdown h4, .vault-markdown h5, .vault-markdown h6  { color: #FFB633; margin: 1.2em 0 0.5em; }
+.vault-markdown p        { margin: 0.6em 0; }
+.vault-markdown a        { color: #33aaff; text-decoration: underline; }
+.vault-markdown code     { background: var(--color-bg-raised); color: #33ff66; padding: 1px 4px; font-size: 11px; }
+.vault-markdown pre      { background: var(--color-bg-raised); padding: 12px; overflow-x: auto; margin: 0.8em 0; }
+.vault-markdown pre code { background: none; padding: 0; color: var(--color-text-primary); }
+.vault-markdown blockquote { border-left: 2px solid #FFB633; margin: 0; padding-left: 12px; color: var(--color-text-secondary); }
+.vault-markdown ul, .vault-markdown ol { padding-left: 1.5em; }
+.vault-markdown li       { margin: 0.2em 0; }
+.vault-markdown hr       { border: none; border-top: 1px solid var(--color-border); margin: 1em 0; }
+.vault-markdown table    { width: 100%; border-collapse: collapse; font-size: 12px; }
+.vault-markdown th       { color: #FFB633; border-bottom: 1px solid var(--color-border-accent); padding: 4px 8px; text-align: left; }
+.vault-markdown td       { border-bottom: 1px solid var(--color-border); padding: 4px 8px; }
+.vault-markdown img      { max-width: 100%; }
+
+/* ── Vault: View mode slider (segmented control) ─────────────────────────── */
+.vault-view-slider-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+}
+
+.vault-view-slider {
+  display: flex;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  overflow: hidden;
+}
+
+.vault-view-slider__btn {
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  transition: color 0.1s ease, background 0.1s ease;
+  text-transform: uppercase;
+}
+.vault-view-slider__btn:last-child {
+  border-right: none;
+}
+.vault-view-slider__btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-accent-glow);
+}
+.vault-view-slider__btn--active {
+  background: var(--color-accent);
+  color: #0a0a0a;
+  font-weight: bold;
+}
+.vault-view-slider__btn--active:hover {
+  background: var(--color-accent);
+  color: #0a0a0a;
+}
+
+/* ── Vault: Editor pane ──────────────────────────────────────────────────── */
+.vault-editor-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.vault-editor-pane--full {
+  flex: 1;
+}
+.vault-editor-pane--split {
+  flex: 0 0 50%;
+  width: 50%;
+}
+
+.vault-editor-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: Monaco, 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 1rem;
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  tab-size: 2;
+  overflow: auto;
+}
+.vault-editor-textarea:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* ── Vault: Split divider ────────────────────────────────────────────────── */
+.vault-split-divider {
+  width: 1px;
+  background: var(--color-border-accent);
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+/* ── Vault: Preview pane ─────────────────────────────────────────────────── */
+.vault-preview-pane {
+  overflow-y: auto;
+  min-height: 0;
+}
+.vault-preview-pane--full {
+  flex: 1;
+}
+.vault-preview-pane--split {
+  flex: 0 0 50%;
+  width: 50%;
+}
+
+/* ── Vault: Markdown preview content (.vault-md-preview) ─────────────────── */
+.vault-md-preview {
+  padding: 1.5rem 2rem;
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+/* Headings */
+.vault-md-preview h1 {
+  font-size: 1.5rem;
+  color: var(--color-accent);
+  border-bottom: 1px solid var(--color-border-accent);
+  padding-bottom: 0.4em;
+  margin: 1.4em 0 0.6em;
+  letter-spacing: 1px;
+  text-transform: none;
+}
+.vault-md-preview h2 {
+  font-size: 1.25rem;
+  color: var(--color-accent);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.3em;
+  margin: 1.2em 0 0.5em;
+  letter-spacing: 0.5px;
+  text-transform: none;
+}
+.vault-md-preview h3 {
+  font-size: 1.1rem;
+  color: var(--color-accent);
+  margin: 1em 0 0.4em;
+  text-transform: none;
+}
+.vault-md-preview h4,
+.vault-md-preview h5,
+.vault-md-preview h6 {
+  color: var(--color-accent);
+  margin: 0.8em 0 0.3em;
+  text-transform: none;
+}
+
+/* Paragraphs */
+.vault-md-preview p {
+  margin-bottom: 0.8em;
+  margin-top: 0;
+}
+
+/* Links */
+.vault-md-preview a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.vault-md-preview a:hover {
+  color: var(--color-text-primary);
+}
+
+/* Inline code */
+.vault-md-preview code {
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+  padding: 2px 5px;
+  font-family: Monaco, 'Courier New', monospace;
+  font-size: 11px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+/* Code blocks */
+.vault-md-preview pre {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  padding: 12px 16px;
+  overflow-x: auto;
+  margin: 0.8em 0;
+  font-family: Monaco, 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.vault-md-preview pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-primary);
+  font-size: inherit;
+}
+
+/* Blockquotes */
+.vault-md-preview blockquote {
+  border-left: 3px solid var(--color-accent);
+  margin: 0.8em 0;
+  padding: 0.4em 0 0.4em 1em;
+  color: var(--color-text-secondary);
+  font-style: italic;
+  background: var(--color-accent-glow);
+}
+.vault-md-preview blockquote p {
+  margin: 0;
+}
+
+/* Lists */
+.vault-md-preview ul {
+  list-style: disc;
+  padding-left: 1.6em;
+  margin: 0.5em 0 0.8em;
+}
+.vault-md-preview ol {
+  list-style: decimal;
+  padding-left: 1.6em;
+  margin: 0.5em 0 0.8em;
+}
+.vault-md-preview li {
+  margin: 0.25em 0;
+}
+.vault-md-preview li > ul,
+.vault-md-preview li > ol {
+  margin: 0.2em 0;
+}
+
+/* Horizontal rules */
+.vault-md-preview hr {
+  border: none;
+  border-top: 1px solid var(--color-accent);
+  margin: 1.2em 0;
+  opacity: 0.4;
+}
+
+/* Tables (remark-gfm) */
+.vault-md-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 0.8em 0;
+}
+.vault-md-preview th {
+  color: var(--color-accent);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-accent);
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-transform: none;
+}
+.vault-md-preview td {
+  border: 1px solid var(--color-border);
+  padding: 5px 10px;
+  color: var(--color-text-primary);
+}
+.vault-md-preview tr:nth-child(even) td {
+  background: var(--color-bg-secondary);
+}
+.vault-md-preview tr:hover td {
+  background: var(--color-accent-glow);
+}
+
+/* Strikethrough (remark-gfm) */
+.vault-md-preview del {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+/* Task list checkboxes (remark-gfm) */
+.vault-md-preview input[type="checkbox"] {
+  accent-color: var(--color-accent);
+  margin-right: 6px;
+}
+
+/* Images */
+.vault-md-preview img {
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+}
+
+/* ── Tailwind zinc overrides via CSS variables ───────────────────────────────── */
+.bg-zinc-950 { background-color: var(--color-zinc-950) !important; }
+.bg-zinc-900 { background-color: var(--color-zinc-900) !important; }
+.bg-zinc-800 { background-color: var(--color-zinc-800) !important; }
+.bg-zinc-700 { background-color: var(--color-zinc-700) !important; }
+.bg-zinc-600 { background-color: var(--color-zinc-600) !important; }
+.text-zinc-100 { color: var(--color-zinc-100) !important; }
+.text-zinc-200 { color: var(--color-zinc-200) !important; }
+.text-zinc-300 { color: var(--color-zinc-300) !important; }
+.text-zinc-400 { color: var(--color-zinc-400) !important; }
+.text-zinc-500 { color: var(--color-zinc-500) !important; }
+.text-zinc-600 { color: var(--color-zinc-600) !important; }
+.border-zinc-700 { border-color: var(--color-zinc-700) !important; }
+.border-zinc-800 { border-color: var(--color-zinc-800) !important; }
+.divide-zinc-800 > * + * { border-color: var(--color-zinc-800) !important; }
+
+/* ── GitHub-palette class overrides ─────────────────────────────────────────── */
+.bg-\[\#0D1117\]  { background-color: var(--color-bg-base) !important; }
+.bg-\[\#161B22\]  { background-color: var(--color-bg-overlay) !important; }
+.bg-\[\#1C2128\]  { background-color: var(--color-bg-raised) !important; }
+.bg-\[\#21262D\]  { background-color: var(--color-bg-subtle) !important; }
+
+.border-\[\#30363D\] { border-color: var(--color-border-default) !important; }
+.border-\[\#21262D\] { border-color: var(--color-border-muted) !important; }
+.border-\[\#484F58\] { border-color: var(--color-border-subtle) !important; }
+
+.text-\[\#E6EDF3\] { color: var(--color-text-primary) !important; }
+.text-\[\#8B949E\] { color: var(--color-text-secondary) !important; }
+.text-\[\#484F58\] { color: var(--color-text-muted) !important; }
+
+.text-\[\#FFB633\],
+.text-\[\#58A6FF\] { color: var(--color-accent-blue) !important; }
+.text-\[\#3FB950\] { color: var(--color-accent-green) !important; }
+.text-\[\#D29922\] { color: var(--color-accent-yellow) !important; }
+.text-\[\#F85149\] { color: var(--color-accent-red) !important; }
+.text-\[\#a78bfa\] { color: var(--color-accent-purple) !important; }
+
+/* Hover variants */
+.hover\:bg-\[\#21262D\]:hover { background-color: var(--color-bg-subtle) !important; }
+.hover\:bg-\[\#161B22\]:hover { background-color: var(--color-bg-overlay) !important; }
+.hover\:bg-\[\#1C2128\]:hover { background-color: var(--color-bg-raised) !important; }
+.hover\:text-\[\#E6EDF3\]:hover { color: var(--color-text-primary) !important; }
+.hover\:text-\[\#8B949E\]:hover { color: var(--color-text-secondary) !important; }
+.hover\:border-\[\#484F58\]:hover { border-color: var(--color-border-subtle) !important; }
+
+/* Focus variants */
+.focus\:border-\[\#58A6FF\]:focus,
+.focus\:border-\[\#FFB633\]:focus { border-color: var(--color-accent-blue) !important; }
+
+/* Bg and border accent overrides */
+.bg-\[\#FFB633\] { background-color: var(--color-accent-blue) !important; }
+.border-\[\#FFB633\] { border-color: var(--color-accent-blue) !important; }
+.border-\[\#FFB63340\] { border-color: color-mix(in srgb, var(--color-accent-blue) 25%, transparent) !important; }
+
+/* Status badge backgrounds */
+.bg-\[\#1F3A5F\]  { background-color: var(--color-status-running-bg) !important; }
+.bg-\[\#3D1A1A\]  { background-color: var(--color-status-error-bg) !important; }
+.bg-\[\#1A3A2A\]  { background-color: var(--color-status-done-bg) !important; }
+
+.border-\[\#388BFD\] { border-color: var(--color-status-running-border) !important; }
+.border-\[\#DA3633\] { border-color: var(--color-status-error-border) !important; }
+.border-\[\#2EA043\] { border-color: var(--color-status-done-border) !important; }
+
+/* Input/textarea placeholder */
+.placeholder-\[\#484F58\]::placeholder { color: var(--color-text-muted) !important; }
+
+/* ── Smooth transitions for theme switching ──────────────────────────────────── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+
+/* Exclude animations from the transition override */
+.animate-pulse, .animate-spin, .animate-bounce {
+  transition: none !important;
+}
+
+/* ── SVG text in charts ──────────────────────────────────────────────────────── */
+[data-theme="light"] svg text {
+  fill: var(--color-chart-text);
+}
+
+/* ── Select element theming ──────────────────────────────────────────────────── */
+select {
+  color-scheme: dark;
+}
+[data-theme="light"] select {
+  color-scheme: light;
+}
+
+/* ── Focus ring ──────────────────────────────────────────────────────────────── */
+.focus-visible\:ring-\[\#58A6FF\]:focus-visible,
+.focus-visible\:ring-\[\#FFB633\]:focus-visible {
+  --tw-ring-color: var(--color-accent-blue) !important;
+}
+
+/* ── Retro border-radius overrides — boxy terminal look ──────────────────────── */
+/* Override Tailwind rounded classes to enforce the boxy terminal aesthetic */
+.rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-full {
+  border-radius: 0 !important;
+}
+
+/* ── Retro font enforcement ───────────────────────────────────────────────────── */
+/* Ensure monospace font propagates to all text elements */
+*, input, textarea, select, button {
+  font-family: var(--font-mono);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PIXELATED / BITMAP AESTHETIC
+   Enforces crisp pixel rendering for images, icons, and decorative elements.
+   Disables sub-pixel antialiasing for a raw bitmap terminal feel.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Pixel-crisp rendering for all raster images ─────────────────────────────── */
+img {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* ── SVG icons — crisp vector rendering ──────────────────────────────────────── */
+svg {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  shape-rendering: crispEdges;
+}
+
+/* ── Canvas elements — pixel-perfect ─────────────────────────────────────────── */
+canvas {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* ── Utility class: .pixel-art ───────────────────────────────────────────────── */
+/* Apply to any element that should render with hard pixel edges */
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+  font-smooth: never;
+}
+
+/* ── Utility class: .pixel-border ────────────────────────────────────────────── */
+/* Simulates a chunky 2-px pixel-art border with amber accent */
+.pixel-border {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 0;
+  box-shadow:
+    4px 0   0 0 var(--color-bg-primary),
+    -4px 0  0 0 var(--color-bg-primary),
+    0  4px  0 0 var(--color-bg-primary),
+    0 -4px  0 0 var(--color-bg-primary),
+    4px  4px 0 0 var(--color-accent),
+    -4px 4px 0 0 var(--color-accent),
+    4px -4px 0 0 var(--color-accent),
+    -4px -4px 0 0 var(--color-accent);
+}
+
+/* ── Pixel-grid overlay (optional decorative class) ──────────────────────────── */
+/* Apply .pixel-grid to a container to add a subtle 4×4 pixel grid overlay */
+.pixel-grid {
+  position: relative;
+}
+.pixel-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 182, 51, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 182, 51, 0.03) 1px, transparent 1px);
+  background-size: 4px 4px;
+  z-index: 1;
+}
+
+/* ── Pixelated status dot animation ──────────────────────────────────────────── */
+/* Replaces smooth pulse with a hard 2-frame blink for bitmap feel */
+@keyframes pixel-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.pixel-pulse {
+  animation: pixel-blink 1s step-end infinite;
+}
+
+/* ── Disable antialiasing on icon-sized elements ─────────────────────────────── */
+/* Targets small inline images / icon wrappers */
+[class*="icon"],
+[class*="Icon"],
+[aria-hidden="true"] svg {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  shape-rendering: crispEdges;
+}

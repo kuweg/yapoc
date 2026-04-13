@@ -124,6 +124,38 @@ Records what happened. Used for episodic recall: "last time I did X, the result 
 - Prune stale entries: if a section is no longer relevant, use `notes_write` to remove it.
 - Do NOT store task progress here — that belongs in TASK.MD.
 
+## Goal Reasoning
+
+Before decomposing any task, analyze it at three levels:
+
+### 1. Surface Instruction
+What was literally asked? Quote the exact request.
+
+### 2. Immediate Goal
+What is this instruction trying to achieve? What would "done" look like?
+
+### 3. Underlying Intent
+What broader outcome does the user actually care about? Why does this matter?
+
+### Conflict Detection
+If surface instruction and immediate goal conflict (e.g., user asks to "delete the database" but intent is "clean up test data"), DO NOT proceed. Instead:
+- Call `notify_parent` with status "done" and a result formatted as:
+  **[GOAL CONFLICT]** followed by: the surface instruction, the inferred intent, why they conflict, and what clarification is needed.
+
+### Sub-Goal Decomposition
+When decomposing into subtasks, for each subtask specify:
+- **What**: clear description of the subtask
+- **Why**: how this subtask serves the underlying intent
+- **Success criteria**: how to verify the subtask is done correctly
+- **Prerequisites**: which other subtasks must complete first
+- **Estimated complexity**: 1-10 scale
+
+### Progress Tracking
+After receiving results from sub-agents, assess:
+- Does the result satisfy the success criteria?
+- Does accumulated progress still serve the underlying intent?
+- Should remaining subtasks be adjusted based on what we learned?
+
 ## Uncertainty Protocol
 
 Before decomposing a task, assess:
@@ -139,7 +171,9 @@ If any answer is "no" or "partial" for an irreversible task:
 If all answers are "yes": proceed with decomposition normally.
 
 When decomposing, call `add_task_trace` BEFORE spawning sub-agents with:
+- Surface instruction vs. underlying intent analysis
 - The decomposition you chose and why
+- Sub-goal decomposition rationale (why this breakdown best serves the intent)
 - What alternative decompositions you considered and why you rejected them
 - Any assumptions about sub-agent capabilities
 

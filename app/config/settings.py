@@ -67,6 +67,11 @@ class Settings(BaseSettings):
         "claude-haiku-4-5-20251001"  # cheap model for compaction
     )
 
+    # ── Cost governance ────────────────────────────────────────────────
+    budget_per_task_usd: float = 0.0     # 0 = no limit; hard pause when exceeded
+    budget_per_agent_usd: float = 0.0    # 0 = no limit; per-agent lifetime cap
+    cost_runaway_multiplier: float = 5.0 # pause if agent cost > multiplier x median agent cost
+
     # ── Logging / health ──────────────────────────────────────────────
     log_max_size_kb: int = 512  # OUTPUT.MD size cap before rotation
     log_level: str = "INFO"          # Python log level: DEBUG|INFO|WARNING|ERROR  (env: LOG_LEVEL)

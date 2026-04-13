@@ -1,6 +1,8 @@
+import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import psutil
 from fastapi import APIRouter, HTTPException
@@ -196,3 +198,94 @@ async def get_agent_metrics(name: str):
         return _build_agent_metrics(agent_dir)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── Cost dashboard ────────────────────────────────────────────────────────────
+
+class AgentUsage(BaseModel):
+    name: str
+    total_cost_usd: float
+    total_input_tokens: int
+    total_output_tokens: int
+    total_tool_calls: int
+    total_turns: int
+    by_model: dict[str, Any]
+    last_updated: str | None
+
+
+class CostDashboard(BaseModel):
+    total_cost_usd: float
+    agent_usage: list[AgentUsage]
+    budget_per_task_usd: float
+    budget_per_agent_usd: float
+
+
+def _read_usage_json(agent_dir: Path) -> dict[str, Any] | None:
+    """Read and return USAGE.json data, or None if missing/corrupt."""
+    usage_path = agent_dir / "USAGE.json"
+    if not usage_path.exists():
+        return None
+    try:
+        return json.loads(usage_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _build_agent_usage(name: str, data: dict[str, Any]) -> AgentUsage:
+    return AgentUsage(
+        name=name,
+        total_cost_usd=data.get("total_cost_usd", 0.0),
+        total_input_tokens=data.get("total_input_tokens", 0),
+        total_output_tokens=data.get("total_output_tokens", 0),
+        total_tool_calls=data.get("total_tool_calls", 0),
+        total_turns=data.get("total_turns", 0),
+        by_model=data.get("by_model", {}),
+        last_updated=data.get("last_updated"),
+    )
+
+
+@router.get("/usage", response_model=CostDashboard)
+async def get_cost_dashboard():
+    """Return cost and usage data for all agents."""
+    agent_usages: list[AgentUsage] = []
+    total_cost = 0.0
+
+    for agent_dir in sorted(AGENTS_DIR.iterdir()):
+        if not agent_dir.is_dir() or agent_dir.name.startswith("_"):
+            continue
+        if agent_dir.name in ("base", "shared"):
+            continue
+        data = _read_usage_json(agent_dir)
+        if data is None:
+            continue
+        usage = _build_agent_usage(agent_dir.name, data)
+        agent_usages.append(usage)
+        total_cost += usage.total_cost_usd
+
+    return CostDashboard(
+        total_cost_usd=round(total_cost, 6),
+        agent_usage=agent_usages,
+        budget_per_task_usd=settings.budget_per_task_usd,
+        budget_per_agent_usd=settings.budget_per_agent_usd,
+    )
+
+
+@router.get("/usage/{name}", response_model=AgentUsage)
+async def get_agent_usage(name: str):
+    """Return usage data for a specific agent."""
+    agent_dir = AGENTS_DIR / name
+    if not agent_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+    data = _read_usage_json(agent_dir)
+    if data is None:
+        return AgentUsage(
+            name=name,
+            total_cost_usd=0.0,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            total_tool_calls=0,
+            total_turns=0,
+            by_model={},
+            last_updated=None,
+        )
+    return _build_agent_usage(name, data)

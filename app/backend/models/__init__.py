@@ -37,6 +37,7 @@ class AgentStatus(BaseModel):
     tokens_per_second: float | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    is_infrastructure: bool = False
 
 
 class HealthLogEntry(BaseModel):

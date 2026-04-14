@@ -131,4 +131,43 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
         if tail:
             sections.append(f"## Recent Health Log\n{tail}")
 
+    # GOALS.MD — only for master agent
+    goals_context = await build_goals_context(agent_dir)
+    if goals_context:
+        sections.append(goals_context)
+
     return "\n\n---\n\n".join(sections)
+
+
+async def build_goals_context(agent_dir: Path) -> str:
+    """Read GOALS.MD and format active goals for injection into master's context.
+
+    Only returns content for agents that have a GOALS.MD file (typically master).
+    Capped at 2000 chars.
+    """
+    goals_path = agent_dir / "GOALS.MD"
+    if not goals_path.exists():
+        return ""
+
+    text = await _read_if_exists(goals_path)
+    if not text.strip() or text.strip() == "# GOALS\n\n## Active\n\n## Backlog\n\n## Done":
+        return ""
+
+    # Extract active goals section
+    active_match = re.search(
+        r"## Active\s*\n(.*?)(?=\n## |\Z)",
+        text,
+        re.DOTALL,
+    )
+    if not active_match:
+        return ""
+
+    active_text = active_match.group(1).strip()
+    if not active_text:
+        return ""
+
+    # Cap at 2000 chars
+    if len(active_text) > 2000:
+        active_text = active_text[:2000] + "\n... (goals truncated)"
+
+    return f"## Active Goals\n{active_text}"

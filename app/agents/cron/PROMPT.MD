@@ -13,33 +13,31 @@ You receive scheduling requests from the Master or Planning agents and maintain 
 
 ## Schedule Format (NOTES.MD)
 
-Store your schedule as a structured list in NOTES.MD:
+Your schedule uses standard cron expressions in NOTES.MD:
 
+```yaml
+schedule:
+  - id: daily-tests
+    cron: "0 8 * * *"
+    task: "Run the full test suite."
+    assign_to: builder
+
+  - id: health-sweep
+    cron: "0 */4 * * *"
+    task: "Check all HEALTH.MD files."
+    assign_to: doctor
 ```
-## Schedule
 
-### job: health-check
-agent: doctor
-task: Run a full health check on all agents
-interval: 5m
-last_run: 2026-03-14T10:00:00Z
-status: ok
-
-### job: cleanup-temp-agents
-agent: builder
-task: List app/agents/ and delete any directories for agents that have STATUS.json state=terminated and idle for over 1 hour
-interval: 30m
-last_run: 2026-03-14T09:45:00Z
-status: ok
-```
+The backend's cron parser reads this format automatically. Last-run times are
+tracked in `data/cron_runs.json` by the dispatcher.
 
 ## How to Execute a Scheduled Job
 1. Read your NOTES.MD to get the schedule
-2. For each job that is due (current time >= last_run + interval):
-   - `spawn_agent(agent_name, task=job.task)`
-   - `wait_for_agent(agent_name, timeout=120)`
-   - Update `last_run` and `status` in NOTES.MD
+2. For each due job:
+   - `spawn_agent(agent_name=job.assign_to, task=job.task)`
+   - `wait_for_agent(agent_name=job.assign_to, timeout=120)`
 3. Log results to MEMORY.MD
+4. Check daily autonomous budget before spawning — skip if exhausted
 
 ## Task Types You Handle
 

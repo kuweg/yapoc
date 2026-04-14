@@ -1,10 +1,13 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDashboardStore } from '../store/dashboardStore'
-import { getTickets } from '../api/ticketClient'
+import { useWsStore } from '../../store/wsStore'
+import { getTickets, deleteTicket, updateTicket } from '../api/ticketClient'
 import { KanbanBoard } from './kanban/KanbanBoard'
 import { TicketDetailPanel } from './detail/TicketDetailPanel'
 import { CreateTicketModal } from './modals/CreateTicketModal'
 import { FileTreePanel } from './files/FileTreePanel'
+import type { TicketStatus } from '../types'
+import { COLUMNS } from '../types'
 
 const POLL_INTERVAL = 8_000  // ms
 
@@ -15,9 +18,21 @@ export function DashboardView() {
     pendingAssignTicketId,
     isFilePanelOpen, toggleFilePanel,
     isLoading, setLoading, error, setError,
+    isMultiSelect, selectedIds, toggleMultiSelect, toggleSelectId, clearSelection, removeTickets, upsertTicket,
   } = useDashboardStore()
 
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [moveDropdownOpen, setMoveDropdownOpen] = useState(false)
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Re-fetch tickets when a task lifecycle event arrives via WebSocket
+  const lastCompletedTask = useWsStore((s) => s.lastCompletedTask)
+  const backgroundTasks = useWsStore((s) => s.backgroundTasks)
+  const wsEventCounter = backgroundTasks.length  // changes on any task event
+  useEffect(() => {
+    if (wsEventCounter > 0) loadTickets()
+  }, [wsEventCounter, lastCompletedTask])
 
   async function loadTickets() {
     try {
@@ -52,6 +67,39 @@ export function DashboardView() {
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [])
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return
+    setBulkLoading(true)
+    const ids = Array.from(selectedIds)
+    try {
+      await Promise.all(ids.map((id) => deleteTicket(id)))
+      removeTickets(ids)
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to delete tickets')
+    } finally {
+      setBulkLoading(false)
+      setMoveDropdownOpen(false)
+    }
+  }
+
+  async function handleBulkMove(status: TicketStatus) {
+    if (selectedIds.size === 0) return
+    setBulkLoading(true)
+    setMoveDropdownOpen(false)
+    const ids = Array.from(selectedIds)
+    try {
+      const results = await Promise.all(
+        ids.map((id) => updateTicket(id, { status }))
+      )
+      results.forEach((t) => upsertTicket(t))
+      clearSelection()
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to move tickets')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
 
   const udtsTotal = tickets.filter((t) => t.type === 'user').length
   const agentTotal = tickets.filter((t) => t.type === 'agent').length
@@ -97,6 +145,19 @@ export function DashboardView() {
             ↻
           </button>
 
+          {/* Multi-select toggle */}
+          <button
+            onClick={toggleMultiSelect}
+            className={[
+              'px-3 py-1 rounded text-xs font-medium border transition-colors',
+              isMultiSelect
+                ? 'bg-[#388BFD20] text-[#388BFD] border-[#388BFD40]'
+                : 'bg-[#21262D] text-[#8B949E] border-[#30363D] hover:text-[#E6EDF3]',
+            ].join(' ')}
+          >
+            {isMultiSelect ? '✕ Cancel' : 'Select'}
+          </button>
+
           {/* New ticket */}
           <button
             onClick={() => setCreateOpen(true)}
@@ -106,6 +167,53 @@ export function DashboardView() {
           </button>
         </div>
       </div>
+
+      {/* Bulk action bar */}
+      {isMultiSelect && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-[#161B22] border-b border-[#388BFD30] flex-shrink-0">
+          <span className="text-xs text-[#8B949E]">
+            <span className="text-[#388BFD] font-semibold">{selectedIds.size}</span> selected
+          </span>
+
+          {selectedIds.size > 0 && (
+            <>
+              {/* Move dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setMoveDropdownOpen((o) => !o)}
+                  disabled={bulkLoading}
+                  className="px-3 py-1 rounded text-xs font-medium border border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors disabled:opacity-40"
+                >
+                  Move to ▾
+                </button>
+                {moveDropdownOpen && (
+                  <div className="absolute top-full mt-1 left-0 z-50 rounded-md border border-[#30363D] bg-[#161B22] shadow-xl overflow-hidden min-w-[140px]">
+                    {COLUMNS.map((col) => (
+                      <button
+                        key={col.id}
+                        onClick={() => handleBulkMove(col.id)}
+                        className="w-full text-left px-3 py-2 text-xs text-[#E6EDF3] hover:bg-[#21262D] transition-colors flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: col.accent }} />
+                        {col.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Delete */}
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkLoading}
+                className="px-3 py-1 rounded text-xs font-medium border border-[#F8514940] bg-[#F8514915] text-[#F85149] hover:bg-[#F8514930] transition-colors disabled:opacity-40"
+              >
+                {bulkLoading ? 'Working…' : 'Delete'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Error banner */}
       {error && (
@@ -144,6 +252,9 @@ export function DashboardView() {
                 tickets={tickets}
                 selectedId={selectedTicket?.id ?? null}
                 onTicketClick={selectTicket}
+                isMultiSelect={isMultiSelect}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelectId}
               />
             )}
           </div>

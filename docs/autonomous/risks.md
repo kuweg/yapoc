@@ -215,11 +215,17 @@ There are per-task limits (`max_turns`, `task_timeout`) but:
 - No global rate limit across agents
 - No daily budget enforcement (designed in safety.md, not implemented)
 - No circuit breaker if the API returns 429s repeatedly
-- Cost tracking exists but is observational (logs cost, doesn't enforce limits)
+- ~~Cost tracking exists but is observational (logs cost, doesn't enforce limits)~~
 
-**Risk:** A goal-driven or cron-triggered loop that retries failed tasks
-could burn through API credits while the user is asleep. The cost tracking
-will accurately report how much money was spent after the fact.
+> **Updated (M9D):** Per-task and per-agent budget limits now enforced in
+> `run_stream_with_tools()`. `budget_per_task_usd` and `budget_per_agent_usd`
+> settings with hard stops. Runaway detection built in Doctor. Daily autonomous
+> budget still not implemented (Phase 4).
+
+**Risk:** ~~A goal-driven or cron-triggered loop that retries failed tasks
+could burn through API credits while the user is asleep.~~ Per-task limits
+mitigate the worst case. Daily autonomous budget (Phase 4) will close the
+remaining gap for cron/goal-driven work.
 
 ---
 
@@ -242,14 +248,14 @@ large to read in a single tool call.
 
 ## Low (cosmetic or long-term)
 
-### R11. No structured logging
+### R11. ~~No structured logging~~ Structured logging exists
 
-Agents use loguru for logging. The backend uses uvicorn's default logger.
-There is no unified log format, no log aggregation, no structured JSON
-logging for machine parsing.
+> **Updated (M9):** Agents use loguru with structured binds throughout BaseAgent:
+> `agent=`, `event=`, `turn=`, `model=`, `cost_usd=`. Consistent format across
+> all agent activity. Backend still uses uvicorn's default logger.
 
-**Risk:** Debugging production issues requires grep across multiple log
-files with inconsistent formats. Not a problem at personal scale.
+**Risk:** Largely mitigated. Agent-side logging is structured. Backend logging
+could be improved but is not a blocker.
 
 ---
 

@@ -7,9 +7,12 @@ interface Props {
   tickets: Ticket[]
   selectedId: string | null
   onTicketClick: (ticket: Ticket) => void
+  isMultiSelect?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
-export function KanbanColumn({ column, tickets, selectedId, onTicketClick }: Props) {
+export function KanbanColumn({ column, tickets, selectedId, onTicketClick, isMultiSelect, selectedIds, onToggleSelect }: Props) {
   return (
     <div className="flex flex-col min-w-[240px] w-[240px] flex-shrink-0">
       {/* Column header */}
@@ -44,6 +47,9 @@ export function KanbanColumn({ column, tickets, selectedId, onTicketClick }: Pro
                 index={index}
                 isSelected={ticket.id === selectedId}
                 onClick={onTicketClick}
+                isMultiSelect={isMultiSelect}
+                isChecked={selectedIds?.has(ticket.id)}
+                onToggleSelect={onToggleSelect}
               />
             ))}
             {provided.placeholder}

@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
+from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.backend.routers import agents_router, files_router, health_router, memory_graph_router, metrics_router, tasks_router, test_endpoint_router, tickets_router, vault_router
+from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, tasks_router, test_endpoint_router, tickets_router, vault_router, webhook_router
+from app.backend.websocket import websocket_endpoint
 from app.config import settings
 
 
@@ -123,33 +125,123 @@ async def _master_notification_watcher() -> None:
             pass  # never crash the server
 
 
-async def _cron_tick() -> None:
-    """Spawn the cron agent with a run-schedule task (called by APScheduler).
+async def _startup_resume() -> None:
+    """Resume interrupted work after server restart.
 
-    The cron agent is LLM-based, so it runs as a subprocess via SpawnAgentTool.
-    It reads its schedule from NOTES.MD and executes due jobs.
+    Reads master/RESUME.MD for incomplete tasks and master/GOALS.MD for
+    active goals. Creates task_queue entries so the dispatcher picks them up.
+    Called via loop.call_later(5, ...) to let agents stabilize first.
     """
-    from app.utils.tools.delegation import SpawnAgentTool, _read_status, _pid_alive
+    import uuid
+    from app.utils.db import create_queued_task, get_tasks_by_status
+    from app.utils.cost_governor import is_autonomous_budget_exhausted
+
+    resumed = 0
+
+    # 1. Check RESUME.MD for incomplete tasks
+    resume_path = settings.agents_dir / "master" / "RESUME.MD"
+    if resume_path.exists():
+        content = resume_path.read_text(encoding="utf-8").strip()
+        if content:
+            # Each non-empty, non-heading line that looks like a task gets queued
+            lines = [
+                line.strip()
+                for line in content.splitlines()
+                if line.strip()
+                and not line.strip().startswith("#")
+                and not line.strip().startswith("---")
+            ]
+            for line in lines:
+                # Strip markdown list markers
+                task_text = re.sub(r"^[-*]\s*(\[.\]\s*)?", "", line).strip()
+                if not task_text or len(task_text) < 5:
+                    continue
+                task_id = str(uuid.uuid4())
+                create_queued_task(
+                    id=task_id,
+                    prompt=f"[Resume] {task_text}",
+                    source="resume",
+                )
+                resumed += 1
+                logger.info(f"Resumed task from RESUME.MD: {task_text[:80]}")
+
+            # Clear RESUME.MD after consuming
+            resume_path.write_text("")
+
+    # 2. If no pending user tasks and budget allows, check goals
+    if resumed == 0:
+        pending = get_tasks_by_status("pending", limit=1)
+        if not pending and not is_autonomous_budget_exhausted():
+            goals_path = settings.agents_dir / "master" / "GOALS.MD"
+            if goals_path.exists():
+                goals_text = goals_path.read_text(encoding="utf-8")
+                active_match = re.search(
+                    r"## Active\s*\n(.*?)(?=\n## |\Z)", goals_text, re.DOTALL
+                )
+                if active_match:
+                    unchecked = re.findall(r"- \[ \] (.+)", active_match.group(1))
+                    if unchecked:
+                        top_goal = unchecked[0].strip()
+                        task_id = str(uuid.uuid4())
+                        create_queued_task(
+                            id=task_id,
+                            prompt=f"[Goal] {top_goal}",
+                            source="goal",
+                        )
+                        resumed += 1
+                        logger.info(f"Startup goal dispatch: '{top_goal[:80]}'")
+
+    if resumed:
+        logger.info(f"Startup resume: {resumed} task(s) queued")
+    else:
+        logger.info("Startup resume: nothing to resume")
+
+
+async def _cron_tick() -> None:
+    """Check cron schedule and create task_queue entries for due jobs.
+
+    Uses the cron_parser to read NOTES.MD, check which jobs are due,
+    and creates task_queue entries with source="cron" for the dispatcher.
+    Falls back to spawning the cron agent for complex jobs.
+    """
+    from app.utils.cron_parser import parse_schedule, get_due_jobs, load_last_runs, save_last_run
+    from app.utils.cost_governor import is_autonomous_budget_exhausted
+    from app.utils.db import create_queued_task
 
     try:
-        # Don't spawn cron if it has no schedule (stub/empty NOTES.MD)
+        if is_autonomous_budget_exhausted():
+            return
+
         cron_notes = settings.agents_dir / "cron" / "NOTES.MD"
-        if not cron_notes.exists() or not cron_notes.read_text(encoding="utf-8").strip():
-            return  # No schedule configured — skip to avoid spamming master with empty notifications
+        if not cron_notes.exists():
+            return
 
-        # Don't spawn if cron is already running
-        status = _read_status("cron")
-        if status and status.get("pid") and _pid_alive(status["pid"]):
-            if status.get("state") in ("running", "idle", "spawning"):
-                return  # Already active
+        notes_text = cron_notes.read_text(encoding="utf-8")
+        jobs = parse_schedule(notes_text)
+        if not jobs:
+            return
 
-        spawn = SpawnAgentTool()
-        await spawn.execute(
-            agent_name="cron",
-            task="run-schedule: Execute all due scheduled jobs from your NOTES.MD schedule.",
-        )
-    except Exception:
-        pass  # Cron agent logs its own errors
+        last_runs = load_last_runs()
+        due = get_due_jobs(jobs, last_runs)
+
+        for job in due:
+            import uuid
+            task_id = str(uuid.uuid4())
+            task_text = job.get("task", "")
+            assign_to = job.get("assign_to", "master")
+            job_id = job.get("id", "unknown")
+
+            create_queued_task(
+                id=task_id,
+                prompt=f"[Cron: {job_id}] {task_text}",
+                source="cron",
+                metadata=json.dumps({"cron_job_id": job_id, "assign_to": assign_to}),
+            )
+            save_last_run(job_id)
+            logger.info(f"Cron job '{job_id}' due — created task {task_id[:8]}…")
+
+    except Exception as exc:
+        logger.error(f"Cron tick error: {exc}")
 
 
 @asynccontextmanager
@@ -160,8 +252,19 @@ async def lifespan(app: FastAPI):
     _cleanup_stale_agent_statuses()
 
     # Initialize SQLite schema
-    from app.utils.db import init_schema
+    from app.utils.db import init_schema, get_tasks_by_status, update_queued_task
     init_schema()
+
+    # Recover stale tasks from previous server run
+    stale = get_tasks_by_status("running")
+    for task in stale:
+        tid = task["id"]
+        logger.info(f"Recovering stale task {tid[:8]}… (was running, resetting to pending)")
+        update_queued_task(tid, status="pending", started_at=None, assigned_agent=None)
+
+    # Load tool plugins from plugins/ directory
+    from app.utils.tools.plugin_loader import load_plugins
+    load_plugins()
 
     # Notification system — load persisted state and start background poller
     from app.backend.services.spawn_registry import registry
@@ -172,6 +275,14 @@ async def lifespan(app: FastAPI):
     poller = create_poller(settings.agents_dir)
     poller.start()
     asyncio.ensure_future(_master_notification_watcher())
+
+    # Start task dispatcher (background loop that executes queued tasks)
+    from app.backend.dispatcher import dispatcher_loop, request_shutdown
+    dispatcher_task = asyncio.create_task(dispatcher_loop())
+
+    # Schedule startup resume after a short delay (let agents stabilize)
+    loop = asyncio.get_event_loop()
+    loop.call_later(5, lambda: asyncio.ensure_future(_startup_resume()))
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -208,6 +319,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        request_shutdown()
+        dispatcher_task.cancel()
         scheduler.shutdown(wait=False)
         poller.stop()
 
@@ -221,6 +334,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.websocket("/ws")(websocket_endpoint)
 app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(agents_router)
@@ -230,3 +344,5 @@ app.include_router(files_router)
 app.include_router(memory_graph_router)
 app.include_router(vault_router)
 app.include_router(test_endpoint_router)
+app.include_router(webhook_router)
+app.include_router(costs_router)

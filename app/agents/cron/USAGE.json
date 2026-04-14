@@ -1,11 +1,11 @@
 {
-  "total_input_tokens": 148803,
-  "total_output_tokens": 94393,
-  "total_cache_creation_tokens": 103863,
-  "total_cache_read_tokens": 291295,
-  "total_tool_calls": 72,
-  "total_turns": 139,
-  "total_cost_usd": 0.319384,
+  "total_input_tokens": 148842,
+  "total_output_tokens": 96501,
+  "total_cache_creation_tokens": 120107,
+  "total_cache_read_tokens": 415921,
+  "total_tool_calls": 92,
+  "total_turns": 161,
+  "total_cost_usd": 0.330215,
   "by_model": {
     "claude-haiku-4-5-20251001": {
       "input_tokens": 85289,
@@ -69,7 +69,16 @@
       "cost_usd": 0.0,
       "turns": 1,
       "tool_calls": 0
+    },
+    "claude-3-haiku-20240307": {
+      "input_tokens": 39,
+      "output_tokens": 2108,
+      "cache_creation_tokens": 16244,
+      "cache_read_tokens": 124626,
+      "cost_usd": 0.01083,
+      "turns": 22,
+      "tool_calls": 20
     }
   },
-  "last_updated": "2026-04-13T10:25:04Z"
+  "last_updated": "2026-04-13T19:32:06Z"
 }

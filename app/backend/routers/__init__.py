@@ -7,5 +7,7 @@ from .tasks import router as tasks_router
 from .test_endpoint import router as test_endpoint_router
 from .tickets import router as tickets_router
 from .vault import router as vault_router
+from .costs import router as costs_router
+from .webhook import router as webhook_router
 
-__all__ = ["health_router", "tasks_router", "agents_router", "metrics_router", "tickets_router", "files_router", "memory_graph_router", "test_endpoint_router", "vault_router"]
+__all__ = ["health_router", "tasks_router", "agents_router", "metrics_router", "tickets_router", "files_router", "memory_graph_router", "test_endpoint_router", "vault_router", "webhook_router", "costs_router"]

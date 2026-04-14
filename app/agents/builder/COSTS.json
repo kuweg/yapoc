@@ -1,0 +1,522 @@
+[
+  {
+    "task_id": "builder:2026-04-14T17:22:15Z",
+    "description": "Write the following content to the file `app/projects/daily-digest.md`. Create the file (overwrite if exists). Here is the exact content to write:",
+    "agent_name": "builder",
+    "tokens_in": 2,
+    "tokens_out": 73,
+    "cost_usd": 0.03715875,
+    "timestamp": "2026-04-14T17:22:15Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:22:26Z",
+    "description": "Write the following content to the file `app/projects/daily-digest.md`. Create the file (overwrite if exists). Here is the exact content to write:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 1320,
+    "cost_usd": 0.02874135,
+    "timestamp": "2026-04-14T17:22:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:22:30Z",
+    "description": "Write the following content to the file `app/projects/daily-digest.md`. Create the file (overwrite if exists). Here is the exact content to write:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 61,
+    "cost_usd": 0.0088842,
+    "timestamp": "2026-04-14T17:22:30Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:22:39Z",
+    "description": "Write the following content to the file `app/projects/daily-digest.md`. Create the file (overwrite if exists). Here is the exact content to write:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 208,
+    "cost_usd": 0.0113736,
+    "timestamp": "2026-04-14T17:22:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:22:40Z",
+    "description": "Write the following content to the file `app/projects/daily-digest.md`. Create the file (overwrite if exists). Here is the exact content to write:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 35,
+    "cost_usd": 0.0051009,
+    "timestamp": "2026-04-14T17:22:40Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:03Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 2,
+    "tokens_out": 84,
+    "cost_usd": 0.04347375,
+    "timestamp": "2026-04-14T17:33:03Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:06Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 93,
+    "cost_usd": 0.0190371,
+    "timestamp": "2026-04-14T17:33:06Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:10Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 226,
+    "cost_usd": 0.0083433,
+    "timestamp": "2026-04-14T17:33:10Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:15Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 333,
+    "cost_usd": 0.0106356,
+    "timestamp": "2026-04-14T17:33:15Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:19Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 78,
+    "cost_usd": 0.0071301,
+    "timestamp": "2026-04-14T17:33:19Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:21Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 73,
+    "cost_usd": 0.00626445,
+    "timestamp": "2026-04-14T17:33:21Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:25Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 95,
+    "cost_usd": 0.0074082,
+    "timestamp": "2026-04-14T17:33:25Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:37Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 270,
+    "cost_usd": 0.01035345,
+    "timestamp": "2026-04-14T17:33:37Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:33:40Z",
+    "description": "In `app/frontend/src/components/ChatPanel.tsx`, update the Send button's Tailwind classes to use the amber/yellow accent color from the UI palette instead of blue.",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 167,
+    "cost_usd": 0.0085614,
+    "timestamp": "2026-04-14T17:33:40Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:27Z",
+    "description": "Test task: respond with exactly \"GOOGLE_MODEL_TEST_OK\" and nothing else. This is a connectivity test.",
+    "agent_name": "builder",
+    "tokens_in": 2,
+    "tokens_out": 11,
+    "cost_usd": 0.025662,
+    "timestamp": "2026-04-14T17:36:27Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:36Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 2,
+    "tokens_out": 224,
+    "cost_usd": 0.02902575,
+    "timestamp": "2026-04-14T17:36:36Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:39Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 211,
+    "cost_usd": 0.00712695,
+    "timestamp": "2026-04-14T17:36:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:40Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 36,
+    "cost_usd": 0.00461145,
+    "timestamp": "2026-04-14T17:36:40Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:43Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 214,
+    "cost_usd": 0.00793395,
+    "timestamp": "2026-04-14T17:36:43Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:45Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 53,
+    "cost_usd": 0.0050118,
+    "timestamp": "2026-04-14T17:36:45Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:47Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 93,
+    "cost_usd": 0.00509085,
+    "timestamp": "2026-04-14T17:36:47Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:49Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 81,
+    "cost_usd": 0.00532335,
+    "timestamp": "2026-04-14T17:36:49Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:51Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 104,
+    "cost_usd": 0.0073716,
+    "timestamp": "2026-04-14T17:36:51Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:54Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 116,
+    "cost_usd": 0.01451385,
+    "timestamp": "2026-04-14T17:36:54Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:36:58Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 244,
+    "cost_usd": 0.01226325,
+    "timestamp": "2026-04-14T17:36:58Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:04Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 118,
+    "cost_usd": 0.01173465,
+    "timestamp": "2026-04-14T17:37:04Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:12Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 542,
+    "cost_usd": 0.01367955,
+    "timestamp": "2026-04-14T17:37:12Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:16Z",
+    "description": "Use shell_exec to run this Python snippet and report the output:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 212,
+    "cost_usd": 0.0103581,
+    "timestamp": "2026-04-14T17:37:16Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:31Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 2,
+    "tokens_out": 121,
+    "cost_usd": 0.02803575,
+    "timestamp": "2026-04-14T17:37:31Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:36Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 162,
+    "cost_usd": 0.01885635,
+    "timestamp": "2026-04-14T17:37:36Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:41Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 241,
+    "cost_usd": 0.00839445,
+    "timestamp": "2026-04-14T17:37:41Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:44Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 237,
+    "cost_usd": 0.00874995,
+    "timestamp": "2026-04-14T17:37:44Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:49Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 288,
+    "cost_usd": 0.0103755,
+    "timestamp": "2026-04-14T17:37:49Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:37:54Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 263,
+    "cost_usd": 0.0094719,
+    "timestamp": "2026-04-14T17:37:54Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:38:04Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 457,
+    "cost_usd": 0.01240305,
+    "timestamp": "2026-04-14T17:38:04Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:38:09Z",
+    "description": "Test the Google adapter with gemini-2.5-flash model. Run this Python snippet and report the exact output or error:",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 205,
+    "cost_usd": 0.00942225,
+    "timestamp": "2026-04-14T17:38:09Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:40:44Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "builder",
+    "tokens_in": 2,
+    "tokens_out": 78,
+    "cost_usd": 0.02208075,
+    "timestamp": "2026-04-14T17:40:44Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:40:48Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 149,
+    "cost_usd": 0.00953655,
+    "timestamp": "2026-04-14T17:40:48Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:40:51Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 184,
+    "cost_usd": 0.0063699,
+    "timestamp": "2026-04-14T17:40:51Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:40:53Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 67,
+    "cost_usd": 0.00478275,
+    "timestamp": "2026-04-14T17:40:53Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:40:59Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 360,
+    "cost_usd": 0.0131499,
+    "timestamp": "2026-04-14T17:40:59Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:41:02Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "builder",
+    "tokens_in": 1,
+    "tokens_out": 105,
+    "cost_usd": 0.0064587,
+    "timestamp": "2026-04-14T17:41:02Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:45:45Z",
+    "description": "Create 5 temporary agent directories. For each agent (temp-agent-1 through temp-agent-5), create the following files:",
+    "agent_name": "builder",
+    "tokens_in": 6416,
+    "tokens_out": 856,
+    "cost_usd": 0.0246,
+    "timestamp": "2026-04-14T17:45:45Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:45:54Z",
+    "description": "Create 5 temporary agent directories. For each agent (temp-agent-1 through temp-agent-5), create the following files:",
+    "agent_name": "builder",
+    "tokens_in": 8227,
+    "tokens_out": 187,
+    "cost_usd": 0.0224375,
+    "timestamp": "2026-04-14T17:45:54Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:46:13Z",
+    "description": "Use shell_exec to create 5 temporary agent directories with all required files. Run this shell command:",
+    "agent_name": "builder",
+    "tokens_in": 6320,
+    "tokens_out": 195,
+    "cost_usd": 0.01775,
+    "timestamp": "2026-04-14T17:46:13Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:46:15Z",
+    "description": "Use shell_exec to create 5 temporary agent directories with all required files. Run this shell command:",
+    "agent_name": "builder",
+    "tokens_in": 6530,
+    "tokens_out": 113,
+    "cost_usd": 0.017455,
+    "timestamp": "2026-04-14T17:46:15Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:46:20Z",
+    "description": "Use shell_exec to create 5 temporary agent directories with all required files. Run this shell command:",
+    "agent_name": "builder",
+    "tokens_in": 6721,
+    "tokens_out": 370,
+    "cost_usd": 0.0205025,
+    "timestamp": "2026-04-14T17:46:20Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:46:22Z",
+    "description": "Use shell_exec to create 5 temporary agent directories with all required files. Run this shell command:",
+    "agent_name": "builder",
+    "tokens_in": 7107,
+    "tokens_out": 48,
+    "cost_usd": 0.0182475,
+    "timestamp": "2026-04-14T17:46:22Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:53:55Z",
+    "description": "Delete the following temporary agent directories and all their contents:",
+    "agent_name": "builder",
+    "tokens_in": 6156,
+    "tokens_out": 51,
+    "cost_usd": 0.0159,
+    "timestamp": "2026-04-14T17:53:55Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:53:56Z",
+    "description": "Delete the following temporary agent directories and all their contents:",
+    "agent_name": "builder",
+    "tokens_in": 6220,
+    "tokens_out": 18,
+    "cost_usd": 0.01573,
+    "timestamp": "2026-04-14T17:53:56Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:53:57Z",
+    "description": "Delete the following temporary agent directories and all their contents:",
+    "agent_name": "builder",
+    "tokens_in": 6284,
+    "tokens_out": 116,
+    "cost_usd": 0.01687,
+    "timestamp": "2026-04-14T17:53:57Z",
+    "model_used": "gpt-4o"
+  },
+  {
+    "task_id": "builder:2026-04-14T17:53:59Z",
+    "description": "Delete the following temporary agent directories and all their contents:",
+    "agent_name": "builder",
+    "tokens_in": 6416,
+    "tokens_out": 27,
+    "cost_usd": 0.01631,
+    "timestamp": "2026-04-14T17:53:59Z",
+    "model_used": "gpt-4o"
+  }
+]

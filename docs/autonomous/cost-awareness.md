@@ -43,12 +43,18 @@ What exists:
 - `cli/renderer.py` — cost display in CLI
 - `CostBar.tsx` — cost display in UI
 
-What does NOT exist:
-- Budget limits (tracking without enforcement)
-- Per-task cost limits
-- Runaway detection
-- Model routing based on task complexity
-- Cost-based decision making by agents
+What was added in M9D (April 2026):
+- ✅ `budget_per_task_usd` — per-task cost limit, enforced in `run_stream_with_tools()` (`app/agents/base/__init__.py`)
+- ✅ `budget_per_agent_usd` — per-agent cost limit, enforced per-turn in BaseAgent
+- ✅ Runaway detection — `_detect_runaway_agents()` in Doctor, `cost_runaway_multiplier` setting (default 5×)
+- ✅ Cost dashboard — `GET /metrics/usage`, `GET /metrics/usage/{name}` (`app/backend/routers/metrics.py`)
+
+What does NOT exist yet:
+- Daily autonomous budget (designed here, not built — Phase 4)
+- Loop detection (consecutive tool calls — Phase 4)
+- Cost injection into agent context ([COST] messages — Phase 4)
+- Model routing based on task complexity (low priority)
+- Cost-based decision making by agents (prompt-level)
 
 ---
 

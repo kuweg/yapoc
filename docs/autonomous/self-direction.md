@@ -133,6 +133,13 @@ schedule:
 Doctor detects problems and writes to HEALTH_SUMMARY.MD.
 That is observation, not action. Nothing happens as a result of the detection.
 
+> **Updated (M9D):** Doctor also runs `_detect_runaway_agents()` — reads
+> all agent USAGE.json files, computes median cost, flags agents exceeding
+> `cost_runaway_multiplier × median`. Notifications are built:
+> `NotificationQueue`, `NotificationPoller`, `SpawnRegistry`,
+> `_master_notification_watcher()`. These are connective tissue for
+> Doctor response actions (Phase 7).
+
 ### Target state
 
 Doctor closes the loop. When it detects a problem, it creates a task to fix it.

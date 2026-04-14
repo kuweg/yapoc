@@ -2,6 +2,7 @@
 
 All writes go through helpers in this module. Tables:
 - tasks          — completed task history (survives TASK.MD overwrite)
+- task_queue     — async task lifecycle (pending → running → done/error/timeout)
 - memory_entries — text + embedding for semantic search
 - memory_fts     — FTS5 virtual table for keyword search
 
@@ -81,6 +82,25 @@ def init_schema() -> None:
             content_rowid='id',
             tokenize='porter unicode61'
         );
+
+        CREATE TABLE IF NOT EXISTS task_queue (
+            id              TEXT PRIMARY KEY,
+            prompt          TEXT NOT NULL,
+            source          TEXT DEFAULT 'ui',
+            session_id      TEXT,
+            status          TEXT DEFAULT 'pending',
+            assigned_agent  TEXT,
+            result          TEXT,
+            error           TEXT,
+            cost_usd        REAL DEFAULT 0.0,
+            created_at      TEXT NOT NULL,
+            started_at      TEXT,
+            completed_at    TEXT,
+            updated_at      TEXT NOT NULL,
+            metadata        TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_tq_status  ON task_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_tq_session ON task_queue(session_id);
 
         CREATE TABLE IF NOT EXISTS index_checkpoints (
             agent        TEXT NOT NULL,
@@ -305,6 +325,78 @@ def search_vector(
 
     results.sort(key=lambda x: x[1], reverse=True)
     return results[:limit]
+
+
+# ── Task queue helpers (async fire-and-forget lifecycle) ──────────────────
+
+
+def create_queued_task(
+    *,
+    id: str,
+    prompt: str,
+    source: str = "ui",
+    session_id: str | None = None,
+    metadata: str | None = None,
+) -> dict[str, Any]:
+    """Insert a new task into the queue. Returns the row as dict."""
+    db = get_db()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    db.execute(
+        """INSERT INTO task_queue
+           (id, prompt, source, session_id, status, created_at, updated_at, metadata)
+           VALUES (?, ?, ?, ?, 'pending', ?, ?, ?)""",
+        (id, prompt, source, session_id, now, now, metadata),
+    )
+    db.commit()
+    return get_queued_task(id)  # type: ignore[return-value]
+
+
+def get_queued_task(task_id: str) -> dict[str, Any] | None:
+    """Fetch a single task from the queue by id."""
+    db = get_db()
+    row = db.execute("SELECT * FROM task_queue WHERE id = ?", (task_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_queued_task(task_id: str, **fields: Any) -> dict[str, Any] | None:
+    """Update one or more fields on a queued task. Returns updated row."""
+    if not fields:
+        return get_queued_task(task_id)
+    db = get_db()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    fields["updated_at"] = now
+    set_clause = ", ".join(f"{k} = ?" for k in fields)
+    vals = list(fields.values()) + [task_id]
+    db.execute(f"UPDATE task_queue SET {set_clause} WHERE id = ?", vals)
+    db.commit()
+    return get_queued_task(task_id)
+
+
+def get_tasks_by_status(*statuses: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Fetch tasks filtered by one or more statuses, newest first."""
+    db = get_db()
+    placeholders = ", ".join("?" for _ in statuses)
+    rows = db.execute(
+        f"SELECT * FROM task_queue WHERE status IN ({placeholders}) ORDER BY created_at DESC LIMIT ?",
+        (*statuses, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def recent_tasks_queue(limit: int = 50, status: str | None = None) -> list[dict[str, Any]]:
+    """Return recent task_queue entries, newest first. Optional status filter."""
+    db = get_db()
+    if status:
+        rows = db.execute(
+            "SELECT * FROM task_queue WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+            (status, limit),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM task_queue ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def search_hybrid(

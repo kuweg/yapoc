@@ -42,9 +42,24 @@ sandbox:
     - app/config/settings.py
     - .env
     - pyproject.toml
+autonomous_policy:
+  shell_exec:
+    auto_approve: ["poetry run pytest*", "poetry run *", "ls *", "cat *", "wc *", "head *", "tail *", "grep *", "find *"]
+    deny: ["rm -rf *", "sudo *", "curl * | bash", "wget *", "git push*", "git reset --hard*"]
+    default: queue
+  file_write:
+    auto_approve: ["app/projects/*", "data/*"]
+    deny: ["app/config/*", "*.env", "app/agents/*/PROMPT.MD"]
+    default: queue
+  file_delete:
+    deny: ["*"]
+    default: deny
+  spawn_agent:
+    auto_approve: ["*"]
+    default: auto_approve
 runner:
-  max_turns: 25
-  task_timeout: 900
+  max_turns: 15
+  task_timeout: 300
   poll_interval: 30
   retry_attempts: 3
   context_memory_limit: 15

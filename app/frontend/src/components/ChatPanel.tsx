@@ -2,19 +2,14 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { streamTask } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
 import { useDashboardStore } from '../dashboard/store/dashboardStore'
+import { useWsStore } from '../store/wsStore'
 import { updateTicket } from '../dashboard/api/ticketClient'
-import { getMasterResult } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { CostBar } from './CostBar'
 import { ApprovalDialog } from './ApprovalDialog'
 import type { UsageEvent } from '../api/types'
-
-// How often to poll for background agent results (ms)
-const NOTIFICATION_POLL_MS = 3_000
-// Stop polling after this long with no result (ms)
-const NOTIFICATION_TIMEOUT_MS = 5 * 60 * 1_000
 
 type TextPart = { kind: 'text'; text: string }
 type ThinkingPart = { kind: 'thinking'; id: string; text: string; done: boolean }
@@ -47,16 +42,14 @@ export function ChatPanel() {
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null)
   const [awaitingNotification, setAwaitingNotification] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Stop background polling — called on new message or unmount
+  // WebSocket-based background notification listener
+  const lastCompletedTask = useWsStore((s) => s.lastCompletedTask)
+  const wsConnected = useWsStore((s) => s.connected)
+
   const stopPolling = useCallback(() => {
-    if (pollTimerRef.current !== null) {
-      clearInterval(pollTimerRef.current)
-      pollTimerRef.current = null
-    }
     setAwaitingNotification(false)
   }, [])
 
@@ -65,7 +58,21 @@ export function ChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history, streamingParts])
 
-  // Clean up poll timer on unmount
+  // WebSocket notification: when a background task completes, show result in chat
+  useEffect(() => {
+    if (!awaitingNotification || !lastCompletedTask) return
+    const result = lastCompletedTask.result?.trim()
+    if (result) {
+      appendMessage('assistant', result)
+    } else if (lastCompletedTask.error) {
+      appendMessage('assistant', `_Background task error: ${lastCompletedTask.error}_`)
+    }
+    setAwaitingNotification(false)
+    // Clear the lastCompletedTask so it doesn't re-trigger
+    useWsStore.getState().lastCompletedTask = null
+  }, [lastCompletedTask, awaitingNotification, appendMessage])
+
+  // Clean up on unmount
   useEffect(() => () => stopPolling(), [stopPolling])
 
   // Auto-send when the dashboard assigns a task to master and switches to chat
@@ -170,31 +177,9 @@ export function ChatPanel() {
       )
       if (assembledText) appendMessage('assistant', assembledText)
 
-      // If sub-agents were spawned, poll for master's background notification result
+      // If sub-agents were spawned, listen for background results via WebSocket
       if (hadSpawnAgent) {
-        // Snapshot current result so we can detect a change
-        let baseline = ''
-        try {
-          const { content } = await getMasterResult()
-          baseline = content ?? ''
-        } catch { /* result file may not exist yet */ }
-
         setAwaitingNotification(true)
-        const deadline = Date.now() + NOTIFICATION_TIMEOUT_MS
-
-        pollTimerRef.current = setInterval(async () => {
-          try {
-            if (Date.now() > deadline) {
-              stopPolling()
-              return
-            }
-            const { content } = await getMasterResult()
-            if (content && content.trim() !== baseline.trim()) {
-              appendMessage('assistant', content.trim())
-              stopPolling()
-            }
-          } catch { /* backend may not be ready yet */ }
-        }, NOTIFICATION_POLL_MS)
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -291,7 +276,10 @@ export function ChatPanel() {
         {awaitingNotification && (
           <div className="flex items-center gap-2 text-zinc-500 text-xs pl-1 py-1">
             <span className="animate-spin inline-block">⟳</span>
-            <span>Agents working in background — waiting for result…</span>
+            <span>
+              Agents working in background
+              {wsConnected ? ' — listening for results via WebSocket' : ' — connecting…'}
+            </span>
             <button
               onClick={stopPolling}
               className="ml-auto text-zinc-600 hover:text-zinc-400 text-xs"
@@ -328,7 +316,7 @@ export function ChatPanel() {
             <button
               onClick={() => sendMessage()}
               disabled={!input.trim()}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+              className="px-4 py-2 rounded-lg bg-[#FFB633] text-[#0a0a0a] text-sm font-semibold hover:bg-[#ffc84d] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
             >
               Send ↵
             </button>

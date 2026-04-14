@@ -1,0 +1,1 @@
+{"type": "tool_call", "agent": "master", "timestamp": "2026-04-14T16:34:28.612742Z", "name": "add_task_trace", "input": {"note": "Doctor flagged systemic \"Connection refused 127.0.0.1:8000\" across builder/keeper/planning. Investigating root cause \u2014 checking server health, agent configs, and recent changes."}}

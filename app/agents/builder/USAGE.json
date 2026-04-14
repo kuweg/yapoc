@@ -1,0 +1,30 @@
+{
+  "total_input_tokens": 66648,
+  "total_output_tokens": 77672,
+  "total_cache_creation_tokens": 509450,
+  "total_cache_read_tokens": 5114316,
+  "total_tool_calls": 312,
+  "total_turns": 236,
+  "total_cost_usd": 4.7659,
+  "by_model": {
+    "claude-sonnet-4-6": {
+      "input_tokens": 251,
+      "output_tokens": 75691,
+      "cache_creation_tokens": 509450,
+      "cache_read_tokens": 5114316,
+      "cost_usd": 4.580097,
+      "turns": 226,
+      "tool_calls": 283
+    },
+    "gpt-4o": {
+      "input_tokens": 66397,
+      "output_tokens": 1981,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.185802,
+      "turns": 10,
+      "tool_calls": 29
+    }
+  },
+  "last_updated": "2026-04-14T17:53:59Z"
+}

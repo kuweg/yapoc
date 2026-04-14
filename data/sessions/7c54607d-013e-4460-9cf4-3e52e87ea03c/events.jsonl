@@ -1,0 +1,6 @@
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:49:24.468702Z", "text": "**"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:49:24.877063Z", "text": "No action required.** This is the known CLI-mode false positive \u2014 already documented in LEARNINGS.MD.\n\nThe \"Connection refused 127.0.0.1:8000\" error is"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:49:25.295965Z", "text": " expected when running in CLI mode. Agents call `notify_parent` (or `add_task_trace`) which hits the"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:49:25.696651Z", "text": " backend HTTP API, but no backend server is listening in CLI mode. Agents still complete their tasks successfully \u2014 this is not a real failure"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:49:26.018521Z", "text": ".\n\n**Rule applied:** `Connection refused 127.0.0.1:8000 is expected in CLI mode`"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:49:26.317568Z", "text": " (confidence: high)"}

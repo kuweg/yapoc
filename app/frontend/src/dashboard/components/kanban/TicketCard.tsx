@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react'
 import { Draggable } from '@hello-pangea/dnd'
 import type { Ticket } from '../../types'
 
@@ -6,6 +7,9 @@ interface Props {
   index: number
   isSelected: boolean
   onClick: (ticket: Ticket) => void
+  isMultiSelect?: boolean
+  isChecked?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
@@ -15,36 +19,53 @@ const STATUS_BADGE: Record<string, { label: string; color: string }> = {
   error:       { label: 'Error',       color: '#F85149' },
 }
 
-export function TicketCard({ ticket, index, isSelected, onClick }: Props) {
+export function TicketCard({ ticket, index, isSelected, onClick, isMultiSelect, isChecked, onToggleSelect }: Props) {
   const isAgent = ticket.type === 'agent'
   const borderColor = isAgent ? '#FFB633' : '#9E68FF'
   const badge = STATUS_BADGE[ticket.status]
+
+  function handleClick(_e: MouseEvent) {
+    if (isMultiSelect) {
+      onToggleSelect?.(ticket.id)
+    } else {
+      onClick(ticket)
+    }
+  }
 
   return (
     <Draggable
       draggableId={ticket.id}
       index={index}
-      isDragDisabled={isAgent}
+      isDragDisabled={isAgent || isMultiSelect}
     >
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onClick={() => onClick(ticket)}
+          onClick={handleClick}
           className={[
             'rounded-md border border-[#30363D] p-3 cursor-pointer select-none',
             'transition-colors duration-100',
             snapshot.isDragging ? 'opacity-80 shadow-xl' : '',
-            isSelected ? 'bg-[#1C2128] border-[#484F58]' : 'bg-[#161B22] hover:bg-[#1C2128]',
+            isChecked ? 'bg-[#1C2128] border-[#388BFD60]' : isSelected ? 'bg-[#1C2128] border-[#484F58]' : 'bg-[#161B22] hover:bg-[#1C2128]',
           ].join(' ')}
           style={{
-            borderLeft: `4px solid ${borderColor}`,
+            borderLeft: `4px solid ${isChecked ? '#388BFD' : borderColor}`,
             ...provided.draggableProps.style,
           }}
         >
           {/* Header row */}
           <div className="flex items-start justify-between gap-2 mb-1.5">
+            {isMultiSelect && (
+              <input
+                type="checkbox"
+                checked={isChecked ?? false}
+                onChange={() => onToggleSelect?.(ticket.id)}
+                onClick={(e) => e.stopPropagation()}
+                className="mt-0.5 flex-shrink-0 accent-[#388BFD] cursor-pointer"
+              />
+            )}
             <span className="text-[#E6EDF3] text-xs font-medium leading-tight line-clamp-2 flex-1">
               {ticket.title}
             </span>

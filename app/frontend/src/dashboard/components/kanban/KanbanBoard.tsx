@@ -9,9 +9,12 @@ interface Props {
   tickets: Ticket[]
   selectedId: string | null
   onTicketClick: (ticket: Ticket) => void
+  isMultiSelect?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
-export function KanbanBoard({ tickets, selectedId, onTicketClick }: Props) {
+export function KanbanBoard({ tickets, selectedId, onTicketClick, isMultiSelect, selectedIds, onToggleSelect }: Props) {
   const { upsertTicket, setPendingAssign } = useDashboardStore()
 
   async function onDragEnd(result: DropResult) {
@@ -58,6 +61,9 @@ export function KanbanBoard({ tickets, selectedId, onTicketClick }: Props) {
             tickets={byColumn(col.id)}
             selectedId={selectedId}
             onTicketClick={onTicketClick}
+            isMultiSelect={isMultiSelect}
+            selectedIds={selectedIds}
+            onToggleSelect={onToggleSelect}
           />
         ))}
       </div>

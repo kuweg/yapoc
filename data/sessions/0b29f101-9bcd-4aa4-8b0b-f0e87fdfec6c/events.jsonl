@@ -1,0 +1,6 @@
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:44:23.351750Z", "text": "**"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:44:23.817687Z", "text": "No action required.** This is the known CLI-mode false positive \u2014 already documented in LEARNINGS.MD.\n\nThe"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:44:24.227364Z", "text": " \"Connection refused 127.0.0.1:8000\" error is expected when running in CLI mode. The"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:44:24.534291Z", "text": " `AddTaskTraceTool` makes HTTP calls to the backend API on every `add_task_trace` invocation; when no backend server is listening, all agents log this error."}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:44:24.897940Z", "text": " It is **non-fatal** \u2014 agents complete their tasks successfully regardless.\n\n**Rule"}
+{"type": "message_delta", "agent": "master", "timestamp": "2026-04-14T16:44:25.353900Z", "text": " applied:** `Connection refused 127.0.0.1:8000 is expected in CLI mode` (confidence: high)"}

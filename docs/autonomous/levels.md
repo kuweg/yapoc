@@ -50,7 +50,7 @@ Come back in 10 minutes. The result is there.
 | Async task endpoint (returns immediately) | Not built | [execution-engine.md](execution-engine.md) |
 | Task Store persistence (SQLite) | Built | [architecture.md](architecture.md) |
 | Task Dispatcher (background loop) | Not built | [execution-engine.md](execution-engine.md) |
-| Notification listener (closes the loop) | Not built | [delivery.md](delivery.md) |
+| Notification listener (closes the loop) | **Built** — `NotificationQueue`, `NotificationPoller`, `_master_notification_watcher()` | [delivery.md](delivery.md) |
 | WebSocket push (result delivery) | Not built | [delivery.md](delivery.md) |
 | UI catch-up on reconnect | Not built | [delivery.md](delivery.md) |
 
@@ -117,10 +117,10 @@ fix, and continued working on scheduled tasks. API spend is within budget.
 | Approval queue (for tools that can't auto-approve) | Not built | [safety.md](safety.md) |
 | Doctor as actor (detect AND respond) | Detection built, response not | [self-direction.md](self-direction.md) |
 | Doctor autonomy envelope | Not built | [safety.md](safety.md) |
-| Cron schedule (real, not stub) | Stub exists | [self-direction.md](self-direction.md) |
-| Cost-aware self-governance | Tracking built, limits not | [cost-awareness.md](cost-awareness.md) |
-| Daily budget enforcement | Not built | [cost-awareness.md](cost-awareness.md) |
-| Runaway detection | Not built | [cost-awareness.md](cost-awareness.md) |
+| Cron schedule (real, not stub) | **APScheduler + subprocess (M7)** — needs real schedule parsing | [self-direction.md](self-direction.md) |
+| Cost-aware self-governance | **Per-task + per-agent limits built (M9D)** | [cost-awareness.md](cost-awareness.md) |
+| Daily budget enforcement | Not built (Phase 4) | [cost-awareness.md](cost-awareness.md) |
+| Runaway detection | **Built (M9D)** — Doctor `_detect_runaway_agents()` | [cost-awareness.md](cost-awareness.md) |
 | Programmatic behavioral guardrails | Partial (sandbox only) | [safety.md](safety.md), [risks.md](risks.md) R4 |
 | Active resume on startup | Not built | [self-direction.md](self-direction.md) |
 
@@ -259,9 +259,9 @@ Do not build Level 4 features until Level 3 passes the 48-hour test.
 
 ```
 Level 0  ████████████████████  fully operational (request-response works)
-Level 1  ██░░░░░░░░░░░░░░░░░░  architecture designed, API boundary blocks it
-Level 2  ██░░░░░░░░░░░░░░░░░░  sessions built, streaming not built
-Level 3  █░░░░░░░░░░░░░░░░░░░  detection built, response/governance not built
+Level 1  ████░░░░░░░░░░░░░░░░  notifications built, SSE streaming built — async API + dispatcher missing
+Level 2  ███░░░░░░░░░░░░░░░░░  sessions built, SSE streaming built — WebSocket streaming + recovery missing
+Level 3  ███░░░░░░░░░░░░░░░░░  cost enforcement + runaway detection built — approval policy + daily budget + doctor actions missing
 Level 4  ░░░░░░░░░░░░░░░░░░░░  goals designed, nothing active
 ```
 

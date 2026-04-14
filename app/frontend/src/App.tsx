@@ -7,8 +7,12 @@ import { DashboardView } from './dashboard'
 import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
+import { useWebSocket } from './hooks/useWebSocket'
+import { BackgroundApprovalBanner } from './components/BackgroundApprovalBanner'
 
 export default function App() {
+  // Establish persistent WebSocket connection for real-time events
+  useWebSocket()
   const { sessions, activeId, newSession, loadSession } = useSessionStore()
   const tab = useAppStore((s) => s.activeTab)
   const setTab = useAppStore((s) => s.setActiveTab)
@@ -141,6 +145,8 @@ export default function App() {
         <VaultTab />
       </div>
 
+      {/* Background approval banner — fixed position, always visible */}
+      <BackgroundApprovalBanner />
     </div>
   )
 }

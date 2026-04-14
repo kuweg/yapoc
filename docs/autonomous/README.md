@@ -59,6 +59,12 @@ Level 0 — Request-response  system waits for a human to drive every step
 **YAPOC target: Level 3 solid, Level 4 aspirational.**
 Current state: Level 0 at the API boundary, extensive Level 3 infrastructure underneath.
 
+> **M1–M9 complete (April 2026):** 39 tools, 7 agents, SQLite + FTS + embeddings,
+> SSE streaming (`POST /task/stream`), notifications, peer delegation, cost tracking
+> with budget enforcement (`budget_per_task_usd`, `budget_per_agent_usd`), runaway
+> detection, cost dashboard (`GET /metrics/usage`), capability modules, structured
+> logging. See `docs/agentic-features-roadmap.md` for details.
+
 Full definitions, requirements, and observable tests: [levels.md](levels.md)
 
 ---

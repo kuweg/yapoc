@@ -20,8 +20,8 @@ tools:
   - learnings_append
   - shared_knowledge_append
 runner:
-  max_turns: 30
-  task_timeout: 600
+  max_turns: 15
+  task_timeout: 300
   poll_interval: 30
   retry_attempts: 3
   context_memory_limit: 20

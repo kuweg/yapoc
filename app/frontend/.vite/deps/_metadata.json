@@ -1,8 +1,91 @@
 {
-  "hash": "2b4dad55",
+  "hash": "af1b1c49",
   "configHash": "87620737",
-  "lockfileHash": "e3b0c442",
-  "browserHash": "81ad7e9c",
-  "optimized": {},
-  "chunks": {}
+  "lockfileHash": "ae0ae81f",
+  "browserHash": "39b639bf",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/.pnpm/react@19.2.5/node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "09d45cd7",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/.pnpm/react@19.2.5/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "83beb941",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/.pnpm/react-dom@19.2.5_react@19.2.5/node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "b44a6af0",
+      "needsInterop": true
+    },
+    "zustand": {
+      "src": "../../node_modules/.pnpm/zustand@5.0.12_@types+react@19.2.14_react@19.2.5_use-sync-external-store@1.6.0_react@19.2.5_/node_modules/zustand/esm/index.mjs",
+      "file": "zustand.js",
+      "fileHash": "c3c43b55",
+      "needsInterop": false
+    },
+    "zustand/middleware": {
+      "src": "../../node_modules/.pnpm/zustand@5.0.12_@types+react@19.2.14_react@19.2.5_use-sync-external-store@1.6.0_react@19.2.5_/node_modules/zustand/esm/middleware.mjs",
+      "file": "zustand_middleware.js",
+      "fileHash": "7cc4b917",
+      "needsInterop": false
+    },
+    "react-markdown": {
+      "src": "../../node_modules/.pnpm/react-markdown@9.1.0_@types+react@19.2.14_react@19.2.5/node_modules/react-markdown/index.js",
+      "file": "react-markdown.js",
+      "fileHash": "9139ebf7",
+      "needsInterop": false
+    },
+    "remark-gfm": {
+      "src": "../../node_modules/.pnpm/remark-gfm@4.0.1/node_modules/remark-gfm/index.js",
+      "file": "remark-gfm.js",
+      "fileHash": "26057b19",
+      "needsInterop": false
+    },
+    "highlight.js": {
+      "src": "../../node_modules/.pnpm/highlight.js@11.11.1/node_modules/highlight.js/es/index.js",
+      "file": "highlight__js.js",
+      "fileHash": "4e105ab3",
+      "needsInterop": false
+    },
+    "@hello-pangea/dnd": {
+      "src": "../../node_modules/.pnpm/@hello-pangea+dnd@18.0.1_@types+react@19.2.14_react-dom@19.2.5_react@19.2.5__react@19.2.5/node_modules/@hello-pangea/dnd/dist/dnd.esm.js",
+      "file": "@hello-pangea_dnd.js",
+      "fileHash": "7c122067",
+      "needsInterop": false
+    },
+    "framer-motion": {
+      "src": "../../node_modules/.pnpm/framer-motion@12.38.0_react-dom@19.2.5_react@19.2.5__react@19.2.5/node_modules/framer-motion/dist/es/index.mjs",
+      "file": "framer-motion.js",
+      "fileHash": "89257fed",
+      "needsInterop": false
+    },
+    "@heroicons/react/24/solid": {
+      "src": "../../node_modules/.pnpm/@heroicons+react@2.2.0_react@19.2.5/node_modules/@heroicons/react/24/solid/esm/index.js",
+      "file": "@heroicons_react_24_solid.js",
+      "fileHash": "25f02bbf",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-EZOPOIOU": {
+      "file": "chunk-EZOPOIOU.js"
+    },
+    "chunk-WUJPQIKG": {
+      "file": "chunk-WUJPQIKG.js"
+    },
+    "chunk-YLNJZV64": {
+      "file": "chunk-YLNJZV64.js"
+    },
+    "chunk-UJ42ZYPU": {
+      "file": "chunk-UJ42ZYPU.js"
+    },
+    "chunk-2TUXWMP5": {
+      "file": "chunk-2TUXWMP5.js"
+    }
+  }
 }

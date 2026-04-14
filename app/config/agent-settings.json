@@ -5,7 +5,7 @@
   "agents": {
     "master": {
       "adapter": "anthropic",
-      "model": "claude-sonnet-4-5",
+      "model": "claude-sonnet-4-6",
       "temperature": 0.3,
       "max_tokens": 8096,
       "fallbacks": [
@@ -44,8 +44,8 @@
       ]
     },
     "builder": {
-      "adapter": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "adapter": "openai",
+      "model": "gpt-4o",
       "temperature": 0.2,
       "max_tokens": 8096,
       "fallbacks": [
@@ -65,7 +65,7 @@
     },
     "keeper": {
       "adapter": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
+      "model": "claude-3-haiku-20240307",
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
@@ -85,7 +85,7 @@
     },
     "cron": {
       "adapter": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
+      "model": "claude-3-haiku-20240307",
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
@@ -105,7 +105,7 @@
     },
     "doctor": {
       "adapter": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
+      "model": "claude-3-haiku-20240307",
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [

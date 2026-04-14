@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from app.utils.adapters.models import ALL_PRICING
+from app.utils.cost_tracker import record_cost as _record_cost
 
 log = logging.getLogger(__name__)
 
@@ -183,6 +184,24 @@ class UsageTracker:
             )
 
             self._write(data)
+
+            # Per-task cost tracking — additive, USAGE.json unchanged
+            try:
+                task_path = self._dir / "TASK.MD"
+                task_content = task_path.read_text(encoding="utf-8") if task_path.exists() else ""
+                _record_cost(
+                    agent_dir=self._dir,
+                    agent_name=self._dir.name,
+                    model=model,
+                    tokens_in=int(input_tokens or 0),
+                    tokens_out=int(output_tokens or 0),
+                    cache_creation_tokens=int(cache_creation_tokens or 0),
+                    cache_read_tokens=int(cache_read_tokens or 0),
+                    task_content=task_content,
+                )
+            except Exception as _cost_exc:
+                log.warning("usage_tracker: cost_tracker hook failed: %s", _cost_exc)
+
         except Exception as exc:  # never let tracking break the run loop
             log.warning("usage_tracker.record_turn failed: %s", exc)
 

@@ -1,0 +1,1182 @@
+[
+  {
+    "task_id": "master:2026-04-14T17:01:49Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 63,
+    "cost_usd": 0.03079035,
+    "timestamp": "2026-04-14T17:01:49Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:01:54Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 114,
+    "cost_usd": 0.0069453,
+    "timestamp": "2026-04-14T17:01:54Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:01:54Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 114,
+    "cost_usd": 0.0069453,
+    "timestamp": "2026-04-14T17:01:54Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:02:23Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Connection refused 127.0.0.1:8000 — server unreach\". Investigate root cause across affected ag",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 101,
+    "cost_usd": 0.03152535,
+    "timestamp": "2026-04-14T17:02:23Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:02:47Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 177,
+    "cost_usd": 0.03715035,
+    "timestamp": "2026-04-14T17:02:47Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:02:52Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 242,
+    "cost_usd": 0.0086457,
+    "timestamp": "2026-04-14T17:02:52Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:03:20Z",
+    "description": "perform simple task and give it's cost",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 136,
+    "cost_usd": 0.04991535,
+    "timestamp": "2026-04-14T17:03:20Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:03:26Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 63,
+    "cost_usd": 0.0307416,
+    "timestamp": "2026-04-14T17:03:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:03:28Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 80,
+    "cost_usd": 0.0315516,
+    "timestamp": "2026-04-14T17:03:28Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:03:32Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 89,
+    "cost_usd": 0.0059967,
+    "timestamp": "2026-04-14T17:03:32Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:03:37Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 243,
+    "cost_usd": 0.01303335,
+    "timestamp": "2026-04-14T17:03:37Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:03:37Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 243,
+    "cost_usd": 0.01303335,
+    "timestamp": "2026-04-14T17:03:37Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:04:05Z",
+    "description": "exit",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 9,
+    "cost_usd": 0.03113535,
+    "timestamp": "2026-04-14T17:04:05Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:04:05Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 9,
+    "cost_usd": 0.03113535,
+    "timestamp": "2026-04-14T17:04:05Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:04:26Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Connection refused 127.0.0.1:8000 — server unreach\". Investigate root cause across affected ag",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 137,
+    "cost_usd": 0.0317616,
+    "timestamp": "2026-04-14T17:04:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:04:53Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 177,
+    "cost_usd": 0.03681285,
+    "timestamp": "2026-04-14T17:04:53Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:04:57Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 189,
+    "cost_usd": 0.0078237,
+    "timestamp": "2026-04-14T17:04:57Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:36Z",
+    "description": "[Cron: daily-digest] Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 81,
+    "cost_usd": 0.0434475,
+    "timestamp": "2026-04-14T17:21:36Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:37Z",
+    "description": "[Cron: daily-digest] Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 116,
+    "cost_usd": 0.0439725,
+    "timestamp": "2026-04-14T17:21:37Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:38Z",
+    "description": "[Cron: daily-digest] Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 55,
+    "cost_usd": 0.0046011,
+    "timestamp": "2026-04-14T17:21:38Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:39Z",
+    "description": "[Cron: daily-digest] Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 396,
+    "cost_usd": 0.0481725,
+    "timestamp": "2026-04-14T17:21:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:41Z",
+    "description": "[Cron: daily-digest] Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 335,
+    "cost_usd": 0.0093036,
+    "timestamp": "2026-04-14T17:21:41Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:41Z",
+    "description": "[Cron: daily-digest] Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 335,
+    "cost_usd": 0.00885915,
+    "timestamp": "2026-04-14T17:21:41Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:21:56Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 83,
+    "cost_usd": 0.03529035,
+    "timestamp": "2026-04-14T17:21:56Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:01Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 268,
+    "cost_usd": 0.0081897,
+    "timestamp": "2026-04-14T17:22:01Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:12Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 1373,
+    "cost_usd": 0.1198506,
+    "timestamp": "2026-04-14T17:22:12Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:15Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.01750125,
+    "timestamp": "2026-04-14T17:22:15Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:16Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 1613,
+    "cost_usd": 0.12347235,
+    "timestamp": "2026-04-14T17:22:16Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:17Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.01840425,
+    "timestamp": "2026-04-14T17:22:17Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:44Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 120,
+    "cost_usd": 0.01381875,
+    "timestamp": "2026-04-14T17:22:44Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:45Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 118,
+    "cost_usd": 0.03150285,
+    "timestamp": "2026-04-14T17:22:45Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:47Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 119,
+    "cost_usd": 0.01379085,
+    "timestamp": "2026-04-14T17:22:47Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:50Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 100,
+    "cost_usd": 0.0056922,
+    "timestamp": "2026-04-14T17:22:50Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:50Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 221,
+    "cost_usd": 0.01568625,
+    "timestamp": "2026-04-14T17:22:50Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:51Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 201,
+    "cost_usd": 0.01536585,
+    "timestamp": "2026-04-14T17:22:51Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:22:59Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 104,
+    "cost_usd": 0.03070785,
+    "timestamp": "2026-04-14T17:22:59Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:23:01Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 47,
+    "cost_usd": 0.0047454,
+    "timestamp": "2026-04-14T17:23:01Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:30:45Z",
+    "description": "[Cron: health-check] Run a quick health check: read all agent HEALTH.MD files and report any errors from the last hour.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 56,
+    "cost_usd": 0.0425325,
+    "timestamp": "2026-04-14T17:30:45Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:30:48Z",
+    "description": "[Cron: health-check] Run a quick health check: read all agent HEALTH.MD files and report any errors from the last hour.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 335,
+    "cost_usd": 0.0341391,
+    "timestamp": "2026-04-14T17:30:48Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:31:01Z",
+    "description": "[Cron: health-check] Run a quick health check: read all agent HEALTH.MD files and report any errors from the last hour.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 531,
+    "cost_usd": 0.1171452,
+    "timestamp": "2026-04-14T17:31:01Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:31:07Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 190,
+    "cost_usd": 0.0346266,
+    "timestamp": "2026-04-14T17:31:07Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:31:11Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 241,
+    "cost_usd": 0.0085107,
+    "timestamp": "2026-04-14T17:31:11Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:32:43Z",
+    "description": "Make send button have the yelloish color from main UI palette",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 129,
+    "cost_usd": 0.0309516,
+    "timestamp": "2026-04-14T17:32:43Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:32:45Z",
+    "description": "Make send button have the yelloish color from main UI palette",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 72,
+    "cost_usd": 0.00540615,
+    "timestamp": "2026-04-14T17:32:45Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:32:51Z",
+    "description": "Make send button have the yelloish color from main UI palette",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 108,
+    "cost_usd": 0.0134445,
+    "timestamp": "2026-04-14T17:32:51Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:33:00Z",
+    "description": "Make send button have the yelloish color from main UI palette",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 461,
+    "cost_usd": 0.0525003,
+    "timestamp": "2026-04-14T17:33:00Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:33:03Z",
+    "description": "Make send button have the yelloish color from main UI palette",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.01038705,
+    "timestamp": "2026-04-14T17:33:03Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:34:09Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 112,
+    "cost_usd": 0.0312366,
+    "timestamp": "2026-04-14T17:34:09Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:34:12Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 86,
+    "cost_usd": 0.0054231,
+    "timestamp": "2026-04-14T17:34:12Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:36:14Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 127,
+    "cost_usd": 0.0316791,
+    "timestamp": "2026-04-14T17:36:14Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:36:20Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 153,
+    "cost_usd": 0.00702675,
+    "timestamp": "2026-04-14T17:36:20Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:36:26Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 170,
+    "cost_usd": 0.01298895,
+    "timestamp": "2026-04-14T17:36:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:36:28Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.00595185,
+    "timestamp": "2026-04-14T17:36:28Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:36:33Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 251,
+    "cost_usd": 0.008259,
+    "timestamp": "2026-04-14T17:36:33Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:36:35Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.0063447,
+    "timestamp": "2026-04-14T17:36:35Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:37:19Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 75,
+    "cost_usd": 0.00626865,
+    "timestamp": "2026-04-14T17:37:19Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:37:22Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 111,
+    "cost_usd": 0.0068835,
+    "timestamp": "2026-04-14T17:37:22Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:37:28Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 341,
+    "cost_usd": 0.0201474,
+    "timestamp": "2026-04-14T17:37:28Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:37:30Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.0077607,
+    "timestamp": "2026-04-14T17:37:30Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:38:12Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 57,
+    "cost_usd": 0.00729915,
+    "timestamp": "2026-04-14T17:38:12Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:38:14Z",
+    "description": "test that gooogle models are avalaible and working, if so, change the builder's model to somthing similar to sonnet",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 78,
+    "cost_usd": 0.0076371,
+    "timestamp": "2026-04-14T17:38:14Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:38:40Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 149,
+    "cost_usd": 0.0331866,
+    "timestamp": "2026-04-14T17:38:40Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:38:45Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 228,
+    "cost_usd": 0.0079422,
+    "timestamp": "2026-04-14T17:38:45Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:20Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 58,
+    "cost_usd": 0.0314091,
+    "timestamp": "2026-04-14T17:40:20Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:23Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 76,
+    "cost_usd": 0.0054267,
+    "timestamp": "2026-04-14T17:40:23Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:25Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 55,
+    "cost_usd": 0.00549795,
+    "timestamp": "2026-04-14T17:40:25Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:26Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 61,
+    "cost_usd": 0.00488055,
+    "timestamp": "2026-04-14T17:40:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:32Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 174,
+    "cost_usd": 0.0112218,
+    "timestamp": "2026-04-14T17:40:32Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:36Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 215,
+    "cost_usd": 0.00794565,
+    "timestamp": "2026-04-14T17:40:36Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:40:38Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.00607725,
+    "timestamp": "2026-04-14T17:40:38Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:41:16Z",
+    "description": "change builder model to similar from openai provider",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 184,
+    "cost_usd": 0.0078801,
+    "timestamp": "2026-04-14T17:41:16Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:41:39Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 131,
+    "cost_usd": 0.03251535,
+    "timestamp": "2026-04-14T17:41:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:41:41Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 53,
+    "cost_usd": 0.0051501,
+    "timestamp": "2026-04-14T17:41:41Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:45:22Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 84,
+    "cost_usd": 0.0323991,
+    "timestamp": "2026-04-14T17:45:22Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:45:27Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 473,
+    "cost_usd": 0.01103595,
+    "timestamp": "2026-04-14T17:45:27Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:45:32Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 318,
+    "cost_usd": 0.0111324,
+    "timestamp": "2026-04-14T17:45:32Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:45:34Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.00621495,
+    "timestamp": "2026-04-14T17:45:34Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:45:56Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 55,
+    "cost_usd": 0.0053115,
+    "timestamp": "2026-04-14T17:45:56Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:45:59Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 76,
+    "cost_usd": 0.00605025,
+    "timestamp": "2026-04-14T17:45:59Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:46:01Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 95,
+    "cost_usd": 0.00639015,
+    "timestamp": "2026-04-14T17:46:01Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:46:09Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 357,
+    "cost_usd": 0.01741455,
+    "timestamp": "2026-04-14T17:46:09Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:46:11Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.0072387,
+    "timestamp": "2026-04-14T17:46:11Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:46:25Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 55,
+    "cost_usd": 0.00611445,
+    "timestamp": "2026-04-14T17:46:25Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:46:31Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 568,
+    "cost_usd": 0.0138987,
+    "timestamp": "2026-04-14T17:46:31Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:46:38Z",
+    "description": "Create 5 temporary agents, ask them \"What am I\", collect and group their outputs. After work is done - kill them.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 143,
+    "cost_usd": 0.0101106,
+    "timestamp": "2026-04-14T17:46:38Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:47:39Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 278,
+    "cost_usd": 0.0357966,
+    "timestamp": "2026-04-14T17:47:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:47:43Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 298,
+    "cost_usd": 0.01198995,
+    "timestamp": "2026-04-14T17:47:43Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:47:47Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 315,
+    "cost_usd": 0.0102846,
+    "timestamp": "2026-04-14T17:47:47Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:47:54Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 415,
+    "cost_usd": 0.0129234,
+    "timestamp": "2026-04-14T17:47:54Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:48:02Z",
+    "description": "[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 318,
+    "cost_usd": 0.0114426,
+    "timestamp": "2026-04-14T17:48:02Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:17Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 261,
+    "cost_usd": 0.03847785,
+    "timestamp": "2026-04-14T17:50:17Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:21Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 306,
+    "cost_usd": 0.0119961,
+    "timestamp": "2026-04-14T17:50:21Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:26Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 301,
+    "cost_usd": 0.0103116,
+    "timestamp": "2026-04-14T17:50:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:32Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 272,
+    "cost_usd": 0.0109353,
+    "timestamp": "2026-04-14T17:50:32Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:37Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 227,
+    "cost_usd": 0.00895905,
+    "timestamp": "2026-04-14T17:50:37Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:43Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 573,
+    "cost_usd": 0.0158553,
+    "timestamp": "2026-04-14T17:50:43Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:50:51Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 126,
+    "cost_usd": 0.00967215,
+    "timestamp": "2026-04-14T17:50:51Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:51:16Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 287,
+    "cost_usd": 0.0152127,
+    "timestamp": "2026-04-14T17:51:16Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:51:21Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 289,
+    "cost_usd": 0.01136085,
+    "timestamp": "2026-04-14T17:51:21Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:51:39Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 1001,
+    "cost_usd": 0.0224976,
+    "timestamp": "2026-04-14T17:51:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:51:43Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 2,
+    "cost_usd": 0.00959295,
+    "timestamp": "2026-04-14T17:51:43Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:53:31Z",
+    "description": "delete agents",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 228,
+    "cost_usd": 0.05763285,
+    "timestamp": "2026-04-14T17:53:31Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:53:35Z",
+    "description": "delete agents",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 60,
+    "cost_usd": 0.0079956,
+    "timestamp": "2026-04-14T17:53:35Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:53:49Z",
+    "description": "delete their files",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 80,
+    "cost_usd": 0.03816285,
+    "timestamp": "2026-04-14T17:53:49Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:53:53Z",
+    "description": "delete their files",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 214,
+    "cost_usd": 0.0076056,
+    "timestamp": "2026-04-14T17:53:53Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:53:55Z",
+    "description": "delete their files",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 74,
+    "cost_usd": 0.0060624,
+    "timestamp": "2026-04-14T17:53:55Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:54:05Z",
+    "description": "delete their files",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 116,
+    "cost_usd": 0.00626745,
+    "timestamp": "2026-04-14T17:54:05Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:54:33Z",
+    "description": "what was the cost for that \"Who am I\" tasks?",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 68,
+    "cost_usd": 0.03871785,
+    "timestamp": "2026-04-14T17:54:33Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:54:35Z",
+    "description": "what was the cost for that \"Who am I\" tasks?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 62,
+    "cost_usd": 0.0054669,
+    "timestamp": "2026-04-14T17:54:35Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:54:39Z",
+    "description": "what was the cost for that \"Who am I\" tasks?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 160,
+    "cost_usd": 0.02559315,
+    "timestamp": "2026-04-14T17:54:39Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:54:43Z",
+    "description": "what was the cost for that \"Who am I\" tasks?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 121,
+    "cost_usd": 0.0623928,
+    "timestamp": "2026-04-14T17:54:43Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:54:55Z",
+    "description": "what was the cost for that \"Who am I\" tasks?",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 453,
+    "cost_usd": 0.043842,
+    "timestamp": "2026-04-14T17:54:55Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:57:16Z",
+    "description": "where rag used in this project",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 70,
+    "cost_usd": 0.0404466,
+    "timestamp": "2026-04-14T17:57:16Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:57:20Z",
+    "description": "where rag used in this project",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 72,
+    "cost_usd": 0.01601655,
+    "timestamp": "2026-04-14T17:57:20Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:57:24Z",
+    "description": "where rag used in this project",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 165,
+    "cost_usd": 0.01415355,
+    "timestamp": "2026-04-14T17:57:24Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:57:26Z",
+    "description": "where rag used in this project",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 59,
+    "cost_usd": 0.0225624,
+    "timestamp": "2026-04-14T17:57:26Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T17:57:42Z",
+    "description": "where rag used in this project",
+    "agent_name": "master",
+    "tokens_in": 1,
+    "tokens_out": 791,
+    "cost_usd": 0.035595,
+    "timestamp": "2026-04-14T17:57:42Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-04-14T18:00:12Z",
+    "description": "rm -rf kernel",
+    "agent_name": "master",
+    "tokens_in": 3,
+    "tokens_out": 192,
+    "cost_usd": 0.0453816,
+    "timestamp": "2026-04-14T18:00:12Z",
+    "model_used": "claude-sonnet-4-6"
+  }
+]

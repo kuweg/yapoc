@@ -305,6 +305,24 @@ class SpawnAgentTool(BaseTool):
         )
         agent_exit_watcher(proc, output_path, crash_path, agent_name, restart_count)
 
+        # Push-on-spawn: create a ticket immediately so the board reflects the new task
+        # without waiting for the next GET /api/tickets poll.
+        try:
+            from app.backend.services.ticket_service import create_ticket_for_agent
+            create_ticket_for_agent(
+                agent_name,
+                task,
+                assigned_at=now,
+                assigned_by=self._caller,
+                status="in_progress",
+            )
+        except Exception as _ticket_exc:
+            # Ticket creation failure must NEVER break agent spawning
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "SpawnAgentTool: ticket creation failed for %s: %s", agent_name, _ticket_exc
+            )
+
         # Poll STATUS.json for spawn confirmation
         deadline = time.monotonic() + settings.agent_spawn_timeout
         while time.monotonic() < deadline:

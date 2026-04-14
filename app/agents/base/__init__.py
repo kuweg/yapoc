@@ -3,6 +3,7 @@ import json
 import re
 import time as _time
 import traceback
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Awaitable
@@ -129,6 +130,44 @@ class BaseAgent:
         self._name = agent_dir.name
         self._last_config: AgentConfig | None = None
         self._usage = UsageTracker(agent_dir)
+        self._session_id: str | None = None  # set by dispatcher or caller
+        self._recent_tools: deque[str] = deque(maxlen=15)  # for loop detection
+        self._loop_reflected: bool = False  # set after loop reflection injected
+
+    # ── Session event emission ──────────────────────────────────────────────
+
+    async def _emit_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        """Write a structured event to the session event log (append-only JSONL).
+
+        Also pushes to WebSocket subscribers if available.
+        Events are used for real-time streaming in the Chat tab.
+        """
+        if not self._session_id:
+            return
+        event = {
+            "type": event_type,
+            "agent": self._name,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            **payload,
+        }
+        # Write to session event log
+        session_dir = settings.project_root / "data" / "sessions" / self._session_id
+        session_dir.mkdir(parents=True, exist_ok=True)
+        event_file = session_dir / "events.jsonl"
+        try:
+            async with aiofiles.open(event_file, "a", encoding="utf-8") as f:
+                await f.write(json.dumps(event, default=str) + "\n")
+        except Exception:
+            pass
+        # Push to WebSocket subscribers (non-blocking)
+        try:
+            from app.backend.websocket import ws_manager
+            await ws_manager.push_event("session_event", {
+                "session_id": self._session_id,
+                "event": event,
+            })
+        except Exception:
+            pass
 
     # ── File helpers ────────────────────────────────────────────────────────
 
@@ -340,6 +379,33 @@ class BaseAgent:
             )
         await self._write_file("TASK.MD", content)
 
+        # Push-on-status-change: update the ticket store immediately after writing TASK.MD.
+        # Map TASK.MD status -> ticket board status and call ticket_service.
+        # Errors here must NEVER crash the agent.
+        try:
+            from app.backend.services.ticket_service import (
+                TASK_STATUS_MAP,
+                update_ticket_status,
+            )
+            ticket_status = TASK_STATUS_MAP.get(status, "backlog")
+            # Extract assigned_at from frontmatter for stable ticket ID lookup
+            fm = self._parse_frontmatter(content)
+            assigned_at = fm.get("assigned_at", "")
+            update_ticket_status(
+                self._name,
+                ticket_status,
+                assigned_at=assigned_at,
+                result_text=result,
+                error_text=error,
+            )
+        except Exception as _ticket_exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "BaseAgent.set_task_status: ticket update failed for %s: %s",
+                self._name,
+                _ticket_exc,
+            )
+
     async def get_task_body(self) -> str:
         """Return the ``## Task`` section text from TASK.MD."""
         content = await self._read_file("TASK.MD")
@@ -500,6 +566,45 @@ class BaseAgent:
                     name=tc.name, result=result.content, is_error=True
                 )
 
+        # Autonomous approval policy (when no interactive gate is available)
+        if effective_tier == RiskTier.CONFIRM and approval_gate is None:
+            from app.utils.tools.approval import check_policy
+            config_text = await self._read_file("CONFIG.md")
+            decision = check_policy(self._name, tc.name, tc.input, config_text)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            if decision == "deny":
+                await self._append_file(
+                    "HEALTH.MD",
+                    f"[{timestamp}] [AUTONOMOUS] DENIED {tc.name}: {tc.input}\n",
+                )
+                result = ToolResult(
+                    tool_use_id=tc.id,
+                    content=f"Tool execution denied by autonomous policy. Try a different approach.",
+                    is_error=True,
+                )
+                return result, ToolDone(name=tc.name, result=result.content, is_error=True)
+            elif decision == "queue":
+                from app.backend.approval_queue import queue_approval
+                req_id = queue_approval(agent=self._name, tool=tc.name, tool_input=tc.input)
+                await self._append_file(
+                    "HEALTH.MD",
+                    f"[{timestamp}] [AUTONOMOUS] QUEUED {tc.name} (approval_id={req_id[:8]}): {tc.input}\n",
+                )
+                result = ToolResult(
+                    tool_use_id=tc.id,
+                    content=f"Tool execution queued for human approval (id: {req_id[:8]}). "
+                            f"The tool will not run until a human approves it. "
+                            f"Try an alternative approach that doesn't require this tool, "
+                            f"or wait for approval.",
+                    is_error=True,
+                )
+                return result, ToolDone(name=tc.name, result=result.content, is_error=True)
+            # decision == "auto_approve" → fall through to execute
+            await self._append_file(
+                "HEALTH.MD",
+                f"[{timestamp}] [AUTONOMOUS] AUTO_APPROVE {tc.name}: {tc.input}\n",
+            )
+
         # Transient errors get one automatic retry before surfacing to the LLM.
         # Note: FileNotFoundError, PermissionError, IsADirectoryError, NotADirectoryError
         # all inherit from OSError but are permanent — exclude them explicitly.
@@ -654,7 +759,7 @@ class BaseAgent:
                     messages.append({"role": "user", "content": task})
 
                 full_text_parts: list[str] = []
-                max_turns = settings.max_turns
+                max_turns = _runner.get("max_turns", settings.max_turns)
                 threshold_tokens = int(
                     adapter.context_window_size() * settings.context_compact_threshold
                 )
@@ -709,9 +814,11 @@ class BaseAgent:
                     ):
                         if isinstance(event, ThinkingDelta):
                             yield event
+                            await self._emit_event("thinking_delta", {"text": event.text})
                         elif isinstance(event, TextDelta):
                             full_text_parts.append(event.text)
                             yield event
+                            await self._emit_event("message_delta", {"text": event.text})
                         elif isinstance(event, ToolStart):
                             _tool_start_times[event.name] = _time.monotonic()
                             _input_repr = repr(event.input)[:200]
@@ -720,6 +827,7 @@ class BaseAgent:
                                 model=config.model, tool=event.name, tool_input=_input_repr,
                             ).info("Tool {} | input={}", event.name, _input_repr)
                             yield event
+                            await self._emit_event("tool_call", {"name": event.name, "input": event.input})
                         elif isinstance(event, UsageStats):
                             # Persist this turn's usage to USAGE.json so we
                             # can attribute spend to this agent even when
@@ -828,6 +936,11 @@ class BaseAgent:
                         # a tool-use round-trip.
                         self._usage.record_tool_call(config.model)
                         yield tool_done
+                        await self._emit_event("tool_result", {
+                            "name": tool_done.name,
+                            "result": tool_done.result[:2000] if tool_done.result else "",
+                            "is_error": tool_done.is_error,
+                        })
                         _elapsed = _time.monotonic() - _tool_start_times.pop(tool_done.name, _time.monotonic())
                         _lvl = "WARNING" if tool_done.is_error else "INFO"
                         _log.bind(
@@ -849,6 +962,46 @@ class BaseAgent:
                         )
 
                     messages.append({"role": "user", "content": tool_results})
+
+                    # ── Loop detection ──
+                    for tool_result_item, tool_done_item in results:
+                        self._recent_tools.append(tool_done_item.name)
+                    # Check if the last 10 calls are the same tool
+                    if len(self._recent_tools) >= 10:
+                        last_10 = list(self._recent_tools)[-10:]
+                        if len(set(last_10)) == 1:
+                            if self._loop_reflected:
+                                # Already reflected once — force-stop
+                                _log.bind(agent=self._name).warning(
+                                    "Loop detected: {} called 10+ times after reflection. Force-stopping.",
+                                    last_10[0],
+                                )
+                                break
+                            else:
+                                # Inject reflection message
+                                self._loop_reflected = True
+                                reflection = (
+                                    f"[SYSTEM] You have called {last_10[0]} {len(last_10)} times consecutively. "
+                                    f"This suggests a loop. Stop and assess:\n"
+                                    f"1. What are you trying to achieve?\n"
+                                    f"2. Why isn't it working?\n"
+                                    f"3. Is there a fundamentally different approach?\n"
+                                    f"If you cannot make progress, call notify_parent with what you've learned."
+                                )
+                                messages.append({"role": "user", "content": reflection})
+                                _log.bind(agent=self._name).warning(
+                                    "Loop detected: {} called 10+ times. Injecting reflection.", last_10[0],
+                                )
+                        else:
+                            self._loop_reflected = False  # reset when pattern breaks
+
+                    # ── Per-turn tool call limit ──
+                    _turn_tool_count = sum(1 for _ in results)
+                    if _turn_tool_count >= settings.max_tool_calls_per_turn:
+                        messages.append({"role": "user", "content": (
+                            "[SYSTEM] Tool call limit reached for this turn. "
+                            "Summarize your progress and continue in the next turn."
+                        )})
 
                 # Log and clean up
                 response = "".join(full_text_parts)

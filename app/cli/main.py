@@ -32,6 +32,7 @@ from app.cli.sessions import (
     new_session_id,
 )
 from app.utils.adapters import CompactEvent, Message, TextDelta, ToolDone, ToolStart, UsageStats
+from app.utils.cost_tracker import record_cost
 from app.utils.crash import server_exit_watcher
 
 app = typer.Typer(help="YAPOC \u2014 Yet Another Python OpenClaw CLI", no_args_is_help=False)
@@ -887,6 +888,19 @@ async def _send_to_agent(
                     cache_read_tokens=renderer.usage.cache_read_tokens,
                 )
                 _session_cost += turn_cost
+                try:
+                    record_cost(
+                        agent_dir=settings.agents_dir / "master",
+                        agent_name="master",
+                        model=settings.default_model,
+                        tokens_in=renderer.usage.input_tokens,
+                        tokens_out=renderer.usage.output_tokens,
+                        cache_creation_tokens=renderer.usage.cache_creation_tokens,
+                        cache_read_tokens=renderer.usage.cache_read_tokens,
+                        task_content="",
+                    )
+                except Exception:
+                    pass
 
             console.print()
             print_status_line(

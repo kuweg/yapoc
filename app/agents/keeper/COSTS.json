@@ -1,0 +1,92 @@
+[
+  {
+    "task_id": "keeper:2026-04-14T17:40:37Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "keeper",
+    "tokens_in": 2,
+    "tokens_out": 73,
+    "cost_usd": 0.00162594,
+    "timestamp": "2026-04-14T17:40:37Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:40:39Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "keeper",
+    "tokens_in": 4,
+    "tokens_out": 169,
+    "cost_usd": 0.00072402,
+    "timestamp": "2026-04-14T17:40:39Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:40:42Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "keeper",
+    "tokens_in": 5,
+    "tokens_out": 284,
+    "cost_usd": 0.00058085,
+    "timestamp": "2026-04-14T17:40:42Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:40:43Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "keeper",
+    "tokens_in": 3,
+    "tokens_out": 108,
+    "cost_usd": 0.0003941,
+    "timestamp": "2026-04-14T17:40:43Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:41:06Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "keeper",
+    "tokens_in": 2,
+    "tokens_out": 169,
+    "cost_usd": 0.00049674,
+    "timestamp": "2026-04-14T17:41:06Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:41:07Z",
+    "description": "Update the builder agent's primary model in app/config/agent-settings.json. Change the `adapter` field from `\"anthropic\"` to `\"openai\"` and the `model` field from `\"claude-sonnet-4-6\"` to `\"gpt-4o\"` f",
+    "agent_name": "keeper",
+    "tokens_in": 2,
+    "tokens_out": 46,
+    "cost_usd": 0.00029398,
+    "timestamp": "2026-04-14T17:41:07Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:41:08Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "keeper",
+    "tokens_in": 2,
+    "tokens_out": 57,
+    "cost_usd": 0.00161812,
+    "timestamp": "2026-04-14T17:41:08Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:41:11Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "keeper",
+    "tokens_in": 4,
+    "tokens_out": 247,
+    "cost_usd": 0.00046906,
+    "timestamp": "2026-04-14T17:41:11Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-14T17:41:11Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "keeper",
+    "tokens_in": 3,
+    "tokens_out": 18,
+    "cost_usd": 0.00024043,
+    "timestamp": "2026-04-14T17:41:11Z",
+    "model_used": "claude-3-haiku-20240307"
+  }
+]

@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     max_turns: int = 20
     task_timeout: int = 300
 
+    # ── Webhook ────────────────────────────────────────────────────────
+    webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
+
     # ── Safety ────────────────────────────────────────────────────────────
     max_shell_timeout: int = 120  # hard cap on shell command timeout (seconds)
     safety_mode: str = "interactive"  # "interactive" | "auto_approve" | "strict"
@@ -67,10 +70,16 @@ class Settings(BaseSettings):
         "claude-haiku-4-5-20251001"  # cheap model for compaction
     )
 
+    # ── Task dispatcher ─────────────────────────────────────────────────
+    max_concurrent_tasks: int = 3  # max parallel tasks in the background dispatcher
+
     # ── Cost governance ────────────────────────────────────────────────
-    budget_per_task_usd: float = 0.0     # 0 = no limit; hard pause when exceeded
+    budget_per_task_usd: float = 2.0     # hard pause per task; override via BUDGET_PER_TASK_USD
     budget_per_agent_usd: float = 0.0    # 0 = no limit; per-agent lifetime cap
     cost_runaway_multiplier: float = 5.0 # pause if agent cost > multiplier x median agent cost
+    daily_autonomous_budget_usd: float = 10.0  # daily cap for autonomous tasks (cron, goal, doctor)
+    max_tool_calls_per_turn: int = 20    # per-turn tool call limit; prevents infinite loops
+    max_spawn_depth: int = 5             # max agent spawn chain depth
 
     # ── Logging / health ──────────────────────────────────────────────
     log_max_size_kb: int = 512  # OUTPUT.MD size cap before rotation

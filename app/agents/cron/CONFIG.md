@@ -1,5 +1,5 @@
 adapter: anthropic
-model: claude-haiku-4-5-20251001
+model: claude-3-haiku-20240307
 temperature: 0.2
 tools:
   - spawn_agent
@@ -19,6 +19,16 @@ tools:
 delegation_targets:
   - builder
   - keeper
+  - doctor
+  - master
+autonomous_policy:
+  spawn_agent:
+    auto_approve: ["*"]
+    default: auto_approve
+  kill_agent:
+    auto_approve: ["builder", "keeper"]
+    deny: ["master", "doctor"]
+    default: queue
 runner:
   max_turns: 20
   task_timeout: 300

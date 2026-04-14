@@ -268,6 +268,88 @@ class DoctorAgent(BaseAgent):
 
         return findings
 
+    # ── Response actions ──────────────────────────────────────────────
+
+    async def _act_on_findings(
+        self,
+        stale_findings: list[tuple[str, str]],
+        runaway_findings: list[tuple[str, str]],
+        cross_patterns: list[str],
+    ) -> list[str]:
+        """Take corrective actions based on health check findings.
+
+        Returns a list of action descriptions for the health report.
+        Respects max_tasks_per_run limit (3).
+        """
+        from app.utils.db import create_queued_task
+        from app.utils.cost_governor import is_autonomous_budget_exhausted
+
+        actions: list[str] = []
+        max_tasks = 3
+        tasks_created = 0
+
+        if is_autonomous_budget_exhausted():
+            actions.append("SKIPPED: Daily autonomous budget exhausted — observe only")
+            return actions
+
+        # Handle stale/zombie tasks
+        for agent_name, diag in stale_findings:
+            if tasks_created >= max_tasks:
+                break
+
+            if "ZOMBIE_TASK" in diag or "CRASHED_TASK" in diag:
+                # Clean up STATUS.json
+                status_path = settings.agents_dir / agent_name / "STATUS.json"
+                if status_path.exists():
+                    try:
+                        sj = json.loads(status_path.read_text(encoding="utf-8"))
+                        sj["state"] = "terminated"
+                        sj["task_summary"] = "doctor: cleaned up zombie"
+                        status_path.write_text(json.dumps(sj, indent=2))
+                        actions.append(f"CLEANUP: Reset {agent_name} STATUS.json (was zombie)")
+                    except Exception:
+                        pass
+
+                # Reset TASK.MD status to allow re-dispatch
+                task_path = settings.agents_dir / agent_name / "TASK.MD"
+                if task_path.exists():
+                    text = task_path.read_text(encoding="utf-8")
+                    text = re.sub(r"^status:\s*running", "status: error", text, flags=re.MULTILINE)
+                    task_path.write_text(text)
+                    actions.append(f"RESET: {agent_name} TASK.MD status → error")
+
+            elif "STALE_TASK" in diag:
+                # Create a diagnostic task
+                import uuid
+                task_id = str(uuid.uuid4())
+                create_queued_task(
+                    id=task_id,
+                    prompt=f"[Doctor] Investigate stale task on agent '{agent_name}': {diag}. "
+                           f"Check the agent's OUTPUT.MD and HEALTH.MD for clues. "
+                           f"If the agent is stuck, kill it and reset the task.",
+                    source="doctor",
+                )
+                tasks_created += 1
+                actions.append(f"TASK_CREATED: Investigate stale {agent_name} (task={task_id[:8]})")
+
+        # Handle cross-agent patterns
+        for pattern in cross_patterns:
+            if tasks_created >= max_tasks:
+                break
+            import uuid
+            task_id = str(uuid.uuid4())
+            create_queued_task(
+                id=task_id,
+                prompt=f"[Doctor] Systemic issue detected: {pattern}. "
+                       f"Investigate root cause across affected agents. "
+                       f"Check recent changes, shared dependencies, or common failure modes.",
+                source="doctor",
+            )
+            tasks_created += 1
+            actions.append(f"TASK_CREATED: Investigate cross-agent pattern (task={task_id[:8]})")
+
+        return actions
+
     # ── Health check ──────────────────────────────────────────────────
 
     async def run_health_check(self) -> str:
@@ -410,6 +492,16 @@ class DoctorAgent(BaseAgent):
                 except OSError:
                     pass
             sections.append("\n".join(runaway_section))
+
+        # ── Response actions (Phase 7) ──
+        doctor_actions = await self._act_on_findings(
+            stale_findings, runaway_findings, cross_patterns,
+        )
+        if doctor_actions:
+            action_section = ["## Doctor Response Actions\n"]
+            for action in doctor_actions:
+                action_section.append(f"  - {action}")
+            sections.append("\n".join(action_section))
 
         # Summary line
         status = "ISSUES DETECTED" if issues_found > 0 else "ALL CLEAR"

@@ -4,9 +4,10 @@ temperature: 0.2
 tools:
   - file_read
   - file_list
+  - file_write
+  - file_edit
   - check_model_availability
   - list_models
-  - update_agent_config
   - memory_append
   - notes_read
   - notes_write

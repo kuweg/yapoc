@@ -1,5 +1,5 @@
-adapter: lmstudio
-model: nvidia/nemotron-3-nano-4b
+adapter: anthropic
+model: claude-3-haiku-20240307
 temperature: 0.2
 tools:
   - file_read
@@ -35,6 +35,18 @@ sandbox:
   # gatekeeper; it has no legitimate reason to run anything else.
   shell_allowlist:
     - poetry
+autonomous_policy:
+  shell_exec:
+    auto_approve: ["poetry show*", "poetry search*", "poetry check*"]
+    deny: ["rm *", "sudo *", "git push*"]
+    default: queue
+  file_read:
+    auto_approve: ["*"]
+    default: auto_approve
+  file_write:
+    auto_approve: ["app/config/*", "pyproject.toml"]
+    deny: ["*.env", "app/agents/*/PROMPT.MD"]
+    default: queue
 runner:
   max_turns: 15
   task_timeout: 300

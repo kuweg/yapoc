@@ -15,6 +15,10 @@ interface DashboardStore {
   error: string | null
   activeMasterTicketId: string | null
 
+  // Multi-select
+  isMultiSelect: boolean
+  selectedIds: Set<string>
+
   setTickets: (tickets: Ticket[]) => void
   upsertTicket: (ticket: Ticket) => void
   removeTicket: (id: string) => void
@@ -28,6 +32,12 @@ interface DashboardStore {
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   setActiveMasterTicketId: (id: string | null) => void
+
+  // Multi-select actions
+  toggleMultiSelect: () => void
+  toggleSelectId: (id: string) => void
+  clearSelection: () => void
+  removeTickets: (ids: string[]) => void
 }
 
 export const useDashboardStore = create<DashboardStore>((set, get) => ({
@@ -43,6 +53,8 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   isLoading: false,
   error: null,
   activeMasterTicketId: null,
+  isMultiSelect: false,
+  selectedIds: new Set(),
 
   setTickets: (tickets) => {
     // Keep selectedTicket in sync if it exists
@@ -75,4 +87,24 @@ export const useDashboardStore = create<DashboardStore>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) => set({ error }),
   setActiveMasterTicketId: (id) => set({ activeMasterTicketId: id }),
+
+  toggleMultiSelect: () =>
+    set((s) => ({ isMultiSelect: !s.isMultiSelect, selectedIds: new Set() })),
+  toggleSelectId: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return { selectedIds: next }
+    }),
+  clearSelection: () => set({ selectedIds: new Set(), isMultiSelect: false }),
+  removeTickets: (ids) =>
+    set((s) => {
+      const idSet = new Set(ids)
+      return {
+        tickets: s.tickets.filter((t) => !idSet.has(t.id)),
+        selectedTicket: s.selectedTicket && idSet.has(s.selectedTicket.id) ? null : s.selectedTicket,
+        selectedIds: new Set(),
+      }
+    }),
 }))

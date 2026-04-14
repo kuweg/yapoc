@@ -240,6 +240,9 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
     else:
         legacy_status = "idle"
 
+    _INFRA_AGENTS = {"base", "doctor", "model_manager"}
+    is_infrastructure = agent_dir.name in _INFRA_AGENTS
+
     return AgentStatus(
         name=agent_dir.name,
         status=legacy_status,
@@ -260,6 +263,7 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
         tokens_per_second=tokens_per_second,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        is_infrastructure=is_infrastructure,
     )
 
 

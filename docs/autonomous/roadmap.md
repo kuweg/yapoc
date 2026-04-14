@@ -3,6 +3,10 @@
 Ordered implementation plan. Each phase produces a working, testable increment.
 Do not start the next phase until the current one is verified.
 
+> **M1–M9 status (April 2026):** Many items marked "not built" in original phases
+> are now built. See annotations below marked with ✅. The async API boundary (R1)
+> remains the critical blocker — everything below Phase 1 is unlocked by it.
+
 ---
 
 ## Phase 1 — Fire and Forget (the foundation)

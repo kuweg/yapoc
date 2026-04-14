@@ -3,13 +3,14 @@ import json
 import uuid as _uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.agents.master.agent import master_agent
 from app.backend.models import ApprovalRequest, TaskRequest, TaskResponse
 from app.backend.services.agent_results import build_result_injection, collect_agent_results
 from app.utils.adapters import Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
+from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
 router = APIRouter()
 
@@ -45,25 +46,84 @@ def _event_to_dict(event: Any) -> dict | None:
     return None
 
 
-@router.post("/task", response_model=TaskResponse)
+@router.post("/task")
 async def submit_task(request: TaskRequest):
+    """Fire-and-forget: enqueue a task and return immediately.
+
+    The background dispatcher picks it up and executes it asynchronously.
+    Poll GET /tasks/{task_id} for status/result, or subscribe via WebSocket.
+    """
+    task_id = str(_uuid.uuid4())
+    metadata = json.dumps({"history": request.history}) if request.history else None
+    task = create_queued_task(
+        id=task_id,
+        prompt=request.task,
+        source=request.source or "ui",
+        metadata=metadata,
+    )
+    # Push WebSocket event
     try:
-        finished = await collect_agent_results()
-        task = request.task
-        history = _parse_history(request.history)
-        # Inject completed sub-agent results as a system context message
-        # rather than concatenating into the user task string.
-        if finished:
-            notifications_text = build_result_injection(finished)
-            if history is None:
-                history = []
-            history = history + [Message(role="system", content=notifications_text)]
-        # run_stream_with_tools expects history to already contain the current
-        # user message as its last entry (matching CLI behaviour in _send_to_agent).
-        if history is not None:
-            history = history + [Message(role="user", content=task)]
-        response = await master_agent.handle_task(task, history=history, source=request.source)
-        return TaskResponse(status="ok", response=response)
+        from app.backend.websocket import ws_manager
+        await ws_manager.push_event("task_created", {"task": task})
+    except Exception:
+        pass
+    return {"task_id": task_id, "status": "pending"}
+
+
+@router.get("/tasks")
+async def list_tasks(
+    status: str | None = Query(None, description="Filter by status"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """List recent tasks from the queue."""
+    return recent_tasks_queue(limit=limit, status=status)
+
+
+@router.get("/tasks/{task_id}")
+async def get_task(task_id: str):
+    """Get a single task by ID."""
+    task = get_queued_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@router.get("/approvals")
+async def list_approvals():
+    """List pending approval requests."""
+    from app.backend.approval_queue import get_pending
+    return get_pending()
+
+
+@router.post("/approvals/{request_id}/resolve")
+async def resolve_approval_endpoint(request_id: str, body: ApprovalRequest):
+    """Approve or deny a queued tool execution."""
+    from app.backend.approval_queue import resolve_approval
+    result = resolve_approval(request_id, body.approved)
+    if not result:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    return result
+
+
+@router.get("/sessions/{session_id}/events")
+async def get_session_events(
+    session_id: str,
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+):
+    """Return recent events from a session's event log for playback."""
+    from app.config import settings
+
+    event_file = settings.project_root / "data" / "sessions" / session_id / "events.jsonl"
+    if not event_file.exists():
+        return []
+    try:
+        lines = event_file.read_text(encoding="utf-8").strip().split("\n")
+        events = []
+        for line in lines[offset:offset + limit]:
+            if line.strip():
+                events.append(json.loads(line))
+        return events
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

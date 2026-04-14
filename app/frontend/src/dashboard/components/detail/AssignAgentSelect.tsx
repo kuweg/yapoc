@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 interface Agent {
   name: string
   process_state: string
+  is_infrastructure: boolean
 }
 
 interface Props {
@@ -21,8 +22,7 @@ export function AssignAgentSelect({ currentAgent, onAssign, disabled }: Props) {
     fetch('/api/agents')
       .then((r) => r.json())
       .then((data: Agent[]) => {
-        const infra = ['base', 'doctor', 'model_manager']
-        setAgents(data.filter((a) => !infra.includes(a.name)))
+        setAgents(data.filter((a) => !a.is_infrastructure))
       })
       .catch(() => {})
   }, [])

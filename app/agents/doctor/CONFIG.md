@@ -1,5 +1,5 @@
-adapter: anthropic
-model: claude-3-haiku-20240307
+adapter: openai
+model: gpt-4.1-nano
 temperature: 0.2
 tools:
   - file_read

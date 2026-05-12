@@ -1,5 +1,5 @@
-adapter: anthropic
-model: claude-sonnet-4-6
+adapter: deepseek
+model: deepseek-reasoner
 temperature: 0.3
 tools:
   - spawn_agent
@@ -9,6 +9,7 @@ tools:
   - wait_for_agents
   - check_task_status
   - read_task_result
+  - verify_task_result
   - notify_parent
   - memory_append
   - notes_read
@@ -19,6 +20,9 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
+delegation_targets:
+  - builder
+  - keeper
 runner:
   max_turns: 15
   task_timeout: 300

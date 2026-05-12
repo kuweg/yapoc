@@ -1,0 +1,49 @@
+"""DeepSeek model catalog.
+
+Source: https://api-docs.deepseek.com/quick_start/pricing
+"""
+
+from __future__ import annotations
+
+from .base import ModelInfo
+
+MODELS: list[ModelInfo] = [
+    ModelInfo(
+        id="deepseek-chat",
+        context_window=64_000,
+        max_output=8_192,
+        input_price=0.27,
+        output_price=1.10,
+        supports_tools=True,
+        supports_vision=False,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="advanced",
+        latency_tier="fast",
+        knowledge_cutoff="2025-03",
+        recommended_tasks=("coding", "general chat", "analysis", "agent pipelines"),
+        fallback_models=("deepseek-reasoner",),
+        quality_rank=3,
+        cost_efficiency_rank=1,
+        description="DeepSeek-V3.2 — fast, cheap, strong general-purpose model.",
+    ),
+    ModelInfo(
+        id="deepseek-reasoner",
+        context_window=64_000,
+        max_output=8_192,
+        input_price=0.55,
+        output_price=2.19,
+        supports_tools=False,
+        supports_vision=False,
+        supports_streaming=True,
+        supports_json_mode=False,
+        capability_tier="frontier",
+        latency_tier="medium",
+        knowledge_cutoff="2025-03",
+        recommended_tasks=("complex reasoning", "math", "science", "hard coding"),
+        fallback_models=("deepseek-chat",),
+        quality_rank=2,
+        cost_efficiency_rank=2,
+        description="DeepSeek-R1 — chain-of-thought reasoning model.",
+    ),
+]

@@ -1,11 +1,11 @@
 {
-  "total_input_tokens": 66648,
-  "total_output_tokens": 77672,
-  "total_cache_creation_tokens": 509450,
-  "total_cache_read_tokens": 5114316,
-  "total_tool_calls": 312,
-  "total_turns": 236,
-  "total_cost_usd": 4.7659,
+  "total_input_tokens": 498890,
+  "total_output_tokens": 129701,
+  "total_cache_creation_tokens": 899898,
+  "total_cache_read_tokens": 7663602,
+  "total_tool_calls": 563,
+  "total_turns": 413,
+  "total_cost_usd": 9.918618,
   "by_model": {
     "claude-sonnet-4-6": {
       "input_tokens": 251,
@@ -17,14 +17,23 @@
       "tool_calls": 283
     },
     "gpt-4o": {
-      "input_tokens": 66397,
-      "output_tokens": 1981,
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
-      "cost_usd": 0.185802,
-      "turns": 10,
-      "tool_calls": 29
+      "input_tokens": 446580,
+      "output_tokens": 23302,
+      "cache_creation_tokens": 164251,
+      "cache_read_tokens": 960066,
+      "cost_usd": 2.102665,
+      "turns": 91,
+      "tool_calls": 129
+    },
+    "claude-opus-4-6": {
+      "input_tokens": 52059,
+      "output_tokens": 30708,
+      "cache_creation_tokens": 226197,
+      "cache_read_tokens": 1589220,
+      "cost_usd": 3.23585,
+      "turns": 96,
+      "tool_calls": 151
     }
   },
-  "last_updated": "2026-04-14T17:53:59Z"
+  "last_updated": "2026-05-12T23:43:49Z"
 }

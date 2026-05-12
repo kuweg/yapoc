@@ -88,5 +88,95 @@
     "cost_usd": 0.00024043,
     "timestamp": "2026-04-14T17:41:11Z",
     "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:28:56Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 3724,
+    "tokens_out": 23,
+    "cost_usd": 0.0007632,
+    "timestamp": "2026-04-18T09:28:56Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:29:00Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 3929,
+    "tokens_out": 426,
+    "cost_usd": 0.0011266,
+    "timestamp": "2026-04-18T09:29:00Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:29:01Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 4405,
+    "tokens_out": 19,
+    "cost_usd": 0.0008962,
+    "timestamp": "2026-04-18T09:29:01Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:29:03Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 5412,
+    "tokens_out": 269,
+    "cost_usd": 0.0012976,
+    "timestamp": "2026-04-18T09:29:03Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:29:05Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 5731,
+    "tokens_out": 97,
+    "cost_usd": 0.0012238,
+    "timestamp": "2026-04-18T09:29:05Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:29:07Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 6738,
+    "tokens_out": 269,
+    "cost_usd": 0.0015628,
+    "timestamp": "2026-04-18T09:29:07Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-04-18T09:29:08Z",
+    "description": "Add \"stale-task-scan\" job to cron NOTES.MD (every 10 minutes) that calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD.",
+    "agent_name": "keeper",
+    "tokens_in": 7056,
+    "tokens_out": 204,
+    "cost_usd": 0.0015744,
+    "timestamp": "2026-04-18T09:29:08Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-12T23:43:32Z",
+    "description": "Write the following content to app/projects/daily-digest.md. Create the file if it doesn't exist, overwrite if it does.",
+    "agent_name": "keeper",
+    "tokens_in": 2888,
+    "tokens_out": 48,
+    "cost_usd": 0.000616,
+    "timestamp": "2026-05-12T23:43:32Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-12T23:43:33Z",
+    "description": "Write the following content to app/projects/daily-digest.md. Create the file if it doesn't exist, overwrite if it does.",
+    "agent_name": "keeper",
+    "tokens_in": 2985,
+    "tokens_out": 31,
+    "cost_usd": 0.0006218,
+    "timestamp": "2026-05-12T23:43:33Z",
+    "model_used": "gpt-4.1-nano"
   }
 ]

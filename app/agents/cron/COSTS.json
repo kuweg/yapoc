@@ -1,0 +1,52 @@
+[
+  {
+    "task_id": "cron:2026-04-18T09:09:48Z",
+    "description": "Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "cron",
+    "tokens_in": 2,
+    "tokens_out": 58,
+    "cost_usd": 0.00160719,
+    "timestamp": "2026-04-18T09:09:48Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "cron:2026-04-18T09:09:49Z",
+    "description": "Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "cron",
+    "tokens_in": 4,
+    "tokens_out": 180,
+    "cost_usd": 0.00038309,
+    "timestamp": "2026-04-18T09:09:49Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "cron:2026-04-18T09:09:51Z",
+    "description": "Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "cron",
+    "tokens_in": 3,
+    "tokens_out": 105,
+    "cost_usd": 0.00033685,
+    "timestamp": "2026-04-18T09:09:51Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "cron:2026-04-18T09:09:53Z",
+    "description": "Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "cron",
+    "tokens_in": 3,
+    "tokens_out": 190,
+    "cost_usd": 0.00048325,
+    "timestamp": "2026-04-18T09:09:53Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "cron:2026-04-18T09:09:55Z",
+    "description": "Generate a daily digest: summarize all agent MEMORY.MD entries from the past 24 hours. Write the digest to app/projects/daily-digest.md.",
+    "agent_name": "cron",
+    "tokens_in": 2,
+    "tokens_out": 91,
+    "cost_usd": 0.00033047,
+    "timestamp": "2026-04-18T09:09:55Z",
+    "model_used": "claude-3-haiku-20240307"
+  }
+]

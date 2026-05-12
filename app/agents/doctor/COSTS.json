@@ -1,0 +1,82 @@
+[
+  {
+    "task_id": "doctor:2026-04-14T18:02:49Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 2,
+    "tokens_out": 96,
+    "cost_usd": 0.00128625,
+    "timestamp": "2026-04-14T18:02:49Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:02:50Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 4,
+    "tokens_out": 97,
+    "cost_usd": 0.00185312,
+    "timestamp": "2026-04-14T18:02:50Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:02:52Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 3,
+    "tokens_out": 97,
+    "cost_usd": 0.00141643,
+    "timestamp": "2026-04-14T18:02:52Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:02:53Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 3,
+    "tokens_out": 97,
+    "cost_usd": 0.00060633,
+    "timestamp": "2026-04-14T18:02:53Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:02:55Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 2,
+    "tokens_out": 97,
+    "cost_usd": 0.00124101,
+    "timestamp": "2026-04-14T18:02:55Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:02:57Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 2,
+    "tokens_out": 98,
+    "cost_usd": 0.00154841,
+    "timestamp": "2026-04-14T18:02:57Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:03:01Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 2,
+    "tokens_out": 99,
+    "cost_usd": 0.00071106,
+    "timestamp": "2026-04-14T18:03:01Z",
+    "model_used": "claude-3-haiku-20240307"
+  },
+  {
+    "task_id": "doctor:2026-04-14T18:03:05Z",
+    "description": "Perform a full health audit of all agents in the system. Check each agent's HEALTH.MD, MEMORY.MD, and STATUS.json for errors, warnings, stale tasks, runaway costs, and any anomalies. Summarize finding",
+    "agent_name": "doctor",
+    "tokens_in": 1,
+    "tokens_out": 530,
+    "cost_usd": 0.00195325,
+    "timestamp": "2026-04-14T18:03:05Z",
+    "model_used": "claude-3-haiku-20240307"
+  }
+]

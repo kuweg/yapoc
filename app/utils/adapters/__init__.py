@@ -1,4 +1,6 @@
 from .anthropic import AnthropicAdapter
+from .codex import CodexAdapter
+from .deepseek import DeepSeekAdapter
 from .base import (
     AgentConfig,
     BaseLLMAdapter,
@@ -26,6 +28,8 @@ from .openrouter import OpenRouterAdapter
 ADAPTER_REGISTRY: dict[str, type[BaseLLMAdapter]] = {
     "anthropic": AnthropicAdapter,
     "openai": OpenAIAdapter,
+    "codex": CodexAdapter,
+    "deepseek": DeepSeekAdapter,
     "ollama": OllamaAdapter,
     "openrouter": OpenRouterAdapter,
     "google": GoogleAdapter,
@@ -66,5 +70,7 @@ __all__ = [
     "OpenRouterAdapter",
     "GoogleAdapter",
     "LMStudioAdapter",
+    "CodexAdapter",
+    "DeepSeekAdapter",
     "FallbackAdapter",
 ]

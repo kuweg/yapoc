@@ -1,5 +1,5 @@
-adapter: anthropic
-model: claude-sonnet-4-6
+adapter: deepseek
+model: deepseek-chat
 temperature: 0.3
 tools:
   # ── Reads (safe, do them yourself) ──────────────────────────────────
@@ -14,6 +14,7 @@ tools:
   - wait_for_agents
   - check_task_status
   - read_task_result
+  - verify_task_result
   - read_agent_logs
   # ── Self ────────────────────────────────────────────────────────────
   - server_restart

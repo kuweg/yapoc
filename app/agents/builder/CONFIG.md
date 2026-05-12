@@ -1,5 +1,5 @@
-adapter: anthropic
-model: claude-sonnet-4-6
+adapter: codex
+model: gpt-5.3-codex
 temperature: 0.2
 tools:
   - file_read

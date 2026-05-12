@@ -10,6 +10,8 @@ and agent routing logic.
 from __future__ import annotations
 
 from . import anthropic as _anthropic
+from . import codex as _codex
+from . import deepseek as _deepseek
 from . import google as _google
 from . import lmstudio as _lmstudio
 from . import ollama as _ollama
@@ -30,6 +32,8 @@ def _collect(*catalogs: list[ModelInfo]) -> list[ModelInfo]:
 _ALL_MODELS: list[ModelInfo] = _collect(
     _anthropic.MODELS,
     _openai.MODELS,
+    _codex.MODELS,
+    _deepseek.MODELS,
     _ollama.MODELS,
     _openrouter.MODELS,
     _google.MODELS,
@@ -48,11 +52,15 @@ OPENAI_MODEL_IDS = [m.id for m in _openai.MODELS]
 OLLAMA_MODEL_IDS = [m.id for m in _ollama.MODELS]
 OPENROUTER_MODEL_IDS = [m.id for m in _openrouter.MODELS]
 GOOGLE_MODEL_IDS = [m.id for m in _google.MODELS]
+CODEX_MODEL_IDS = [m.id for m in _codex.MODELS]
+DEEPSEEK_MODEL_IDS = [m.id for m in _deepseek.MODELS]
 LMSTUDIO_MODEL_IDS = [m.id for m in _lmstudio.MODELS]
 
 PROVIDER_MODELS: dict[str, list[str]] = {
     "anthropic": ANTHROPIC_MODEL_IDS,
     "openai": OPENAI_MODEL_IDS,
+    "codex": CODEX_MODEL_IDS,
+    "deepseek": DEEPSEEK_MODEL_IDS,
     "ollama": OLLAMA_MODEL_IDS,
     "openrouter": OPENROUTER_MODEL_IDS,
     "google": GOOGLE_MODEL_IDS,
@@ -171,6 +179,8 @@ __all__ = [
     "OLLAMA_MODEL_IDS",
     "OPENROUTER_MODEL_IDS",
     "GOOGLE_MODEL_IDS",
+    "CODEX_MODEL_IDS",
+    "DEEPSEEK_MODEL_IDS",
     "LMSTUDIO_MODEL_IDS",
     "PROVIDER_MODELS",
     # Routing helpers

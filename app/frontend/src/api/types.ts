@@ -53,6 +53,23 @@ export interface AgentStatus {
   output_tokens: number | null
 }
 
+export interface ModelEntry {
+  id: string
+  description: string
+  context_window: number
+  supports_tools: boolean
+}
+
+export interface AdapterInfo {
+  name: string
+  has_key: boolean
+  models: ModelEntry[]
+}
+
+export interface ModelsResponse {
+  adapters: AdapterInfo[]
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openrouter_api_key: str = ""
+    deepseek_api_key: str = ""
     # Google Gemini — accepts GOOGLE_API_KEY or GEMINI_API_KEY
     google_api_key: str = Field(
         default="",
@@ -57,6 +58,7 @@ class Settings(BaseSettings):
     agent_idle_timeout: int = 300  # seconds before idle agent self-terminates
     agent_spawn_timeout: int = 15  # seconds to wait for spawn confirmation
     runner_poll_interval: int = 30  # TASK.MD poll fallback interval (seconds)
+    notification_poll_interval_seconds: int = 5  # parent notification latency target
     # Hard cap on live sub-agent processes to prevent runaway fan-out
     # (prompt injection / model confusion can otherwise spawn many at once).
     # Counts STATUS.json entries in state=idle|running|spawning.

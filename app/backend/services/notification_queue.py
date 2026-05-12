@@ -10,6 +10,7 @@ Each notification is a dict with:
   - status: str         — "done" or "error"
   - result: str         — result text (may be empty)
   - error: str          — error text (may be empty)
+  - session_id: str     — UI session this completion belongs to (may be empty)
   - completed_at: str   — ISO timestamp
   - consumed: bool      — True once injected into parent's context
 """
@@ -36,6 +37,7 @@ class Notification(TypedDict):
     status: str
     result: str
     error: str
+    session_id: str
     completed_at: str
     consumed: bool
 
@@ -124,6 +126,7 @@ class NotificationQueue:
         status: str,
         result: str = "",
         error: str = "",
+        session_id: str = "",
     ) -> None:
         """Add a new notification to the queue."""
         notification: Notification = {
@@ -132,17 +135,24 @@ class NotificationQueue:
             "status": status,
             "result": result,
             "error": error,
+            "session_id": session_id or "",
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "consumed": False,
         }
         with self._lock:
             with self._disk_transaction() as items:
                 # Dedup: skip if an unconsumed notification for this (parent, child) pair exists.
-                # Prevents double-delivery when notify_parent tool and NotificationPoller both fire.
+                # Prevents double-delivery when notify_parent tool and NotificationPoller
+                # both fire for the same completion. Keep multiple distinct completions
+                # from the same child (same parent) by matching the payload too.
                 for existing in items:
                     if (
                         existing["parent_agent"] == parent_agent
                         and existing["child_agent"] == child_agent
+                        and existing["status"] == status
+                        and existing.get("result", "") == result
+                        and existing.get("error", "") == error
+                        and existing.get("session_id", "") == (session_id or "")
                         and not existing["consumed"]
                     ):
                         return
@@ -154,23 +164,51 @@ class NotificationQueue:
             status,
         )
 
-    def drain(self, parent_agent: str) -> list[Notification]:
-        """Return all unconsumed notifications for parent_agent and mark them consumed."""
+    def drain(
+        self,
+        parent_agent: str,
+        session_id: str | None = None,
+    ) -> list[Notification]:
+        """Drain unconsumed notifications for a parent, optionally scoped by session."""
         with self._lock:
             with self._disk_transaction() as items:
-                pending = [n for n in items if n["parent_agent"] == parent_agent and not n["consumed"]]
+                pending = [
+                    n
+                    for n in items
+                    if n["parent_agent"] == parent_agent
+                    and not n["consumed"]
+                    and (session_id is None or n.get("session_id", "") == (session_id or ""))
+                ]
                 for n in pending:
                     n["consumed"] = True
         return pending
 
-    def pending_count(self, parent_agent: str) -> int:
-        """Return count of unconsumed notifications for parent_agent."""
+    def pending_count(self, parent_agent: str, session_id: str | None = None) -> int:
+        """Return count of unconsumed notifications for parent_agent.
+
+        If ``session_id`` is provided, only count notifications for that session.
+        """
         with self._lock:
             with self._disk_transaction(readonly=True):
                 return sum(
                     1 for n in self._items
                     if n["parent_agent"] == parent_agent and not n["consumed"]
+                    and (session_id is None or n.get("session_id", "") == (session_id or ""))
                 )
+
+    def pending_sessions(self, parent_agent: str) -> list[str]:
+        """Return distinct session_ids that currently have pending notifications.
+
+        Empty session IDs are represented as ``""``.
+        """
+        with self._lock:
+            with self._disk_transaction(readonly=True):
+                sessions = {
+                    n.get("session_id", "")
+                    for n in self._items
+                    if n["parent_agent"] == parent_agent and not n["consumed"]
+                }
+        return sorted(sessions)
 
     def purge_consumed(self, keep_last: int = 100) -> None:
         """Remove old consumed notifications, keeping the most recent keep_last."""

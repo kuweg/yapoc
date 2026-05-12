@@ -24,6 +24,7 @@ async def collect_agent_results(
     parent_agent: str = "master",
     depth: int = 0,
     visited: set[str] | None = None,
+    session_id: str | None = None,
 ) -> list[tuple[str, str, bool, int]]:
     """Scan every agent TASK.MD for completed tasks assigned by ``parent_agent``.
 
@@ -43,6 +44,8 @@ async def collect_agent_results(
         visited: Set of agent names already processed in this traversal.
             Prevents infinite loops in pathological delegation graphs.
             Defaults to None (a fresh empty set is created automatically).
+        session_id: Optional UI session filter. When set, only tasks whose
+            frontmatter ``session_id`` matches are collected.
     """
     if visited is None:
         visited = set()
@@ -72,6 +75,8 @@ async def collect_agent_results(
         fm = BaseAgent._parse_frontmatter(content)
         if fm.get("assigned_by") != parent_agent:
             continue
+        if session_id is not None and (fm.get("session_id", "") or "") != session_id:
+            continue
         if fm.get("consumed_at"):
             continue
         status = fm.get("status", "")
@@ -96,6 +101,7 @@ async def collect_agent_results(
                 parent_agent=child_name,
                 depth=depth + 1,
                 visited=visited,
+                session_id=session_id,
             )
             results.extend(child_results)
 

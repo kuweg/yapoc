@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, tasks_router, test_endpoint_router, tickets_router, vault_router, webhook_router
+from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, models_router, tasks_router, test_endpoint_router, tickets_router, vault_router, webhook_router
 from app.backend.websocket import websocket_endpoint
 from app.config import settings
 
@@ -23,12 +23,18 @@ def _pid_alive_local(pid: int) -> bool:
 
 
 def _cleanup_stale_agent_statuses() -> None:
-    """On server start, mark dead sub-agents as terminated so stale PIDs don't mislead."""
+    """On server start, mark dead sub-agents as terminated and clear stale TASK.MD files."""
     for agent_dir in settings.agents_dir.iterdir():
-        if not agent_dir.is_dir() or agent_dir.name in ("base", "master"):
+        if not agent_dir.is_dir() or agent_dir.name in ("base", "master", "shared"):
             continue
         status_path = agent_dir / "STATUS.json"
         if not status_path.exists():
+            # No STATUS.json but TASK.MD may be stale — clear it
+            task_path = agent_dir / "TASK.MD"
+            if task_path.exists():
+                content = task_path.read_text(encoding="utf-8", errors="ignore")
+                if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
+                    task_path.write_text("")
             continue
         try:
             status = json.loads(status_path.read_text())
@@ -40,6 +46,12 @@ def _cleanup_stale_agent_statuses() -> None:
                     status["state"] = "terminated"
                     status["task_summary"] = "shutdown: server restart"
                     status_path.write_text(json.dumps(status, indent=2))
+                    # Clear stale TASK.MD so sidebar doesn't show "busy"
+                    task_path = agent_dir / "TASK.MD"
+                    if task_path.exists():
+                        content = task_path.read_text(encoding="utf-8", errors="ignore")
+                        if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
+                            task_path.write_text("")
         except Exception:
             pass
 
@@ -99,10 +111,11 @@ async def _master_notification_watcher() -> None:
             if not re.search(r"^status:\s*pending", content, re.MULTILINE):
                 continue
             # Check it was written by notify_parent (not a user-sent task)
-            m = re.search(r"^assigned_by:\s*(.+)$", content, re.MULTILINE)
             trigger_body = re.search(r"\[Process incoming notifications from sub-agents\]", content)
             if not trigger_body:
                 continue  # user task — leave it alone
+            trigger_session_match = re.search(r"^session_id:\s*(.*)$", content, re.MULTILINE)
+            trigger_session_id = trigger_session_match.group(1).strip() if trigger_session_match else ""
             # Guard: don't interrupt a running master
             try:
                 state = json.loads(status_path.read_text()).get("state", "")
@@ -116,11 +129,45 @@ async def _master_notification_watcher() -> None:
             # Only fire if there are actual pending notifications
             if notification_queue.pending_count("master") == 0:
                 continue
-            async for _ in master_agent.handle_task_stream(
-                task="[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
-                source="notification",
-            ):
-                pass  # events consumed; result written to RESULT.MD by BaseAgent
+
+            # Process notifications session-by-session so results stay scoped
+            # to the originating UI chat.
+            session_ids = notification_queue.pending_sessions("master")
+            if not session_ids:
+                # Backward compatibility: queue entries before session support
+                session_ids = [""]
+
+            if trigger_session_id and trigger_session_id in session_ids:
+                session_ids = [trigger_session_id] + [sid for sid in session_ids if sid != trigger_session_id]
+
+            for sid in session_ids:
+                if notification_queue.pending_count("master", session_id=sid) == 0:
+                    continue
+
+                async for _ in master_agent.handle_task_stream(
+                    task="[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+                    source="notification",
+                    session_id=sid,
+                ):
+                    pass  # events consumed; result written to RESULT.MD by BaseAgent
+
+                # Push a final message event so ChatPanel can append background
+                # completion output even when there is no task_queue row.
+                if sid:
+                    try:
+                        from app.backend.websocket import ws_manager
+
+                        result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+                            encoding="utf-8",
+                            errors="replace",
+                        ).strip()
+                        if result_text:
+                            await ws_manager.push_session_event(
+                                sid,
+                                {"type": "notification_result", "text": result_text},
+                            )
+                    except Exception:
+                        pass
         except Exception:
             pass  # never crash the server
 
@@ -272,7 +319,10 @@ async def lifespan(app: FastAPI):
     from app.backend.services.notification_poller import create_poller
     registry.load()
     notification_queue.load()
-    poller = create_poller(settings.agents_dir)
+    poller = create_poller(
+        settings.agents_dir,
+        poll_interval=settings.notification_poll_interval_seconds,
+    )
     poller.start()
     asyncio.ensure_future(_master_notification_watcher())
 
@@ -346,3 +396,4 @@ app.include_router(vault_router)
 app.include_router(test_endpoint_router)
 app.include_router(webhook_router)
 app.include_router(costs_router)
+app.include_router(models_router)

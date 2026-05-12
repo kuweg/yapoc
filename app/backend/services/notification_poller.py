@@ -120,10 +120,10 @@ class NotificationPoller:
                     None, self._poll_once
                 )
                 # Wake idle parent agents so they process notifications promptly
-                for parent_name in parents_to_wake:
+                for parent_name, session_id in parents_to_wake:
                     try:
                         from app.utils.tools.delegation import _wake_agent_if_idle
-                        await _wake_agent_if_idle(parent_name)
+                        await _wake_agent_if_idle(parent_name, session_id=session_id)
                     except Exception:
                         pass  # best-effort wake
             except asyncio.CancelledError:
@@ -133,15 +133,16 @@ class NotificationPoller:
                 logger.error("NotificationPoller: unexpected error in poll loop: %s", exc, exc_info=True)
                 # Continue polling despite errors
 
-    def _poll_once(self) -> list[str]:
+    def _poll_once(self) -> list[tuple[str, str]]:
         """Synchronous poll — called in executor to avoid blocking event loop.
 
-        Returns list of parent agent names that were notified (for wake-up).
+        Returns list of (parent_agent, session_id) pairs that were notified
+        (for wake-up).
         """
         if not self._agents_dir.exists():
             return []
 
-        parents_to_wake: list[str] = []
+        parents_to_wake: list[tuple[str, str]] = []
         for agent_dir in self._agents_dir.iterdir():
             if not agent_dir.is_dir():
                 continue
@@ -162,7 +163,9 @@ class NotificationPoller:
                 continue
 
             completed_at = str(fm.get("completed_at", ""))
-            dedup_key = (agent_name, completed_at)
+            task_id = str(fm.get("task_id", ""))
+            dedup_marker = completed_at or task_id or status
+            dedup_key = (agent_name, dedup_marker)
             if dedup_key in self._notified:
                 continue  # Already processed this completion
 
@@ -189,9 +192,10 @@ class NotificationPoller:
                 status=status,
                 result=result,
                 error=error,
+                session_id=str(fm.get("session_id", "") or ""),
             )
             self._notified.add(dedup_key)
-            parents_to_wake.append(parent)
+            parents_to_wake.append((parent, str(fm.get("session_id", "") or "")))
             logger.info(
                 "NotificationPoller: %s completed (%s) → notifying parent %s",
                 agent_name,

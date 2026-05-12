@@ -1,5 +1,6 @@
 import json
 import os
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from app.backend.services import _pid_alive, _read_status_json, _parse_health_log, _parse_task
 from app.config import settings
 from app.utils import AGENTS_DIR
+from app.utils.db import get_db
 
 router = APIRouter(prefix="/metrics")
 
@@ -220,6 +222,18 @@ class CostDashboard(BaseModel):
     budget_per_agent_usd: float
 
 
+class HierarchyMetrics(BaseModel):
+    generated_at: str
+    total_task_records: int
+    delegated_by_parent: dict[str, int]
+    task_class_counts: dict[str, int]
+    success_rate_by_task_class: dict[str, float]
+    verification_required_count: int
+    verification_verified_count: int
+    verification_pending_count: int
+    average_completion_seconds_by_parent: dict[str, float]
+
+
 def _read_usage_json(agent_dir: Path) -> dict[str, Any] | None:
     """Read and return USAGE.json data, or None if missing/corrupt."""
     usage_path = agent_dir / "USAGE.json"
@@ -289,3 +303,81 @@ async def get_agent_usage(name: str):
             last_updated=None,
         )
     return _build_agent_usage(name, data)
+
+
+@router.get("/hierarchy", response_model=HierarchyMetrics)
+async def get_hierarchy_metrics():
+    """Return hierarchy quality metrics from persisted task history."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT status, assigned_by, assigned_at, completed_at, "
+        "task_class, verification_required, verification_status FROM tasks"
+    ).fetchall()
+    records = [dict(r) for r in rows]
+
+    delegated_by_parent: Counter[str] = Counter()
+    task_class_counts: Counter[str] = Counter()
+    class_totals: Counter[str] = Counter()
+    class_success: Counter[str] = Counter()
+    duration_sum_by_parent: defaultdict[str, float] = defaultdict(float)
+    duration_count_by_parent: Counter[str] = Counter()
+
+    verification_required_count = 0
+    verification_verified_count = 0
+    verification_pending_count = 0
+
+    for rec in records:
+        parent = (rec.get("assigned_by") or "unknown").strip() or "unknown"
+        delegated_by_parent[parent] += 1
+
+        task_class = (rec.get("task_class") or "general").strip() or "general"
+        task_class_counts[task_class] += 1
+        class_totals[task_class] += 1
+        if rec.get("status") == "done":
+            class_success[task_class] += 1
+
+        required = bool(rec.get("verification_required"))
+        verification_status = (rec.get("verification_status") or "").strip().lower()
+        if required:
+            verification_required_count += 1
+            if verification_status in {"verified", "self_reported"}:
+                verification_verified_count += 1
+            elif verification_status in {"required", "pending", "", "unknown"}:
+                verification_pending_count += 1
+
+        assigned_at = rec.get("assigned_at") or ""
+        completed_at = rec.get("completed_at") or ""
+        if assigned_at and completed_at:
+            try:
+                start = datetime.fromisoformat(assigned_at.replace("Z", "+00:00"))
+                end = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+                seconds = max(0.0, (end - start).total_seconds())
+                duration_sum_by_parent[parent] += seconds
+                duration_count_by_parent[parent] += 1
+            except ValueError:
+                pass
+
+    success_rate_by_task_class: dict[str, float] = {}
+    for task_class, total in class_totals.items():
+        if total <= 0:
+            continue
+        success_rate_by_task_class[task_class] = round(class_success[task_class] / total, 4)
+
+    avg_completion_by_parent: dict[str, float] = {}
+    for parent, total_seconds in duration_sum_by_parent.items():
+        count = duration_count_by_parent[parent]
+        if count > 0:
+            avg_completion_by_parent[parent] = round(total_seconds / count, 3)
+
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return HierarchyMetrics(
+        generated_at=generated_at,
+        total_task_records=len(records),
+        delegated_by_parent=dict(delegated_by_parent),
+        task_class_counts=dict(task_class_counts),
+        success_rate_by_task_class=success_rate_by_task_class,
+        verification_required_count=verification_required_count,
+        verification_verified_count=verification_verified_count,
+        verification_pending_count=verification_pending_count,
+        average_completion_seconds_by_parent=avg_completion_by_parent,
+    )

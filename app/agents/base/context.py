@@ -51,10 +51,21 @@ async def _read_if_exists(path: Path) -> str:
         return await f.read()
 
 
-def _tail_lines(text: str, n: int) -> str:
-    """Return the last N non-empty lines from text."""
+def _tail_lines(text: str, n: int, *, max_line_chars: int = 280) -> str:
+    """Return the last N non-empty lines from text.
+
+    Memory files often contain long, model-generated narration lines. Truncate
+    each line so old verbose turns do not dominate future system prompts.
+    """
     lines = [l for l in text.splitlines() if l.strip()]
-    return "\n".join(lines[-n:])
+    tail = lines[-n:]
+    sanitized: list[str] = []
+    for line in tail:
+        compact = " ".join(line.strip().split())
+        if len(compact) > max_line_chars:
+            compact = compact[:max_line_chars] + "... (truncated)"
+        sanitized.append(compact)
+    return "\n".join(sanitized)
 
 
 async def build_system_context(agent_dir: Path, config_text: str | None = None) -> str:

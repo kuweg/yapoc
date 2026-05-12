@@ -226,22 +226,33 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
     # Model/adapter
     model, adapter = _parse_config(agent_dir)
 
-    # has_task
+    # has_task — only True for actively running tasks, not completed ones
     task = _parse_task(agent_dir)
-    has_task = bool(task and task.task_text)
+    task_status = task.status if task else ""
+    task_is_active = task_status in ("pending", "running")
+    has_task = task_is_active
 
-    # Legacy status field
+    # Fill task_summary from TASK.MD if STATUS.json doesn't have one
+    if not task_summary and task_is_active and task and task.task_text:
+        task_summary = task.task_text[:120]
+
+    # Legacy status field — combines process state + task state
     if state == "running":
         legacy_status = "running"
+    elif task_is_active:
+        legacy_status = "busy"
     elif health_errors > 0:
         legacy_status = "error"
-    elif has_task:
-        legacy_status = "busy"
     else:
         legacy_status = "idle"
 
     _INFRA_AGENTS = {"base", "doctor", "model_manager"}
     is_infrastructure = agent_dir.name in _INFRA_AGENTS
+
+    # Effective state: if process is dead but task is active, show as "running"
+    effective_state = state
+    if state == "idle" and task_is_active:
+        effective_state = "running"
 
     return AgentStatus(
         name=agent_dir.name,
@@ -250,11 +261,11 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
         has_task=has_task,
         memory_entries=memory_entries,
         health_errors=health_errors,
-        process_state=state,
+        process_state=effective_state,
         pid=pid,
         task_summary=task_summary[:120] if task_summary else "",
         adapter=adapter,
-        state=state,
+        state=effective_state,
         health=health,
         started_at=started_at,
         updated_at=updated_at,

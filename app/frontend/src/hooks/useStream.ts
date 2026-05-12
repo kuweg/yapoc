@@ -20,17 +20,25 @@ export async function* streamTask(
   task: string,
   history: Message[],
   signal: AbortSignal,
+  sessionId?: string | null,
 ): AsyncGenerator<StreamEvent> {
   let attempt = 0
+  let yieldedAny = false
 
   while (true) {
     try {
-      yield* _streamOnce(task, history, signal)
+      for await (const event of _streamOnce(task, history, signal, sessionId)) {
+        yieldedAny = true
+        yield event
+      }
       return // clean finish — no retry needed
     } catch (err) {
       // Never retry on user-initiated abort
       if (signal.aborted) throw err
       if ((err as Error).name === 'AbortError') throw err
+      // If the request already started streaming, retrying would replay a
+      // side-effectful POST and can duplicate tool calls/delegations.
+      if (yieldedAny) throw err
 
       attempt++
       if (attempt > MAX_RETRIES) throw err
@@ -56,11 +64,12 @@ async function* _streamOnce(
   task: string,
   history: Message[],
   signal: AbortSignal,
+  sessionId?: string | null,
 ): AsyncGenerator<StreamEvent> {
   const res = await fetch('/api/task/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task, history, source: 'ui' }),
+    body: JSON.stringify({ task, history, source: 'ui', session_id: sessionId || undefined }),
     signal,
   })
 

@@ -16,6 +16,7 @@ export interface BackgroundTask {
   result?: string
   error?: string
   source?: string
+  session_id?: string
   created_at?: string
   started_at?: string
   completed_at?: string
@@ -29,10 +30,23 @@ export interface PendingApproval {
   created_at: string
 }
 
+export interface SessionEvent {
+  type: string
+  agent: string
+  timestamp: string
+  [key: string]: unknown
+}
+
+export interface SessionEventEnvelope {
+  session_id: string
+  event: SessionEvent
+}
+
 interface WsStore {
   connected: boolean
   backgroundTasks: BackgroundTask[]
   pendingApprovals: PendingApproval[]
+  lastSessionEvent: SessionEventEnvelope | null
   /** Notifications the user hasn't seen yet */
   unreadNotifications: BackgroundTask[]
   /** Most recent task_complete event (for ChatPanel to pick up) */
@@ -42,12 +56,14 @@ interface WsStore {
   handleEvent: (data: Record<string, unknown>) => void
   dismissNotification: (taskId: string) => void
   clearApproval: (id: string) => void
+  clearLastCompletedTask: () => void
 }
 
 export const useWsStore = create<WsStore>((set) => ({
   connected: false,
   backgroundTasks: [],
   pendingApprovals: [],
+  lastSessionEvent: null,
   unreadNotifications: [],
   lastCompletedTask: null,
 
@@ -63,8 +79,20 @@ export const useWsStore = create<WsStore>((set) => ({
       pendingApprovals: s.pendingApprovals.filter((a) => a.id !== id),
     })),
 
+  clearLastCompletedTask: () => set({ lastCompletedTask: null }),
+
   handleEvent: (data) => {
     const type = data.type as string
+
+    const upsertTask = (tasks: BackgroundTask[], next: BackgroundTask): BackgroundTask[] => {
+      const idx = tasks.findIndex((t) => t.task_id === next.task_id)
+      if (idx >= 0) {
+        const updated = [...tasks]
+        updated[idx] = { ...updated[idx], ...next }
+        return updated
+      }
+      return [next, ...tasks].slice(0, 100)
+    }
 
     if (type === 'state_sync') {
       // Initial batch of recent tasks + pending approvals on connect
@@ -87,10 +115,12 @@ export const useWsStore = create<WsStore>((set) => ({
 
     if (type === 'task_update') {
       const taskId = data.task_id as string
+      const patch: BackgroundTask = {
+        ...(data as unknown as BackgroundTask),
+        task_id: taskId,
+      }
       set((s) => ({
-        backgroundTasks: s.backgroundTasks.map((t) =>
-          t.task_id === taskId ? { ...t, ...data, task_id: taskId } : t,
-        ),
+        backgroundTasks: upsertTask(s.backgroundTasks, patch),
       }))
       return
     }
@@ -102,11 +132,11 @@ export const useWsStore = create<WsStore>((set) => ({
         status: 'done',
         result: data.result as string | undefined,
         completed_at: data.completed_at as string | undefined,
+        source: data.source as string | undefined,
+        session_id: data.session_id as string | undefined,
       }
       set((s) => ({
-        backgroundTasks: s.backgroundTasks.map((t) =>
-          t.task_id === taskId ? { ...t, ...completed } : t,
-        ),
+        backgroundTasks: upsertTask(s.backgroundTasks, completed),
         unreadNotifications: [completed, ...s.unreadNotifications],
         lastCompletedTask: completed,
       }))
@@ -120,11 +150,11 @@ export const useWsStore = create<WsStore>((set) => ({
         status: data.status as string ?? 'error',
         error: data.error as string | undefined,
         completed_at: data.completed_at as string | undefined,
+        source: data.source as string | undefined,
+        session_id: data.session_id as string | undefined,
       }
       set((s) => ({
-        backgroundTasks: s.backgroundTasks.map((t) =>
-          t.task_id === taskId ? { ...t, ...errTask } : t,
-        ),
+        backgroundTasks: upsertTask(s.backgroundTasks, errTask),
         unreadNotifications: [errTask, ...s.unreadNotifications],
       }))
       return
@@ -135,6 +165,14 @@ export const useWsStore = create<WsStore>((set) => ({
       set((s) => ({
         pendingApprovals: [...s.pendingApprovals, approval],
       }))
+      return
+    }
+
+    if (type === 'session_event') {
+      const sessionId = String(data.session_id ?? '')
+      const event = (data.event ?? null) as SessionEvent | null
+      if (!sessionId || !event) return
+      set({ lastSessionEvent: { session_id: sessionId, event } })
       return
     }
 

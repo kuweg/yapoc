@@ -3,7 +3,8 @@ import type { AgentStatus } from '../api/types'
 import { AgentLogDrawer } from './AgentLogDrawer'
 
 const STATUS_DOT: Record<string, string> = {
-  running: 'bg-amber-400',
+  running: 'bg-amber-400 animate-pulse',
+  busy: 'bg-amber-400',
   idle: 'bg-emerald-400',
   terminated: 'bg-zinc-500',
   error: 'bg-red-400',
@@ -12,6 +13,7 @@ const STATUS_DOT: Record<string, string> = {
 
 const STATUS_TEXT: Record<string, string> = {
   running: 'text-amber-400',
+  busy: 'text-amber-400',
   idle: 'text-emerald-400',
   terminated: 'text-zinc-500',
   error: 'text-red-400',
@@ -65,10 +67,12 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
-  const state = agent.process_state || agent.status || 'idle'
+  // `status` combines process state + task state (running > busy > error > idle).
+  // `process_state` is raw STATUS.json which can be "idle" even when a task is active.
+  const state = agent.status || agent.process_state || 'idle'
   const dotColor = STATUS_DOT[state] ?? 'bg-zinc-500'
   const textColor = STATUS_TEXT[state] ?? 'text-zinc-500'
-  const isRunning = state === 'running' || state === 'spawning'
+  const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
 
   // Accumulate TPS history locally
   const tpsHistoryRef = useRef<number[]>([])
@@ -129,7 +133,14 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
           </div>
         )}
 
-        {/* Row 3: token stats (only when running) */}
+        {/* Row 3: model info (when selected) */}
+        {selected && (
+          <div className="pl-4 mt-0.5">
+            <span className="text-[10px] text-zinc-500">{agent.adapter}/{agent.model}</span>
+          </div>
+        )}
+
+        {/* Row 4: token stats (only when running) */}
         {isRunning && (tps != null || outTokens != null) && (
           <div className="pl-4 mt-1 flex items-center gap-3">
             {/* Counts */}

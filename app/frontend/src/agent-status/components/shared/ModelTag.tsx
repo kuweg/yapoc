@@ -7,8 +7,12 @@ interface Props {
 const ADAPTER_COLORS: Record<string, string> = {
   anthropic: 'text-[#FFB633]',
   openai:    'text-[#3FB950]',
+  codex:     'text-[#3FB950]',
+  deepseek:  'text-[#4A9EFF]',
   ollama:    'text-[#D29922]',
   openrouter:'text-[#a78bfa]',
+  google:    'text-[#EA4335]',
+  lmstudio:  'text-[#D29922]',
 }
 
 export function ModelTag({ model, adapter, truncate = true }: Props) {

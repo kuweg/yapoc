@@ -117,6 +117,17 @@ def _sanitize_for_memory(text: str) -> str:
     return first[:_MEMORY_RESPONSE_CHAR_CAP]
 
 
+def _looks_self_verified(result_text: str) -> bool:
+    """Best-effort signal that an agent performed its own verification."""
+    if not result_text:
+        return False
+    lowered = result_text.lower()
+    if "## verification" in lowered:
+        return True
+    verification_terms = ("verified", "validation", "validated", "checks passed", "confirmed")
+    return any(term in lowered for term in verification_terms)
+
+
 _COMPACT_SYSTEM_PROMPT = """\
 You are a conversation compactor. Summarize the conversation below into a concise \
 summary that preserves all key facts, decisions, code snippets, file paths, and \
@@ -162,10 +173,7 @@ class BaseAgent:
         # Push to WebSocket subscribers (non-blocking)
         try:
             from app.backend.websocket import ws_manager
-            await ws_manager.push_event("session_event", {
-                "session_id": self._session_id,
-                "event": event,
-            })
+            await ws_manager.push_session_event(self._session_id, event)
         except Exception:
             pass
 
@@ -358,9 +366,24 @@ class BaseAgent:
         """Update TASK.MD frontmatter status and optionally fill Result/Error sections."""
         content = await self._read_file("TASK.MD")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        existing = self._parse_frontmatter(content)
+        verification_required = (
+            existing.get("verification_required", "").strip().lower()
+            in {"true", "1", "yes", "on"}
+        )
         updates: dict[str, str] = {"status": status}
         if status in ("done", "error"):
             updates["completed_at"] = now
+        if verification_required:
+            if status == "done":
+                if _looks_self_verified(result):
+                    updates["verification_status"] = "self_reported"
+                    updates["verified_by"] = self._name
+                    updates["verified_at"] = now
+                else:
+                    updates["verification_status"] = "pending"
+            elif status == "error":
+                updates["verification_status"] = "failed"
         content = self._update_frontmatter(content, **updates)
 
         if result:
@@ -737,7 +760,7 @@ class BaseAgent:
 
                 # Load and build tools
                 tool_names = await self._load_tool_names(config_raw=_cfg_raw)
-                tools = build_tools(tool_names, self._dir)
+                tools = build_tools(tool_names, self._dir, session_id=self._session_id)
                 tool_defs = [t.to_definition() for t in tools]
                 tool_map = {t.name: t for t in tools}
 

@@ -275,6 +275,41 @@ async def get_agent_live(name: str):
     return {"name": name, "content": content}
 
 
+@router.get("/{name}/files")
+async def list_agent_files(name: str):
+    """List markdown/config files in an agent directory."""
+    agent_dir = settings.agents_dir / name
+    if not agent_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+    allowed = {".md", ".json"}
+    files = sorted(
+        f.name for f in agent_dir.iterdir()
+        if f.is_file() and f.suffix.lower() in allowed
+    )
+    return {"name": name, "files": files}
+
+
+@router.get("/{name}/file/{filename:path}")
+async def read_agent_file(name: str, filename: str):
+    """Read any file from an agent directory (md/json only)."""
+    agent_dir = settings.agents_dir / name
+    if not agent_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+    file_path = agent_dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
+    # Security: ensure the resolved path is inside the agent dir
+    try:
+        file_path.resolve().relative_to(agent_dir.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    allowed = {".md", ".json"}
+    if file_path.suffix.lower() not in allowed:
+        raise HTTPException(status_code=400, detail="Only .md and .json files can be read")
+    content = file_path.read_text(encoding="utf-8", errors="replace")
+    return {"name": name, "filename": filename, "content": content}
+
+
 @router.get("/{name}", response_model=AgentDetail)
 async def get_agent_detail(name: str):
     agent_dir = settings.agents_dir / name

@@ -183,6 +183,7 @@ from .delegation import (
     PingAgentTool,
     ReadTaskResultTool,
     SpawnAgentTool,
+    VerifyTaskResultTool,
     WaitForAgentTool,
     WaitForAgentsTool,
 )
@@ -216,6 +217,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "kill_agent": KillAgentTool,
     "check_task_status": CheckTaskStatusTool,
     "read_task_result": ReadTaskResultTool,
+    "verify_task_result": VerifyTaskResultTool,
     "wait_for_agent": WaitForAgentTool,
     "wait_for_agents": WaitForAgentsTool,
     "notify_parent": NotifyParentTool,
@@ -236,14 +238,33 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
 }
 
 # Tools that need agent_dir injected
-_AGENT_DIR_TOOLS = {"memory_append", "notes_read", "notes_write", "notes_append", "health_log", "learnings_append", "update_config", "spawn_agent", "notify_parent", "add_task_trace", "manage_tickets", "shared_knowledge_append"}
+_AGENT_DIR_TOOLS = {
+    "memory_append",
+    "notes_read",
+    "notes_write",
+    "notes_append",
+    "health_log",
+    "learnings_append",
+    "update_config",
+    "spawn_agent",
+    "notify_parent",
+    "add_task_trace",
+    "manage_tickets",
+    "shared_knowledge_append",
+    "verify_task_result",
+}
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell
 # tools care; reads and delegation are unaffected.
 _SANDBOX_TOOLS = {"file_write", "file_edit", "file_delete", "shell_exec"}
 
 
-def build_tools(names: list[str], agent_dir: Path) -> list[BaseTool]:
+def build_tools(
+    names: list[str],
+    agent_dir: Path,
+    *,
+    session_id: str | None = None,
+) -> list[BaseTool]:
     """Instantiate the requested tools for ``agent_dir``.
 
     Parses the caller's ``CONFIG.md`` sandbox block once and passes a
@@ -260,6 +281,8 @@ def build_tools(names: list[str], agent_dir: Path) -> list[BaseTool]:
         kwargs: dict[str, Any] = {}
         if name in _AGENT_DIR_TOOLS:
             kwargs["agent_dir"] = agent_dir
+            if name == "spawn_agent":
+                kwargs["session_id"] = session_id
         if name in _SANDBOX_TOOLS:
             kwargs["sandbox"] = policy
         try:

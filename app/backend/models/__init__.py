@@ -5,6 +5,7 @@ class TaskRequest(BaseModel):
     task: str
     history: list[dict] | None = None
     source: str | None = None  # "cli", "ui", "notification"
+    session_id: str | None = None  # bind task/event stream to a UI chat session
 
 
 class TaskResponse(BaseModel):

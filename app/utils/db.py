@@ -58,6 +58,10 @@ def init_schema() -> None:
             assigned_by     TEXT,
             assigned_at     TEXT,
             completed_at    TEXT,
+            task_class      TEXT DEFAULT '',
+            route_target    TEXT DEFAULT '',
+            verification_required INTEGER DEFAULT 0,
+            verification_status   TEXT DEFAULT '',
             task_summary    TEXT,
             result_summary  TEXT,
             error_summary   TEXT
@@ -117,6 +121,19 @@ def init_schema() -> None:
         db.commit()
     except Exception:
         pass  # column already exists
+    # Migration: hierarchy columns on tasks table
+    _task_migrations = (
+        "ALTER TABLE tasks ADD COLUMN task_class TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN route_target TEXT DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN verification_required INTEGER DEFAULT 0",
+        "ALTER TABLE tasks ADD COLUMN verification_status TEXT DEFAULT ''",
+    )
+    for stmt in _task_migrations:
+        try:
+            db.execute(stmt)
+            db.commit()
+        except Exception:
+            pass
     db.commit()
 
 
@@ -130,6 +147,10 @@ def insert_task(
     status: str,
     assigned_by: str = "",
     assigned_at: str = "",
+    task_class: str = "",
+    route_target: str = "",
+    verification_required: bool | str = False,
+    verification_status: str = "",
     task_summary: str = "",
     result_summary: str = "",
     error_summary: str = "",
@@ -137,11 +158,16 @@ def insert_task(
     """Insert a completed task record. Returns the row id."""
     db = get_db()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if isinstance(verification_required, str):
+        verification_required_val = 1 if verification_required.strip().lower() in {"true", "1", "yes", "on"} else 0
+    else:
+        verification_required_val = 1 if verification_required else 0
     cur = db.execute(
         """INSERT INTO tasks
            (agent, task_id, status, assigned_by, assigned_at, completed_at,
+            task_class, route_target, verification_required, verification_status,
             task_summary, result_summary, error_summary)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             agent,
             task_id,
@@ -149,6 +175,10 @@ def insert_task(
             assigned_by,
             assigned_at or now,
             now,
+            task_class[:40],
+            route_target[:64],
+            verification_required_val,
+            verification_status[:40],
             task_summary[:500],
             result_summary[:2000],
             error_summary[:2000],

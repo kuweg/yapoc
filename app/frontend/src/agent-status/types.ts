@@ -47,6 +47,19 @@ export interface AgentDetail extends AgentStatus {
   uptime_seconds: number | null
 }
 
+export interface ModelEntry {
+  id: string
+  description: string
+  context_window: number
+  supports_tools: boolean
+}
+
+export interface AdapterInfo {
+  name: string
+  has_key: boolean
+  models: ModelEntry[]
+}
+
 export interface AgentEvent {
   id: string
   timestamp: string

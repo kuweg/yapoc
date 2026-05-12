@@ -30,6 +30,10 @@ Thumbs.db
 data/notification_queue.json
 data/notification_queue.lock
 data/spawn_registry.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/sessions/
 
 # Agent runtime state (ephemeral — not needed in repo)
 app/agents/*/TASK.MD
@@ -61,3 +65,6 @@ app/agents/*/sessions/
 
 # Claude Code local settings
 .claude/
+
+# Codex CLI local state
+.codex/

@@ -4,18 +4,16 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter
 
+from app.config import settings
+
 router = APIRouter(prefix="/stale-tasks", tags=["stale-tasks"])
 
-_AGENTS_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../agents")
-)
-_SETTINGS_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../config/agent-settings.json")
-)
+_AGENTS_DIR = str(settings.agents_dir)
+_SETTINGS_PATH = str(settings.project_root / "app" / "config" / "agent-settings.json")
 
 
 def _get_threshold() -> int:

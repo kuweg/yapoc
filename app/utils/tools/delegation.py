@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -16,6 +17,13 @@ import aiofiles
 
 from app.config import settings
 from app.utils.crash import agent_exit_watcher, count_crashes
+from app.utils.hierarchy import (
+    TASK_CLASSES,
+    agent_supports_task,
+    classify_task,
+    normalize_task_class,
+    should_require_verification,
+)
 
 from . import BaseTool, RiskTier, truncate_tool_output
 
@@ -26,6 +34,56 @@ def _status_path(agent_name: str):
 
 def _task_path(agent_name: str):
     return settings.agents_dir / agent_name / "TASK.MD"
+
+
+def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
+    """Return (fields, body_without_frontmatter)."""
+    m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
+    if not m:
+        return {}, content
+    fields: dict[str, str] = {}
+    for line in m.group(1).splitlines():
+        if ":" in line:
+            key, _, val = line.partition(":")
+            fields[key.strip()] = val.strip()
+    return fields, content[m.end() :]
+
+
+def _update_frontmatter(content: str, **updates: str) -> str:
+    fields, body = _parse_frontmatter(content)
+    fields.update(updates)
+    ordered = [
+        "status",
+        "task_id",
+        "session_id",
+        "task_class",
+        "route_target",
+        "route_reason",
+        "verification_required",
+        "verification_status",
+        "verified_by",
+        "verified_at",
+        "assigned_by",
+        "assigned_at",
+        "completed_at",
+        "consumed_at",
+    ]
+    lines: list[str] = []
+    emitted: set[str] = set()
+    for key in ordered:
+        if key in fields:
+            lines.append(f"{key}: {fields[key]}")
+            emitted.add(key)
+    for key, value in fields.items():
+        if key not in emitted:
+            lines.append(f"{key}: {value}")
+    return "---\n" + "\n".join(lines) + "\n---\n\n" + body.lstrip("\n")
+
+
+def _bool_frontmatter(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"true", "1", "yes", "on"}
 
 
 def _read_status(agent_name: str) -> dict | None:
@@ -164,7 +222,7 @@ def _parse_delegation_targets(agent_name: str) -> list[str]:
 
 
 # Agents that can spawn any agent without delegation_targets checks
-_UNRESTRICTED_SPAWNERS = {"master", "planning"}
+_UNRESTRICTED_SPAWNERS = {"master"}
 
 
 class SpawnAgentTool(BaseTool):
@@ -188,32 +246,46 @@ class SpawnAgentTool(BaseTool):
                 "type": "string",
                 "description": "Optional context for the task",
             },
+            "task_class": {
+                "type": "string",
+                "enum": list(TASK_CLASSES),
+                "description": (
+                    "Optional routing class override: code | config | schedule | "
+                    "health | mixed | general. If omitted, class is inferred."
+                ),
+            },
         },
         "required": ["agent_name", "task"],
     }
     risk_tier = RiskTier.AUTO
 
-    def __init__(self, agent_dir: "Path | None" = None) -> None:
+    def __init__(
+        self,
+        agent_dir: "Path | None" = None,
+        session_id: str | None = None,
+    ) -> None:
         self._caller = agent_dir.name if agent_dir else "master"
+        self._session_id = session_id
 
     async def execute(self, **params: Any) -> str:
         agent_name = params["agent_name"]
         task = params["task"]
         context = params.get("context", "")
+        task_class_raw = params.get("task_class")
 
         agent_dir = settings.agents_dir / agent_name
         if not agent_dir.is_dir():
             return f"Error: agent directory not found: {agent_dir}"
 
-        # Peer delegation check — master and planning have unrestricted
-        # spawn rights (existing behavior). All other agents must have the
+        # Peer delegation check — only master has unrestricted spawn rights.
+        # All other agents must have the
         # target in their CONFIG.md delegation_targets list.
         if self._caller not in _UNRESTRICTED_SPAWNERS:
             allowed = _parse_delegation_targets(self._caller)
             if not allowed:
                 return (
                     f"Error: agent '{self._caller}' has no delegation_targets in CONFIG.md. "
-                    f"Only master and planning can spawn agents without explicit delegation_targets."
+                    "Only master can spawn agents without explicit delegation_targets."
                 )
             if agent_name not in allowed:
                 return (
@@ -229,6 +301,20 @@ class SpawnAgentTool(BaseTool):
                 master_health.open("a", encoding="utf-8").write(log_line)
             except OSError:
                 pass  # never block delegation on audit failure
+
+        normalized_task_class = normalize_task_class(task_class_raw)
+        if task_class_raw is not None and normalized_task_class is None:
+            return (
+                f"Error: invalid task_class '{task_class_raw}'. "
+                f"Expected one of: {', '.join(TASK_CLASSES)}."
+            )
+        routing = classify_task(task, context=context, forced_task_class=normalized_task_class)
+        if not agent_supports_task(agent_name, routing.task_class):
+            return (
+                f"Error: routing mismatch for '{agent_name}'. "
+                f"Task classified as '{routing.task_class}' ({routing.reason}). "
+                f"Route to '{routing.suggested_agent}' or 'planning' instead."
+            )
 
         # Check if process is already alive
         status = _read_status(agent_name)
@@ -263,9 +349,22 @@ class SpawnAgentTool(BaseTool):
 
         # Write TASK.MD with frontmatter
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        task_id = str(uuid.uuid4())
+        verification_required = should_require_verification(agent_name, routing.task_class)
+        verification_status = "required" if verification_required else "not_required"
+        route_reason = routing.reason.replace("\n", " ").strip()
         task_content = (
             f"---\n"
             f"status: pending\n"
+            f"task_id: {task_id}\n"
+            f"session_id: {self._session_id or ''}\n"
+            f"task_class: {routing.task_class}\n"
+            f"route_target: {agent_name}\n"
+            f"route_reason: {route_reason}\n"
+            f"verification_required: {'true' if verification_required else 'false'}\n"
+            f"verification_status: {verification_status}\n"
+            f"verified_by:\n"
+            f"verified_at:\n"
             f"assigned_by: {self._caller}\n"
             f"assigned_at: {now}\n"
             f"completed_at:\n"
@@ -289,7 +388,8 @@ class SpawnAgentTool(BaseTool):
         if process_alive and status.get("state") in ("idle", "spawning"):
             return (
                 f"Agent '{agent_name}' already running (PID {status['pid']}, "
-                f"state: {status.get('state')}). New task assigned."
+                f"state: {status.get('state')}). New task assigned "
+                f"(task_class={routing.task_class})."
             )
 
         # Spawn new subprocess with output capture
@@ -331,7 +431,7 @@ class SpawnAgentTool(BaseTool):
             if s and s.get("state") != "spawning" and s.get("pid") == proc.pid:
                 return (
                     f"Agent '{agent_name}' spawned (PID {proc.pid}, state: {s['state']}). "
-                    f"Task assigned."
+                    f"Task assigned (task_class={routing.task_class})."
                 )
 
         # Timeout — process may still be starting
@@ -437,23 +537,22 @@ class CheckTaskStatusTool(BaseTool):
         async with aiofiles.open(path, encoding="utf-8") as f:
             content = await f.read()
 
-        # Parse frontmatter
-        m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
-        if not m:
+        fields, _ = _parse_frontmatter(content)
+        if not fields:
             return f"Agent '{agent_name}': TASK.MD has no frontmatter"
-
-        fields: dict[str, str] = {}
-        for line in m.group(1).splitlines():
-            if ":" in line:
-                key, _, val = line.partition(":")
-                fields[key.strip()] = val.strip()
 
         status = fields.get("status", "unknown")
         assigned_by = fields.get("assigned_by", "?")
         assigned_at = fields.get("assigned_at", "?")
         completed_at = fields.get("completed_at", "")
+        task_class = fields.get("task_class", "")
+        verification_status = fields.get("verification_status", "")
 
         parts = [f"Agent '{agent_name}': status={status}, assigned_by={assigned_by}, assigned_at={assigned_at}"]
+        if task_class:
+            parts.append(f"task_class={task_class}")
+        if verification_status:
+            parts.append(f"verification_status={verification_status}")
         if completed_at:
             parts.append(f"completed_at={completed_at}")
         return ", ".join(parts)
@@ -506,19 +605,21 @@ class WaitForAgentTool(BaseTool):
             async with aiofiles.open(path, encoding="utf-8") as f:
                 content = await f.read()
 
-            # Parse frontmatter status
-            m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
-            if m:
-                for line in m.group(1).splitlines():
-                    if line.startswith("status:"):
-                        last_status = line.partition(":")[2].strip()
-                        break
+            fields, _ = _parse_frontmatter(content)
+            if fields:
+                last_status = fields.get("status", "unknown")
+                verification_required = _bool_frontmatter(fields.get("verification_required"))
+                verification_status = fields.get("verification_status", "")
 
                 if last_status == "done":
                     # Extract ## Result section
                     rm = re.search(r"## Result\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                     result = rm.group(1).strip() if rm else ""
                     msg = result if result else f"Agent '{agent_name}' finished but ## Result is empty."
+                    if verification_required or verification_status:
+                        req = "true" if verification_required else "false"
+                        ver = verification_status or "unknown"
+                        msg += f"\n\n[verification] required={req}, status={ver}"
                     if _is_temporary_agent(agent_name):
                         msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
                     return truncate_tool_output(
@@ -532,6 +633,10 @@ class WaitForAgentTool(BaseTool):
                     em = re.search(r"## Error\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                     error = em.group(1).strip() if em else ""
                     msg = f"Agent '{agent_name}' failed:\n{error}" if error else f"Agent '{agent_name}' status is 'error' but ## Error is empty."
+                    if verification_required or verification_status:
+                        req = "true" if verification_required else "false"
+                        ver = verification_status or "unknown"
+                        msg += f"\n\n[verification] required={req}, status={ver}"
                     if _is_temporary_agent(agent_name):
                         msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
                     return truncate_tool_output(
@@ -653,20 +758,26 @@ class WaitForAgentsTool(BaseTool):
                 return agent_name, "error", "", f"No TASK.MD for agent '{agent_name}'"
             async with aiofiles.open(path, encoding="utf-8") as f:
                 content = await f.read()
-            status = "unknown"
-            m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
-            if m:
-                for line in m.group(1).splitlines():
-                    if line.startswith("status:"):
-                        status = line.partition(":")[2].strip()
-                        break
+            fields, _ = _parse_frontmatter(content)
+            status = fields.get("status", "unknown")
+            verification_required = _bool_frontmatter(fields.get("verification_required"))
+            verification_status = fields.get("verification_status", "")
+            verification_suffix = ""
+            if verification_required or verification_status:
+                req = "true" if verification_required else "false"
+                ver = verification_status or "unknown"
+                verification_suffix = f"\n\n[verification] required={req}, status={ver}"
             if status == "done":
                 rm = re.search(r"## Result\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                 result = rm.group(1).strip() if rm else ""
+                if verification_suffix:
+                    result += verification_suffix
                 return agent_name, "done", result, ""
             if status == "error":
                 em = re.search(r"## Error\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                 error = em.group(1).strip() if em else ""
+                if verification_suffix:
+                    error += verification_suffix
                 return agent_name, "error", "", error
             return agent_name, status, "", ""
 
@@ -716,6 +827,7 @@ class WaitForAgentsTool(BaseTool):
 _NOTIFY_TRIGGER_TASK = (
     "---\n"
     "status: pending\n"
+    "session_id: {session_id}\n"
     "assigned_by: {assigned_by}\n"
     "assigned_at: {ts}\n"
     "---\n\n"
@@ -736,6 +848,16 @@ async def _read_assigned_by(task_path: "Path") -> str:
     return m.group(1).strip() if m else ""
 
 
+async def _read_session_id(task_path: "Path") -> str:
+    """Read the session_id field from TASK.MD frontmatter."""
+    if not task_path.exists():
+        return ""
+    async with aiofiles.open(task_path, encoding="utf-8") as f:
+        content = await f.read()
+    m = re.search(r"^session_id:\s*(.*)$", content, re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
 async def _get_task_status_from_file(task_path: "Path") -> str:
     """Return the status field from a TASK.MD frontmatter, or empty string."""
     if not task_path.exists():
@@ -746,7 +868,7 @@ async def _get_task_status_from_file(task_path: "Path") -> str:
     return m.group(1).strip() if m else ""
 
 
-async def _wake_agent_if_idle(agent_name: str) -> None:
+async def _wake_agent_if_idle(agent_name: str, session_id: str | None = None) -> None:
     """Write a trigger TASK.MD to wake an idle AgentRunner."""
     agent_dir = settings.agents_dir / agent_name
     status_path = agent_dir / "STATUS.json"
@@ -791,9 +913,18 @@ async def _wake_agent_if_idle(agent_name: str) -> None:
             return  # err on side of caution
 
     original_parent = await _read_assigned_by(task_path) or "master"
+    effective_session_id = session_id
+    if effective_session_id is None:
+        effective_session_id = await _read_session_id(task_path)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     async with aiofiles.open(task_path, "w", encoding="utf-8") as f:
-        await f.write(_NOTIFY_TRIGGER_TASK.format(ts=ts, assigned_by=original_parent))
+        await f.write(
+            _NOTIFY_TRIGGER_TASK.format(
+                ts=ts,
+                assigned_by=original_parent,
+                session_id=effective_session_id or "",
+            )
+        )
 
 
 class NotifyParentTool(BaseTool):
@@ -832,6 +963,7 @@ class NotifyParentTool(BaseTool):
 
         task_path = self._agent_dir / "TASK.MD"
         parent_name = await _read_assigned_by(task_path)
+        session_id = await _read_session_id(task_path)
 
         if not parent_name or parent_name in ("", "notification"):
             return "Error: no parent found in TASK.MD (assigned_by is missing or 'notification')."
@@ -846,9 +978,10 @@ class NotifyParentTool(BaseTool):
             status=status,
             result=result_text if status == "done" else "",
             error=result_text if status == "error" else "",
+            session_id=session_id or "",
         )
 
-        await _wake_agent_if_idle(parent_name)
+        await _wake_agent_if_idle(parent_name, session_id=session_id or "")
 
         return f"Parent '{parent_name}' notified ({status})."
 
@@ -876,6 +1009,7 @@ class ReadTaskResultTool(BaseTool):
 
         async with aiofiles.open(path, encoding="utf-8") as f:
             content = await f.read()
+        fields, _ = _parse_frontmatter(content)
 
         m = re.search(r"## Result\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
         if not m:
@@ -883,6 +1017,12 @@ class ReadTaskResultTool(BaseTool):
 
         result = m.group(1).strip()
         msg = result if result else f"Agent '{agent_name}': ## Result section is empty"
+        verification_required = _bool_frontmatter(fields.get("verification_required"))
+        verification_status = fields.get("verification_status", "")
+        if verification_required or verification_status:
+            req = "true" if verification_required else "false"
+            ver = verification_status or "unknown"
+            msg += f"\n\n[verification] required={req}, status={ver}"
         if _is_temporary_agent(agent_name):
             msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
         msg = truncate_tool_output(
@@ -891,3 +1031,97 @@ class ReadTaskResultTool(BaseTool):
             note=f"read file://app/agents/{agent_name}/TASK.MD for full result",
         )
         return msg
+
+
+class VerifyTaskResultTool(BaseTool):
+    name = "verify_task_result"
+    description = (
+        "Mark a completed sub-agent TASK.MD as verified or rejected. "
+        "Updates frontmatter verification fields and writes a ## Verification section."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "agent_name": {
+                "type": "string",
+                "description": "Name of the agent whose task should be verified",
+            },
+            "verdict": {
+                "type": "string",
+                "enum": ["verified", "rejected"],
+                "description": "Verification decision",
+            },
+            "notes": {
+                "type": "string",
+                "description": "Optional verification notes",
+            },
+        },
+        "required": ["agent_name", "verdict"],
+    }
+    risk_tier = RiskTier.AUTO
+
+    def __init__(self, agent_dir: "Path | None" = None) -> None:
+        self._caller = agent_dir.name if agent_dir else "master"
+
+    async def execute(self, **params: Any) -> str:
+        agent_name = params["agent_name"]
+        verdict = params["verdict"]
+        notes = params.get("notes", "").strip()
+        path = _task_path(agent_name)
+
+        if not path.exists():
+            return f"Error: no TASK.MD for agent '{agent_name}'"
+
+        async with aiofiles.open(path, encoding="utf-8") as f:
+            content = await f.read()
+
+        fields, _ = _parse_frontmatter(content)
+        if not fields:
+            return f"Error: TASK.MD for '{agent_name}' has no frontmatter"
+
+        status = fields.get("status", "")
+        if status not in {"done", "error"}:
+            return (
+                f"Error: cannot verify '{agent_name}' while status is '{status or 'unknown'}'. "
+                "Wait until status is done/error."
+            )
+
+        if not _bool_frontmatter(fields.get("verification_required")):
+            return f"Agent '{agent_name}' task does not require verification."
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        updated = _update_frontmatter(
+            content,
+            verification_status=verdict,
+            verified_by=self._caller,
+            verified_at=now,
+        )
+
+        verification_lines = [
+            f"verdict: {verdict}",
+            f"by: {self._caller}",
+            f"at: {now}",
+        ]
+        if notes:
+            verification_lines.append(f"notes: {notes}")
+        verification_block = "## Verification\n" + "\n".join(verification_lines) + "\n"
+
+        if "## Verification\n" in updated:
+            updated = re.sub(
+                r"(## Verification\n).*?(?=\n## |\Z)",
+                r"\1" + "\n".join(verification_lines) + "\n",
+                updated,
+                flags=re.DOTALL,
+            )
+        else:
+            if not updated.endswith("\n"):
+                updated += "\n"
+            updated += "\n" + verification_block
+
+        async with aiofiles.open(path, "w", encoding="utf-8") as f:
+            await f.write(updated)
+
+        return (
+            f"Task for agent '{agent_name}' marked {verdict} by '{self._caller}'. "
+            f"(verification_status={verdict})"
+        )

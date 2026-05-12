@@ -9,6 +9,8 @@ import { HealthLogList } from './HealthLogList'
 import { HealthSparkline } from './HealthSparkline'
 import { MemoryPreview } from './MemoryPreview'
 import { AgentActions } from './AgentActions'
+import { AgentFileViewer } from './AgentFileViewer'
+import { AgentModelPicker } from './AgentModelPicker'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -20,7 +22,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function AgentDetailPanel() {
-  const { selectedAgentName, selectedAgentDetail, isDetailLoading, selectAgent } = useAgentStore()
+  const { selectedAgentName, selectedAgentDetail, isDetailLoading, selectAgent, setAgentDetail } = useAgentStore()
 
   // Build sparkline data from health log
   const sparklineData = (() => {
@@ -107,6 +109,22 @@ export function AgentDetailPanel() {
 
                 <Section title="Recent Memory">
                   <MemoryPreview entries={selectedAgentDetail.memory_log} />
+                </Section>
+
+                <Section title="Model Configuration">
+                  <AgentModelPicker
+                    agentName={selectedAgentName}
+                    currentAdapter={selectedAgentDetail.adapter}
+                    currentModel={selectedAgentDetail.model}
+                    onUpdated={() => {
+                      // Re-trigger detail fetch on next poll cycle
+                      setAgentDetail(null)
+                    }}
+                  />
+                </Section>
+
+                <Section title="Agent Files">
+                  <AgentFileViewer agentName={selectedAgentName} />
                 </Section>
               </>
             )}

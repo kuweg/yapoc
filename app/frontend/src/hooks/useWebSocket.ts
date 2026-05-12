@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef } from 'react'
 import { useWsStore } from '../store/wsStore'
+import { useSessionStore } from '../store/session'
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
 const MAX_RETRIES = 10
@@ -13,10 +14,31 @@ const BASE_DELAY_MS = 1_000
 const MAX_DELAY_MS = 30_000
 
 export function useWebSocket() {
+  const activeSessionId = useSessionStore((s) => s.activeId)
   const wsRef = useRef<WebSocket | null>(null)
+  const activeSessionRef = useRef<string | null>(activeSessionId)
+  const subscribedSessionRef = useRef<string | null>(null)
   const retryRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unmountedRef = useRef(false)
+
+  useEffect(() => {
+    activeSessionRef.current = activeSessionId
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    const prev = subscribedSessionRef.current
+    const next = activeSessionId
+
+    if (prev && prev !== next) {
+      ws.send(JSON.stringify({ type: 'unsubscribe', session_id: prev }))
+      subscribedSessionRef.current = null
+    }
+    if (next && next !== prev) {
+      ws.send(JSON.stringify({ type: 'subscribe', session_id: next }))
+      subscribedSessionRef.current = next
+    }
+  }, [activeSessionId])
 
   useEffect(() => {
     unmountedRef.current = false
@@ -31,6 +53,11 @@ export function useWebSocket() {
         ws.onopen = () => {
           retryRef.current = 0
           useWsStore.getState().setConnected(true)
+          const sid = activeSessionRef.current
+          if (sid) {
+            ws.send(JSON.stringify({ type: 'subscribe', session_id: sid }))
+            subscribedSessionRef.current = sid
+          }
         }
 
         ws.onmessage = (ev) => {
@@ -45,6 +72,7 @@ export function useWebSocket() {
         ws.onclose = () => {
           useWsStore.getState().setConnected(false)
           wsRef.current = null
+          subscribedSessionRef.current = null
           scheduleReconnect()
         }
 

@@ -6,6 +6,7 @@ import { KanbanBoard } from './kanban/KanbanBoard'
 import { TicketDetailPanel } from './detail/TicketDetailPanel'
 import { CreateTicketModal } from './modals/CreateTicketModal'
 import { FileTreePanel } from './files/FileTreePanel'
+import { StaleTasksPanel } from '../../staleTasks/StaleTasksPanel'
 import type { TicketStatus } from '../types'
 import { COLUMNS } from '../types'
 
@@ -257,6 +258,11 @@ export function DashboardView() {
                 onToggleSelect={toggleSelectId}
               />
             )}
+          </div>
+
+          {/* Stale Tasks watchdog panel */}
+          <div className="px-4 pb-4">
+            <StaleTasksPanel />
           </div>
 
           {/* Detail panel */}

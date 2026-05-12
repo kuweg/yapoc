@@ -1,4 +1,4 @@
-import type { AgentStatus, Message } from './types'
+import type { AgentStatus, Message, ModelsResponse } from './types'
 
 export async function getAgents(): Promise<AgentStatus[]> {
   const res = await fetch('/api/agents')
@@ -31,6 +31,38 @@ export async function getMasterResult(): Promise<{ name: string; content: string
   const res = await fetch('/api/agents/master/result')
   if (!res.ok) throw new Error(`GET /agents/master/result: ${res.status}`)
   return res.json() as Promise<{ name: string; content: string }>
+}
+
+export async function getModels(): Promise<ModelsResponse> {
+  const res = await fetch('/api/models')
+  if (!res.ok) throw new Error(`GET /models: ${res.status}`)
+  return res.json() as Promise<ModelsResponse>
+}
+
+export async function updateAgentConfig(
+  name: string,
+  adapter: string,
+  model: string,
+): Promise<{ status: string; name: string; adapter: string; model: string }> {
+  const res = await fetch(`/api/models/agents/${name}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adapter, model }),
+  })
+  if (!res.ok) throw new Error(`PUT /models/agents/${name}/config: ${res.status}`)
+  return res.json()
+}
+
+export async function getAgentFiles(name: string): Promise<{ name: string; files: string[] }> {
+  const res = await fetch(`/api/agents/${name}/files`)
+  if (!res.ok) throw new Error(`GET /agents/${name}/files: ${res.status}`)
+  return res.json()
+}
+
+export async function readAgentFile(name: string, filename: string): Promise<{ name: string; filename: string; content: string }> {
+  const res = await fetch(`/api/agents/${name}/file/${filename}`)
+  if (!res.ok) throw new Error(`GET /agents/${name}/file/${filename}: ${res.status}`)
+  return res.json()
 }
 
 export async function postTask(

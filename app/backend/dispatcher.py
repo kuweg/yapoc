@@ -91,9 +91,7 @@ async def _execute_task(task_id: str) -> None:
     if history is not None:
         history = history + [Message(role="user", content=prompt)]
 
-    # Set session_id on master so events get emitted for real-time streaming
     session_id = task_row.get("session_id") or task_id
-    master_agent._session_id = session_id
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     update_queued_task(task_id, status="running", started_at=now, assigned_agent="master",
@@ -102,6 +100,8 @@ async def _execute_task(task_id: str) -> None:
         "task_id": task_id,
         "status": "running",
         "started_at": now,
+        "session_id": session_id,
+        "source": source,
     })
 
     # Total chain timeout: prevents infinite delegation chains.
@@ -118,6 +118,7 @@ async def _execute_task(task_id: str) -> None:
                 task=prompt,
                 history=history,
                 source=source,
+                session_id=session_id,
             ):
                 # Collect text deltas for the final result
                 from app.utils.adapters import TextDelta, UsageStats
@@ -141,6 +142,8 @@ async def _execute_task(task_id: str) -> None:
             "status": "done",
             "result": result_text[:2000],
             "completed_at": completed_at,
+            "session_id": session_id,
+            "source": source,
         })
         logger.info(f"Task {task_id[:8]}… completed ({len(result_text)} chars)")
 
@@ -152,7 +155,12 @@ async def _execute_task(task_id: str) -> None:
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         update_queued_task(task_id, status="timeout", error=error_text, completed_at=completed_at)
         await ws_manager.push_event("task_error", {
-            "task_id": task_id, "status": "timeout", "error": error_text, "completed_at": completed_at,
+            "task_id": task_id,
+            "status": "timeout",
+            "error": error_text,
+            "completed_at": completed_at,
+            "session_id": session_id,
+            "source": source,
         })
         # Return partial result if any text was collected
         partial = "".join(response_parts)
@@ -174,6 +182,8 @@ async def _execute_task(task_id: str) -> None:
             "status": "error",
             "error": error_text[:2000],
             "completed_at": completed_at,
+            "session_id": session_id,
+            "source": source,
         })
         logger.error(f"Task {task_id[:8]}… failed: {error_text[:200]}")
 

@@ -74,6 +74,28 @@ class WebSocketManager:
                 for ws in dead:
                     self._clients.discard(ws)
 
+    async def push_session_event(self, session_id: str, event: dict[str, Any]) -> None:
+        """Send a turn-level event only to subscribers of ``session_id``."""
+        message = json.dumps(
+            {"type": "session_event", "session_id": session_id, "event": event}
+        )
+        async with self._lock:
+            clients = list(self._session_subscribers.get(session_id, set()))
+        dead: list[WebSocket] = []
+        for ws in clients:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.append(ws)
+        if dead:
+            async with self._lock:
+                subs = self._session_subscribers.get(session_id)
+                if subs is not None:
+                    for ws in dead:
+                        subs.discard(ws)
+                    if not subs:
+                        del self._session_subscribers[session_id]
+
     async def subscribe_session(self, ws: WebSocket, session_id: str) -> None:
         """Subscribe a client to turn-level events for a specific session."""
         async with self._lock:

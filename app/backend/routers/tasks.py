@@ -59,6 +59,7 @@ async def submit_task(request: TaskRequest):
         id=task_id,
         prompt=request.task,
         source=request.source or "ui",
+        session_id=request.session_id or task_id,
         metadata=metadata,
     )
     # Push WebSocket event
@@ -141,10 +142,11 @@ async def approve_tool(request_id: str, body: ApprovalRequest):
 @router.post("/task/stream")
 async def submit_task_stream(request: TaskRequest):
     history = _parse_history(request.history)
+    session_id = request.session_id or str(_uuid.uuid4())
 
     # Collect completed background agent results and inject as system context
     # rather than concatenating into the user task string.
-    finished = await collect_agent_results()
+    finished = await collect_agent_results(session_id=session_id)
     task = request.task
     if finished:
         notifications_text = build_result_injection(finished)
@@ -196,6 +198,7 @@ async def submit_task_stream(request: TaskRequest):
             async for event in master_agent.handle_task_stream(
                 task, history=history, approval_gate=approval_gate,
                 source=request.source,
+                session_id=session_id,
             ):
                 item = _event_to_dict(event)
                 if item:

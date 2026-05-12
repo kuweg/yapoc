@@ -10,6 +10,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { CostBar } from './CostBar'
 import { ApprovalDialog } from './ApprovalDialog'
 import type { UsageEvent } from '../api/types'
+import type { SessionEventEnvelope } from '../store/wsStore'
 
 type TextPart = { kind: 'text'; text: string }
 type ThinkingPart = { kind: 'thinking'; id: string; text: string; done: boolean }
@@ -34,23 +35,27 @@ interface PendingApproval {
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 
 export function ChatPanel() {
-  const { history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
+  const { activeId, history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
   const [input, setInput] = useState('')
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [usage, setUsage] = useState<UsageEvent | null>(null)
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null)
   const [awaitingNotification, setAwaitingNotification] = useState(false)
+  const [backgroundActivity, setBackgroundActivity] = useState<string>('')
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // WebSocket-based background notification listener
   const lastCompletedTask = useWsStore((s) => s.lastCompletedTask)
+  const clearLastCompletedTask = useWsStore((s) => s.clearLastCompletedTask)
+  const lastSessionEvent = useWsStore((s) => s.lastSessionEvent)
   const wsConnected = useWsStore((s) => s.connected)
 
   const stopPolling = useCallback(() => {
     setAwaitingNotification(false)
+    setBackgroundActivity('')
   }, [])
 
   // Auto-scroll on new content
@@ -60,7 +65,8 @@ export function ChatPanel() {
 
   // WebSocket notification: when a background task completes, show result in chat
   useEffect(() => {
-    if (!awaitingNotification || !lastCompletedTask) return
+    if (!awaitingNotification || !lastCompletedTask || !activeId) return
+    if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
     const result = lastCompletedTask.result?.trim()
     if (result) {
       appendMessage('assistant', result)
@@ -68,9 +74,27 @@ export function ChatPanel() {
       appendMessage('assistant', `_Background task error: ${lastCompletedTask.error}_`)
     }
     setAwaitingNotification(false)
+    setBackgroundActivity('')
     // Clear the lastCompletedTask so it doesn't re-trigger
-    useWsStore.getState().lastCompletedTask = null
-  }, [lastCompletedTask, awaitingNotification, appendMessage])
+    clearLastCompletedTask()
+  }, [lastCompletedTask, awaitingNotification, activeId, appendMessage, clearLastCompletedTask])
+
+  useEffect(() => {
+    if (!awaitingNotification || !lastSessionEvent || !activeId) return
+    if (lastSessionEvent.session_id !== activeId) return
+    const eventType = String(lastSessionEvent.event.type ?? '')
+    if (eventType === 'notification_result') {
+      const text = String(lastSessionEvent.event.text ?? '').trim()
+      if (text) {
+        appendMessage('assistant', text)
+      }
+      setAwaitingNotification(false)
+      setBackgroundActivity('')
+      return
+    }
+    const line = formatSessionActivity(lastSessionEvent)
+    if (line) setBackgroundActivity(line)
+  }, [awaitingNotification, lastSessionEvent, activeId, appendMessage])
 
   // Clean up on unmount
   useEffect(() => () => stopPolling(), [stopPolling])
@@ -96,9 +120,11 @@ export function ChatPanel() {
     const apiHistory = useSessionStore.getState().history
 
     appendMessage('user', text)
+    const sessionId = useSessionStore.getState().activeId
     if (overrideText == null) setInput('')
     setStreamingParts([])
     setIsStreaming(true)
+    setBackgroundActivity('')
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -109,7 +135,7 @@ export function ChatPanel() {
     let hadSpawnAgent = false
 
     try {
-      for await (const event of streamTask(text, apiHistory, controller.signal)) {
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId)) {
         if (event.type === 'thinking') {
           const chunk = event.text
           setStreamingParts((prev) => {
@@ -274,7 +300,8 @@ export function ChatPanel() {
         )}
 
         {awaitingNotification && (
-          <div className="flex items-center gap-2 text-zinc-500 text-xs pl-1 py-1">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-zinc-500 text-xs pl-1 py-1">
             <span className="animate-spin inline-block">⟳</span>
             <span>
               Agents working in background
@@ -286,6 +313,12 @@ export function ChatPanel() {
             >
               dismiss
             </button>
+            </div>
+            {backgroundActivity && (
+              <div className="pl-6 text-[11px] text-zinc-400 font-mono">
+                {backgroundActivity}
+              </div>
+            )}
           </div>
         )}
 
@@ -334,4 +367,25 @@ export function ChatPanel() {
       </div>
     </div>
   )
+}
+
+function formatSessionActivity(envelope: SessionEventEnvelope): string {
+  const event = envelope.event
+  const agent = event.agent || 'agent'
+  if (event.type === 'tool_call') {
+    const tool = String(event.name ?? 'tool')
+    return `[${agent}] tool start: ${tool}`
+  }
+  if (event.type === 'tool_result') {
+    const tool = String(event.name ?? 'tool')
+    const isError = Boolean(event.is_error)
+    return `[${agent}] tool ${tool}: ${isError ? 'error' : 'done'}`
+  }
+  if (event.type === 'thinking_delta' || event.type === 'message_delta') {
+    return `[${agent}] generating...`
+  }
+  if (event.type === 'notification_result') {
+    return `[${agent}] sent final background result`
+  }
+  return ''
 }

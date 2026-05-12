@@ -15,7 +15,7 @@ from watchdog.observers import Observer
 from app.config import settings
 from app.agents.base import BaseAgent
 from app.agents.base.context import _parse_runner_config
-from app.utils.adapters import StreamEvent, TextDelta, UsageStats
+from app.utils.adapters import TextDelta, ThinkingDelta, ToolStart, ToolDone, UsageStats
 
 
 class _TaskFileHandler(FileSystemEventHandler):
@@ -139,6 +139,9 @@ class AgentRunner:
         """Execute a single task, updating TASK.MD frontmatter on completion."""
         self._write_status("running", task_summary=task_body[:120])
         _fm = self._parse_task_frontmatter()
+        # Propagate session binding into this subprocess so turn-level
+        # events from child agents stream back to the same UI session.
+        self._agent._session_id = _fm.get("session_id") or None
         await self._agent.set_task_status("running")
 
         # Drain pending notifications and inject into the LLM system prompt
@@ -162,6 +165,7 @@ class AgentRunner:
         try:
             live_buf: list[str] = []
             last_live_flush = time.monotonic()
+            last_thinking_marker = 0.0
             last_tps: float | None = None
             last_input: int | None = None
             last_output: int | None = None
@@ -177,6 +181,31 @@ class AgentRunner:
                     if now - last_live_flush >= 0.5:
                         self._write_live("".join(live_buf))
                         last_live_flush = now
+                elif isinstance(event, ThinkingDelta):
+                    # Keep LIVE.MD visibly active during long non-text reasoning/tool turns.
+                    now = time.monotonic()
+                    if now - last_thinking_marker >= 2.0:
+                        live_buf.append("\n[thinking...]\n")
+                        self._write_live("".join(live_buf))
+                        last_live_flush = now
+                        last_thinking_marker = now
+                elif isinstance(event, ToolStart):
+                    input_preview = str(event.input).replace("\n", " ")
+                    if len(input_preview) > 180:
+                        input_preview = input_preview[:180] + "... (truncated)"
+                    live_buf.append(f"\n[tool:start] {event.name} {input_preview}\n")
+                    now = time.monotonic()
+                    self._write_live("".join(live_buf))
+                    last_live_flush = now
+                elif isinstance(event, ToolDone):
+                    result_preview = (event.result or "").replace("\n", " ")
+                    if len(result_preview) > 180:
+                        result_preview = result_preview[:180] + "... (truncated)"
+                    status_label = "error" if event.is_error else "done"
+                    live_buf.append(f"\n[tool:{status_label}] {event.name} {result_preview}\n")
+                    now = time.monotonic()
+                    self._write_live("".join(live_buf))
+                    last_live_flush = now
                 elif isinstance(event, UsageStats):
                     last_tps = event.tokens_per_second
                     last_input = event.input_tokens
@@ -200,50 +229,65 @@ class AgentRunner:
             result_text = result_text.strip()
 
             await self._agent.set_task_status("done", result=result_text or "Task completed.")
+            _done_fm = self._parse_task_frontmatter()
             try:
                 from app.utils.db import init_schema, insert_task
                 init_schema()
                 insert_task(
                     agent=self._name,
-                    task_id=_fm.get("task_id", ""),
+                    task_id=_done_fm.get("task_id", "") or _fm.get("task_id", ""),
                     status="done",
-                    assigned_by=_fm.get("assigned_by", ""),
-                    assigned_at=_fm.get("assigned_at", ""),
+                    assigned_by=_done_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
+                    assigned_at=_done_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body[:500],
                     result_summary=result_text[:2000],
+                    task_class=_done_fm.get("task_class", ""),
+                    verification_required=_done_fm.get("verification_required", ""),
+                    verification_status=_done_fm.get("verification_status", ""),
+                    route_target=_done_fm.get("route_target", ""),
                 )
             except Exception:
                 pass  # never let DB errors break the runner
 
         except TimeoutError:
             await self._agent.set_task_status("error", error="Task timed out (exceeded configured timeout)")
+            _err_fm = self._parse_task_frontmatter()
             try:
                 from app.utils.db import init_schema, insert_task
                 init_schema()
                 insert_task(
                     agent=self._name,
-                    task_id=_fm.get("task_id", ""),
+                    task_id=_err_fm.get("task_id", "") or _fm.get("task_id", ""),
                     status="error",
-                    assigned_by=_fm.get("assigned_by", ""),
-                    assigned_at=_fm.get("assigned_at", ""),
+                    assigned_by=_err_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
+                    assigned_at=_err_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body[:500],
                     error_summary="Task timed out",
+                    task_class=_err_fm.get("task_class", ""),
+                    verification_required=_err_fm.get("verification_required", ""),
+                    verification_status=_err_fm.get("verification_status", ""),
+                    route_target=_err_fm.get("route_target", ""),
                 )
             except Exception:
                 pass
         except Exception as exc:
             await self._agent.set_task_status("error", error=str(exc) or repr(exc))
+            _exc_fm = self._parse_task_frontmatter()
             try:
                 from app.utils.db import init_schema, insert_task
                 init_schema()
                 insert_task(
                     agent=self._name,
-                    task_id=_fm.get("task_id", ""),
+                    task_id=_exc_fm.get("task_id", "") or _fm.get("task_id", ""),
                     status="error",
-                    assigned_by=_fm.get("assigned_by", ""),
-                    assigned_at=_fm.get("assigned_at", ""),
+                    assigned_by=_exc_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
+                    assigned_at=_exc_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body[:500],
                     error_summary=str(exc)[:2000],
+                    task_class=_exc_fm.get("task_class", ""),
+                    verification_required=_exc_fm.get("verification_required", ""),
+                    verification_status=_exc_fm.get("verification_status", ""),
+                    route_target=_exc_fm.get("route_target", ""),
                 )
             except Exception:
                 pass

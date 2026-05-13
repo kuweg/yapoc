@@ -34,6 +34,17 @@ poetry run yapoc start   # wraps: uvicorn app.backend.main:app
 | `GET` | `/ping` | UTC timestamp |
 | `GET` | `/health/summary` | Contents of `doctor/HEALTH_SUMMARY.MD` |
 
+## Cross-process IPC services
+Subprocess agents (`planning`, `builder`, `keeper`, `cron`, `doctor`, `model_manager`) can't push WebSocket events directly — they hold no client connections. Three services close that gap by polling/watching shared state from the *server* process:
+
+| Service | Watches | Forwards to |
+|---|---|---|
+| `notification_poller` | each agent's TASK.MD frontmatter `## Result` / `## Error` | `notification_queue` → master notification watcher |
+| `session_event_relay` | `data/sessions/*/events.jsonl` (watchdog inotify) | `ws_manager.push_session_event` per line |
+| `BackgroundApprovalBanner` (frontend) | `/approvals` (3s poll) + `approval_needed` WS event | UI banner |
+
+Without `session_event_relay`, sub-agent thinking/tool/text deltas write to JSONL on disk but never reach the UI — only master's events flow through. The relay seeds offsets to EOF on startup so it never replays old backlog.
+
 ## APScheduler background jobs
 Registered at startup in `main.py` lifespan:
 - **Doctor**: every `settings.doctor_interval_minutes` (5 min) — `doctor_agent.run_health_check()`

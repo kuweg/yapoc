@@ -134,8 +134,9 @@ class FileListTool(BaseTool):
 
         # Truncate if too many entries
         if len(entries) > 200:
+            remaining = len(entries) - 200
             entries = entries[:200]
-            entries.append(f"... ({len(entries)} more entries)")
+            entries.append(f"... ({remaining} more entries)")
 
         return "\n".join(entries)
 

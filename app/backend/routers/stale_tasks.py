@@ -2,13 +2,13 @@
 from __future__ import annotations
 import json
 import os
-import re
 import time
 from datetime import datetime
 
 from fastapi import APIRouter
 
 from app.config import settings
+from app.utils.frontmatter import parse_frontmatter_fields
 
 router = APIRouter(prefix="/stale-tasks", tags=["stale-tasks"])
 
@@ -26,15 +26,7 @@ def _get_threshold() -> int:
 
 
 def _parse_frontmatter(content: str) -> dict:
-    m = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
-    if not m:
-        return {}
-    result = {}
-    for line in m.group(1).splitlines():
-        if ":" in line:
-            k, _, v = line.partition(":")
-            result[k.strip()] = v.strip()
-    return result
+    return parse_frontmatter_fields(content)
 
 
 @router.get("")

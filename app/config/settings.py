@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
     port: int = 8000
+    # Comma-separated list of origins allowed by the CORS middleware. Defaults
+    # to common local dev origins; set CORS_ALLOW_ORIGINS in production.
+    cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
 
     # ── Runner defaults ──────────────────────────────────────────────────────
     max_turns: int = 20

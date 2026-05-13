@@ -1,8 +1,9 @@
 # app/utils — Utilities
 
 ## Subpackages
-- `adapters/` — LLM adapter registry (anthropic, openai, ollama, openrouter). See `adapters/CLAUDE.md`.
-- `tools/` — 26-tool registry for agents. See `tools/CLAUDE.md`.
+- `adapters/` — LLM adapter registry (anthropic, openai, codex, deepseek, openrouter, google, ollama, lmstudio). See `adapters/CLAUDE.md`.
+- `tools/` — 40-tool registry for agents. See `tools/CLAUDE.md`.
+- `frontmatter.py` — shared YAML-like frontmatter parser; use this rather than re-implementing the regex (was duplicated in 4 places before).
 
 ## context.py — Token estimation & auto-compact
 

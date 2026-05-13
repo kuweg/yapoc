@@ -1,7 +1,7 @@
 # app/utils/tools — Tool System
 
 ## Registry
-`TOOL_REGISTRY: dict[str, type[BaseTool]]` in `__init__.py`. 28 tools total.
+`TOOL_REGISTRY: dict[str, type[BaseTool]]` in `__init__.py`. 40 tools total.
 
 **Always use `build_tools(names, agent_dir)` — never instantiate tools directly.** Some tools require `agent_dir` at construction:
 ```python
@@ -33,8 +33,8 @@ Override `get_risk_tier(params) -> RiskTier` for dynamic tiers (e.g., `CreateAge
 
 ## Key tool behaviors
 
-### `shell_exec` — `RiskTier.AUTO`
-Runs in `/bin/sh -c` with `start_new_session=True`. Timeout hard-capped at `settings.max_shell_timeout` (120s); kills entire process group on timeout. Output truncated at 10,000 chars. **No confirmation needed** — intentional for autonomous agents.
+### `shell_exec` — `RiskTier.CONFIRM`
+Runs in `/bin/sh -c` with `start_new_session=True`. Timeout hard-capped at `settings.max_shell_timeout` (120s); kills entire process group on timeout. Output truncated at 10,000 chars. In the CLI, the interactive approval gate prompts before each run. In autonomous (subprocess / HTTP) execution, the agent's `autonomous_policy.shell_exec` block in CONFIG.md decides via `auto_approve` / `deny` / `queue` patterns. Optional `sandbox.shell_allowlist` further restricts commands by binary name.
 
 ### `file_edit`
 `old_string` must appear **exactly once** in the file. Atomic write via `mkstemp + os.replace`.

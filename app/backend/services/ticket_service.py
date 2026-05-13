@@ -101,34 +101,24 @@ def _locked_store(path: Path, *, readonly: bool = False):
 # ---------------------------------------------------------------------------
 
 def load_tickets() -> list[dict]:
-    """Load tickets from the JSON store. Returns empty list on error."""
+    """Load tickets from the JSON store under the cross-process file lock."""
     path = get_ticket_store_path()
     try:
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+        with _locked_store(path, readonly=True) as tickets:
+            return list(tickets)
+    except Exception as exc:
         logger.warning("ticket_service: failed to load tickets: %s", exc)
-    return []
+        return []
 
 
 def save_tickets(tickets: list[dict]) -> None:
-    """Save tickets to the JSON store using an atomic write."""
+    """Save tickets to the JSON store under the cross-process file lock."""
     path = get_ticket_store_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
     try:
-        tmp.write_text(
-            json.dumps(tickets, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        os.replace(tmp, path)
+        with _locked_store(path) as current:
+            current[:] = tickets
     except Exception as exc:
         logger.error("ticket_service: save_tickets failed: %s", exc)
-        if tmp.exists():
-            try:
-                tmp.unlink()
-            except OSError:
-                pass
         raise
 
 

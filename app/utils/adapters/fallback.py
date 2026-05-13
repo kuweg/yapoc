@@ -60,6 +60,7 @@ except Exception:  # pragma: no cover — anthropic is a hard dep, but be safe
 # Exceptions that indicate "try the next fallback" rather than "fail hard".
 _FALLOVER_ERRORS: tuple[type[BaseException], ...] = (
     ValueError,  # missing API key at constructor time
+    TypeError,  # SDK auth validation (some raise TypeError not ValueError)
     httpx.HTTPStatusError,
     httpx.ConnectError,
     httpx.ReadError,

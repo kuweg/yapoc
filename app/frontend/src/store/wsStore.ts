@@ -51,6 +51,10 @@ interface WsStore {
   unreadNotifications: BackgroundTask[]
   /** Most recent task_complete event (for ChatPanel to pick up) */
   lastCompletedTask: BackgroundTask | null
+  /** Orphan notification result — fired when the backend couldn't route to a
+   * specific session because session_id was lost upstream. ChatPanel falls
+   * back to showing this in the active chat when awaiting a notification. */
+  lastOrphanNotification: { text: string } | null
 
   setConnected: (v: boolean) => void
   handleEvent: (data: Record<string, unknown>) => void
@@ -58,6 +62,7 @@ interface WsStore {
   clearApproval: (id: string) => void
   setPendingApprovals: (list: PendingApproval[]) => void
   clearLastCompletedTask: () => void
+  clearLastOrphanNotification: () => void
 }
 
 export const useWsStore = create<WsStore>((set) => ({
@@ -67,6 +72,7 @@ export const useWsStore = create<WsStore>((set) => ({
   lastSessionEvent: null,
   unreadNotifications: [],
   lastCompletedTask: null,
+  lastOrphanNotification: null,
 
   setConnected: (v) => set({ connected: v }),
 
@@ -86,6 +92,8 @@ export const useWsStore = create<WsStore>((set) => ({
   setPendingApprovals: (list) => set({ pendingApprovals: list }),
 
   clearLastCompletedTask: () => set({ lastCompletedTask: null }),
+
+  clearLastOrphanNotification: () => set({ lastOrphanNotification: null }),
 
   handleEvent: (data) => {
     const type = data.type as string
@@ -179,6 +187,15 @@ export const useWsStore = create<WsStore>((set) => ({
       const event = (data.event ?? null) as SessionEvent | null
       if (!sessionId || !event) return
       set({ lastSessionEvent: { session_id: sessionId, event } })
+      return
+    }
+
+    if (type === 'notification_result') {
+      // Top-level broadcast from the master notification watcher when the
+      // result couldn't be scoped to a specific session (session_id was
+      // lost somewhere up the agent chain). ChatPanel will surface this.
+      const text = String(data.text ?? '').trim()
+      if (text) set({ lastOrphanNotification: { text } })
       return
     }
 

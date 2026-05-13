@@ -41,6 +41,7 @@ data/sessions/
 app/agents/*/TASK.MD
 app/agents/*/STATUS.json
 app/agents/*/RESULT.MD
+app/agents/*/ERROR.MD
 app/agents/*/CRASH.MD
 app/agents/*/OUTPUT.MD
 app/agents/*/HEALTH.MD

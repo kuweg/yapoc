@@ -22,7 +22,12 @@ class ShellExecTool(BaseTool):
         },
         "required": ["command"],
     }
-    risk_tier: RiskTier = RiskTier.AUTO
+    # CONFIRM tier: in the CLI this routes through the interactive approval gate;
+    # in autonomous/HTTP paths the per-agent ``autonomous_policy.shell_exec``
+    # block in CONFIG.md decides (auto_approve / deny / queue). All three
+    # agents currently granted this tool (builder, keeper, doctor) ship with
+    # such a policy.
+    risk_tier: RiskTier = RiskTier.CONFIRM
 
     def __init__(self, sandbox: Any = None) -> None:
         self._policy = sandbox

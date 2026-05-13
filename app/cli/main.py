@@ -1063,7 +1063,7 @@ def deep_amnesia():
     """Clear all memory files for every agent. Irreversible."""
     confirmed = questionary.confirm(
         "WARNING: This will wipe MEMORY.MD, NOTES.MD, HEALTH.MD, TASK.MD, RESULT.MD, "
-        "OUTPUT.MD, CRASH.MD, and RESUME.MD for every agent. Are you sure?",
+        "ERROR.MD, OUTPUT.MD, CRASH.MD, and RESUME.MD for every agent. Are you sure?",
         default=False,
     ).ask()
     if not confirmed:
@@ -1072,7 +1072,7 @@ def deep_amnesia():
 
     _DEEP_AMNESIA_FILES = (
         "MEMORY.MD", "NOTES.MD", "HEALTH.MD",
-        "TASK.MD", "RESULT.MD", "OUTPUT.MD", "CRASH.MD", "RESUME.MD",
+        "TASK.MD", "RESULT.MD", "ERROR.MD", "OUTPUT.MD", "CRASH.MD", "RESUME.MD",
     )
     cleared_count = 0
     for agent_dir in sorted(settings.agents_dir.iterdir()):

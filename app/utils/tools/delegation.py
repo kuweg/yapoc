@@ -38,15 +38,8 @@ def _task_path(agent_name: str):
 
 def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
     """Return (fields, body_without_frontmatter)."""
-    m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
-    if not m:
-        return {}, content
-    fields: dict[str, str] = {}
-    for line in m.group(1).splitlines():
-        if ":" in line:
-            key, _, val = line.partition(":")
-            fields[key.strip()] = val.strip()
-    return fields, content[m.end() :]
+    from app.utils.frontmatter import parse_frontmatter
+    return parse_frontmatter(content)
 
 
 def _update_frontmatter(content: str, **updates: str) -> str:
@@ -381,8 +374,11 @@ class SpawnAgentTool(BaseTool):
         try:
             from app.backend.services.spawn_registry import registry as _registry
             _registry.register_spawn(parent_agent=self._caller, child_agent=agent_name)
-        except Exception:
-            pass  # never let registry errors block spawning
+        except Exception as _reg_exc:
+            from loguru import logger as _spawn_log
+            _spawn_log.bind(parent=self._caller, child=agent_name).warning(
+                "Spawn registry update failed (continuing): {}", _reg_exc
+            )
 
         # If process is alive (idle or spawning), the watchdog picks up the new pending task
         if process_alive and status.get("state") in ("idle", "spawning"):

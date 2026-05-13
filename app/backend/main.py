@@ -327,8 +327,14 @@ async def lifespan(app: FastAPI):
     from app.backend.services.spawn_registry import registry
     from app.backend.services.notification_queue import notification_queue
     from app.backend.services.notification_poller import create_poller
+    from app.backend.services.session_event_relay import relay as session_event_relay
     registry.load()
     notification_queue.load()
+    # Tail subprocess-written session JSONL → WebSocket so sub-agent LLM
+    # events (thinking/tool/message deltas) reach the UI. Without this, the
+    # subprocess's own ws_manager.push_session_event is a no-op because the
+    # subprocess holds no WS connections.
+    session_event_relay.start()
     poller = create_poller(
         settings.agents_dir,
         poll_interval=settings.notification_poll_interval_seconds,
@@ -383,6 +389,7 @@ async def lifespan(app: FastAPI):
         dispatcher_task.cancel()
         scheduler.shutdown(wait=False)
         poller.stop()
+        session_event_relay.stop()
 
 
 app = FastAPI(title="YAPOC", version="0.1.0", lifespan=lifespan)

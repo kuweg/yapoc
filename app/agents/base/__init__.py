@@ -800,10 +800,25 @@ class BaseAgent:
         manage_task_file: bool = True,
         notifications_context: str = "",
     ) -> AsyncIterator[StreamEvent]:
-        # Read per-agent task_timeout from CONFIG.md before entering try/timeout
+        # Read per-agent task_timeout. Priority: agent-settings.json →
+        # CONFIG.md runner block → settings default. agent-settings.json is
+        # the authoritative cross-cutting runtime config; CONFIG.md is legacy.
         _cfg_raw = await self._read_file("CONFIG.md")
         _runner = _parse_runner_config(_cfg_raw)
-        _task_timeout = _runner.get("task_timeout", settings.task_timeout)
+        try:
+            from app.utils.agent_settings import resolve_runner_settings
+            _as_runner = resolve_runner_settings(self._name)
+        except Exception as _rs_exc:
+            _log.bind(agent=self._name).warning(
+                "resolve_runner_settings failed (falling back to CONFIG.md/settings): {}",
+                _rs_exc,
+            )
+            _as_runner = {}
+        _task_timeout = (
+            _as_runner.get("task_timeout")
+            or _runner.get("task_timeout")
+            or settings.task_timeout
+        )
         response: str = ""
         _stream_exc: BaseException | None = None
         _stream_exc_tb: str = ""

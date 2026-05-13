@@ -63,7 +63,12 @@ class Settings(BaseSettings):
     safety_mode: str = "interactive"  # "interactive" | "auto_approve" | "strict"
 
     # ── Agent processes ─────────────────────────────────────────────────
-    agent_idle_timeout: int = 300  # seconds before idle agent self-terminates
+    # Seconds before an idle subprocess agent self-terminates. Overridable
+    # per-agent via `idle_timeout` in app/config/agent-settings.json. Default
+    # bumped from 300s to 900s — under 300s the runner was killing agents
+    # between back-to-back tasks (4 min of work → finished → idled briefly →
+    # killed before a follow-up task arrived).
+    agent_idle_timeout: int = 900
     agent_spawn_timeout: int = 15  # seconds to wait for spawn confirmation
     runner_poll_interval: int = 30  # TASK.MD poll fallback interval (seconds)
     notification_poll_interval_seconds: int = 5  # parent notification latency target

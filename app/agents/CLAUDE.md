@@ -23,6 +23,8 @@ Master  →  Planning  →  Builder / Keeper / Cron  (spawned as subprocesses)
 ## Config resolution order
 `app/config/agent-settings.json` (per-agent binding, authoritative) → `CONFIG.md` YAML → `NOTES.MD [config]` block → `settings` defaults
 
+agent-settings.json supports per-agent overrides for `adapter`, `model`, `temperature`, `max_tokens`, `fallbacks`, **`task_timeout`** (seconds, default 300 — wraps `run_stream_with_tools`), and **`idle_timeout`** (seconds, default 900 — when an idle subprocess agent self-terminates).
+
 ## Implemented agents
 | Agent | Type | Adapter | Note |
 |---|---|---|---|

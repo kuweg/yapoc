@@ -17,6 +17,8 @@ Schema (v2)::
           "model": "claude-sonnet-4-6",
           "temperature": 0.3,
           "max_tokens": 8096,
+          "task_timeout": 1800,    // optional, seconds; falls back to settings.task_timeout (300)
+          "idle_timeout": 900,     // optional, seconds; falls back to settings.agent_idle_timeout (900)
           "fallbacks": [
             {"adapter": "anthropic", "model": "claude-haiku-4-5-20251001"},
             {"adapter": "openai",    "model": "gpt-4o-mini"},
@@ -256,6 +258,41 @@ def resolve_agent(agent_name: str) -> dict[str, Any] | None:
         "temperature": float(entry.get("temperature", settings.default_temperature)),
         "max_tokens": int(entry.get("max_tokens", 8096)),
         "fallbacks": fallbacks,
+    }
+
+
+def resolve_runner_settings(agent_name: str) -> dict[str, int]:
+    """Return ``{task_timeout, idle_timeout}`` for an agent.
+
+    Lookup order:
+      1. ``app/config/agent-settings.json`` — per-agent ``task_timeout`` /
+         ``idle_timeout`` keys, if present.
+      2. ``app.config.settings`` defaults (``task_timeout``,
+         ``agent_idle_timeout``).
+
+    The CONFIG.md ``runner:`` block also defines ``task_timeout`` but is
+    resolved separately by ``_parse_runner_config`` at the call site in
+    ``BaseAgent.run_stream_with_tools``. Callers should prefer the value
+    here when both are present (agent-settings.json is authoritative for
+    cross-cutting runtime config; CONFIG.md is the legacy fallback).
+    """
+    data = _read()
+    agents = _agents_map(data)
+    entry = agents.get(agent_name) or {}
+
+    def _coerce_int(value: Any, fallback: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    return {
+        "task_timeout": _coerce_int(
+            entry.get("task_timeout"), settings.task_timeout
+        ),
+        "idle_timeout": _coerce_int(
+            entry.get("idle_timeout"), settings.agent_idle_timeout
+        ),
     }
 
 

@@ -48,7 +48,7 @@ app/
 ├── utils/
 │   ├── adapters/             # LLM adapters (anthropic, openai, ollama)
 │   ├── context.py            # Token estimation + auto-compact logic
-│   └── tools/                # Agent tools (20 tools — see docs/tools.md)
+│   └── tools/                # Agent tools (40 tools — see docs/tools.md)
 │       ├── __init__.py       # BaseTool, RiskTier, TOOL_REGISTRY, build_tools()
 │       ├── server.py         # ServerRestartTool, ProcessRestartTool
 │       ├── shell.py          # ShellExecTool
@@ -74,7 +74,7 @@ Each agent directory contains:
 | `HEALTH.MD` | Error log: `[YYYY-MM-DD HH:MM] ERROR: <message>` | Self / Doctor |
 | `CONFIG.md` | YAML-like config: adapter, model, temperature, tools, runner | Keeper / Developer |
 
-Config resolution order: `CONFIG.md` → `NOTES.MD [config]` block → `app/config/settings.py` defaults.
+Config resolution order: `app/config/agent-settings.json` (per-agent binding) → `CONFIG.md` → `NOTES.MD [config]` block → `app/config/settings.py` defaults. `agent-settings.json` is the authoritative cross-provider primary; CONFIG.md is the fallback for agents not listed there.
 
 ## Settings (`app/config/settings.py`)
 
@@ -90,12 +90,18 @@ Usage: `from app.config import settings`
 
 ## LLM Adapters
 
-Registry in `app/utils/adapters/__init__.py`. Three built-in:
+Registry in `app/utils/adapters/__init__.py`. Eight built-in:
 - `AnthropicAdapter` — `anthropic` SDK, primary
-- `OpenAIAdapter` — raw `httpx` (no openai package)
+- `OpenAIAdapter` — raw `httpx` (Chat Completions)
+- `CodexAdapter` — raw `httpx` to OpenAI Responses API (codex-mini / gpt-5.x-codex)
+- `DeepSeekAdapter` — OpenAI-compatible
+- `OpenRouterAdapter` — OpenAI-compatible, multi-provider
+- `GoogleAdapter` — Gemini
 - `OllamaAdapter` — raw `httpx` to local Ollama
+- `LMStudioAdapter` — raw `httpx` to local LM Studio
 
-All read credentials from `settings`, not `os.environ`.
+All read credentials from `settings`, not `os.environ`. The `FallbackAdapter`
+wraps any adapter with cross-provider retry rules defined in `agent-settings.json`.
 
 ## API Endpoints
 
@@ -131,19 +137,20 @@ poetry run yapoc                       # Interactive REPL
 
 ## Implemented Tools
 
-Registry in `app/utils/tools/__init__.py` (20 tools):
+Registry in `app/utils/tools/__init__.py` (40 tools):
 
 **Server/Process:** `server_restart`, `process_restart`
-**Shell:** `shell_exec`
-**File:** `file_read`, `file_write`, `file_edit`, `file_delete`, `file_list`
-**Memory:** `memory_append`, `notes_read`, `notes_write`, `health_log`
+**Shell:** `shell_exec` (CONFIRM-tier; autonomous agents use `autonomous_policy.shell_exec` in CONFIG.md)
+**File:** `file_read`, `file_write`, `file_edit`, `file_delete`, `file_list`, `image_read`, `parse_csv`
+**Memory / Notes / Health:** `memory_append`, `notes_read`, `notes_write`, `notes_append`, `health_log`, `learnings_append`, `agent_amnesia`, `add_task_trace`, `search_memory`, `shared_knowledge_append`
 **Web:** `web_search`
-**Delegation:** `spawn_agent`, `ping_agent`, `kill_agent`, `check_task_status`, `read_task_result`, `read_agent_logs`
-**Agent Management:** `create_agent`, `delete_agent`
+**Delegation:** `spawn_agent`, `ping_agent`, `kill_agent`, `check_task_status`, `read_task_result`, `verify_task_result`, `wait_for_agent`, `wait_for_agents`, `notify_parent`, `read_agent_logs`
+**Agent Management:** `create_agent`, `delete_agent`, `update_config`, `update_agent_config`
+**Model Management:** `check_model_availability`, `list_models`, `heal_agent_settings`, `show_agent_settings`
+**Tickets:** `manage_tickets`
 
-Tools use `RiskTier.AUTO` (safe) or `RiskTier.CONFIRM` (requires approval). Each agent's `CONFIG.md` lists its assigned tools.
+Tools use `RiskTier.AUTO` (safe) or `RiskTier.CONFIRM` (requires approval). Each agent's `CONFIG.md` lists its assigned tools. In autonomous (non-CLI) execution, CONFIRM tools route through the per-agent `autonomous_policy` block (auto_approve / deny / queue).
 
 ## Implementation Status
 
-**Implemented:** settings, all adapters, BaseAgent (with context assembly), MasterAgent, PlanningAgent, BuilderAgent, DoctorAgent, AgentRunner (watchdog-based), FastAPI backend, Typer CLI + Rich REPL (cost tracking, tab completion, @file mentions, !bash mode, /diff, /copy, /export), tool-use loop (20 tools), session persistence, context auto-compaction
-**Stubs:** keeper, cron agents; cron CLI commands
+**Implemented:** settings, all adapters, BaseAgent (with context assembly), MasterAgent, PlanningAgent, BuilderAgent, KeeperAgent, CronAgent, DoctorAgent, ModelManagerAgent, AgentRunner (watchdog-based), FastAPI backend, Typer CLI + Rich REPL (cost tracking, tab completion, @file mentions, !bash mode, /diff, /copy, /export), tool-use loop (40 tools), session persistence, context auto-compaction, stale-task watchdog, notification trace mode, hierarchy classification helpers

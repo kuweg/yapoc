@@ -4,6 +4,9 @@ temperature: 0.2
 tools:
   - file_read
   - file_list
+  - file_write
+  - file_edit
+  - file_delete
   - read_agent_logs
   - memory_append
   - notes_read
@@ -26,6 +29,12 @@ autonomy_envelope:
   can_create_tasks: true
   max_tasks_per_run: 3
 autonomous_policy:
+  file_write:
+    auto_approve: ["*"]
+  file_edit:
+    auto_approve: ["*"]
+  file_delete:
+    auto_approve: ["*"]
   shell_exec:
     auto_approve: ["ps aux*", "top -bn1*", "df -h*", "free -m*"]
     deny: ["rm *", "sudo *", "kill *"]

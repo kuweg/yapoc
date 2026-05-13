@@ -711,6 +711,76 @@ async def _repl(
                 history = history + [Message(role="user", content=notifications_text)]
 
             history, resp, _ = await _send_to_agent(master_agent, text, history, poll_state=poll_state)
+
+            # Poll for background agent results (sub-agents spawned by master
+            # during this turn). First check for immediate completions via the
+            # standard collector, then poll TASK.MD for in-flight agents so
+            # the user sees delegation chain progress without waiting for the
+            # next REPL turn.
+            spawned = await _collect_agent_results()
+            if spawned:
+                _show_agent_completions(spawned)
+                for ag, result_text, is_error, _depth in spawned:
+                    label = "ERROR" if is_error else "DONE"
+                    prefix = "  " + ("  " * _depth)
+                    summary = result_text[:200].replace("\n", " ")
+                    if is_error:
+                        console.print(f"{prefix}[magenta]{ag}: {label}[/magenta] — {summary}")
+                    else:
+                        console.print(f"{prefix}[yellow]{ag}: {label}[/yellow] — {summary}")
+            else:
+                # No immediate results — poll for in-flight agents spawned
+                # by master to show progress. Uses sync reads (files are tiny).
+                from app.utils.tools.delegation import _parse_frontmatter as _pfm, _read_status
+
+                pending_agents: dict[str, str] = {}
+                for agent_dir in settings.agents_dir.iterdir():
+                    if not agent_dir.is_dir() or agent_dir.name in ("master", "base", "shared"):
+                        continue
+                    task_path = agent_dir / "TASK.MD"
+                    if not task_path.exists():
+                        continue
+                    content = task_path.read_text(encoding="utf-8")
+                    fm, _ = _pfm(content)
+                    if fm.get("status") in ("pending", "running"):
+                        pending_agents[agent_dir.name] = fm.get("status", "?")
+
+                if pending_agents:
+                    console.print(f"\n  [dim]Waiting for {len(pending_agents)} sub-agent(s)...[/dim]")
+                    for _tick in range(30):  # up to 60s (30 ticks × 2s)
+                        await asyncio.sleep(2)
+                        still_pending = 0
+                        for ag_name, prev_state in list(pending_agents.items()):
+                            st = _read_status(ag_name)
+                            state = st.get("state", "?") if st else "?"
+                            if state != prev_state and state in ("running",):
+                                summary = (st.get("task_summary", "") or "")[:60]
+                                console.print(f"  [dim]{ag_name}: {state}[/dim] {summary}")
+                                pending_agents[ag_name] = state
+                            task_path = settings.agents_dir / ag_name / "TASK.MD"
+                            if task_path.exists():
+                                content = task_path.read_text(encoding="utf-8")
+                                fm, _ = _pfm(content)
+                                if fm.get("status") in ("done", "error"):
+                                    section = "## Error" if fm["status"] == "error" else "## Result"
+                                    result_text = _re.search(
+                                        rf"{section}\n(.*?)(?=\n## |\Z)", content, _re.DOTALL
+                                    )
+                                    result = result_text.group(1).strip() if result_text else "(no result)"
+                                    label = "ERROR" if fm["status"] == "error" else "DONE"
+                                    summary = result[:200].replace("\n", " ")
+                                    if fm["status"] == "error":
+                                        console.print(f"  [magenta]{ag_name}: {label}[/magenta] — {summary}")
+                                    else:
+                                        console.print(f"  [yellow]{ag_name}: {label}[/yellow] — {summary}")
+                                    pending_agents.pop(ag_name, None)
+                                else:
+                                    still_pending += 1
+                        if not pending_agents:
+                            break
+                    if pending_agents:
+                        console.print(f"  [dim]({len(pending_agents)} agent(s) still working in background…)[/dim]")
+
             # Track last response for /copy
             global _last_response
             if resp:

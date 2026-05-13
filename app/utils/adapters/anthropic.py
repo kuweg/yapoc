@@ -28,8 +28,14 @@ _DEFAULT_CONTEXT_WINDOW = 200_000
 class AnthropicAdapter(BaseLLMAdapter):
     def __init__(self, config: AgentConfig) -> None:
         super().__init__(config)
+        api_key = settings.anthropic_api_key
+        if not api_key:
+            raise ValueError(
+                "Anthropic API key is not set. "
+                "Set ANTHROPIC_API_KEY in your .env file or environment."
+            )
         self._client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key or None,
+            api_key=api_key,
             max_retries=5,
         )
 

@@ -20,6 +20,7 @@ from .base import (
     Message,
     StreamEvent,
     TextDelta,
+    ThinkingDelta,
     ToolCall,
     ToolDefinition,
     ToolStart,
@@ -27,13 +28,123 @@ from .base import (
     UsageStats,
 )
 from .models import ALL_CONTEXT_WINDOWS
-from .normalize import normalize_to_openai
 
 log = logging.getLogger(__name__)
 
 _DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 _DEFAULT_CONTEXT_WINDOW = 64_000
+
+
+def _supports_reasoning_replay(model_id: str) -> bool:
+    """Whether assistant reasoning_content can be replayed in input messages."""
+    normalized = model_id.lower()
+    if "/" in normalized:
+        normalized = normalized.split("/", 1)[1]
+    # deepseek-reasoner explicitly rejects reasoning_content in inputs.
+    return normalized != "deepseek-reasoner"
+
+
+def _normalize_to_deepseek(
+    messages: list[dict[str, Any]],
+    *,
+    include_reasoning_content: bool,
+) -> list[dict[str, Any]]:
+    """Convert Anthropic-style history to DeepSeek's chat-completions shape.
+
+    This mirrors normalize_to_openai() but preserves assistant reasoning blocks
+    as ``reasoning_content`` for models that require replay in thinking mode.
+    """
+    result: list[dict[str, Any]] = []
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if isinstance(content, str):
+            result.append({"role": role, "content": content})
+            continue
+
+        if not isinstance(content, list):
+            result.append({"role": role, "content": str(content)})
+            continue
+
+        if role == "assistant":
+            text_parts: list[str] = []
+            reasoning_parts: list[str] = []
+            tool_calls: list[dict[str, Any]] = []
+
+            for block in content:
+                if not isinstance(block, dict):
+                    text_parts.append(str(block))
+                    continue
+
+                btype = block.get("type", "")
+                if btype == "text":
+                    text_parts.append(block.get("text", ""))
+                elif btype == "tool_use":
+                    tool_calls.append({
+                        "id": block["id"],
+                        "type": "function",
+                        "function": {
+                            "name": block["name"],
+                            "arguments": json.dumps(block.get("input", {})),
+                        },
+                    })
+                elif btype == "thinking":
+                    thinking = block.get("thinking", "")
+                    if thinking:
+                        reasoning_parts.append(thinking)
+                elif btype == "reasoning":
+                    reasoning = block.get("text", block.get("reasoning", ""))
+                    if reasoning:
+                        reasoning_parts.append(reasoning)
+                else:
+                    text_parts.append(str(block))
+
+            out: dict[str, Any] = {"role": "assistant"}
+            combined_text = "\n".join(t for t in text_parts if t)
+            out["content"] = combined_text or None
+            if tool_calls:
+                out["tool_calls"] = tool_calls
+            if include_reasoning_content and reasoning_parts:
+                out["reasoning_content"] = "\n".join(t for t in reasoning_parts if t)
+            result.append(out)
+
+        elif role == "user":
+            tool_results: list[dict[str, Any]] = []
+            text_parts_user: list[str] = []
+
+            for block in content:
+                if not isinstance(block, dict):
+                    text_parts_user.append(str(block))
+                    continue
+
+                btype = block.get("type", "")
+                if btype == "tool_result":
+                    tool_results.append({
+                        "role": "tool",
+                        "tool_call_id": block["tool_use_id"],
+                        "content": block.get("content", ""),
+                    })
+                elif btype == "text":
+                    text_parts_user.append(block.get("text", ""))
+                else:
+                    text_parts_user.append(str(block))
+
+            combined = "\n".join(t for t in text_parts_user if t)
+            if combined:
+                result.append({"role": "user", "content": combined})
+
+            result.extend(tool_results)
+
+        else:
+            result.append({
+                "role": role,
+                "content": str(content) if not isinstance(content, str) else content,
+            })
+
+    return result
 
 
 def _raise_with_detail(response: httpx.Response) -> None:
@@ -139,8 +250,14 @@ class DeepSeekAdapter(BaseLLMAdapter):
         messages: list[dict[str, Any]],
         tools: list[ToolDefinition],
     ) -> AsyncIterator[StreamEvent]:
+        include_reasoning_content = _supports_reasoning_replay(self._config.model)
         openai_messages = [{"role": "system", "content": system_prompt}]
-        openai_messages.extend(normalize_to_openai(messages))
+        openai_messages.extend(
+            _normalize_to_deepseek(
+                messages,
+                include_reasoning_content=include_reasoning_content,
+            )
+        )
 
         openai_tools = [
             {
@@ -168,6 +285,8 @@ class DeepSeekAdapter(BaseLLMAdapter):
         t_start = time.perf_counter()
 
         tc_accum: dict[int, dict[str, Any]] = {}
+        reasoning_parts: list[str] = []
+        text_parts: list[str] = []
         input_tokens = 0
         output_tokens = 0
 
@@ -198,7 +317,12 @@ class DeepSeekAdapter(BaseLLMAdapter):
 
                     delta = choices[0].get("delta", {})
 
+                    if reasoning := delta.get("reasoning_content"):
+                        reasoning_parts.append(reasoning)
+                        yield ThinkingDelta(reasoning)
+
                     if text := delta.get("content"):
+                        text_parts.append(text)
                         yield TextDelta(text)
 
                     for tc_delta in delta.get("tool_calls", []):
@@ -221,6 +345,15 @@ class DeepSeekAdapter(BaseLLMAdapter):
 
         tool_calls: list[ToolCall] = []
         assistant_content: list[dict[str, Any]] = []
+
+        if include_reasoning_content and reasoning_parts:
+            assistant_content.append(
+                {"type": "reasoning", "text": "".join(reasoning_parts)}
+            )
+        if text_parts:
+            assistant_content.append(
+                {"type": "text", "text": "".join(text_parts)}
+            )
 
         for idx in sorted(tc_accum):
             acc = tc_accum[idx]

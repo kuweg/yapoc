@@ -7,6 +7,7 @@
     "master": {
       "adapter": "deepseek",
       "model": "deepseek-chat",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.3,
       "max_tokens": 8096,
       "fallbacks": [
@@ -27,6 +28,7 @@
     "planning": {
       "adapter": "deepseek",
       "model": "deepseek-v4-pro",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.3,
       "max_tokens": 8096,
       "fallbacks": [
@@ -47,6 +49,7 @@
     "builder": {
       "adapter": "deepseek",
       "model": "deepseek-chat",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.2,
       "max_tokens": 8096,
       "fallbacks": [
@@ -65,8 +68,9 @@
       ]
     },
     "keeper": {
-      "adapter": "openai",
-      "model": "gpt-4.1-nano",
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
@@ -87,6 +91,7 @@
     "cron": {
       "adapter": "openai",
       "model": "gpt-4.1-nano",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
@@ -107,6 +112,7 @@
     "doctor": {
       "adapter": "openai",
       "model": "gpt-5.4-mini",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
@@ -123,6 +129,7 @@
     "model_manager": {
       "adapter": "openai",
       "model": "gpt-5.4-nano",
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
@@ -139,6 +146,14 @@
           "model": "claude-sonnet-4-6"
         }
       ]
+    },
+    "librarian": {
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
+      "temperature": 0.1,
+      "max_tokens": 8096,
+      "tools": ["file_read", "file_write", "file_edit", "file_delete", "file_list"],
+      "delegation_targets": []
     }
   }
 }

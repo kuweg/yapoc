@@ -126,42 +126,56 @@ async def _master_notification_watcher() -> None:
                     "Notification watcher: STATUS.json read/parse failed (proceeding): {}",
                     _state_exc,
                 )
-            # Consume trigger — set status to avoid re-entry
-            content = re.sub(r"^status:\s*pending", "status: consumed", content, flags=re.MULTILINE)
-            task_path.write_text(content)
             # Only fire if there are actual pending notifications
             if notification_queue.pending_count("master") == 0:
+                # No pending notifications; if a stale trigger exists, clear it
+                try:
+                    content = task_path.read_text(encoding="utf-8")
+                    if re.search(r"\[Process incoming.*notifications", content):
+                        task_path.write_text("")
+                except OSError:
+                    pass
                 continue
 
             # Process notifications session-by-session so results stay scoped
             # to the originating UI chat.
             session_ids = notification_queue.pending_sessions("master")
             if not session_ids:
-                # Backward compatibility: queue entries before session support
                 session_ids = [""]
 
             if trigger_session_id and trigger_session_id in session_ids:
                 session_ids = [trigger_session_id] + [sid for sid in session_ids if sid != trigger_session_id]
 
+            logger.info(
+                "Notification watcher: firing master for sessions={} trigger_sid={!r}",
+                [sid[:8] if sid else "<empty>" for sid in session_ids],
+                trigger_session_id[:8] if trigger_session_id else "<empty>",
+            )
+
+            # Don't consume the trigger before processing — if master fails,
+            # the trigger should remain for retry. Mark consumed only after
+            # all sessions are processed successfully.
             for sid in session_ids:
                 if notification_queue.pending_count("master", session_id=sid) == 0:
                     continue
 
                 async for _ in master_agent.handle_task_stream(
-                    task="[Auto-notification] Sub-agent task(s) completed. Process the notification queue.",
+                    task=(
+                        "[Auto-notification] Sub-agent task(s) just completed. "
+                        "Read the sub-agent results via read_task_result if needed, "
+                        "then write ONE short summary message for the user describing "
+                        "what was accomplished. Do NOT re-spawn agents, do NOT re-verify "
+                        "work that is already verified, and do NOT investigate beyond "
+                        "reading the result text. The chain has already finished — your "
+                        "only job here is to surface the outcome to the user."
+                    ),
                     source="notification",
                     session_id=sid,
                 ):
                     pass  # events consumed; result written to RESULT.MD by BaseAgent
 
-                # Push a final message event so ChatPanel can append background
-                # completion output even when there is no task_queue row.
-                # If sid is empty (session_id was lost somewhere up the chain
-                # — e.g. an APScheduler-triggered agent that propagated an
-                # empty session_id down to children), broadcast to all
-                # connected clients as a fallback. Without this fallback the
-                # user sees master's 6-turn run in the terminal but never
-                # gets the response in the chat panel.
+                # Push result to WebSocket: session_event for chat panel AND
+                # task_complete for dashboard ticket tracking.
                 try:
                     from app.backend.websocket import ws_manager
 
@@ -175,21 +189,51 @@ async def _master_notification_watcher() -> None:
                                 sid,
                                 {"type": "notification_result", "text": result_text},
                             )
-                        else:
-                            logger.warning(
-                                "Notification watcher: orphan notification (no session_id) "
-                                "— broadcasting result to all clients"
+                            # Also push task_complete so dashboard ticket board updates
+                            await ws_manager.push_event(
+                                "task_complete",
+                                {
+                                    "session_id": sid,
+                                    "text": result_text,
+                                    "source": "notification",
+                                    "agent": "master",
+                                },
                             )
+                            logger.info(
+                                "Notification watcher: pushed master result to session={} ({} chars)",
+                                sid[:8],
+                                len(result_text),
+                            )
+                        else:
                             await ws_manager.push_event(
                                 "notification_result",
                                 {"text": result_text, "session_id": ""},
                             )
+                            logger.info(
+                                "Notification watcher: broadcast master result (no session, {} chars)",
+                                len(result_text),
+                            )
+                    else:
+                        logger.warning(
+                            "Notification watcher: RESULT.MD empty after master run for session={}",
+                            (sid or "<empty>")[:8],
+                        )
                 except Exception as _push_exc:
                     logger.warning(
-                        "Notification watcher: session_event push failed for {}: {}",
+                        "Notification watcher: event push failed for {}: {}",
                         sid,
                         _push_exc,
                     )
+
+            # After processing all sessions, clear any remaining trigger
+            # (handle_task_stream normally clears via set_task + run_stream_with_tools,
+            # but clean up if a stale trigger persists).
+            try:
+                content = task_path.read_text(encoding="utf-8")
+                if re.search(r"\[Process incoming.*notifications", content):
+                    task_path.write_text("")
+            except OSError:
+                pass
         except Exception as _watcher_exc:
             logger.warning(
                 "Notification watcher iteration failed (will retry): {}",

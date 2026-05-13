@@ -6,6 +6,7 @@ tools:
   - file_list
   - file_write
   - file_edit
+  - file_delete
   - shell_exec
   - memory_append
   - notes_read
@@ -47,6 +48,10 @@ autonomous_policy:
     auto_approve: ["app/config/*", "pyproject.toml", "app/agents/*/NOTES.MD"]
     deny: ["*.env", "app/agents/*/PROMPT.MD"]
     default: queue
+  file_edit:
+    auto_approve: ["*"]
+  file_delete:
+    auto_approve: ["*"]
 runner:
   max_turns: 15
   task_timeout: 300

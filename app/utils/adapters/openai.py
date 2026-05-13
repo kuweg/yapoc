@@ -39,7 +39,17 @@ _MAX_COMPLETION_TOKENS_MODELS = frozenset((
 
 def _needs_max_completion_tokens(model: str) -> bool:
     """Check if a model uses max_completion_tokens instead of max_tokens."""
-    return model in _MAX_COMPLETION_TOKENS_MODELS or model.startswith("o1") or model.startswith("o3") or model.startswith("o4")
+    normalized = model.lower()
+    # Accept optional adapter namespace, e.g. "openai/gpt-5.4-mini".
+    if "/" in normalized:
+        normalized = normalized.split("/", 1)[1]
+    return (
+        normalized in _MAX_COMPLETION_TOKENS_MODELS
+        or normalized.startswith("o1")
+        or normalized.startswith("o3")
+        or normalized.startswith("o4")
+        or normalized.startswith("gpt-5")
+    )
 
 
 def _raise_with_detail(response: httpx.Response) -> None:

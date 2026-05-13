@@ -178,5 +178,285 @@
     "cost_usd": 0.0006218,
     "timestamp": "2026-05-12T23:43:33Z",
     "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-12T23:59:14Z",
+    "description": "Update the builder agent's model configuration in app/config/agent-settings.json to use DeepSeek as the primary provider.",
+    "agent_name": "keeper",
+    "tokens_in": 3256,
+    "tokens_out": 19,
+    "cost_usd": 0.0006664,
+    "timestamp": "2026-05-12T23:59:14Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-12T23:59:18Z",
+    "description": "Update the builder agent's model configuration in app/config/agent-settings.json to use DeepSeek as the primary provider.",
+    "agent_name": "keeper",
+    "tokens_in": 4263,
+    "tokens_out": 286,
+    "cost_usd": 0.0010814,
+    "timestamp": "2026-05-12T23:59:18Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-12T23:59:19Z",
+    "description": "Update the builder agent's model configuration in app/config/agent-settings.json to use DeepSeek as the primary provider.",
+    "agent_name": "keeper",
+    "tokens_in": 4598,
+    "tokens_out": 46,
+    "cost_usd": 0.0009564,
+    "timestamp": "2026-05-12T23:59:19Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:01:14Z",
+    "description": "Update the builder agent's model configuration in app/config/agent-settings.json. Change the builder entry from: adapter: \"anthropic\", model: \"claude-opus-4-6\" with fallbacks codex/gpt-5.1-codex, open",
+    "agent_name": "keeper",
+    "tokens_in": 3197,
+    "tokens_out": 19,
+    "cost_usd": 0.0006546,
+    "timestamp": "2026-05-13T00:01:14Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:01:19Z",
+    "description": "Update the builder agent's model configuration in app/config/agent-settings.json. Change the builder entry from: adapter: \"anthropic\", model: \"claude-opus-4-6\" with fallbacks codex/gpt-5.1-codex, open",
+    "agent_name": "keeper",
+    "tokens_in": 4204,
+    "tokens_out": 326,
+    "cost_usd": 0.0011016,
+    "timestamp": "2026-05-13T00:01:19Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:01:20Z",
+    "description": "Update the builder agent's model configuration in app/config/agent-settings.json. Change the builder entry from: adapter: \"anthropic\", model: \"claude-opus-4-6\" with fallbacks codex/gpt-5.1-codex, open",
+    "agent_name": "keeper",
+    "tokens_in": 4580,
+    "tokens_out": 133,
+    "cost_usd": 0.0010224,
+    "timestamp": "2026-05-13T00:01:20Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:01:36Z",
+    "description": "Edit the file app/config/agent-settings.json. Find the \"builder\" entry and replace its entire configuration with this:",
+    "agent_name": "keeper",
+    "tokens_in": 3367,
+    "tokens_out": 19,
+    "cost_usd": 0.0006886,
+    "timestamp": "2026-05-13T00:01:36Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:01:39Z",
+    "description": "Edit the file app/config/agent-settings.json. Find the \"builder\" entry and replace its entire configuration with this:",
+    "agent_name": "keeper",
+    "tokens_in": 4374,
+    "tokens_out": 322,
+    "cost_usd": 0.0011324,
+    "timestamp": "2026-05-13T00:01:39Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:01:40Z",
+    "description": "Edit the file app/config/agent-settings.json. Find the \"builder\" entry and replace its entire configuration with this:",
+    "agent_name": "keeper",
+    "tokens_in": 4747,
+    "tokens_out": 38,
+    "cost_usd": 0.0009798,
+    "timestamp": "2026-05-13T00:01:40Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:04:59Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json:",
+    "agent_name": "keeper",
+    "tokens_in": 3434,
+    "tokens_out": 19,
+    "cost_usd": 0.000702,
+    "timestamp": "2026-05-13T00:04:59Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:09Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json:",
+    "agent_name": "keeper",
+    "tokens_in": 4440,
+    "tokens_out": 1182,
+    "cost_usd": 0.0018336,
+    "timestamp": "2026-05-13T00:05:09Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:11Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json:",
+    "agent_name": "keeper",
+    "tokens_in": 5642,
+    "tokens_out": 231,
+    "cost_usd": 0.0013132,
+    "timestamp": "2026-05-13T00:05:11Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:12Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json:",
+    "agent_name": "keeper",
+    "tokens_in": 5746,
+    "tokens_out": 84,
+    "cost_usd": 0.0012164,
+    "timestamp": "2026-05-13T00:05:12Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:27Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 3440,
+    "tokens_out": 19,
+    "cost_usd": 0.0007032,
+    "timestamp": "2026-05-13T00:05:27Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:28Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 4444,
+    "tokens_out": 45,
+    "cost_usd": 0.0009248,
+    "timestamp": "2026-05-13T00:05:28Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:30Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 4538,
+    "tokens_out": 199,
+    "cost_usd": 0.0010668,
+    "timestamp": "2026-05-13T00:05:30Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:31Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 4669,
+    "tokens_out": 83,
+    "cost_usd": 0.0010002,
+    "timestamp": "2026-05-13T00:05:31Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:32Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 4801,
+    "tokens_out": 83,
+    "cost_usd": 0.0010266,
+    "timestamp": "2026-05-13T00:05:32Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:33Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 4936,
+    "tokens_out": 83,
+    "cost_usd": 0.0010536,
+    "timestamp": "2026-05-13T00:05:33Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:34Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 5071,
+    "tokens_out": 83,
+    "cost_usd": 0.0010806,
+    "timestamp": "2026-05-13T00:05:34Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:36Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 5204,
+    "tokens_out": 83,
+    "cost_usd": 0.0011072,
+    "timestamp": "2026-05-13T00:05:36Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:37Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 5336,
+    "tokens_out": 83,
+    "cost_usd": 0.0011336,
+    "timestamp": "2026-05-13T00:05:37Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:39Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 5468,
+    "tokens_out": 83,
+    "cost_usd": 0.00116,
+    "timestamp": "2026-05-13T00:05:39Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:41Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 5601,
+    "tokens_out": 83,
+    "cost_usd": 0.0011866,
+    "timestamp": "2026-05-13T00:05:41Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:44Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 5802,
+    "tokens_out": 247,
+    "cost_usd": 0.001358,
+    "timestamp": "2026-05-13T00:05:44Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:57Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 6806,
+    "tokens_out": 1532,
+    "cost_usd": 0.0025868,
+    "timestamp": "2026-05-13T00:05:57Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:05:59Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 8008,
+    "tokens_out": 143,
+    "cost_usd": 0.001716,
+    "timestamp": "2026-05-13T00:05:59Z",
+    "model_used": "gpt-4.1-nano"
+  },
+  {
+    "task_id": "keeper:2026-05-13T00:06:00Z",
+    "description": "Update the builder agent config in app/config/agent-settings.json: Change builder's primary model from deepseek-v4-pro to deepseek-chat. Keep the same adapter (deepseek). Fix the first fallback: repla",
+    "agent_name": "keeper",
+    "tokens_in": 8062,
+    "tokens_out": 77,
+    "cost_usd": 0.001674,
+    "timestamp": "2026-05-13T00:06:00Z",
+    "model_used": "gpt-4.1-nano"
   }
 ]

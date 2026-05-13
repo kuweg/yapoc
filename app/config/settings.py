@@ -5,9 +5,16 @@ from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Absolute path anchored to the project root so .env is found
+        # regardless of CWD. Subprocess uvicorn / agent runners would
+        # otherwise read whichever directory they happened to be launched
+        # from — silently leaving every API key empty.
+        env_file=str(_PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
         populate_by_name=True,

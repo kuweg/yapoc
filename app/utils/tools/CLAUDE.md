@@ -12,10 +12,18 @@ _AGENT_DIR_TOOLS = {"memory_append", "notes_read", "notes_write", "notes_append"
 ```python
 class RiskTier(Enum):
     AUTO    # executes without confirmation
-    CONFIRM # requires approval_gate approval (or auto-executes if gate is None)
+    CONFIRM # routes through the approval system (see below)
 ```
 
 Override `get_risk_tier(params) -> RiskTier` for dynamic tiers (e.g., `CreateAgentTool` returns `AUTO` for temporary agents).
+
+### Approval flow (CONFIRM-tier tools)
+1. **CLI / `/task/stream`**: an interactive `approval_gate` blocks until the user clicks Approve/Deny in the UI or replies y/n at the REPL.
+2. **Autonomous (subprocess agents)**: no gate, so the per-agent `autonomous_policy:<tool>` block in `CONFIG.md` decides:
+   - `auto_approve` pattern match → execute immediately
+   - `deny` pattern match → block with a denial message
+   - `queue` (or fall-through default) → write a row to the `approval_queue` SQLite table, push an `approval_needed` WebSocket event, and **block** waiting for the user's decision. The wait timeout is `settings.approval_wait_timeout_seconds` (default 300s). On approve → execute. On deny → block. On timeout → block with a timeout message (the LLM is free to try a different approach).
+3. **UI surface**: `BackgroundApprovalBanner` shows pending approvals. It listens to the `approval_needed` WebSocket event AND polls `/approvals` every 3s as a fallback (the subprocess's WS push from `queue_approval()` is a no-op because subprocesses don't hold WS connections).
 
 ## Full tool list by file
 

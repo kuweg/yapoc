@@ -13,8 +13,10 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -189,3 +191,51 @@ def check_policy(
 
     # Fall through to tool default, then global default
     return tp.default or policy.default_action
+
+
+async def wait_for_resolution(
+    req_id: str,
+    timeout: float = 300.0,
+    poll_interval: float = 1.0,
+) -> str | None:
+    """Block until a queued approval is resolved by the human, polling SQLite.
+
+    Cross-process safe — every poll re-opens the connection so subprocess
+    agents see writes made by the main server (and vice versa).
+
+    Returns:
+        "approved" — user clicked Approve in the UI
+        "denied"   — user clicked Deny (or expire_stale auto-denied)
+        None       — timed out before resolution
+
+    Implementation notes:
+        - Uses ``asyncio.sleep`` so the sub-agent's event loop stays responsive
+          (other WebSocket emissions, etc.).
+        - ``get_db()`` is cheap and connection caching is process-local; this
+          loop is fine even on smaller timeouts.
+    """
+    # Imported lazily to avoid a circular import via app.utils.db -> settings.
+    from app.utils.db import get_db
+
+    deadline = time.monotonic() + max(timeout, 0)
+    while time.monotonic() < deadline:
+        try:
+            db = get_db()
+            row = db.execute(
+                "SELECT status FROM approval_queue WHERE id = ?",
+                (req_id,),
+            ).fetchone()
+            if row is not None:
+                status = row["status"]
+                if status == "approved":
+                    return "approved"
+                if status == "denied":
+                    return "denied"
+        except Exception as exc:
+            logger.warning(
+                "wait_for_resolution: SQLite poll failed for {} (continuing): {}",
+                req_id[:8],
+                exc,
+            )
+        await asyncio.sleep(poll_interval)
+    return None

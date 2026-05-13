@@ -44,7 +44,7 @@ autonomous_policy:
     auto_approve: ["*"]
     default: auto_approve
   file_write:
-    auto_approve: ["app/config/*", "pyproject.toml"]
+    auto_approve: ["app/config/*", "pyproject.toml", "app/agents/*/NOTES.MD"]
     deny: ["*.env", "app/agents/*/PROMPT.MD"]
     default: queue
 runner:

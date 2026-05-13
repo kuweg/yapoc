@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     # ── Runner defaults ──────────────────────────────────────────────────────
     max_turns: int = 20
     task_timeout: int = 300
+    # How long a sub-agent will block waiting for a human approval decision
+    # (via the BackgroundApprovalBanner UI) before treating the request as
+    # timed out. Should stay comfortably under task_timeout so a forgotten
+    # approval doesn't burn the entire task budget.
+    approval_wait_timeout_seconds: int = 300
 
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled

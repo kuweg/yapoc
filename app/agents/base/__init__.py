@@ -627,25 +627,66 @@ class BaseAgent:
                 return result, ToolDone(name=tc.name, result=result.content, is_error=True)
             elif decision == "queue":
                 from app.backend.approval_queue import queue_approval
+                from app.utils.tools.approval import wait_for_resolution
+
                 req_id = queue_approval(agent=self._name, tool=tc.name, tool_input=tc.input)
                 await self._append_file(
                     "HEALTH.MD",
                     f"[{timestamp}] [AUTONOMOUS] QUEUED {tc.name} (approval_id={req_id[:8]}): {tc.input}\n",
                 )
-                result = ToolResult(
-                    tool_use_id=tc.id,
-                    content=f"Tool execution queued for human approval (id: {req_id[:8]}). "
-                            f"The tool will not run until a human approves it. "
-                            f"Try an alternative approach that doesn't require this tool, "
-                            f"or wait for approval.",
-                    is_error=True,
+                # Block waiting for the human to click Approve / Deny in the UI.
+                # Cross-process safe — the SQLite row is the rendezvous point
+                # between subprocess agents and the main server holding the
+                # WebSocket connections.
+                outcome = await wait_for_resolution(
+                    req_id,
+                    timeout=float(settings.approval_wait_timeout_seconds),
                 )
-                return result, ToolDone(name=tc.name, result=result.content, is_error=True)
-            # decision == "auto_approve" → fall through to execute
-            await self._append_file(
-                "HEALTH.MD",
-                f"[{timestamp}] [AUTONOMOUS] AUTO_APPROVE {tc.name}: {tc.input}\n",
-            )
+                resolved_ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+                if outcome == "approved":
+                    await self._append_file(
+                        "HEALTH.MD",
+                        f"[{resolved_ts}] [AUTONOMOUS] USER_APPROVED {tc.name} (id={req_id[:8]})\n",
+                    )
+                    # Fall through to execute the tool normally.
+                elif outcome == "denied":
+                    await self._append_file(
+                        "HEALTH.MD",
+                        f"[{resolved_ts}] [AUTONOMOUS] USER_DENIED {tc.name} (id={req_id[:8]})\n",
+                    )
+                    result = ToolResult(
+                        tool_use_id=tc.id,
+                        content=(
+                            f"Tool execution denied by the human reviewer "
+                            f"(approval id: {req_id[:8]}). Try a different "
+                            f"approach that doesn't require this tool."
+                        ),
+                        is_error=True,
+                    )
+                    return result, ToolDone(name=tc.name, result=result.content, is_error=True)
+                else:
+                    # Timeout — user wasn't at the keyboard.
+                    await self._append_file(
+                        "HEALTH.MD",
+                        f"[{resolved_ts}] [AUTONOMOUS] APPROVAL_TIMEOUT {tc.name} (id={req_id[:8]})\n",
+                    )
+                    result = ToolResult(
+                        tool_use_id=tc.id,
+                        content=(
+                            f"Tool execution timed out waiting for human approval "
+                            f"after {settings.approval_wait_timeout_seconds}s "
+                            f"(approval id: {req_id[:8]}). Try an alternative "
+                            f"approach, or report back so the human can retry."
+                        ),
+                        is_error=True,
+                    )
+                    return result, ToolDone(name=tc.name, result=result.content, is_error=True)
+            else:
+                # decision == "auto_approve" → fall through to execute
+                await self._append_file(
+                    "HEALTH.MD",
+                    f"[{timestamp}] [AUTONOMOUS] AUTO_APPROVE {tc.name}: {tc.input}\n",
+                )
 
         # Transient errors get one automatic retry before surfacing to the LLM.
         # Note: FileNotFoundError, PermissionError, IsADirectoryError, NotADirectoryError

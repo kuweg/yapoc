@@ -909,8 +909,13 @@ async def _wake_agent_if_idle(agent_name: str, session_id: str | None = None) ->
             return  # err on side of caution
 
     original_parent = await _read_assigned_by(task_path) or "master"
+    # Fall back to the parent agent's previously recorded session_id whenever
+    # the caller didn't supply one. Empty string is treated the same as None
+    # — notification_poller passes "" when the triggering child had no
+    # session_id (e.g. APScheduler-spawned agent), and we'd otherwise wipe
+    # out the user-session binding the parent already had.
     effective_session_id = session_id
-    if effective_session_id is None:
+    if not effective_session_id:
         effective_session_id = await _read_session_id(task_path)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     async with aiofiles.open(task_path, "w", encoding="utf-8") as f:

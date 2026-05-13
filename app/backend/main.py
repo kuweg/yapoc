@@ -121,8 +121,11 @@ async def _master_notification_watcher() -> None:
                 state = json.loads(status_path.read_text()).get("state", "")
                 if state == "running":
                     continue
-            except Exception:
-                pass
+            except Exception as _state_exc:
+                logger.warning(
+                    "Notification watcher: STATUS.json read/parse failed (proceeding): {}",
+                    _state_exc,
+                )
             # Consume trigger — set status to avoid re-entry
             content = re.sub(r"^status:\s*pending", "status: consumed", content, flags=re.MULTILINE)
             task_path.write_text(content)
@@ -166,10 +169,17 @@ async def _master_notification_watcher() -> None:
                                 sid,
                                 {"type": "notification_result", "text": result_text},
                             )
-                    except Exception:
-                        pass
-        except Exception:
-            pass  # never crash the server
+                    except Exception as _push_exc:
+                        logger.warning(
+                            "Notification watcher: session_event push failed for {}: {}",
+                            sid,
+                            _push_exc,
+                        )
+        except Exception as _watcher_exc:
+            logger.warning(
+                "Notification watcher iteration failed (will retry): {}",
+                _watcher_exc,
+            )
 
 
 async def _startup_resume() -> None:
@@ -377,9 +387,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="YAPOC", version="0.1.0", lifespan=lifespan)
 
+_cors_origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

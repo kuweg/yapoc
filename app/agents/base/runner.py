@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from loguru import logger as _log
 from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 from watchdog.observers import Observer
 
@@ -121,18 +122,12 @@ class AgentRunner:
     def _parse_task_frontmatter(self) -> dict[str, str]:
         """Read TASK.MD and extract YAML frontmatter fields."""
         try:
-            raw = self._task_path.read_text(encoding="utf-8")
-            import re as _re
-            m = _re.match(r"^---\n(.*?)\n---", raw, _re.DOTALL)
-            if not m:
-                return {}
-            result: dict[str, str] = {}
-            for line in m.group(1).splitlines():
-                kv = line.split(":", 1)
-                if len(kv) == 2:
-                    result[kv[0].strip()] = kv[1].strip()
-            return result
-        except Exception:
+            from app.utils.frontmatter import parse_frontmatter_fields
+            return parse_frontmatter_fields(self._task_path.read_text(encoding="utf-8"))
+        except Exception as _fm_exc:
+            _log.bind(agent=self._name).warning(
+                "Frontmatter parse failed for {}: {}", self._task_path, _fm_exc
+            )
             return {}
 
     async def _run_task(self, task_body: str) -> None:
@@ -159,8 +154,10 @@ class AgentRunner:
                         summary = (n["error"] or "(no error)")[:200]
                         lines.append(f'- {n["child_agent"]} (error): "{summary}"')
                 notifications_context = "\n".join(lines)
-        except Exception:
-            pass  # never let queue drain break task execution
+        except Exception as _queue_exc:
+            _log.bind(agent=self._name).warning(
+                "Notification queue drain failed (continuing): {}", _queue_exc
+            )
 
         try:
             live_buf: list[str] = []
@@ -246,8 +243,10 @@ class AgentRunner:
                     verification_status=_done_fm.get("verification_status", ""),
                     route_target=_done_fm.get("route_target", ""),
                 )
-            except Exception:
-                pass  # never let DB errors break the runner
+            except Exception as _db_exc:
+                _log.bind(agent=self._name).warning(
+                    "DB insert_task(done) failed (task still completed): {}", _db_exc
+                )
 
         except TimeoutError:
             await self._agent.set_task_status("error", error="Task timed out (exceeded configured timeout)")
@@ -268,8 +267,10 @@ class AgentRunner:
                     verification_status=_err_fm.get("verification_status", ""),
                     route_target=_err_fm.get("route_target", ""),
                 )
-            except Exception:
-                pass
+            except Exception as _db_exc:
+                _log.bind(agent=self._name).warning(
+                    "DB insert_task(timeout) failed: {}", _db_exc
+                )
         except Exception as exc:
             await self._agent.set_task_status("error", error=str(exc) or repr(exc))
             _exc_fm = self._parse_task_frontmatter()
@@ -289,8 +290,10 @@ class AgentRunner:
                     verification_status=_exc_fm.get("verification_status", ""),
                     route_target=_exc_fm.get("route_target", ""),
                 )
-            except Exception:
-                pass
+            except Exception as _db_exc:
+                _log.bind(agent=self._name).warning(
+                    "DB insert_task(error) failed: {}", _db_exc
+                )
         finally:
             # Clear live buffer so UI shows nothing when idle
             self._write_live("")

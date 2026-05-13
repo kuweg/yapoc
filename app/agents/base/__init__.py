@@ -112,9 +112,14 @@ def _sanitize_for_memory(text: str) -> str:
             return "[response omitted — contained raw tool-call syntax]"
     # Scrub secrets before persisting
     text = _scrub_secrets(text)
-    # Collapse to first line, cap at limit
-    first = text.split('\n')[0].strip()
-    return first[:_MEMORY_RESPONSE_CHAR_CAP]
+    # Keep first few non-empty lines collapsed into a single log-line.
+    # The char cap below keeps the entry short enough that the model
+    # treats it as episodic history, not a template to imitate, while
+    # preserving enough structure that multi-line responses don't lose
+    # everything after their opening sentence.
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    compact = " ".join(lines[:5])
+    return compact[:_MEMORY_RESPONSE_CHAR_CAP]
 
 
 def _looks_self_verified(result_text: str) -> bool:
@@ -168,14 +173,18 @@ class BaseAgent:
         try:
             async with aiofiles.open(event_file, "a", encoding="utf-8") as f:
                 await f.write(json.dumps(event, default=str) + "\n")
-        except Exception:
-            pass
+        except Exception as _ev_exc:
+            _log.bind(agent=self._name).warning(
+                "Session event JSONL write failed: {}", _ev_exc
+            )
         # Push to WebSocket subscribers (non-blocking)
         try:
             from app.backend.websocket import ws_manager
             await ws_manager.push_session_event(self._session_id, event)
-        except Exception:
-            pass
+        except Exception as _ws_exc:
+            _log.bind(agent=self._name).warning(
+                "Session event WebSocket push failed: {}", _ws_exc
+            )
 
     # ── File helpers ────────────────────────────────────────────────────────
 
@@ -219,6 +228,15 @@ class BaseAgent:
         the model imitates/continues truncated previous responses.
         """
         await self._write_file("RESULT.MD", text)
+
+    async def _write_error(self, text: str) -> None:
+        """Write an error/exception trace to ERROR.MD (overwrite each time).
+
+        Kept separate from RESULT.MD so consumers (the runner, the
+        websocket notification relay, /agents/{name}/file endpoints)
+        never surface error text formatted as a success result.
+        """
+        await self._write_file("ERROR.MD", text)
 
     # ── Config ───────────────────────────────────────────────────────────────
 
@@ -320,15 +338,8 @@ class BaseAgent:
     @staticmethod
     def _parse_frontmatter(content: str) -> dict[str, str]:
         """Extract YAML frontmatter from ``---`` delimited block."""
-        m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
-        if not m:
-            return {}
-        fields: dict[str, str] = {}
-        for line in m.group(1).splitlines():
-            if ":" in line:
-                key, _, val = line.partition(":")
-                fields[key.strip()] = val.strip()
-        return fields
+        from app.utils.frontmatter import parse_frontmatter_fields
+        return parse_frontmatter_fields(content)
 
     @staticmethod
     def _update_frontmatter(content: str, **fields: str) -> str:
@@ -440,6 +451,7 @@ class BaseAgent:
     async def run(self, history: list[Message] | None = None) -> str:
         response: str = ""
         _exc: BaseException | None = None
+        _exc_tb: str = ""
         try:
             config = await self._load_config()
             adapter = await self._load_adapter(config)
@@ -462,18 +474,25 @@ class BaseAgent:
 
         except Exception as exc:
             _exc = exc
+            _exc_tb = traceback.format_exc()
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            tb_str = traceback.format_exc()
-            error_entry = f"[{timestamp}] ERROR: {exc}\n{tb_str}\n"
+            error_entry = f"[{timestamp}] ERROR: {exc}\n{_exc_tb}\n"
             await self._append_file("HEALTH.MD", error_entry)
             raise
 
         finally:
-            result_to_write = f"[ERROR] {_exc}" if _exc is not None and not response else response
             try:
-                await self._write_result(result_to_write)
-            except Exception:
-                pass
+                if _exc is not None:
+                    await self._write_error(f"[ERROR] {_exc}\n\n{_exc_tb}")
+                    if not response:
+                        await self._write_result("")
+                else:
+                    await self._write_result(response)
+                    await self._write_error("")
+            except Exception as exc:
+                _log.bind(agent=self._name).warning(
+                    "Failed to persist RESULT/ERROR.MD after run: {}", exc
+                )
 
     async def run_stream(
         self, history: list[Message] | None = None
@@ -746,6 +765,7 @@ class BaseAgent:
         _task_timeout = _runner.get("task_timeout", settings.task_timeout)
         response: str = ""
         _stream_exc: BaseException | None = None
+        _stream_exc_tb: str = ""
 
         try:
             async with asyncio.timeout(_task_timeout):
@@ -1051,35 +1071,42 @@ class BaseAgent:
 
         except TimeoutError:
             _stream_exc = TimeoutError(f"Task timed out after {_task_timeout}s")
+            _stream_exc_tb = traceback.format_exc()
             _log.bind(
                 agent=self._name, event="exception",
                 exc_type="TimeoutError", exc_msg=f"timeout after {_task_timeout}s",
             ).error("Exception TimeoutError | Task timed out after {}s", _task_timeout)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            tb_str = traceback.format_exc()
             await self._append_file(
                 "HEALTH.MD",
-                f"[{timestamp}] ERROR: Task timed out after {_task_timeout}s\n{tb_str}\n",
+                f"[{timestamp}] ERROR: Task timed out after {_task_timeout}s\n{_stream_exc_tb}\n",
             )
             raise
         except Exception as exc:
             _stream_exc = exc
+            _stream_exc_tb = traceback.format_exc()
             _log.bind(
                 agent=self._name, event="exception",
                 exc_type=type(exc).__name__, exc_msg=str(exc),
             ).opt(exception=True).error("Exception {} | {}", type(exc).__name__, exc)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            tb_str = traceback.format_exc()
-            error_entry = f"[{timestamp}] ERROR: {exc}\n{tb_str}\n"
+            error_entry = f"[{timestamp}] ERROR: {exc}\n{_stream_exc_tb}\n"
             await self._append_file("HEALTH.MD", error_entry)
             raise
 
         finally:
-            result_to_write = f"[ERROR] {_stream_exc}" if _stream_exc is not None and not response else response
             try:
-                await self._write_result(result_to_write)
-            except Exception:
-                pass
+                if _stream_exc is not None:
+                    await self._write_error(f"[ERROR] {_stream_exc}\n\n{_stream_exc_tb}")
+                    if not response:
+                        await self._write_result("")
+                else:
+                    await self._write_result(response)
+                    await self._write_error("")
+            except Exception as exc:
+                _log.bind(agent=self._name).warning(
+                    "Failed to persist RESULT/ERROR.MD after stream run: {}", exc
+                )
 
     # ── Status ───────────────────────────────────────────────────────────────
 

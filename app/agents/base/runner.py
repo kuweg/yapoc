@@ -46,7 +46,20 @@ class AgentRunner:
         self._agent = BaseAgent(self._agent_dir)
         self._status_path = self._agent_dir / "STATUS.json"
         self._task_path = self._agent_dir / "TASK.MD"
-        self._idle_timeout = settings.agent_idle_timeout
+        # Per-agent idle_timeout via agent-settings.json; falls back to the
+        # global settings.agent_idle_timeout default.
+        try:
+            from app.utils.agent_settings import resolve_runner_settings
+            _runner_cfg = resolve_runner_settings(agent_name)
+        except Exception as _rs_exc:
+            _log.bind(agent=agent_name).warning(
+                "resolve_runner_settings failed (using settings default): {}",
+                _rs_exc,
+            )
+            _runner_cfg = {}
+        self._idle_timeout = int(
+            _runner_cfg.get("idle_timeout") or settings.agent_idle_timeout
+        )
         self._poll_interval = settings.runner_poll_interval
         self._shutting_down = False
         self._temporary = self._load_temporary_flag()
@@ -138,6 +151,32 @@ class AgentRunner:
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None
         await self._agent.set_task_status("running")
+
+        # Heartbeat: refresh STATUS.json every 30s while the task is running
+        # so (a) idle_since stays None even if no UsageStats events fire for
+        # long periods, and (b) the UI's /agents poll sees a fresh updated_at
+        # and renders the agent as still-alive.
+        _hb_summary = task_body[:120]
+        _hb_stop = asyncio.Event()
+
+        async def _heartbeat() -> None:
+            try:
+                while not _hb_stop.is_set():
+                    try:
+                        await asyncio.wait_for(_hb_stop.wait(), timeout=30.0)
+                        return  # stop event fired
+                    except asyncio.TimeoutError:
+                        pass
+                    try:
+                        self._write_status("running", task_summary=_hb_summary)
+                    except Exception as _hb_exc:
+                        _log.bind(agent=self._name).warning(
+                            "Heartbeat STATUS.json write failed: {}", _hb_exc
+                        )
+            except asyncio.CancelledError:
+                return
+
+        _hb_task = asyncio.create_task(_heartbeat())
 
         # Drain pending notifications and inject into the LLM system prompt
         notifications_context = ""
@@ -295,6 +334,15 @@ class AgentRunner:
                     "DB insert_task(error) failed: {}", _db_exc
                 )
         finally:
+            # Stop the heartbeat first so it doesn't race with the final
+            # "idle" write performed by the main loop.
+            _hb_stop.set()
+            if not _hb_task.done():
+                _hb_task.cancel()
+                try:
+                    await _hb_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             # Clear live buffer so UI shows nothing when idle
             self._write_live("")
 

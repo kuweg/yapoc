@@ -51,6 +51,8 @@ export function ChatPanel() {
   const lastCompletedTask = useWsStore((s) => s.lastCompletedTask)
   const clearLastCompletedTask = useWsStore((s) => s.clearLastCompletedTask)
   const lastSessionEvent = useWsStore((s) => s.lastSessionEvent)
+  const lastOrphanNotification = useWsStore((s) => s.lastOrphanNotification)
+  const clearLastOrphanNotification = useWsStore((s) => s.clearLastOrphanNotification)
   const wsConnected = useWsStore((s) => s.connected)
 
   const stopPolling = useCallback(() => {
@@ -95,6 +97,20 @@ export function ChatPanel() {
     const line = formatSessionActivity(lastSessionEvent)
     if (line) setBackgroundActivity(line)
   }, [awaitingNotification, lastSessionEvent, activeId, appendMessage])
+
+  // Orphan-notification fallback: when the backend couldn't route master's
+  // notification result to a specific session (session_id lost upstream),
+  // it broadcasts a top-level notification_result event. If we're actively
+  // awaiting a sub-agent chain to finish, surface the result in this chat
+  // rather than letting it die silently.
+  useEffect(() => {
+    if (!awaitingNotification || !lastOrphanNotification) return
+    const text = lastOrphanNotification.text.trim()
+    if (text) appendMessage('assistant', text)
+    setAwaitingNotification(false)
+    setBackgroundActivity('')
+    clearLastOrphanNotification()
+  }, [awaitingNotification, lastOrphanNotification, appendMessage, clearLastOrphanNotification])
 
   // Clean up on unmount
   useEffect(() => () => stopPolling(), [stopPolling])

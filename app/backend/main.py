@@ -156,25 +156,40 @@ async def _master_notification_watcher() -> None:
 
                 # Push a final message event so ChatPanel can append background
                 # completion output even when there is no task_queue row.
-                if sid:
-                    try:
-                        from app.backend.websocket import ws_manager
+                # If sid is empty (session_id was lost somewhere up the chain
+                # — e.g. an APScheduler-triggered agent that propagated an
+                # empty session_id down to children), broadcast to all
+                # connected clients as a fallback. Without this fallback the
+                # user sees master's 6-turn run in the terminal but never
+                # gets the response in the chat panel.
+                try:
+                    from app.backend.websocket import ws_manager
 
-                        result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
-                            encoding="utf-8",
-                            errors="replace",
-                        ).strip()
-                        if result_text:
+                    result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+                        encoding="utf-8",
+                        errors="replace",
+                    ).strip()
+                    if result_text:
+                        if sid:
                             await ws_manager.push_session_event(
                                 sid,
                                 {"type": "notification_result", "text": result_text},
                             )
-                    except Exception as _push_exc:
-                        logger.warning(
-                            "Notification watcher: session_event push failed for {}: {}",
-                            sid,
-                            _push_exc,
-                        )
+                        else:
+                            logger.warning(
+                                "Notification watcher: orphan notification (no session_id) "
+                                "— broadcasting result to all clients"
+                            )
+                            await ws_manager.push_event(
+                                "notification_result",
+                                {"text": result_text, "session_id": ""},
+                            )
+                except Exception as _push_exc:
+                    logger.warning(
+                        "Notification watcher: session_event push failed for {}: {}",
+                        sid,
+                        _push_exc,
+                    )
         except Exception as _watcher_exc:
             logger.warning(
                 "Notification watcher iteration failed (will retry): {}",

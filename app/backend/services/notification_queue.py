@@ -29,6 +29,8 @@ from typing import TypedDict
 logger = logging.getLogger(__name__)
 
 _QUEUE_PATH = Path("data/notification_queue.json")
+_TRACE_PATH = Path("data/notification_trace.jsonl")
+_TRACE_MAX_BYTES = 2_000_000  # ~2MB before rotation
 
 
 class Notification(TypedDict):
@@ -50,10 +52,37 @@ class NotificationQueue:
     the same authoritative queue state.
     """
 
-    def __init__(self, path: Path = _QUEUE_PATH) -> None:
+    def __init__(self, path: Path = _QUEUE_PATH, trace_path: Path = _TRACE_PATH) -> None:
         self._path = path
+        self._trace_path = trace_path
         self._lock = Lock()
         self._items: list[Notification] = []
+
+    def _record_trace(self, event: str, **fields: object) -> None:
+        """Append a trace event as JSONL. Cross-process safe via O_APPEND atomicity.
+
+        Best-effort: failures are logged but don't disrupt the queue.
+        """
+        try:
+            self._trace_path.parent.mkdir(parents=True, exist_ok=True)
+            # Rotate if file has grown past the cap
+            try:
+                if self._trace_path.exists() and self._trace_path.stat().st_size > _TRACE_MAX_BYTES:
+                    rotated = self._trace_path.with_suffix(".jsonl.1")
+                    os.replace(self._trace_path, rotated)
+            except OSError:
+                pass
+            entry = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "event": event,
+                **fields,
+            }
+            line = json.dumps(entry, ensure_ascii=False) + "\n"
+            # O_APPEND writes <PIPE_BUF (4096) are atomic on POSIX
+            with open(self._trace_path, "a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception as exc:
+            logger.warning("NotificationQueue: failed to record trace: %s", exc)
 
     # ------------------------------------------------------------------
     # Disk-authoritative transaction
@@ -155,6 +184,14 @@ class NotificationQueue:
                         and existing.get("session_id", "") == (session_id or "")
                         and not existing["consumed"]
                     ):
+                        self._record_trace(
+                            "deduped",
+                            parent_agent=parent_agent,
+                            child_agent=child_agent,
+                            status=status,
+                            session_id=session_id or "",
+                            reason="unconsumed duplicate payload",
+                        )
                         return
                 items.append(notification)
         logger.info(
@@ -162,6 +199,15 @@ class NotificationQueue:
             parent_agent,
             child_agent,
             status,
+        )
+        self._record_trace(
+            "enqueued",
+            parent_agent=parent_agent,
+            child_agent=child_agent,
+            status=status,
+            session_id=session_id or "",
+            result_preview=(result or "")[:120],
+            error_preview=(error or "")[:120],
         )
 
     def drain(
@@ -181,6 +227,15 @@ class NotificationQueue:
                 ]
                 for n in pending:
                     n["consumed"] = True
+        for n in pending:
+            self._record_trace(
+                "drained",
+                parent_agent=n["parent_agent"],
+                child_agent=n["child_agent"],
+                status=n["status"],
+                session_id=n.get("session_id", ""),
+                completed_at=n.get("completed_at", ""),
+            )
         return pending
 
     def pending_count(self, parent_agent: str, session_id: str | None = None) -> int:
@@ -209,6 +264,41 @@ class NotificationQueue:
                     if n["parent_agent"] == parent_agent and not n["consumed"]
                 }
         return sorted(sessions)
+
+    def read_trace(
+        self,
+        limit: int = 200,
+        session_id: str | None = None,
+        since_iso: str | None = None,
+    ) -> list[dict]:
+        """Return the most recent trace events, newest first.
+
+        Reads the JSONL trace log written by enqueue/dedup/drain. Filters by
+        session_id and an ISO timestamp lower bound if provided.
+        """
+        if not self._trace_path.exists():
+            return []
+        try:
+            raw = self._trace_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        events: list[dict] = []
+        for line in reversed(raw):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if session_id is not None and entry.get("session_id", "") != (session_id or ""):
+                continue
+            if since_iso and entry.get("ts", "") < since_iso:
+                continue
+            events.append(entry)
+            if len(events) >= limit:
+                break
+        return events
 
     def purge_consumed(self, keep_last: int = 100) -> None:
         """Remove old consumed notifications, keeping the most recent keep_last."""

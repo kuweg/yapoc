@@ -10,6 +10,9 @@ tools:
   - read_task_result
   - file_read
   - file_list
+  - file_write
+  - file_edit
+  - file_delete
   - memory_append
   - notes_read
   - notes_write
@@ -22,6 +25,12 @@ delegation_targets:
   - doctor
   - master
 autonomous_policy:
+  file_write:
+    auto_approve: ["*"]
+  file_edit:
+    auto_approve: ["*"]
+  file_delete:
+    auto_approve: ["*"]
   spawn_agent:
     auto_approve: ["*"]
     default: auto_approve

@@ -138,5 +138,165 @@
     "cost_usd": 0.0,
     "timestamp": "2026-05-13T00:26:00Z",
     "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:34Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 2791,
+    "tokens_out": 207,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:34Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:36Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 6848,
+    "tokens_out": 173,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:36Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:38Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 17357,
+    "tokens_out": 97,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:38Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:42Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 17887,
+    "tokens_out": 290,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:42Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:45Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 18059,
+    "tokens_out": 101,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:45Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:47Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 18263,
+    "tokens_out": 96,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:47Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T07:19:49Z",
+    "description": "Investigate the BertModel LOAD REPORT warning for sentence-transformers/all-MiniLM-L6-v2. Specifically:",
+    "agent_name": "doctor",
+    "tokens_in": 18380,
+    "tokens_out": 197,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T07:19:49Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T10:04:44Z",
+    "description": "Run a comprehensive health check on the YAPOC system. Check all agents for: cost anomalies, crash history, memory usage, task completion rates, and any other health indicators. Report any issues found",
+    "agent_name": "doctor",
+    "tokens_in": 2775,
+    "tokens_out": 59,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T10:04:44Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T10:04:46Z",
+    "description": "Run a comprehensive health check on the YAPOC system. Check all agents for: cost anomalies, crash history, memory usage, task completion rates, and any other health indicators. Report any issues found",
+    "agent_name": "doctor",
+    "tokens_in": 5427,
+    "tokens_out": 216,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T10:04:46Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T10:04:49Z",
+    "description": "Run a comprehensive health check on the YAPOC system. Check all agents for: cost anomalies, crash history, memory usage, task completion rates, and any other health indicators. Report any issues found",
+    "agent_name": "doctor",
+    "tokens_in": 11260,
+    "tokens_out": 240,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T10:04:49Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T10:04:52Z",
+    "description": "Run a comprehensive health check on the YAPOC system. Check all agents for: cost anomalies, crash history, memory usage, task completion rates, and any other health indicators. Report any issues found",
+    "agent_name": "doctor",
+    "tokens_in": 25522,
+    "tokens_out": 356,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T10:04:52Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T11:42:43Z",
+    "description": "Run a comprehensive health check of the YAPOC system. Check all agents, model availability, cost metrics, and any issues. Report back with a full health summary.",
+    "agent_name": "doctor",
+    "tokens_in": 2842,
+    "tokens_out": 67,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T11:42:43Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T11:42:49Z",
+    "description": "Run a comprehensive health check of the YAPOC system. Check all agents, model availability, cost metrics, and any issues. Report back with a full health summary.",
+    "agent_name": "doctor",
+    "tokens_in": 6288,
+    "tokens_out": 330,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T11:42:49Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T11:42:51Z",
+    "description": "Run a comprehensive health check of the YAPOC system. Check all agents, model availability, cost metrics, and any issues. Report back with a full health summary.",
+    "agent_name": "doctor",
+    "tokens_in": 14746,
+    "tokens_out": 252,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T11:42:51Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T11:42:55Z",
+    "description": "Run a comprehensive health check of the YAPOC system. Check all agents, model availability, cost metrics, and any issues. Report back with a full health summary.",
+    "agent_name": "doctor",
+    "tokens_in": 28356,
+    "tokens_out": 321,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T11:42:55Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-13T11:42:57Z",
+    "description": "Run a comprehensive health check of the YAPOC system. Check all agents, model availability, cost metrics, and any issues. Report back with a full health summary.",
+    "agent_name": "doctor",
+    "tokens_in": 29747,
+    "tokens_out": 235,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T11:42:57Z",
+    "model_used": "gpt-5.4-mini"
   }
 ]

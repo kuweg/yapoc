@@ -2,6 +2,11 @@ adapter: deepseek
 model: deepseek-reasoner
 temperature: 0.3
 tools:
+  - file_read
+  - file_write
+  - file_edit
+  - file_delete
+  - file_list
   - spawn_agent
   - ping_agent
   - kill_agent
@@ -20,9 +25,22 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
+autonomous_policy:
+  file_read:
+    auto_approve: ["*"]
+  file_write:
+    auto_approve: ["*"]
+  file_edit:
+    auto_approve: ["*"]
+  file_delete:
+    auto_approve: ["*"]
+  file_list:
+    auto_approve: ["*"]
+
 delegation_targets:
   - builder
   - keeper
+  - model_manager
 runner:
   max_turns: 15
   task_timeout: 300

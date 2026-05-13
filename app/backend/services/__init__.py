@@ -39,20 +39,31 @@ def _is_stale_status(status: dict) -> bool:
 
 
 def _parse_config(agent_dir) -> tuple[str, str]:
-    """Return (model, adapter) from CONFIG.md, falling back to agent.py."""
+    """Return (model, adapter) from agent-settings.json, then CONFIG.md, then defaults."""
     model = ""
     adapter = ""
 
+    # 1. Check agent-settings.json (authoritative primary)
+    try:
+        from app.utils import agent_settings as _agent_settings
+        entry = _agent_settings.resolve_agent(agent_dir.name)
+        if entry is not None:
+            return entry["model"], entry["adapter"]
+    except Exception:
+        pass
+
+    # 2. Check CONFIG.md
     config_path = agent_dir / "CONFIG.md"
     if config_path.exists():
         text = config_path.read_text(encoding="utf-8", errors="ignore")
-        m = re.search(r"model[:\s]+([^\s\n]+)", text, re.IGNORECASE)
+        m = re.search(r"model\s*:\s*([^\s\n]+)", text, re.IGNORECASE)
         if m:
             model = m.group(1).strip("`").strip()
-        a = re.search(r"adapter[:\s]+([^\s\n]+)", text, re.IGNORECASE)
+        a = re.search(r"adapter\s*:\s*([^\s\n]+)", text, re.IGNORECASE)
         if a:
             adapter = a.group(1).strip("`").strip()
 
+    # 3. Check agent.py (legacy)
     if not model:
         agent_py = agent_dir / "agent.py"
         if agent_py.exists():
@@ -64,7 +75,13 @@ def _parse_config(agent_dir) -> tuple[str, str]:
             if a:
                 adapter = a.group(1)
 
-    return model or "unknown", adapter or "anthropic"
+    # 4. Defaults from settings
+    if not model:
+        model = settings.default_model
+    if not adapter:
+        adapter = settings.default_adapter
+
+    return model, adapter
 
 
 HEALTH_LINE_RE = re.compile(
@@ -233,8 +250,13 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
     has_task = task_is_active
 
     # Fill task_summary from TASK.MD if STATUS.json doesn't have one
-    if not task_summary and task_is_active and task and task.task_text:
+    if not task_summary and task and task.task_text:
         task_summary = task.task_text[:120]
+    # For completed tasks also show result/status context
+    if not task_summary and task and task.result_text:
+        task_summary = f"[done] {task.result_text[:110]}"
+    if not task_summary and task and task.error_text:
+        task_summary = f"[error] {task.error_text[:110]}"
 
     # Legacy status field — combines process state + task state
     if state == "running":

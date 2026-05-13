@@ -44,16 +44,21 @@ sandbox:
     - pyproject.toml
 autonomous_policy:
   shell_exec:
-    auto_approve: ["poetry run pytest*", "poetry run *", "ls *", "cat *", "wc *", "head *", "tail *", "grep *", "find *"]
-    deny: ["rm -rf *", "sudo *", "curl * | bash", "wget *", "git push*", "git reset --hard*"]
+    auto_approve: ["poetry run pytest*", "poetry run *", "ls *", "cat *", "wc *", "head *", "tail *", "grep *", "find *", "mkdir *", "touch *", "cp *", "mv *", "rm app/agents/*", "rm -r app/agents/*", "rm app/projects/*", "rm -r app/projects/*", "rmdir *"]
+    deny: ["rm -rf *", "rm -rf /*", "sudo *", "curl * | bash", "wget *", "git push*", "git reset --hard*"]
     default: queue
   file_write:
-    auto_approve: ["app/projects/*", "data/*", "docs/*"]
-    deny: ["app/config/*", "*.env", "app/agents/*/PROMPT.MD"]
-    default: queue
+    auto_approve: ["*"]
+    deny: ["app/config/settings.py", "*.env", "pyproject.toml"]
+    default: auto_approve
+  file_edit:
+    auto_approve: ["*"]
+    deny: ["app/config/settings.py", "*.env", "pyproject.toml"]
+    default: auto_approve
   file_delete:
-    deny: ["*"]
-    default: deny
+    auto_approve: ["*"]
+    deny: ["app/config/settings.py", "*.env", "pyproject.toml", "app/agents/master/*", "app/agents/planning/*", "app/agents/builder/*", "app/agents/keeper/*", "app/agents/cron/*", "app/agents/doctor/*", "app/agents/model_manager/*", "app/agents/base/*"]
+    default: queue
   spawn_agent:
     auto_approve: ["*"]
     default: auto_approve

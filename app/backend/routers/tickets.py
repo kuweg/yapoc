@@ -1,10 +1,12 @@
 """Tickets router — User Defined Tickets (UDTs) + persistent agent task history."""
 
+import fcntl
 import json
 import os
 import re
 import tempfile
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,28 +24,51 @@ router = APIRouter(prefix="/tickets")
 _TICKETS_PATH = Path(__file__).parent.parent.parent / "data" / "tickets.json"
 
 
-def _load_tickets() -> list[dict]:
+@contextmanager
+def _locked_store(*, readonly: bool = False):
+    """Cross-process file lock on tickets.json — same pattern as ticket_service.py."""
+    _TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = _TICKETS_PATH.with_suffix(".lock")
+    lock_fd = open(lock_path, "w")
     try:
-        return json.loads(_TICKETS_PATH.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        if _TICKETS_PATH.exists():
+            try:
+                tickets: list[dict] = json.loads(_TICKETS_PATH.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                tickets = []
+        else:
+            tickets = []
+        yield tickets
+        if not readonly:
+            fd, tmp = tempfile.mkstemp(dir=_TICKETS_PATH.parent, suffix=".tmp")
+            try:
+                os.write(fd, json.dumps(tickets, indent=2, ensure_ascii=False).encode())
+                os.close(fd)
+                os.replace(tmp, _TICKETS_PATH)
+            except Exception:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
+                raise
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
+
+
+def _load_tickets() -> list[dict]:
+    """Load tickets under the cross-process file lock (read-only snapshot)."""
+    with _locked_store(readonly=True) as tickets:
+        return list(tickets)
 
 
 def _save_tickets(tickets: list[dict]) -> None:
-    _TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=_TICKETS_PATH.parent, suffix=".tmp")
-    try:
-        os.write(fd, json.dumps(tickets, indent=2, ensure_ascii=False).encode())
-        os.close(fd)
-        os.replace(tmp, _TICKETS_PATH)
-    except Exception:
-        try:
-            os.close(fd)
-        except Exception:
-            pass
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+    """Save tickets under the cross-process file lock."""
+    with _locked_store() as current:
+        current[:] = tickets
 
 
 # ---------------------------------------------------------------------------
@@ -372,27 +397,23 @@ class TraceEntry(BaseModel):
 
 @router.get("", response_model=list[TicketResponse])
 async def list_tickets():
-    """Return all tickets. Syncs agent TASK.MD files and RESUME.MD into the store first."""
-    tickets = _load_tickets()
+    """Return all tickets. Syncs agent TASK.MD files and RESUME.MD into the store first.
+    Holds the cross-process file lock across the entire read-modify-write cycle."""
+    with _locked_store() as tickets:
+        # Backfill fields added in later schema versions
+        for t in tickets:
+            t.setdefault("parent_agent", None)
+            t.setdefault("trace", [])
 
-    # Backfill fields added in later schema versions
-    for t in tickets:
-        t.setdefault("parent_agent", None)
-        t.setdefault("trace", [])
+        tickets, _changed = _sync_agent_tasks(tickets)
+        tickets, _changed2 = _sync_resume_tasks(tickets)
+        tickets, _changed3 = _cascade_completion(tickets)
 
-    tickets, changed1 = _sync_agent_tasks(tickets)
-    tickets, changed2 = _sync_resume_tasks(tickets)
-    tickets, changed3 = _cascade_completion(tickets)
-
-    if changed1 or changed2 or changed3:
-        _save_tickets(tickets)
-
-    return [TicketResponse(**t) for t in tickets]
+    return [TicketResponse(**t) for t in _load_tickets()]
 
 
 @router.post("", response_model=TicketResponse, status_code=201)
 async def create_ticket(body: TicketCreate):
-    tickets = _load_tickets()
     now = _now()
     ticket = {
         "id": str(uuid.uuid4()),
@@ -411,42 +432,41 @@ async def create_ticket(body: TicketCreate):
         "error_text": None,
         "trace": [],
     }
-    tickets.append(ticket)
-    _save_tickets(tickets)
+    with _locked_store() as tickets:
+        tickets.append(ticket)
     return TicketResponse(**ticket)
 
 
 @router.patch("/{ticket_id}", response_model=TicketResponse)
 async def update_ticket(ticket_id: str, body: TicketUpdate):
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            if body.title is not None:
-                t["title"] = body.title
-            if body.description is not None:
-                t["description"] = body.description
-            if body.requirements is not None:
-                t["requirements"] = body.requirements
-            if body.status is not None:
-                valid = {"backlog", "in_progress", "done", "error"}
-                if body.status not in valid:
-                    raise HTTPException(status_code=422, detail=f"status must be one of {valid}")
-                t["status"] = body.status
-            t.setdefault("parent_agent", None)
-            t.setdefault("trace", [])
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                if body.title is not None:
+                    t["title"] = body.title
+                if body.description is not None:
+                    t["description"] = body.description
+                if body.requirements is not None:
+                    t["requirements"] = body.requirements
+                if body.status is not None:
+                    valid = {"backlog", "in_progress", "done", "error"}
+                    if body.status not in valid:
+                        raise HTTPException(status_code=422, detail=f"status must be one of {valid}")
+                    t["status"] = body.status
+                t.setdefault("parent_agent", None)
+                t.setdefault("trace", [])
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
 
 @router.delete("/{ticket_id}")
 async def delete_ticket(ticket_id: str):
-    tickets = _load_tickets()
-    new_tickets = [t for t in tickets if t["id"] != ticket_id]
-    if len(new_tickets) == len(tickets):
-        raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
-    _save_tickets(new_tickets)
+    with _locked_store() as tickets:
+        new_tickets = [t for t in tickets if t["id"] != ticket_id]
+        if len(new_tickets) == len(tickets):
+            raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
+        tickets[:] = new_tickets
     return {"ok": True}
 
 
@@ -458,30 +478,29 @@ async def assign_ticket(ticket_id: str, body: AssignRequest):
     if not agent_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
 
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            if t["type"] != "user":
-                raise HTTPException(status_code=422, detail="Cannot assign agent-type tickets")
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                if t["type"] != "user":
+                    raise HTTPException(status_code=422, detail="Cannot assign agent-type tickets")
 
-            # Master is in-process — the frontend routes execution through the chat
-            # stream (pendingChatInput). Calling SpawnAgentTool would write a stale
-            # structured TASK.MD that overwrites itself and creates ghost agent tickets.
-            if agent_name != "master":
-                from app.utils.tools.delegation import SpawnAgentTool
-                spawn = SpawnAgentTool()
-                task_text = t["title"]
-                context = "\n\n".join(filter(None, [t["description"], t.get("requirements", "")]))
-                result = await spawn.execute(agent_name=agent_name, task=task_text, context=context)
-                if result.startswith("Error:"):
-                    raise HTTPException(status_code=400, detail=result)
+                # Master is in-process — the frontend routes execution through the chat
+                # stream (pendingChatInput). Calling SpawnAgentTool would write a stale
+                # structured TASK.MD that overwrites itself and creates ghost agent tickets.
+                if agent_name != "master":
+                    from app.utils.tools.delegation import SpawnAgentTool
+                    spawn = SpawnAgentTool()
+                    task_text = t["title"]
+                    context = "\n\n".join(filter(None, [t["description"], t.get("requirements", "")]))
+                    result = await spawn.execute(agent_name=agent_name, task=task_text, context=context)
+                    if result.startswith("Error:"):
+                        raise HTTPException(status_code=400, detail=result)
 
-            t["status"] = "in_progress"
-            t["assigned_agent"] = agent_name
-            t.setdefault("parent_agent", None)
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+                t["status"] = "in_progress"
+                t["assigned_agent"] = agent_name
+                t.setdefault("parent_agent", None)
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
 
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
@@ -489,19 +508,18 @@ async def assign_ticket(ticket_id: str, body: AssignRequest):
 @router.post("/{ticket_id}/trace", response_model=TicketResponse)
 async def add_trace(ticket_id: str, body: TraceEntry):
     """Append a timestamped trace note to a ticket's activity log."""
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            t.setdefault("trace", [])
-            t.setdefault("parent_agent", None)
-            t["trace"].append({
-                "ts": _now(),
-                "note": body.note,
-                "agent": body.agent,
-            })
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                t.setdefault("trace", [])
+                t.setdefault("parent_agent", None)
+                t["trace"].append({
+                    "ts": _now(),
+                    "note": body.note,
+                    "agent": body.agent,
+                })
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
 
@@ -538,16 +556,15 @@ async def update_ticket_status(ticket_id: str, body: StatusUpdate):
             status_code=422,
             detail=f"status must be one of {sorted(_VALID_STATUSES)}",
         )
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            t.setdefault("trace", [])
-            t.setdefault("parent_agent", None)
-            t.setdefault("priority", "medium")
-            t["status"] = body.status
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                t.setdefault("trace", [])
+                t.setdefault("parent_agent", None)
+                t.setdefault("priority", "medium")
+                t["status"] = body.status
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
 
@@ -556,20 +573,19 @@ async def add_ticket_note(ticket_id: str, body: NoteAdd):
     """Append a note to a ticket's activity log."""
     if not body.note or not body.note.strip():
         raise HTTPException(status_code=422, detail="note must not be empty")
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            t.setdefault("trace", [])
-            t.setdefault("parent_agent", None)
-            t.setdefault("priority", "medium")
-            t["trace"].append({
-                "ts": _now(),
-                "note": body.note.strip(),
-                "agent": body.author or None,
-            })
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                t.setdefault("trace", [])
+                t.setdefault("parent_agent", None)
+                t.setdefault("priority", "medium")
+                t["trace"].append({
+                    "ts": _now(),
+                    "note": body.note.strip(),
+                    "agent": body.author or None,
+                })
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
 
@@ -581,15 +597,14 @@ async def update_ticket_priority(ticket_id: str, body: PriorityUpdate):
             status_code=422,
             detail=f"priority must be one of {sorted(_VALID_PRIORITIES)}",
         )
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            t.setdefault("trace", [])
-            t.setdefault("parent_agent", None)
-            t["priority"] = body.priority
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                t.setdefault("trace", [])
+                t.setdefault("parent_agent", None)
+                t["priority"] = body.priority
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
 
@@ -598,16 +613,15 @@ async def update_ticket_assignee(ticket_id: str, body: AssigneeUpdate):
     """Update the assignee of a ticket."""
     if not body.assignee or not body.assignee.strip():
         raise HTTPException(status_code=422, detail="assignee must not be empty")
-    tickets = _load_tickets()
-    for t in tickets:
-        if t["id"] == ticket_id:
-            t.setdefault("trace", [])
-            t.setdefault("parent_agent", None)
-            t.setdefault("priority", "medium")
-            t["assigned_agent"] = body.assignee.strip()
-            t["updated_at"] = _now()
-            _save_tickets(tickets)
-            return TicketResponse(**t)
+    with _locked_store() as tickets:
+        for t in tickets:
+            if t["id"] == ticket_id:
+                t.setdefault("trace", [])
+                t.setdefault("parent_agent", None)
+                t.setdefault("priority", "medium")
+                t["assigned_agent"] = body.assignee.strip()
+                t["updated_at"] = _now()
+                return TicketResponse(**t)
     raise HTTPException(status_code=404, detail=f"Ticket '{ticket_id}' not found")
 
 

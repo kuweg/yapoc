@@ -5,6 +5,9 @@ tools:
   # ── Reads (safe, do them yourself) ──────────────────────────────────
   - file_read
   - file_list
+  - file_write
+  - file_edit
+  - file_delete
   - show_agent_settings
   # ── Delegation ──────────────────────────────────────────────────────
   - spawn_agent
@@ -32,6 +35,18 @@ tools:
   - manage_tickets
   - shared_knowledge_append
   - image_read
+autonomous_policy:
+  file_read:
+    auto_approve: ["*"]
+  file_write:
+    auto_approve: ["*"]
+  file_edit:
+    auto_approve: ["*"]
+  file_delete:
+    auto_approve: ["*"]
+  file_list:
+    auto_approve: ["*"]
+
 sandbox:
   # Master can read anything but writes must go through a sub-agent.
   forbidden:

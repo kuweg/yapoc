@@ -48,7 +48,7 @@ autonomous_policy:
     deny: ["rm -rf *", "sudo *", "curl * | bash", "wget *", "git push*", "git reset --hard*"]
     default: queue
   file_write:
-    auto_approve: ["app/projects/*", "data/*"]
+    auto_approve: ["app/projects/*", "data/*", "docs/*"]
     deny: ["app/config/*", "*.env", "app/agents/*/PROMPT.MD"]
     default: queue
   file_delete:

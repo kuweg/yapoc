@@ -56,6 +56,7 @@ interface WsStore {
   handleEvent: (data: Record<string, unknown>) => void
   dismissNotification: (taskId: string) => void
   clearApproval: (id: string) => void
+  setPendingApprovals: (list: PendingApproval[]) => void
   clearLastCompletedTask: () => void
 }
 
@@ -78,6 +79,11 @@ export const useWsStore = create<WsStore>((set) => ({
     set((s) => ({
       pendingApprovals: s.pendingApprovals.filter((a) => a.id !== id),
     })),
+
+  // Replace the pending list (used by the BackgroundApprovalBanner fallback
+  // poller — WebSocket push from subprocess agents doesn't reach UI clients
+  // because subprocesses don't hold WS connections).
+  setPendingApprovals: (list) => set({ pendingApprovals: list }),
 
   clearLastCompletedTask: () => set({ lastCompletedTask: null }),
 

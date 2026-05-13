@@ -1,15 +1,44 @@
 /**
  * BackgroundApprovalBanner — shows pending tool approvals from background tasks.
  *
- * These come via WebSocket `approval_needed` events (Phase 4B).
- * The user can approve/deny via REST, and the banner updates accordingly.
+ * These come via WebSocket `approval_needed` events for in-process approvals,
+ * and via a 3s `/approvals` poll for cross-process ones (subprocess agents
+ * don't hold WS connections, so their `queue_approval()` WS push is a no-op
+ * from inside the subprocess — the poll closes that gap).
+ *
+ * The user can approve/deny via REST. The waiting sub-agent unblocks the
+ * moment the SQLite row's status flips (see app/utils/tools/approval.py
+ * `wait_for_resolution`).
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useWsStore, type PendingApproval } from '../store/wsStore'
+
+const POLL_INTERVAL_MS = 3_000
 
 export function BackgroundApprovalBanner() {
   const approvals = useWsStore((s) => s.pendingApprovals)
   const clearApproval = useWsStore((s) => s.clearApproval)
+  const setPendingApprovals = useWsStore((s) => s.setPendingApprovals)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchPending = async () => {
+      try {
+        const res = await fetch('/api/approvals')
+        if (!res.ok) return
+        const data = (await res.json()) as PendingApproval[]
+        if (!cancelled) setPendingApprovals(data)
+      } catch {
+        // best-effort — WS will eventually catch up
+      }
+    }
+    fetchPending()
+    const interval = setInterval(fetchPending, POLL_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [setPendingApprovals])
 
   if (approvals.length === 0) return null
 

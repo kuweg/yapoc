@@ -334,15 +334,6 @@ class AgentRunner:
                     "DB insert_task(error) failed: {}", _db_exc
                 )
         finally:
-            # Stop the heartbeat first so it doesn't race with the final
-            # "idle" write performed by the main loop.
-            _hb_stop.set()
-            if not _hb_task.done():
-                _hb_task.cancel()
-                try:
-                    await _hb_task
-                except (asyncio.CancelledError, Exception):
-                    pass
             # Clear live buffer so UI shows nothing when idle
             self._write_live("")
 
@@ -420,19 +411,51 @@ class AgentRunner:
                     try:
                         from app.backend.services.notification_queue import notification_queue as _nq
                         if _nq.pending_count(self._name) > 0:
-                            # Write a notification trigger TASK.MD so _check_task picks it up
+                            # Look up our real parent so that when WE complete
+                            # this notification-processing task, the next
+                            # notification_poller pass can route OUR result back
+                            # up the chain. Previously this wrote a literal
+                            # `assigned_by: notification`, which made our
+                            # completion notification get enqueued for a
+                            # nonexistent "notification" agent and silently
+                            # dropped. SpawnRegistry is the authoritative
+                            # source; fall back to whatever assigned_by the
+                            # previous TASK.MD had, then default to "master".
+                            from app.backend.services.spawn_registry import registry as _spawn_registry
+                            real_parent = _spawn_registry.get_parent(self._name)
+                            if not real_parent:
+                                fm = self._parse_task_frontmatter()
+                                prior = fm.get("assigned_by", "")
+                                if prior and prior != "notification":
+                                    real_parent = prior
+                            if not real_parent:
+                                real_parent = "master"
+
+                            # Preserve session_id from the previous TASK.MD
+                            # (was lost in the old inline template) so the
+                            # user-session binding survives this re-entry.
+                            prior_fm = self._parse_task_frontmatter()
+                            prior_session_id = prior_fm.get("session_id", "")
+
                             ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                             trigger = (
-                                f"---\nstatus: pending\nassigned_by: notification\n"
-                                f"assigned_at: {ts}\n---\n\n## Task\n"
+                                f"---\n"
+                                f"status: pending\n"
+                                f"session_id: {prior_session_id}\n"
+                                f"assigned_by: {real_parent}\n"
+                                f"assigned_at: {ts}\n"
+                                f"---\n\n## Task\n"
                                 f"[Process incoming notifications from sub-agents]\n\n"
                                 f"## Result\n\n## Error\n"
                             )
                             self._task_path.write_text(trigger, encoding="utf-8")
                             # Next loop iteration will pick up the pending task
                             continue
-                    except Exception:
-                        pass  # never let notification check break the runner
+                    except Exception as _wake_exc:
+                        _log.bind(agent=self._name).warning(
+                            "Self-trigger for pending notifications failed: {}",
+                            _wake_exc,
+                        )
 
                 # Check idle timeout
                 status_data = self._read_current_status()

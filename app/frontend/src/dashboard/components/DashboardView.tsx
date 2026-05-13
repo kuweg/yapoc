@@ -7,6 +7,7 @@ import { TicketDetailPanel } from './detail/TicketDetailPanel'
 import { CreateTicketModal } from './modals/CreateTicketModal'
 import { FileTreePanel } from './files/FileTreePanel'
 import { StaleTasksPanel } from '../../staleTasks/StaleTasksPanel'
+import { NotificationTracePanel } from '../../notificationTrace/NotificationTracePanel'
 import type { TicketStatus } from '../types'
 import { COLUMNS } from '../types'
 
@@ -263,6 +264,11 @@ export function DashboardView() {
           {/* Stale Tasks watchdog panel */}
           <div className="px-4 pb-4">
             <StaleTasksPanel />
+          </div>
+
+          {/* Notification trace panel */}
+          <div className="px-4 pb-4">
+            <NotificationTracePanel />
           </div>
 
           {/* Detail panel */}

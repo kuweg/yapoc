@@ -29,6 +29,8 @@ Thumbs.db
 # Runtime data
 data/notification_queue.json
 data/notification_queue.lock
+data/notification_trace.jsonl
+data/notification_trace.jsonl.*
 data/spawn_registry.json
 data/*.db
 data/*.db-shm

@@ -21,7 +21,7 @@ Master  →  Planning  →  Builder / Keeper / Cron  (spawned as subprocesses)
 | `CRASH.MD` | Crash reports from subprocess exits | AgentRunner / crash.py |
 
 ## Config resolution order
-`CONFIG.md` YAML → `NOTES.MD [config]` block → `settings` defaults
+`app/config/agent-settings.json` (per-agent binding, authoritative) → `CONFIG.md` YAML → `NOTES.MD [config]` block → `settings` defaults
 
 ## Implemented agents
 | Agent | Type | Adapter | Note |

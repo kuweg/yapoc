@@ -29,9 +29,10 @@ All agents inherit from this. Key methods:
 
 ### Config loading
 `_load_config()` runs on every turn (not cached per-run). Order:
-1. CONFIG.md YAML block
-2. NOTES.MD `[config]` block (legacy)
-3. `settings` defaults
+1. `app/config/agent-settings.json` (per-agent binding, authoritative when present)
+2. CONFIG.md YAML block
+3. NOTES.MD `[config]` block (legacy)
+4. `settings` defaults
 
 `max_tokens` hardcoded to `8096` unless CONFIG.md overrides it.
 
@@ -68,7 +69,7 @@ States: `spawning → idle → running → terminated`
 **Crash handling**: `runner_entry.py` catches all exceptions and writes to `CRASH.MD` via `app.utils.crash`.
 
 ## Gotchas
-- `shell_exec` tool is `RiskTier.AUTO` — runs without confirmation by default
+- `shell_exec` is `RiskTier.CONFIRM` — in the CLI it routes through the approval gate; in autonomous/HTTP execution the per-agent `autonomous_policy.shell_exec` block in CONFIG.md decides (auto_approve / deny / queue)
 - Token estimation is rough: `len(json.dumps(messages)) // 4`
 - Config change detection requires the same `BaseAgent` instance to be reused; freshly instantiated agent won't detect changes
 - `build_system_context` reads files synchronously (blocking) — only called once per turn at the start

@@ -49,6 +49,74 @@ from app.config import settings
 
 _EVENTS_FILENAME = "events.jsonl"
 
+# Caps so the unified server log doesn't drown in long text bodies. The full
+# event still goes over the WebSocket; only the terminal summary is truncated.
+_TEXT_PREVIEW_CHARS = 200
+_TOOL_INPUT_PREVIEW_CHARS = 200
+_TOOL_RESULT_PREVIEW_CHARS = 200
+
+
+def _trunc(value: object, cap: int) -> str:
+    s = "" if value is None else str(value)
+    s = s.replace("\n", " ").replace("\r", " ")
+    if len(s) > cap:
+        return s[:cap] + "…"
+    return s
+
+
+# thinking/message delta events fire per-chunk (hundreds per turn). Logging
+# each one would drown the terminal. Track a per-agent timestamp of the last
+# delta log and emit at most one "started generating" line every N seconds.
+_DELTA_THROTTLE_SECONDS = 2.0
+_delta_last_logged: dict[tuple[str, str], float] = {}
+
+
+def _log_event_summary(event: dict) -> None:
+    """Emit one human-readable loguru INFO line per relayed event.
+
+    The format intentionally mirrors what BaseAgent's in-process logs look
+    like for master (``[master    ] Tool spawn_agent done | …``) so the
+    terminal becomes a unified stream across all agents.
+
+    Per-chunk text/thinking deltas are throttled — they fire dozens of
+    times per turn and would drown the terminal. Tool calls and results
+    log every time (low volume, high signal).
+    """
+    import time as _time
+
+    agent = event.get("agent") or "unknown"
+    event_type = event.get("type") or "?"
+
+    if event_type in ("thinking_delta", "message_delta"):
+        key = (agent, event_type)
+        now = _time.monotonic()
+        last = _delta_last_logged.get(key, 0.0)
+        if now - last < _DELTA_THROTTLE_SECONDS:
+            return
+        _delta_last_logged[key] = now
+        label = "thinking" if event_type == "thinking_delta" else "message "
+        body = _trunc(event.get("text"), _TEXT_PREVIEW_CHARS)
+        logger.bind(agent=agent).info("{} | {}", label, body)
+    elif event_type == "tool_call":
+        name = event.get("name") or "?"
+        input_preview = _trunc(event.get("input"), _TOOL_INPUT_PREVIEW_CHARS)
+        logger.bind(agent=agent).info("tool_call  | {} {}", name, input_preview)
+    elif event_type == "tool_result":
+        name = event.get("name") or "?"
+        is_error = event.get("is_error", False)
+        result_preview = _trunc(
+            event.get("content") or event.get("result"),
+            _TOOL_RESULT_PREVIEW_CHARS,
+        )
+        status = "error" if is_error else "ok"
+        logger.bind(agent=agent).info(
+            "tool_result| {} {} {}", name, status, result_preview
+        )
+    else:
+        # Generic catch-all for any future event types so they aren't silently
+        # dropped from the unified log.
+        logger.bind(agent=agent).info("{} | {}", event_type, _trunc(event, 200))
+
 
 class _EventHandler(FileSystemEventHandler):
     """Schedules a coroutine on the main event loop when an events.jsonl
@@ -169,6 +237,18 @@ class SessionEventRelay:
                     "session_event_relay: skip malformed JSON in {}: {}", path, exc
                 )
                 continue
+            # ── Log the event in the *server* process so the user's
+            # `yapoc start` terminal shows sub-agent activity alongside
+            # master's. Sub-agents are subprocesses — their own loguru
+            # output goes to their stderr → OUTPUT.MD, not here. The
+            # relay sits in the server process and is the only place
+            # where every agent's events converge.
+            try:
+                _log_event_summary(event)
+            except Exception as exc:
+                logger.warning(
+                    "session_event_relay: per-event log failed: {}", exc
+                )
             try:
                 await ws_manager.push_session_event(session_id, event)
             except Exception as exc:

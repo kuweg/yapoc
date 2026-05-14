@@ -11,7 +11,7 @@ from typing import Any
 from app.config import settings
 from app.utils.crash import server_exit_watcher
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 
 _PID_FILE = settings.project_root / ".yapoc.pid"
 _RESUME_FILE = settings.agents_dir / "master" / "RESUME.MD"
@@ -74,7 +74,6 @@ class ServerRestartTool(BaseTool):
     name = "server_restart"
     description = "Restart the YAPOC backend server. Use when the user asks to restart, reboot, or reset the server."
     input_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
-    risk_tier: RiskTier = RiskTier.AUTO
 
     async def execute(self, **params: Any) -> str:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -136,7 +135,6 @@ class ProcessRestartTool(BaseTool):
         },
         "required": ["reason", "task"],
     }
-    risk_tier: RiskTier = RiskTier.AUTO
 
     async def execute(self, **params: Any) -> str:
         reason = params.get("reason", "user requested")

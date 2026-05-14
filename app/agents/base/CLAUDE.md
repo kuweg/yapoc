@@ -18,12 +18,12 @@ All agents inherit from this. Key methods:
 |---|---|
 | `run(history)` | Simple one-shot, no tools, no streaming |
 | `run_stream(history)` | Streaming, no tools |
-| `run_stream_with_tools(history, approval_gate, manage_task_file)` | **Primary method** — streaming + tools |
+| `run_stream_with_tools(history, manage_task_file)` | **Primary method** — streaming + tools |
 
 ### `run_stream_with_tools` details
 - Multi-turn loop up to `max_turns` (from CONFIG.md or settings)
 - Auto-compacts context at `context_compact_threshold` (85%) of context window
-- Tools run in parallel via `asyncio.gather` — **unless** `approval_gate` is set (then sequential)
+- Tools run in parallel via `asyncio.gather`
 - Wrapped in `asyncio.timeout(task_timeout)`
 - `manage_task_file=True` (default): clears TASK.MD after run. Set to `False` when AgentRunner calls it — the runner manages TASK.MD frontmatter itself.
 
@@ -69,7 +69,6 @@ States: `spawning → idle → running → terminated`
 **Crash handling**: `runner_entry.py` catches all exceptions and writes to `CRASH.MD` via `app.utils.crash`.
 
 ## Gotchas
-- `shell_exec` is `RiskTier.CONFIRM` — in the CLI it routes through the approval gate; in autonomous/HTTP execution the per-agent `autonomous_policy.shell_exec` block in CONFIG.md decides (auto_approve / deny / queue)
 - Token estimation is rough: `len(json.dumps(messages)) // 4`
 - Config change detection requires the same `BaseAgent` instance to be reused; freshly instantiated agent won't detect changes
 - `build_system_context` reads files synchronously (blocking) — only called once per turn at the start

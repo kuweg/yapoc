@@ -35,19 +35,11 @@ class WebSocketManager:
         async with self._lock:
             self._clients.add(ws)
         logger.info(f"WebSocket client connected ({len(self._clients)} total)")
-        # Send state sync on connect (recent tasks + pending approvals)
         try:
             recent = recent_tasks_queue(limit=20)
-            pending_approvals: list = []
-            try:
-                from app.backend.approval_queue import get_pending
-                pending_approvals = get_pending(limit=20)
-            except Exception:
-                pass
             await ws.send_text(json.dumps({
                 "type": "state_sync",
                 "tasks": recent,
-                "pending_approvals": pending_approvals,
             }))
         except Exception:
             pass

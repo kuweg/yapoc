@@ -9,7 +9,7 @@ from typing import Any
 from app.config import settings
 from app.modules import CAPABILITY_MODULES
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 
 _PROTECTED_NAMES = frozenset({
     "master", "planning", "builder", "keeper", "cron", "doctor", "base",
@@ -46,7 +46,6 @@ class CreateAgentTool(BaseTool):
         "Create a new agent directory with PROMPT.MD, CONFIG.md, agent.py, and "
         "all standard agent files. Cannot overwrite existing agents or protected names."
     )
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -90,11 +89,6 @@ class CreateAgentTool(BaseTool):
         },
         "required": ["name", "prompt"],
     }
-
-    def get_risk_tier(self, params: dict[str, Any]) -> RiskTier:
-        if params.get("temporary", False):
-            return RiskTier.AUTO
-        return self.risk_tier
 
     async def execute(self, **params: Any) -> str:
         name = params["name"]
@@ -215,7 +209,6 @@ class DeleteAgentTool(BaseTool):
     description = (
         "Delete a dynamic agent directory. Refuses protected agents and running agents."
     )
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {

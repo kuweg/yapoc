@@ -49,7 +49,7 @@ app/
 │   ├── adapters/             # LLM adapters (anthropic, openai, ollama)
 │   ├── context.py            # Token estimation + auto-compact logic
 │   └── tools/                # Agent tools (40 tools — see docs/tools.md)
-│       ├── __init__.py       # BaseTool, RiskTier, TOOL_REGISTRY, build_tools()
+│       ├── __init__.py       # BaseTool, TOOL_REGISTRY, build_tools()
 │       ├── server.py         # ServerRestartTool, ProcessRestartTool
 │       ├── shell.py          # ShellExecTool
 │       ├── file.py           # FileReadTool, FileWriteTool, FileEditTool, FileDeleteTool, FileListTool
@@ -140,16 +140,15 @@ poetry run yapoc                       # Interactive REPL
 Registry in `app/utils/tools/__init__.py` (40 tools):
 
 **Server/Process:** `server_restart`, `process_restart`
-**Shell:** `shell_exec` (CONFIRM-tier; autonomous agents use `autonomous_policy.shell_exec` in CONFIG.md)
+**Shell:** `shell_exec`
 **File:** `file_read`, `file_write`, `file_edit`, `file_delete`, `file_list`, `image_read`, `parse_csv`
-**Memory / Notes / Health:** `memory_append`, `notes_read`, `notes_write`, `notes_append`, `health_log`, `learnings_append`, `agent_amnesia`, `add_task_trace`, `search_memory`, `shared_knowledge_append`
+**Memory / Notes / Health:** `memory_append`, `notes_read`, `notes_write`, `notes_append`, `health_log`, `learnings_append`, `agent_amnesia`, `search_memory`, `shared_knowledge_append`
 **Web:** `web_search`
-**Delegation:** `spawn_agent`, `ping_agent`, `kill_agent`, `check_task_status`, `read_task_result`, `verify_task_result`, `wait_for_agent`, `wait_for_agents`, `notify_parent`, `read_agent_logs`
+**Delegation:** `spawn_agent`, `ping_agent`, `kill_agent`, `check_task_status`, `read_task_result`, `wait_for_agent`, `wait_for_agents`, `notify_parent`, `read_agent_logs`
 **Agent Management:** `create_agent`, `delete_agent`, `update_config`, `update_agent_config`
 **Model Management:** `check_model_availability`, `list_models`, `heal_agent_settings`, `show_agent_settings`
-**Tickets:** `manage_tickets`
 
-Tools use `RiskTier.AUTO` (safe) or `RiskTier.CONFIRM` (requires approval). Each agent's `CONFIG.md` lists its assigned tools. In autonomous (non-CLI) execution, CONFIRM tools route through the per-agent `autonomous_policy` block (auto_approve / deny / queue).
+All tools execute immediately without approval prompts. Each agent's `CONFIG.md` lists its assigned tools.
 
 ## Implementation Status
 

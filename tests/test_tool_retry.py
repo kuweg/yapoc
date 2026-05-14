@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 from dataclasses import dataclass
 
 from app.agents.base import BaseAgent
-from app.utils.tools import BaseTool, RiskTier
+from app.utils.tools import BaseTool
 from app.utils.adapters import ToolResult
 
 
@@ -24,7 +24,6 @@ class _SucceedTool(BaseTool):
     name = "test_tool"
     description = "test"
     input_schema = {"type": "object", "properties": {}}
-    risk_tier = RiskTier.AUTO
 
     async def execute(self, **params):
         return "ok"
@@ -35,7 +34,6 @@ class _TransientFailTool(BaseTool):
     name = "test_tool"
     description = "test"
     input_schema = {"type": "object", "properties": {}}
-    risk_tier = RiskTier.AUTO
 
     def __init__(self):
         self._calls = 0
@@ -52,7 +50,6 @@ class _PermanentFailTool(BaseTool):
     name = "test_tool"
     description = "test"
     input_schema = {"type": "object", "properties": {}}
-    risk_tier = RiskTier.AUTO
 
     async def execute(self, **params):
         raise ValueError("File not found: /nonexistent")
@@ -63,7 +60,6 @@ class _AlwaysTimeoutTool(BaseTool):
     name = "test_tool"
     description = "test"
     input_schema = {"type": "object", "properties": {}}
-    risk_tier = RiskTier.AUTO
 
     def __init__(self):
         self._calls = 0

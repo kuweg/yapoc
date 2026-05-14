@@ -4,7 +4,7 @@ from typing import Any
 
 import aiofiles
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 from app.config import settings
 from app.utils.secrets import scrub
 
@@ -172,7 +172,6 @@ class LearningsAppendTool(BaseTool):
         },
         "required": ["rule_name", "context", "action"],
     }
-    risk_tier = RiskTier.AUTO
 
     def __init__(self, agent_dir: Path) -> None:
         self._path = agent_dir / "LEARNINGS.MD"
@@ -230,7 +229,6 @@ class SharedKnowledgeAppendTool(BaseTool):
         },
         "required": ["content"],
     }
-    risk_tier = RiskTier.AUTO
 
     def __init__(self, agent_dir: Path) -> None:
         self._agent_name = agent_dir.name
@@ -286,7 +284,6 @@ class AgentAmnesiaTool(BaseTool):
         },
         "required": ["agent_name"],
     }
-    risk_tier = RiskTier.CONFIRM
 
     async def execute(self, **params: Any) -> str:
         agent_name = params["agent_name"]
@@ -310,50 +307,3 @@ class AgentAmnesiaTool(BaseTool):
         return f"Agent '{agent_name}': no memory files found to clear."
 
 
-class AddTaskTraceTool(BaseTool):
-    """Post a timestamped note to the agent's current task ticket on the dashboard."""
-
-    name = "add_task_trace"
-    description = (
-        "Add a timestamped trace note to your current task ticket on the dashboard. "
-        "Use this to record progress, decisions, or sub-steps so users can follow execution. "
-        "The note appears in the ticket's Activity timeline immediately."
-    )
-    input_schema: dict[str, Any] = {
-        "type": "object",
-        "properties": {
-            "note": {
-                "type": "string",
-                "description": "Short description of what you are doing or have decided (1–2 sentences)",
-            },
-        },
-        "required": ["note"],
-    }
-
-    def __init__(self, agent_dir: Path) -> None:
-        self._agent_name = agent_dir.name
-
-    async def execute(self, **params: Any) -> str:
-        import httpx
-
-        note = params["note"]
-        base = settings.base_url
-        lookup_url = f"{base}/api/tickets/by-agent/{self._agent_name}"
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                r = await client.get(lookup_url)
-                if r.status_code != 200:
-                    return f"Ticket lookup failed ({r.status_code}) — trace not recorded."
-                ticket = r.json()
-                if not ticket:
-                    return f"No active ticket found for '{self._agent_name}' — trace not recorded."
-                ticket_id = ticket["id"]
-                r2 = await client.post(
-                    f"{base}/api/tickets/{ticket_id}/trace",
-                    json={"note": note, "agent": self._agent_name},
-                )
-            if r2.status_code == 200:
-                return f"Trace recorded on ticket '{ticket_id}': {note}"
-            return f"Failed to record trace: HTTP {r2.status_code}"
-        except Exception as exc:
-            return f"Trace error (non-fatal): {exc}"

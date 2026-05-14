@@ -246,6 +246,7 @@ def _handle_repl_slash(
     cmd: str, args: str, history: list[Message], session_id: str
 ) -> bool | tuple[str, str | None] | None:
     """Handle slash commands. Returns False=exit, True=handled, tuple=special action."""
+    global _voice_mode, _voice_input
     if cmd in ("/exit", "/quit"):
         return False
     if cmd == "/help":
@@ -271,6 +272,9 @@ def _handle_repl_slash(
             "  /diff         Show git diff\n"
             "  /copy         Copy last response to clipboard\n"
             "  /export [f]   Export conversation to file\n"
+            "  /speak        Read last assistant response aloud\n"
+            "  /listen       Capture microphone and transcribe to text\n"
+            "  /voice        Toggle continuous voice mode (listen -> send)\n"
             "  /clear        Clear conversation history\n"
             "  /exit         Quit\n"
             "\n"
@@ -353,6 +357,56 @@ def _handle_repl_slash(
             console.print(f"[dim]Exported {len(history)} messages to {filename}[/dim]")
         except Exception as exc:
             console.print(f"[magenta]Export failed: {exc}[/magenta]")
+    elif cmd == "/speak":
+        from app.cli.voice import get_tts
+        tts = get_tts()
+        if not _last_response:
+            console.print("[dim]No response to speak[/dim]")
+        elif not tts.is_available():
+            console.print("[magenta]TTS engine not available (install espeak on Linux, or check pyttsx3)[/magenta]")
+        else:
+            console.print("[dim]Speaking...[/dim]")
+            tts.speak(_last_response)
+    elif cmd == "/listen":
+        from app.cli.voice import get_stt
+        stt = get_stt()
+        if not stt.is_available():
+            console.print("[magenta]STT engine not available (install SpeechRecognition + pyaudio)[/magenta]")
+        else:
+            console.print("[dim]Listening... (speak now)[/dim]")
+            text = stt.listen()
+            if text:
+                console.print(f"[yellow]You said:[/yellow] {text}")
+                _voice_input = text
+            else:
+                console.print("[dim]No speech detected[/dim]")
+    elif cmd == "/voice":
+        sub = args.strip().lower()
+        if sub == "stop":
+            _voice_mode = False
+            console.print("[dim]Voice mode disabled[/dim]")
+        elif sub == "speed":
+            try:
+                speed_val = float(args.split()[-1]) if args.split()[-1] != "speed" else 1.0
+                from app.cli.voice import get_tts
+                tts = get_tts()
+                tts.set_rate(int(150 * speed_val))
+                console.print(f"[dim]TTS speed set to {speed_val}x[/dim]")
+            except (ValueError, IndexError):
+                console.print("[yellow]Usage: /voice speed <0.5-2.0>[/yellow]")
+        elif sub == "engine":
+            engine = args.split()[-1] if "engine" in args else ""
+            if engine in ("offline", "openai", "google"):
+                settings.tts_engine = engine
+                console.print(f"[dim]TTS engine set to {engine}[/dim]")
+            else:
+                console.print("[yellow]Usage: /voice engine <offline|openai|google>[/yellow]")
+        else:
+            _voice_mode = not _voice_mode
+            if _voice_mode:
+                console.print("[dim]Voice mode enabled — speak to interact, /voice to stop[/dim]")
+            else:
+                console.print("[dim]Voice mode disabled[/dim]")
     else:
         console.print(f"[yellow]Unknown command: {cmd} \u2014 type /help[/yellow]")
     return True
@@ -378,6 +432,9 @@ _SLASH_COMMANDS: dict[str, str] = {
     "/diff": "Show git diff",
     "/copy": "Copy last response to clipboard",
     "/export": "Export conversation to file",
+    "/speak": "Read last assistant response aloud",
+    "/listen": "Capture microphone and transcribe to text",
+    "/voice": "Toggle continuous voice mode",
     "/exit": "Quit",
 }
 
@@ -446,6 +503,10 @@ def _expand_file_mentions(text: str) -> str:
 
 # ── Last response buffer (for /copy) ─────────────────────────────────────────
 _last_response: str = ""
+
+# ── Voice mode state ─────────────────────────────────────────────────────────
+_voice_mode: bool = False
+_voice_input: str = ""
 
 
 # ── Async sub-agent result collection ────────────────────────────────────────
@@ -553,7 +614,7 @@ async def _repl(
     session_id: str | None = None, resume: bool = False
 ) -> None:
     """Interactive REPL: prompt -> stream response -> repeat."""
-    global _session_input, _session_output, _session_cost
+    global _session_input, _session_output, _session_cost, _voice_input, _voice_mode
     _session_input = 0
     _session_output = 0
     _session_cost = 0.0
@@ -650,6 +711,12 @@ async def _repl(
                 break
 
             text = text.strip()
+
+            # Check for voice input from /listen or voice mode
+            if not text and _voice_input:
+                text = _voice_input
+                _voice_input = ""
+
             if not text:
                 continue
 
@@ -785,10 +852,29 @@ async def _repl(
             global _last_response
             if resp:
                 _last_response = resp
+
+            # Auto-speak if voice mode is enabled
+            if resp and (_voice_mode or settings.voice_auto_speak):
+                from app.cli.voice import get_tts
+                tts = get_tts()
+                if tts.is_available():
+                    tts.speak(resp)
+
             # Persist original text (not injected version) to session
             append_message(session_id, "user", original_text)
             if resp:
                 append_message(session_id, "assistant", resp)
+
+            # Voice mode: listen for next input
+            if _voice_mode:
+                from app.cli.voice import get_stt
+                stt = get_stt()
+                if stt.is_available():
+                    console.print("[dim]Listening... (speak now, or /voice stop)[/dim]")
+                    voice_text = stt.listen()
+                    if voice_text:
+                        console.print(f"[yellow]You said:[/yellow] {voice_text}")
+                        _voice_input = voice_text
     finally:
         poll_task.cancel()
         try:
@@ -802,8 +888,12 @@ def main(
     ctx: typer.Context,
     continue_: bool = typer.Option(False, "--continue", "-c", help="Resume the latest session"),
     resume: str = typer.Option("", "--resume", "-r", help="Resume a specific session by ID"),
+    voice: bool = typer.Option(False, "--voice", "-v", help="Enable voice auto-speak mode"),
 ):
     """YAPOC \u2014 Pretty Autonomous Python OpenClaw. Run with no command to enter interactive REPL."""
+    global _voice_mode
+    if voice:
+        _voice_mode = True
     if ctx.invoked_subcommand is None:
         if resume:
             asyncio.run(_repl(session_id=resume, resume=True))
@@ -814,51 +904,6 @@ def main(
 
 
 # -- One-shot chat (non-TUI) --------------------------------------------------
-
-def _build_approval_gate(renderer: TurnRenderer):
-    """Build an approval gate based on the current safety_mode setting."""
-    mode = settings.safety_mode
-
-    if mode == "auto_approve":
-        return None
-
-    if mode == "strict":
-        async def _strict_gate(tool_name: str, tool_input: dict) -> bool:
-            return False
-        return _strict_gate
-
-    async def _interactive_gate(tool_name: str, tool_input: dict) -> bool:
-        if renderer._live:
-            renderer._live.stop()
-
-        args_preview = ", ".join(f"{k}={v!r}" for k, v in tool_input.items())
-        if len(args_preview) > 120:
-            args_preview = args_preview[:117] + "..."
-
-        console.print()
-        console.print(
-            f"  [bold yellow]? Allow[/bold yellow] [bold]{tool_name}[/bold]"
-            f"[dim]({args_preview})[/dim] [yellow][y/n][/yellow] ",
-            end="",
-        )
-        try:
-            answer = await asyncio.get_event_loop().run_in_executor(None, input)
-            approved = answer.strip().lower() in ("y", "yes")
-        except (EOFError, KeyboardInterrupt):
-            approved = False
-
-        if approved:
-            console.print("  [yellow]Approved[/yellow]")
-        else:
-            console.print("  [magenta]Denied[/magenta]")
-
-        if renderer._live:
-            renderer._live.start()
-
-        return approved
-
-    return _interactive_gate
-
 
 def _is_overloaded(exc: Exception) -> bool:
     err = str(exc).lower()
@@ -871,11 +916,10 @@ async def _stream_once(
 ):
     """Single streaming attempt. Returns (response, renderer) or raises."""
     renderer = TurnRenderer(console, poll_state=poll_state)
-    approval_gate = _build_approval_gate(renderer)
 
     async with renderer:
         async for event in agent.handle_task_stream(
-            message, history=history, approval_gate=approval_gate, source="cli"
+            message, history=history, source="cli"
         ):
             if isinstance(event, TextDelta):
                 renderer.on_text_delta(event.text)
@@ -1061,8 +1105,12 @@ def chat(
     message: str = typer.Argument(default=None, help="Message to send (one-shot)"),
     continue_: bool = typer.Option(False, "--continue", "-c", help="Resume the latest session"),
     resume: str = typer.Option("", "--resume", "-r", help="Resume a specific session by ID"),
+    voice: bool = typer.Option(False, "--voice", "-v", help="Enable voice auto-speak mode"),
 ):
     """Send a one-shot message, or enter interactive REPL."""
+    global _voice_mode
+    if voice:
+        _voice_mode = True
     if message:
         asyncio.run(_oneshot(message))
     elif resume:

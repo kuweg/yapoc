@@ -1,4 +1,4 @@
-import type { AgentStatus, Message, ModelsResponse } from './types'
+import type { AgentStatus, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
 
 export async function getAgents(): Promise<AgentStatus[]> {
   const res = await fetch('/api/agents')
@@ -16,15 +16,6 @@ export async function killAgent(name: string): Promise<{ status: string; name: s
   const res = await fetch(`/api/agents/${name}/kill`, { method: 'POST' })
   if (!res.ok) throw new Error(`POST /agents/${name}/kill: ${res.status}`)
   return res.json() as Promise<{ status: string; name: string }>
-}
-
-export async function approveToolCall(requestId: string, approved: boolean): Promise<void> {
-  const res = await fetch(`/api/task/approve/${requestId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ approved }),
-  })
-  if (!res.ok) throw new Error(`POST /task/approve: ${res.status}`)
 }
 
 export async function getMasterResult(): Promise<{ name: string; content: string }> {
@@ -76,4 +67,37 @@ export async function postTask(
   })
   if (!res.ok) throw new Error(`POST /task: ${res.status}`)
   return res.json() as Promise<{ status: string; response: string }>
+}
+
+export async function synthesizeSpeech(req: TTSRequest): Promise<Blob> {
+  const res = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) throw new Error(`POST /tts: ${res.status}`)
+  return res.blob()
+}
+
+export async function transcribeSpeech(
+  audio: Blob,
+  engine: string = 'offline',
+  language: string = 'en-US',
+): Promise<STTResponse> {
+  const formData = new FormData()
+  formData.append('audio', audio, 'recording.wav')
+  formData.append('engine', engine)
+  formData.append('language', language)
+  const res = await fetch('/api/stt', {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) throw new Error(`POST /stt: ${res.status}`)
+  return res.json() as Promise<STTResponse>
+}
+
+export async function getTTSVoices(): Promise<TTSVoicesResponse> {
+  const res = await fetch('/api/tts/voices')
+  if (!res.ok) throw new Error(`GET /tts/voices: ${res.status}`)
+  return res.json() as Promise<TTSVoicesResponse>
 }

@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 
 
 class WebSearchTool(BaseTool):
@@ -28,7 +28,6 @@ class WebSearchTool(BaseTool):
         },
         "required": ["query"],
     }
-    risk_tier: RiskTier = RiskTier.AUTO
 
     async def execute(self, **params: Any) -> str:
         query = params["query"]

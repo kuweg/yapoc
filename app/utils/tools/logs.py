@@ -5,7 +5,7 @@ from typing import Any
 
 from app.config import settings
 
-from . import BaseTool, RiskTier, truncate_tool_output
+from . import BaseTool, truncate_tool_output
 
 _VALID_LOG_FILES = {
     "OUTPUT.MD",
@@ -46,7 +46,6 @@ class ReadAgentLogsTool(BaseTool):
         },
         "required": ["agent_name", "file"],
     }
-    risk_tier = RiskTier.AUTO
 
     async def execute(self, **params: Any) -> str:
         agent_name = params["agent_name"]

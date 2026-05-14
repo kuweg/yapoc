@@ -1388,5 +1388,985 @@
     "cost_usd": 0.0,
     "timestamp": "2026-05-13T19:13:12Z",
     "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:17:18Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 8845,
+    "tokens_out": 743,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:17:18Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:17:33Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 10495,
+    "tokens_out": 154,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:17:33Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:17:43Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 10825,
+    "tokens_out": 83,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:17:43Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:18:15Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 11084,
+    "tokens_out": 1035,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:18:15Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:18:19Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 12168,
+    "tokens_out": 100,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:18:19Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:18:28Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 12444,
+    "tokens_out": 255,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:18:28Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:18:33Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 17985,
+    "tokens_out": 96,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:18:33Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:19:00Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 23367,
+    "tokens_out": 856,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:19:00Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:19:32Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 24245,
+    "tokens_out": 1032,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:19:32Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:19:37Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 25357,
+    "tokens_out": 104,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:19:37Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:19:57Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 25637,
+    "tokens_out": 642,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:19:57Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:20:02Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 26328,
+    "tokens_out": 127,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:20:02Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:20:07Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 26524,
+    "tokens_out": 99,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:20:07Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:20:13Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 26692,
+    "tokens_out": 164,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:20:13Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:20:30Z",
+    "description": "Implement the voice feature for YAPOC following the plan at docs/voice-feature-plan.md. Start with Phase 1 (CLI TTS — MVP) and Phase 2 (CLI STT), then proceed to Phase 3 (Backend API), Phase 4 (UI Int",
+    "agent_name": "planning",
+    "tokens_in": 26881,
+    "tokens_out": 578,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:20:30Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:20:36Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8345,
+    "tokens_out": 154,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:20:36Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:21:10Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8675,
+    "tokens_out": 1110,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:21:10Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:21:15Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9820,
+    "tokens_out": 115,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:21:15Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:22:15Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10076,
+    "tokens_out": 144,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:22:15Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:22:44Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10361,
+    "tokens_out": 914,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:22:44Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:22:49Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11324,
+    "tokens_out": 131,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:22:49Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:22:58Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11596,
+    "tokens_out": 256,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:22:58Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:23:16Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11877,
+    "tokens_out": 582,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:23:16Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:23:21Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 12494,
+    "tokens_out": 78,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:23:21Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:00Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 12855,
+    "tokens_out": 984,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:00Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:03Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 13888,
+    "tokens_out": 81,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:03Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:07Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 14252,
+    "tokens_out": 72,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:07Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:16Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 14393,
+    "tokens_out": 244,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:16Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:20Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 14686,
+    "tokens_out": 75,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:20Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:27Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 14786,
+    "tokens_out": 222,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:27Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:37Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8722,
+    "tokens_out": 277,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:37Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:25:53Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9059,
+    "tokens_out": 461,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:25:53Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:26:05Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9654,
+    "tokens_out": 379,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:26:05Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:26:28Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10478,
+    "tokens_out": 727,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:26:28Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:26:38Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11236,
+    "tokens_out": 259,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:26:38Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:26:52Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11600,
+    "tokens_out": 412,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:26:52Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:27:01Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 12032,
+    "tokens_out": 214,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:27:01Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:27:18Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8548,
+    "tokens_out": 549,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:27:18Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:27:43Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9235,
+    "tokens_out": 794,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:27:43Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:27:55Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10119,
+    "tokens_out": 350,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:27:55Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:27:59Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10489,
+    "tokens_out": 120,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:27:59Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:28:14Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10647,
+    "tokens_out": 440,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:28:14Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:28:22Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11107,
+    "tokens_out": 258,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:28:22Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:51:43Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8513,
+    "tokens_out": 376,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:51:43Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:51:51Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9092,
+    "tokens_out": 221,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:51:51Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:52:07Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10205,
+    "tokens_out": 518,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:52:07Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:52:36Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10750,
+    "tokens_out": 922,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:52:36Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:52:46Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11725,
+    "tokens_out": 275,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:52:46Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:53:43Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 12148,
+    "tokens_out": 355,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:53:43Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:53:56Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 12652,
+    "tokens_out": 391,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:53:56Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:54:08Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 13063,
+    "tokens_out": 337,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:54:08Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:54:59Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 9284,
+    "tokens_out": 188,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:54:59Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:55:14Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 9494,
+    "tokens_out": 509,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:55:14Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:55:25Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 10069,
+    "tokens_out": 104,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:55:25Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:55:54Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 10395,
+    "tokens_out": 179,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:55:54Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:56:09Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 10857,
+    "tokens_out": 499,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:56:09Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:56:44Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 11574,
+    "tokens_out": 1133,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:56:44Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:56:50Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 12783,
+    "tokens_out": 147,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:56:50Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:57:03Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 13148,
+    "tokens_out": 373,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:57:03Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:57:12Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 13546,
+    "tokens_out": 269,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:57:12Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:57:17Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 13850,
+    "tokens_out": 80,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:57:17Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:57:48Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 14151,
+    "tokens_out": 82,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:57:48Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:58:02Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 14454,
+    "tokens_out": 402,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:58:02Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:58:39Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 14887,
+    "tokens_out": 1249,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:58:39Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:58:47Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 16230,
+    "tokens_out": 166,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:58:47Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:59:10Z",
+    "description": "Implement the voice feature for YAPOC as described in docs/voice-feature-plan.md. This is a large multi-phase feature. Here's what needs to be done:",
+    "agent_name": "planning",
+    "tokens_in": 16774,
+    "tokens_out": 638,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:59:10Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T19:59:43Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8901,
+    "tokens_out": 1083,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T19:59:43Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:00:10Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10223,
+    "tokens_out": 840,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:00:10Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:00:22Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11201,
+    "tokens_out": 341,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:00:22Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:00:27Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 11562,
+    "tokens_out": 103,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:00:27Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:26:45Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8529,
+    "tokens_out": 442,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:26:45Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:27:07Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9336,
+    "tokens_out": 689,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:27:07Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:27:13Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10083,
+    "tokens_out": 182,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:27:13Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:27:20Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10361,
+    "tokens_out": 190,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:27:20Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:27:24Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10571,
+    "tokens_out": 82,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:27:24Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:28:38Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8519,
+    "tokens_out": 399,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:28:38Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:28:58Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9283,
+    "tokens_out": 616,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:28:58Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:29:07Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9957,
+    "tokens_out": 293,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:29:07Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:29:11Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10270,
+    "tokens_out": 133,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:29:11Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:29:17Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10493,
+    "tokens_out": 154,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:29:17Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:29:26Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8509,
+    "tokens_out": 272,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:29:26Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:29:55Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9146,
+    "tokens_out": 1011,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:29:55Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:30:05Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10215,
+    "tokens_out": 328,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:30:05Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:30:11Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10659,
+    "tokens_out": 132,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:30:11Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:38:56Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8509,
+    "tokens_out": 458,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:38:56Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:39:18Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 9332,
+    "tokens_out": 709,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:39:18Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:39:28Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10099,
+    "tokens_out": 305,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:39:28Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-13T20:39:33Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 10424,
+    "tokens_out": 114,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-13T20:39:33Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:27:37Z",
+    "description": "Delete the temporary agent \"dummy1\" completely. Steps:",
+    "agent_name": "planning",
+    "tokens_in": 6037,
+    "tokens_out": 614,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:27:37Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:27:51Z",
+    "description": "Delete the temporary agent \"dummy1\" completely. Steps:",
+    "agent_name": "planning",
+    "tokens_in": 6748,
+    "tokens_out": 455,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:27:51Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:27:57Z",
+    "description": "Delete the temporary agent \"dummy1\" completely. Steps:",
+    "agent_name": "planning",
+    "tokens_in": 7269,
+    "tokens_out": 116,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:27:57Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:28:23Z",
+    "description": "Delete the temporary agent \"dummy1\" completely. Steps:",
+    "agent_name": "planning",
+    "tokens_in": 7794,
+    "tokens_out": 439,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:28:23Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:28:30Z",
+    "description": "Delete the temporary agent \"dummy1\" completely. Steps:",
+    "agent_name": "planning",
+    "tokens_in": 8291,
+    "tokens_out": 176,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:28:30Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:28:34Z",
+    "description": "Delete the temporary agent \"dummy1\" completely. Steps:",
+    "agent_name": "planning",
+    "tokens_in": 8487,
+    "tokens_out": 125,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:28:34Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:28:55Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 6413,
+    "tokens_out": 619,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:28:55Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:29:04Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 7090,
+    "tokens_out": 297,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:29:04Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:29:10Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 7407,
+    "tokens_out": 148,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:29:10Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T17:29:16Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 7657,
+    "tokens_out": 142,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T17:29:16Z",
+    "model_used": "deepseek-v4-pro"
   }
 ]

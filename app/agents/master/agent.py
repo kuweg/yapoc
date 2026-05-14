@@ -6,10 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from app.agents.base import ApprovalGate, BaseAgent
+from app.agents.base import BaseAgent
 from app.utils import AGENTS_DIR
 from app.utils.adapters import Message, StreamEvent
-from app.utils.hierarchy import classify_task
 
 
 class MasterAgent(BaseAgent):
@@ -83,7 +82,6 @@ class MasterAgent(BaseAgent):
         self,
         task: str,
         history: list[Message] | None = None,
-        approval_gate: ApprovalGate | None = None,
         source: str | None = None,
         session_id: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
@@ -107,17 +105,8 @@ class MasterAgent(BaseAgent):
 
             # Inject user source so the LLM knows where the message came from
             source_line = f"[User source: {source}]" if source else ""
-            routing = classify_task(task)
-            routing_context = (
-                "[SYSTEM ROUTING CLASSIFIER]\n"
-                f"task_class: {routing.task_class}\n"
-                f"suggested_agent: {routing.suggested_agent}\n"
-                f"confidence: {routing.confidence}\n"
-                f"verification_required: {'true' if routing.verification_required else 'false'}\n"
-                f"reason: {routing.reason}"
-            )
             combined_context = "\n\n".join(
-                filter(None, [source_line, routing_context, notifications_context])
+                filter(None, [source_line, notifications_context])
             )
 
             self._write_status("running", task_summary=task[:120])
@@ -125,7 +114,6 @@ class MasterAgent(BaseAgent):
                 await self.set_task(task)
                 async for event in self.run_stream_with_tools(
                     history=history,
-                    approval_gate=approval_gate,
                     notifications_context=combined_context,
                 ):
                     yield event

@@ -14,7 +14,6 @@ tools:
   - wait_for_agents
   - check_task_status
   - read_task_result
-  - verify_task_result
   - notify_parent
   - memory_append
   - notes_read
@@ -25,18 +24,6 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
-autonomous_policy:
-  file_read:
-    auto_approve: ["*"]
-  file_write:
-    auto_approve: ["*"]
-  file_edit:
-    auto_approve: ["*"]
-  file_delete:
-    auto_approve: ["*"]
-  file_list:
-    auto_approve: ["*"]
-
 delegation_targets:
   - builder
   - keeper

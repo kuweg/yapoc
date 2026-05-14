@@ -5,7 +5,6 @@
  * - state_sync: initial task list on connect
  * - task_created / task_update / task_complete / task_error: task lifecycle
  * - session_event: agent thinking/tool/text events for a specific session
- * - approval_needed: CONFIRM-tier tool awaiting user decision (background tasks)
  */
 import { create } from 'zustand'
 
@@ -20,14 +19,6 @@ export interface BackgroundTask {
   created_at?: string
   started_at?: string
   completed_at?: string
-}
-
-export interface PendingApproval {
-  id: string
-  agent: string
-  tool: string
-  input_json: string
-  created_at: string
 }
 
 export interface SessionEvent {
@@ -45,7 +36,6 @@ export interface SessionEventEnvelope {
 interface WsStore {
   connected: boolean
   backgroundTasks: BackgroundTask[]
-  pendingApprovals: PendingApproval[]
   lastSessionEvent: SessionEventEnvelope | null
   /** Notifications the user hasn't seen yet */
   unreadNotifications: BackgroundTask[]
@@ -59,8 +49,6 @@ interface WsStore {
   setConnected: (v: boolean) => void
   handleEvent: (data: Record<string, unknown>) => void
   dismissNotification: (taskId: string) => void
-  clearApproval: (id: string) => void
-  setPendingApprovals: (list: PendingApproval[]) => void
   clearLastCompletedTask: () => void
   clearLastOrphanNotification: () => void
 }
@@ -68,7 +56,6 @@ interface WsStore {
 export const useWsStore = create<WsStore>((set) => ({
   connected: false,
   backgroundTasks: [],
-  pendingApprovals: [],
   lastSessionEvent: null,
   unreadNotifications: [],
   lastCompletedTask: null,
@@ -80,16 +67,6 @@ export const useWsStore = create<WsStore>((set) => ({
     set((s) => ({
       unreadNotifications: s.unreadNotifications.filter((n) => n.task_id !== taskId),
     })),
-
-  clearApproval: (id) =>
-    set((s) => ({
-      pendingApprovals: s.pendingApprovals.filter((a) => a.id !== id),
-    })),
-
-  // Replace the pending list (used by the BackgroundApprovalBanner fallback
-  // poller — WebSocket push from subprocess agents doesn't reach UI clients
-  // because subprocesses don't hold WS connections).
-  setPendingApprovals: (list) => set({ pendingApprovals: list }),
 
   clearLastCompletedTask: () => set({ lastCompletedTask: null }),
 
@@ -109,10 +86,9 @@ export const useWsStore = create<WsStore>((set) => ({
     }
 
     if (type === 'state_sync') {
-      // Initial batch of recent tasks + pending approvals on connect
+      // Initial batch of recent tasks on connect
       const tasks = (data.tasks ?? []) as BackgroundTask[]
-      const approvals = (data.pending_approvals ?? []) as PendingApproval[]
-      set({ backgroundTasks: tasks, pendingApprovals: approvals })
+      set({ backgroundTasks: tasks })
       return
     }
 
@@ -170,14 +146,6 @@ export const useWsStore = create<WsStore>((set) => ({
       set((s) => ({
         backgroundTasks: upsertTask(s.backgroundTasks, errTask),
         unreadNotifications: [errTask, ...s.unreadNotifications],
-      }))
-      return
-    }
-
-    if (type === 'approval_needed') {
-      const approval = data as unknown as PendingApproval
-      set((s) => ({
-        pendingApprovals: [...s.pendingApprovals, approval],
       }))
       return
     }

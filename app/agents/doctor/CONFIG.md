@@ -28,23 +28,6 @@ autonomy_envelope:
   cannot_kill: [master, doctor]
   can_create_tasks: true
   max_tasks_per_run: 3
-autonomous_policy:
-  file_write:
-    auto_approve: ["*"]
-  file_edit:
-    auto_approve: ["*"]
-  file_delete:
-    auto_approve: ["*"]
-  shell_exec:
-    auto_approve: ["ps aux*", "top -bn1*", "df -h*", "free -m*"]
-    deny: ["rm *", "sudo *", "kill *"]
-    default: deny
-  file_read:
-    auto_approve: ["*"]
-    default: auto_approve
-  file_list:
-    auto_approve: ["*"]
-    default: auto_approve
 runner:
   max_turns: 10
   task_timeout: 120

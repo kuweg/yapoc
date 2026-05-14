@@ -36,22 +36,6 @@ sandbox:
   # gatekeeper; it has no legitimate reason to run anything else.
   shell_allowlist:
     - poetry
-autonomous_policy:
-  shell_exec:
-    auto_approve: ["poetry show*", "poetry search*", "poetry check*"]
-    deny: ["rm *", "sudo *", "git push*"]
-    default: queue
-  file_read:
-    auto_approve: ["*"]
-    default: auto_approve
-  file_write:
-    auto_approve: ["app/config/*", "pyproject.toml", "app/agents/*/NOTES.MD"]
-    deny: ["*.env", "app/agents/*/PROMPT.MD"]
-    default: queue
-  file_edit:
-    auto_approve: ["*"]
-  file_delete:
-    auto_approve: ["*"]
 runner:
   max_turns: 15
   task_timeout: 300

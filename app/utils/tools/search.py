@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.utils.tools import BaseTool, RiskTier, truncate_tool_output
+from app.utils.tools import BaseTool, truncate_tool_output
 
 
 class SearchMemoryTool(BaseTool):
@@ -36,7 +36,6 @@ class SearchMemoryTool(BaseTool):
         },
         "required": ["query"],
     }
-    risk_tier = RiskTier.AUTO
 
     async def execute(self, **params: Any) -> str:
         query = params["query"]

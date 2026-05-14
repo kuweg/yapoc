@@ -11,7 +11,7 @@ from typing import Any
 
 from app.utils import agent_settings
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 
 
 class HealAgentSettingsTool(BaseTool):
@@ -21,7 +21,6 @@ class HealAgentSettingsTool(BaseTool):
         "Use when the file is missing, corrupt, or drifted from the canonical "
         "primary + fallback chain. v2 stores no API keys, so this is always safe."
     )
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {},
@@ -43,7 +42,6 @@ class ShowAgentSettingsTool(BaseTool):
         "adapter/model and fallback chain. v2 stores no API keys so nothing "
         "needs redaction."
     )
-    risk_tier = RiskTier.AUTO
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {

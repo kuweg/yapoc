@@ -277,10 +277,6 @@ class AgentRunner:
                     assigned_at=_done_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body[:500],
                     result_summary=result_text[:2000],
-                    task_class=_done_fm.get("task_class", ""),
-                    verification_required=_done_fm.get("verification_required", ""),
-                    verification_status=_done_fm.get("verification_status", ""),
-                    route_target=_done_fm.get("route_target", ""),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -301,10 +297,6 @@ class AgentRunner:
                     assigned_at=_err_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body[:500],
                     error_summary="Task timed out",
-                    task_class=_err_fm.get("task_class", ""),
-                    verification_required=_err_fm.get("verification_required", ""),
-                    verification_status=_err_fm.get("verification_status", ""),
-                    route_target=_err_fm.get("route_target", ""),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -324,10 +316,6 @@ class AgentRunner:
                     assigned_at=_exc_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body[:500],
                     error_summary=str(exc)[:2000],
-                    task_class=_exc_fm.get("task_class", ""),
-                    verification_required=_exc_fm.get("verification_required", ""),
-                    verification_status=_exc_fm.get("verification_status", ""),
-                    route_target=_exc_fm.get("route_target", ""),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(

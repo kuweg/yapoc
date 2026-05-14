@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from app.backend.models.voice import TTSRequest, TTSVoice, TTSVoicesResponse, STTRequest, STTResponse  # noqa: F401
+
 
 class TaskRequest(BaseModel):
     task: str
@@ -11,10 +13,6 @@ class TaskRequest(BaseModel):
 class TaskResponse(BaseModel):
     status: str
     response: str
-
-
-class ApprovalRequest(BaseModel):
-    approved: bool
 
 
 class AgentStatus(BaseModel):

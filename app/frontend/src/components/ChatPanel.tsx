@@ -1,14 +1,15 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { streamTask } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
-import { useDashboardStore } from '../dashboard/store/dashboardStore'
 import { useWsStore } from '../store/wsStore'
-import { updateTicket } from '../dashboard/api/ticketClient'
+import { useAppStore } from '../store/appStore'
+import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
+import { synthesizeSpeech } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { CostBar } from './CostBar'
-import { ApprovalDialog } from './ApprovalDialog'
+import { VoiceSettings } from './VoiceSettings'
 import type { UsageEvent } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
@@ -25,12 +26,6 @@ type ToolCallPart = {
 }
 type Part = TextPart | ThinkingPart | ToolCallPart
 
-interface PendingApproval {
-  requestId: string
-  toolName: string
-  input: Record<string, unknown>
-}
-
 // Default model for cost estimation — update when backend exposes model in usage events
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 
@@ -40,12 +35,107 @@ export function ChatPanel() {
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [usage, setUsage] = useState<UsageEvent | null>(null)
-  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null)
   const [awaitingNotification, setAwaitingNotification] = useState(false)
   const [backgroundActivity, setBackgroundActivity] = useState<string>('')
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false)
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [backendSpeaking, setBackendSpeaking] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const backendAudioRef = useRef<HTMLAudioElement | null>(null)
+  const backendAudioUrlRef = useRef<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const {
+    voiceEnabled,
+    selectedVoice,
+    voiceSpeed,
+    voiceTtsMode,
+    voiceBackendEngine,
+  } = useAppStore()
+
+  const {
+    speak: ttsSpeak,
+    stop: ttsStop,
+    isSpeaking: ttsSpeaking,
+    supported: ttsSupported,
+  } = useSpeechSynthesis({
+    voice: selectedVoice || undefined,
+    rate: voiceSpeed,
+  })
+  const isSpeaking = ttsSpeaking || backendSpeaking
+
+  const { isListening: sttListening, start: sttStart, stop: sttStop, supported: sttSupported } =
+    useSpeechRecognition({
+      onResult: (transcript) => {
+        setInput(transcript)
+      },
+      onEnd: () => {},
+      onError: () => {},
+    })
+
+  const cleanupBackendAudio = useCallback(() => {
+    const audio = backendAudioRef.current
+    if (audio) {
+      audio.pause()
+      backendAudioRef.current = null
+    }
+    if (backendAudioUrlRef.current) {
+      URL.revokeObjectURL(backendAudioUrlRef.current)
+      backendAudioUrlRef.current = null
+    }
+    setBackendSpeaking(false)
+  }, [])
+
+  const stopSpeaking = useCallback(() => {
+    ttsStop()
+    cleanupBackendAudio()
+  }, [ttsStop, cleanupBackendAudio])
+
+  const playBackendSpeech = useCallback(async (text: string) => {
+    cleanupBackendAudio()
+    setVoiceError(null)
+    setBackendSpeaking(true)
+
+    try {
+      const audioBlob = await synthesizeSpeech({
+        text,
+        engine: voiceBackendEngine,
+        speed: voiceSpeed,
+        format: 'wav',
+      })
+      const url = URL.createObjectURL(audioBlob)
+      const audio = new Audio(url)
+      backendAudioRef.current = audio
+      backendAudioUrlRef.current = url
+
+      audio.onended = () => cleanupBackendAudio()
+      audio.onerror = () => {
+        cleanupBackendAudio()
+        setVoiceError('Backend audio playback failed')
+      }
+
+      await audio.play()
+    } catch (error) {
+      cleanupBackendAudio()
+      setVoiceError(error instanceof Error ? error.message : String(error))
+    }
+  }, [cleanupBackendAudio, voiceBackendEngine, voiceSpeed])
+
+  const speakText = useCallback((text: string) => {
+    const clean = text.trim()
+    if (!voiceEnabled || !clean) return
+    if (voiceTtsMode === 'backend') {
+      void playBackendSpeech(clean)
+      return
+    }
+    if (!ttsSupported) {
+      setVoiceError('Browser speech is unavailable. Switch to Backend TTS mode.')
+      return
+    }
+    setVoiceError(null)
+    ttsSpeak(clean)
+  }, [voiceEnabled, voiceTtsMode, playBackendSpeech, ttsSupported, ttsSpeak])
 
   // WebSocket-based background notification listener
   const lastCompletedTask = useWsStore((s) => s.lastCompletedTask)
@@ -113,7 +203,12 @@ export function ChatPanel() {
   }, [awaitingNotification, lastOrphanNotification, appendMessage, clearLastOrphanNotification])
 
   // Clean up on unmount
-  useEffect(() => () => stopPolling(), [stopPolling])
+  useEffect(() => {
+    return () => {
+      stopPolling()
+      stopSpeaking()
+    }
+  }, [stopPolling, stopSpeaking])
 
   // Auto-send when the dashboard assigns a task to master and switches to chat
   useEffect(() => {
@@ -199,17 +294,6 @@ export function ChatPanel() {
           })
         } else if (event.type === 'usage_stats') {
           setUsage(event)
-        } else if (event.type === 'tool_approval_request') {
-          setPendingApproval({
-            requestId: event.request_id,
-            toolName: event.name,
-            input: event.input,
-          })
-        } else if (event.type === 'tool_approval_result') {
-          // Belt-and-suspenders close (dialog normally closes itself via onClose)
-          setPendingApproval((cur) =>
-            cur?.requestId === event.request_id ? null : cur,
-          )
         }
       }
 
@@ -218,6 +302,14 @@ export function ChatPanel() {
         prev.map((p) => (p.kind === 'thinking' && !p.done ? { ...p, done: true } : p)),
       )
       if (assembledText) appendMessage('assistant', assembledText)
+
+      // Auto-speak response if voice auto-speak is enabled
+      if (assembledText) {
+        const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
+        if (ve && vas) {
+          speakText(assembledText)
+        }
+      }
 
       // If sub-agents were spawned, listen for background results via WebSocket
       if (hadSpawnAgent) {
@@ -233,22 +325,10 @@ export function ChatPanel() {
     } finally {
       setIsStreaming(false)
       setStreamingParts([])
-      setPendingApproval(null)
       abortRef.current = null
       textareaRef.current?.focus()
-
-      // Mark the dashboard ticket as done if this stream was triggered by a master assignment
-      if (assembledText) {
-        const ticketId = useDashboardStore.getState().activeMasterTicketId
-        if (ticketId) {
-          useDashboardStore.getState().setActiveMasterTicketId(null)
-          updateTicket(ticketId, { status: 'done' }).then((updated) => {
-            useDashboardStore.getState().upsertTicket(updated)
-          }).catch(() => {})
-        }
-      }
     }
-  }, [input, isStreaming, appendMessage])
+  }, [input, isStreaming, appendMessage, speakText, stopPolling])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -263,16 +343,6 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full bg-zinc-950">
-      {/* Approval dialog — rendered as fixed overlay */}
-      {pendingApproval && (
-        <ApprovalDialog
-          requestId={pendingApproval.requestId}
-          toolName={pendingApproval.toolName}
-          input={pendingApproval.input}
-          onClose={() => setPendingApproval(null)}
-        />
-      )}
-
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {history.length === 0 && !isStreaming && (
@@ -282,7 +352,26 @@ export function ChatPanel() {
         )}
 
         {history.map((msg, i) => (
-          <MessageBubble key={i} role={msg.role} content={msg.content} agentName={msg.role === 'assistant' ? 'master' : undefined} />
+          <div key={i} className="group relative">
+            <MessageBubble role={msg.role} content={msg.content} agentName={msg.role === 'assistant' ? 'master' : undefined} />
+            {msg.role === 'assistant' && voiceEnabled && (
+              <button
+                onClick={() => {
+                  if (isSpeaking) {
+                    stopSpeaking()
+                  } else {
+                    speakText(msg.content)
+                  }
+                }}
+                className={`absolute -right-2 top-1 opacity-0 group-hover:opacity-100 transition-opacity px-1.5 py-0.5 rounded text-xs ${
+                  isSpeaking ? 'bg-zinc-600 text-zinc-200' : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-zinc-200'
+                }`}
+                title={isSpeaking ? 'Stop playback' : 'Read aloud'}
+              >
+                {isSpeaking ? '⏹' : '🔊'}
+              </button>
+            )}
+          </div>
         ))}
 
         {/* Streaming assistant response */}
@@ -343,6 +432,14 @@ export function ChatPanel() {
 
       {/* Input area */}
       <div className="px-4 py-3 border-t border-zinc-700 bg-zinc-900 flex-shrink-0">
+        {showVoiceSettings && (
+          <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900">
+            <VoiceSettings />
+          </div>
+        )}
+        {voiceError && (
+          <div className="mb-2 text-xs text-red-400">{voiceError}</div>
+        )}
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}
@@ -362,13 +459,45 @@ export function ChatPanel() {
               Stop
             </button>
           ) : (
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim()}
-              className="px-4 py-2 rounded-lg bg-[#FFB633] text-[#0a0a0a] text-sm font-semibold hover:bg-[#ffc84d] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              Send ↵
-            </button>
+            <>
+              {sttSupported && voiceEnabled && (
+                <button
+                  onClick={() => {
+                    if (sttListening) {
+                      sttStop()
+                    } else {
+                      sttStart()
+                    }
+                  }}
+                  className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
+                    sttListening
+                      ? 'bg-red-700 text-white hover:bg-red-600 animate-pulse'
+                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  }`}
+                  title={sttListening ? 'Stop listening' : 'Start listening'}
+                >
+                  🎤
+                </button>
+              )}
+              <button
+                onClick={() => setShowVoiceSettings((v) => !v)}
+                className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
+                  showVoiceSettings
+                    ? 'bg-zinc-600 text-zinc-100'
+                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                }`}
+                title={showVoiceSettings ? 'Hide voice settings' : 'Show voice settings'}
+              >
+                ⚙ Voice
+              </button>
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim()}
+                className="px-4 py-2 rounded-lg bg-[#FFB633] text-[#0a0a0a] text-sm font-semibold hover:bg-[#ffc84d] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+              >
+                Send ↵
+              </button>
+            </>
           )}
         </div>
         {usage && (

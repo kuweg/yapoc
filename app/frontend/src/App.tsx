@@ -3,12 +3,10 @@ import { useAppStore } from './store/appStore'
 import { AgentSidebar } from './components/AgentSidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { AgentDashboard } from './agent-status'
-import { DashboardView } from './dashboard'
 import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
 import { useWebSocket } from './hooks/useWebSocket'
-import { BackgroundApprovalBanner } from './components/BackgroundApprovalBanner'
 
 export default function App() {
   // Establish persistent WebSocket connection for real-time events
@@ -42,7 +40,6 @@ export default function App() {
         <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5">
           <NavButton id="chat" label="Chat" />
           <NavButton id="agents" label="Agents" />
-          <NavButton id="dashboard" label="Dashboard" />
           <NavButton id="graph" label="Memory" />
           <NavButton id="vault" label="Vault" />
         </div>
@@ -66,7 +63,6 @@ export default function App() {
           <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5">
             <NavButton id="chat" label="Chat" />
             <NavButton id="agents" label="Agents" />
-            <NavButton id="dashboard" label="Dashboard" />
             <NavButton id="graph" label="Memory" />
             <NavButton id="vault" label="Vault" />
           </div>
@@ -121,14 +117,6 @@ export default function App() {
         <AgentDashboard />
       </div>
 
-      {/* ── Dashboard tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'dashboard' ? 'flex' : 'none' }}
-      >
-        <DashboardView />
-      </div>
-
       {/* ── Memory Graph tab ── */}
       <div
         className="flex flex-col flex-1 overflow-hidden"
@@ -145,8 +133,6 @@ export default function App() {
         <VaultTab />
       </div>
 
-      {/* Background approval banner — fixed position, always visible */}
-      <BackgroundApprovalBanner />
     </div>
   )
 }

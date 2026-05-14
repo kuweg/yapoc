@@ -6,11 +6,11 @@ from .metrics import router as metrics_router
 from .models import router as models_router
 from .tasks import router as tasks_router
 from .test_endpoint import router as test_endpoint_router
-from .tickets import router as tickets_router
 from .vault import router as vault_router
+from .voice import router as voice_router
 from .costs import router as costs_router
 from .webhook import router as webhook_router
 from .stale_tasks import router as stale_tasks_router
 from .notification_trace import router as notification_trace_router
 
-__all__ = ["health_router", "tasks_router", "agents_router", "metrics_router", "tickets_router", "files_router", "memory_graph_router", "test_endpoint_router", "vault_router", "webhook_router", "costs_router", "models_router", "stale_tasks_router", "notification_trace_router"]
+__all__ = ["health_router", "tasks_router", "agents_router", "metrics_router", "files_router", "memory_graph_router", "test_endpoint_router", "vault_router", "voice_router", "webhook_router", "costs_router", "models_router", "stale_tasks_router", "notification_trace_router"]

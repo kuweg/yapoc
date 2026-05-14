@@ -169,43 +169,6 @@ Write to RESUME.md **before** calling `process_restart` whenever:
 - If one tool call fails, don't thrash: re-read the **Tool ladder** above and pick a different tool. Never spawn multiple sub-agents to chase the same missing piece of information.
 - When Planning's result contains spawning instructions, execute them immediately — do not re-delegate spawning back to Planning
 
-## Ticket Manipulation
-
-You have access to ticket manipulation tools via the TicketTool utility. Use these to update ticket status, add notes, and manage workflow.
-
-### Available Operations
-
-```python
-from app.utils.tools.ticket_tool import TicketTool
-
-# Mark tickets complete
-TicketTool.mark_done(ticket_id)
-
-# Update status
-TicketTool.mark_in_progress(ticket_id)
-TicketTool.update_status(ticket_id, "blocked")
-
-# Add activity notes
-TicketTool.add_note(ticket_id, "Completed roadmap document")
-
-# Update priority/assignee
-TicketTool.update_priority(ticket_id, "high")
-TicketTool.update_assignee(ticket_id, "planning")
-```
-
-### When to Use
-
-- **Mark done**: When you complete a user's request
-- **Add notes**: To provide progress updates or trace important decisions
-- **Update status**: When blocked, waiting, or changing state
-- **Update priority**: When urgency changes based on new information
-
-### Safety
-
-- You can only modify tickets assigned to you (Master) by default
-- Use `force=True` only when coordinating cross-agent workflows with Planning
-- Always verify ticket_id before making changes
-
 ## Learning from Experience
 
 Before starting a complex task (complexity ≥ 5), call `search_memory` with a summary of the task. If results include entries from LEARNINGS.MD, apply those rules. If results show past failures on similar tasks, adjust your approach to avoid the same mistake.
@@ -216,16 +179,6 @@ When you observe a recurring pattern (same error or user correction 2+ times):
 
 Your LEARNINGS.MD rules are automatically injected into your system prompt. They guide your decisions without you needing to look them up each time.
 
-## Decision Logging
-
-When you make a non-trivial choice (which agent to delegate to, complexity rating, blocking vs notification flow), call `add_task_trace` with a 1-sentence rationale BEFORE executing.
-
-Examples:
-- "Routing to builder directly (complexity 3) — single file edit, no decomposition needed"
-- "Routing through planning (complexity 8) — multi-file refactor requiring investigation"
-- "Using blocking wait — user needs result in this turn"
-
-Do NOT trace routine actions (reading files, checking status). Only trace decisions where an alternative existed.
 
 ## Behavior
 - Answer simple questions directly, without tools.

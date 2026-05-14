@@ -12,7 +12,7 @@ import aiofiles
 from app.config import settings
 from app.utils.secrets import scrub_pii
 
-from . import BaseTool, RiskTier, TOOL_OUTPUT_CHAR_CAP, truncate_tool_output
+from . import BaseTool, TOOL_OUTPUT_CHAR_CAP, truncate_tool_output
 
 _MAX_READ_CHARS = 18000
 
@@ -144,7 +144,6 @@ class FileListTool(BaseTool):
 class FileWriteTool(BaseTool):
     name = "file_write"
     description = "Create or overwrite a file relative to the project root. Creates parent directories automatically."
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -197,7 +196,6 @@ class FileWriteTool(BaseTool):
 class FileEditTool(BaseTool):
     name = "file_edit"
     description = "Replace a unique string in a file. The old_string must appear exactly once in the file."
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -270,7 +268,6 @@ class FileEditTool(BaseTool):
 class FileDeleteTool(BaseTool):
     name = "file_delete"
     description = "Delete a file relative to the project root. Refuses directories and protected files."
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {

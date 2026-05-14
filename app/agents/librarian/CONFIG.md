@@ -18,18 +18,6 @@ Summarizes long documents for users.
 - memory_append
 
 ## Autonomous Policy
-autonomous_policy:
-  file_read:
-    auto_approve: ["*"]
-  file_write:
-    auto_approve: ["*"]
-  file_edit:
-    auto_approve: ["*"]
-  file_delete:
-    auto_approve: ["*"]
-  file_list:
-    auto_approve: ["*"]
-
 ## Delegation
 - No delegation targets
 

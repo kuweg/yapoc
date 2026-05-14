@@ -10,25 +10,12 @@ export type UsageEvent = {
   tokens_per_second: number
   context_window: number
 }
-export type ToolApprovalRequestEvent = {
-  type: 'tool_approval_request'
-  request_id: string
-  name: string
-  input: Record<string, unknown>
-}
-export type ToolApprovalResultEvent = {
-  type: 'tool_approval_result'
-  request_id: string
-  approved: boolean
-}
 export type StreamEvent =
   | TextEvent
   | ThinkingEvent
   | ToolStartEvent
   | ToolDoneEvent
   | UsageEvent
-  | ToolApprovalRequestEvent
-  | ToolApprovalResultEvent
 
 export interface AgentStatus {
   name: string
@@ -81,4 +68,31 @@ export interface Session {
   name: string
   createdAt: string
   history: Message[]
+}
+
+// Voice API types
+export interface TTSRequest {
+  text: string
+  engine?: 'offline' | 'openai' | 'google'
+  voice?: string
+  speed?: number
+  format?: 'wav' | 'mp3' | 'ogg'
+}
+
+export interface TTSVoice {
+  id: string
+  name: string
+  language: string
+  gender: string
+}
+
+export interface TTSVoicesResponse {
+  engines: Record<string, { available: boolean; voices: TTSVoice[] }>
+}
+
+export interface STTResponse {
+  text: string
+  confidence: number
+  engine: string
+  duration_ms: number
 }

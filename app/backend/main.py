@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, models_router, notification_trace_router, stale_tasks_router, tasks_router, test_endpoint_router, tickets_router, vault_router, webhook_router
+from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, models_router, notification_trace_router, stale_tasks_router, tasks_router, test_endpoint_router, vault_router, voice_router, webhook_router
 from app.backend.websocket import websocket_endpoint
 from app.config import settings
 
@@ -175,7 +175,7 @@ async def _master_notification_watcher() -> None:
                     pass  # events consumed; result written to RESULT.MD by BaseAgent
 
                 # Push result to WebSocket: session_event for chat panel AND
-                # task_complete for dashboard ticket tracking.
+                # task_complete for downstream subscribers.
                 try:
                     from app.backend.websocket import ws_manager
 
@@ -189,7 +189,6 @@ async def _master_notification_watcher() -> None:
                                 sid,
                                 {"type": "notification_result", "text": result_text},
                             )
-                            # Also push task_complete so dashboard ticket board updates
                             await ws_manager.push_event(
                                 "task_complete",
                                 {
@@ -466,7 +465,6 @@ app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(agents_router)
 app.include_router(metrics_router)
-app.include_router(tickets_router)
 app.include_router(files_router)
 app.include_router(memory_graph_router)
 app.include_router(vault_router)
@@ -476,3 +474,4 @@ app.include_router(costs_router)
 app.include_router(models_router)
 app.include_router(stale_tasks_router)
 app.include_router(notification_trace_router)
+app.include_router(voice_router)

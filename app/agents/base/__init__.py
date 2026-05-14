@@ -6,7 +6,7 @@ import traceback
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Awaitable
+from typing import Any, AsyncIterator
 
 import aiofiles
 from loguru import logger as _log
@@ -30,12 +30,9 @@ from app.utils.adapters import (
     get_adapter,
     parse_config_block,
 )
-from app.utils.tools import BaseTool, RiskTier, build_tools
+from app.utils.tools import BaseTool, build_tools
 from app.utils.usage_tracker import UsageTracker
 from app.agents.base.context import build_system_context, _parse_runner_config
-
-# Callback: (tool_name, tool_input) -> should_execute
-ApprovalGate = Callable[[str, dict[str, Any]], Awaitable[bool]]
 
 
 def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
@@ -120,17 +117,6 @@ def _sanitize_for_memory(text: str) -> str:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     compact = " ".join(lines[:5])
     return compact[:_MEMORY_RESPONSE_CHAR_CAP]
-
-
-def _looks_self_verified(result_text: str) -> bool:
-    """Best-effort signal that an agent performed its own verification."""
-    if not result_text:
-        return False
-    lowered = result_text.lower()
-    if "## verification" in lowered:
-        return True
-    verification_terms = ("verified", "validation", "validated", "checks passed", "confirmed")
-    return any(term in lowered for term in verification_terms)
 
 
 _COMPACT_SYSTEM_PROMPT = """\
@@ -377,24 +363,9 @@ class BaseAgent:
         """Update TASK.MD frontmatter status and optionally fill Result/Error sections."""
         content = await self._read_file("TASK.MD")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        existing = self._parse_frontmatter(content)
-        verification_required = (
-            existing.get("verification_required", "").strip().lower()
-            in {"true", "1", "yes", "on"}
-        )
         updates: dict[str, str] = {"status": status}
         if status in ("done", "error"):
             updates["completed_at"] = now
-        if verification_required:
-            if status == "done":
-                if _looks_self_verified(result):
-                    updates["verification_status"] = "self_reported"
-                    updates["verified_by"] = self._name
-                    updates["verified_at"] = now
-                else:
-                    updates["verification_status"] = "pending"
-            elif status == "error":
-                updates["verification_status"] = "failed"
         content = self._update_frontmatter(content, **updates)
 
         if result:
@@ -412,33 +383,6 @@ class BaseAgent:
                 flags=re.DOTALL,
             )
         await self._write_file("TASK.MD", content)
-
-        # Push-on-status-change: update the ticket store immediately after writing TASK.MD.
-        # Map TASK.MD status -> ticket board status and call ticket_service.
-        # Errors here must NEVER crash the agent.
-        try:
-            from app.backend.services.ticket_service import (
-                TASK_STATUS_MAP,
-                update_ticket_status,
-            )
-            ticket_status = TASK_STATUS_MAP.get(status, "backlog")
-            # Extract assigned_at from frontmatter for stable ticket ID lookup
-            fm = self._parse_frontmatter(content)
-            assigned_at = fm.get("assigned_at", "")
-            update_ticket_status(
-                self._name,
-                ticket_status,
-                assigned_at=assigned_at,
-                result_text=result,
-                error_text=error,
-            )
-        except Exception as _ticket_exc:
-            import logging as _logging
-            _logging.getLogger(__name__).warning(
-                "BaseAgent.set_task_status: ticket update failed for %s: %s",
-                self._name,
-                _ticket_exc,
-            )
 
     async def get_task_body(self) -> str:
         """Return the ``## Task`` section text from TASK.MD."""
@@ -577,7 +521,6 @@ class BaseAgent:
         self,
         tc: Any,
         tool_map: dict[str, BaseTool],
-        approval_gate: ApprovalGate | None = None,
     ) -> tuple[ToolResult, ToolDone]:
         """Execute a single tool call, return ToolResult + ToolDone event."""
         tool = tool_map.get(tc.name)
@@ -588,105 +531,6 @@ class BaseAgent:
                 is_error=True,
             )
             return result, ToolDone(name=tc.name, result=result.content, is_error=True)
-
-        # Approval gate for CONFIRM-tier tools
-        effective_tier = tool.get_risk_tier(tc.input)
-        if effective_tier == RiskTier.CONFIRM and approval_gate is not None:
-            approved = await approval_gate(tc.name, tc.input)
-            if not approved:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                await self._append_file(
-                    "HEALTH.MD",
-                    f"[{timestamp}] [AUDIT] DENIED {tc.name}: {tc.input}\n",
-                )
-                result = ToolResult(
-                    tool_use_id=tc.id,
-                    content="Tool execution denied by user.",
-                    is_error=True,
-                )
-                return result, ToolDone(
-                    name=tc.name, result=result.content, is_error=True
-                )
-
-        # Autonomous approval policy (when no interactive gate is available)
-        if effective_tier == RiskTier.CONFIRM and approval_gate is None:
-            from app.utils.tools.approval import check_policy
-            config_text = await self._read_file("CONFIG.md")
-            decision = check_policy(self._name, tc.name, tc.input, config_text)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            if decision == "deny":
-                await self._append_file(
-                    "HEALTH.MD",
-                    f"[{timestamp}] [AUTONOMOUS] DENIED {tc.name}: {tc.input}\n",
-                )
-                result = ToolResult(
-                    tool_use_id=tc.id,
-                    content=f"Tool execution denied by autonomous policy. Try a different approach.",
-                    is_error=True,
-                )
-                return result, ToolDone(name=tc.name, result=result.content, is_error=True)
-            elif decision == "queue":
-                from app.backend.approval_queue import queue_approval
-                from app.utils.tools.approval import wait_for_resolution
-
-                req_id = queue_approval(agent=self._name, tool=tc.name, tool_input=tc.input)
-                await self._append_file(
-                    "HEALTH.MD",
-                    f"[{timestamp}] [AUTONOMOUS] QUEUED {tc.name} (approval_id={req_id[:8]}): {tc.input}\n",
-                )
-                # Block waiting for the human to click Approve / Deny in the UI.
-                # Cross-process safe — the SQLite row is the rendezvous point
-                # between subprocess agents and the main server holding the
-                # WebSocket connections.
-                outcome = await wait_for_resolution(
-                    req_id,
-                    timeout=float(settings.approval_wait_timeout_seconds),
-                )
-                resolved_ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-                if outcome == "approved":
-                    await self._append_file(
-                        "HEALTH.MD",
-                        f"[{resolved_ts}] [AUTONOMOUS] USER_APPROVED {tc.name} (id={req_id[:8]})\n",
-                    )
-                    # Fall through to execute the tool normally.
-                elif outcome == "denied":
-                    await self._append_file(
-                        "HEALTH.MD",
-                        f"[{resolved_ts}] [AUTONOMOUS] USER_DENIED {tc.name} (id={req_id[:8]})\n",
-                    )
-                    result = ToolResult(
-                        tool_use_id=tc.id,
-                        content=(
-                            f"Tool execution denied by the human reviewer "
-                            f"(approval id: {req_id[:8]}). Try a different "
-                            f"approach that doesn't require this tool."
-                        ),
-                        is_error=True,
-                    )
-                    return result, ToolDone(name=tc.name, result=result.content, is_error=True)
-                else:
-                    # Timeout — user wasn't at the keyboard.
-                    await self._append_file(
-                        "HEALTH.MD",
-                        f"[{resolved_ts}] [AUTONOMOUS] APPROVAL_TIMEOUT {tc.name} (id={req_id[:8]})\n",
-                    )
-                    result = ToolResult(
-                        tool_use_id=tc.id,
-                        content=(
-                            f"Tool execution timed out waiting for human approval "
-                            f"after {settings.approval_wait_timeout_seconds}s "
-                            f"(approval id: {req_id[:8]}). Try an alternative "
-                            f"approach, or report back so the human can retry."
-                        ),
-                        is_error=True,
-                    )
-                    return result, ToolDone(name=tc.name, result=result.content, is_error=True)
-            else:
-                # decision == "auto_approve" → fall through to execute
-                await self._append_file(
-                    "HEALTH.MD",
-                    f"[{timestamp}] [AUTONOMOUS] AUTO_APPROVE {tc.name}: {tc.input}\n",
-                )
 
         # Transient errors get one automatic retry before surfacing to the LLM.
         # Note: FileNotFoundError, PermissionError, IsADirectoryError, NotADirectoryError
@@ -702,13 +546,6 @@ class BaseAgent:
         for _attempt in range(_max_retries + 1):
             try:
                 output = await tool.execute(**tc.input)
-                # Audit log for CONFIRM-tier executions
-                if effective_tier == RiskTier.CONFIRM:
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    await self._append_file(
-                        "HEALTH.MD",
-                        f"[{timestamp}] [AUDIT] APPROVED {tc.name}: {tc.input}\n",
-                    )
                 result = ToolResult(tool_use_id=tc.id, content=output)
                 return result, ToolDone(name=tc.name, result=output)
             except _PERMANENT_OS_ERRORS as exc:
@@ -796,7 +633,6 @@ class BaseAgent:
     async def run_stream_with_tools(
         self,
         history: list[Message] | None = None,
-        approval_gate: ApprovalGate | None = None,
         manage_task_file: bool = True,
         notifications_context: str = "",
     ) -> AsyncIterator[StreamEvent]:
@@ -1012,19 +848,11 @@ class BaseAgent:
                     ):
                         break
 
-                    # Execute tools (sequentially when approval gate is active to avoid overlapping prompts)
-                    if approval_gate is not None:
-                        results = []
-                        for tc in turn_complete.tool_calls:
-                            results.append(
-                                await self._execute_tool(tc, tool_map, approval_gate)
-                            )
-                    else:
-                        coros = [
-                            self._execute_tool(tc, tool_map)
-                            for tc in turn_complete.tool_calls
-                        ]
-                        results = await asyncio.gather(*coros)
+                    coros = [
+                        self._execute_tool(tc, tool_map)
+                        for tc in turn_complete.tool_calls
+                    ]
+                    results = await asyncio.gather(*coros)
 
                     # Yield ToolDone events, build tool results message
                     tool_results: list[dict[str, Any]] = []

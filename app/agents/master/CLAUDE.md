@@ -11,7 +11,7 @@ Imported by `app/backend/routers/tasks.py` and `app/cli/main.py`.
 ## Key methods
 ```python
 handle_task(task, history) -> str                                        # blocking
-handle_task_stream(task, history, approval_gate) -> AsyncIterator[StreamEvent]  # streaming
+handle_task_stream(task, history) -> AsyncIterator[StreamEvent]  # streaming
 ```
 Both write TASK.MD then call through to `BaseAgent.run_stream_with_tools`.
 
@@ -35,7 +35,7 @@ task_timeout: 300
 ```
 
 ## How history flows
-`handle_task_stream(task, history, approval_gate)`:
+`handle_task_stream(task, history)`:
 1. Writes `task` to TASK.MD
 2. Calls `run_stream_with_tools(history, ...)` where `history` already has the user message as last entry
 3. `run_stream_with_tools` detects non-empty history → uses it directly, doesn't re-read TASK.MD as user message

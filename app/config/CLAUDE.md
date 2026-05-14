@@ -16,7 +16,6 @@ from app.config import settings   # always — never os.environ
 | `openrouter_api_key` | `OPENROUTER_API_KEY` | `""` |
 | `default_adapter` | `DEFAULT_ADAPTER` | `"anthropic"` |
 | `default_model` | `DEFAULT_MODEL` | `"claude-sonnet-4-6"` |
-| `safety_mode` | `SAFETY_MODE` | `"interactive"` |
 | `context_compact_model` | — | `"claude-haiku-4-5-20251001"` |
 | `doctor_interval_minutes` | — | `5` |
 | `model_manager_interval_hours` | — | `24` |
@@ -28,5 +27,4 @@ from app.config import settings   # always — never os.environ
 
 ## Gotchas
 - `extra="ignore"` — typos in env var names are silently ignored (this caused the `ANTROPIC_API_KEY` bug)
-- `safety_mode` only affects CLI approval gate; HTTP `/task/stream` has no gate regardless
 - `agent_idle_timeout` (300s) is how long a runner subprocess stays alive before self-terminating

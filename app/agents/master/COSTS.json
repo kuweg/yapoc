@@ -3068,5 +3068,3785 @@
     "cost_usd": 0.00377089,
     "timestamp": "2026-05-13T19:15:23Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:43Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 13420,
+    "tokens_out": 61,
+    "cost_usd": 0.0036905,
+    "timestamp": "2026-05-13T19:16:43Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:45Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 18766,
+    "tokens_out": 76,
+    "cost_usd": 0.00515042,
+    "timestamp": "2026-05-13T19:16:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:46Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 18862,
+    "tokens_out": 49,
+    "cost_usd": 0.00514664,
+    "timestamp": "2026-05-13T19:16:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:48Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 18931,
+    "tokens_out": 46,
+    "cost_usd": 0.00516197,
+    "timestamp": "2026-05-13T19:16:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:50Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 19911,
+    "tokens_out": 141,
+    "cost_usd": 0.00553107,
+    "timestamp": "2026-05-13T19:16:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:54Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 20074,
+    "tokens_out": 375,
+    "cost_usd": 0.00583248,
+    "timestamp": "2026-05-13T19:16:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:16:57Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 20485,
+    "tokens_out": 190,
+    "cost_usd": 0.00573995,
+    "timestamp": "2026-05-13T19:16:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:04Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10464,
+    "tokens_out": 304,
+    "cost_usd": 0.00315968,
+    "timestamp": "2026-05-13T19:25:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:07Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18919,
+    "tokens_out": 238,
+    "cost_usd": 0.00536993,
+    "timestamp": "2026-05-13T19:25:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:09Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19219,
+    "tokens_out": 254,
+    "cost_usd": 0.00546853,
+    "timestamp": "2026-05-13T19:25:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:11Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19543,
+    "tokens_out": 131,
+    "cost_usd": 0.00542071,
+    "timestamp": "2026-05-13T19:25:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19887,
+    "tokens_out": 125,
+    "cost_usd": 0.00550699,
+    "timestamp": "2026-05-13T19:25:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22744,
+    "tokens_out": 104,
+    "cost_usd": 0.00625528,
+    "timestamp": "2026-05-13T19:25:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 25541,
+    "tokens_out": 101,
+    "cost_usd": 0.00700717,
+    "timestamp": "2026-05-13T19:25:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28294,
+    "tokens_out": 104,
+    "cost_usd": 0.00775378,
+    "timestamp": "2026-05-13T19:25:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 30971,
+    "tokens_out": 104,
+    "cost_usd": 0.00847657,
+    "timestamp": "2026-05-13T19:25:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:23Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 33600,
+    "tokens_out": 175,
+    "cost_usd": 0.0092645,
+    "timestamp": "2026-05-13T19:25:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:25:31Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 33896,
+    "tokens_out": 575,
+    "cost_usd": 0.00978442,
+    "timestamp": "2026-05-13T19:25:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:26:55Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10745,
+    "tokens_out": 53,
+    "cost_usd": 0.00295945,
+    "timestamp": "2026-05-13T19:26:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:26:57Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10819,
+    "tokens_out": 120,
+    "cost_usd": 0.00305313,
+    "timestamp": "2026-05-13T19:26:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:00Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11178,
+    "tokens_out": 139,
+    "cost_usd": 0.00317096,
+    "timestamp": "2026-05-13T19:27:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:03Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11489,
+    "tokens_out": 154,
+    "cost_usd": 0.00327143,
+    "timestamp": "2026-05-13T19:27:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:05Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 13658,
+    "tokens_out": 75,
+    "cost_usd": 0.00377016,
+    "timestamp": "2026-05-13T19:27:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:07Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 13765,
+    "tokens_out": 70,
+    "cost_usd": 0.00379355,
+    "timestamp": "2026-05-13T19:27:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:10Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 14348,
+    "tokens_out": 265,
+    "cost_usd": 0.00416546,
+    "timestamp": "2026-05-13T19:27:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:57Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10671,
+    "tokens_out": 53,
+    "cost_usd": 0.00293947,
+    "timestamp": "2026-05-13T19:27:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:27:58Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10745,
+    "tokens_out": 52,
+    "cost_usd": 0.00295835,
+    "timestamp": "2026-05-13T19:27:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:00Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10866,
+    "tokens_out": 45,
+    "cost_usd": 0.00298332,
+    "timestamp": "2026-05-13T19:28:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:01Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10943,
+    "tokens_out": 90,
+    "cost_usd": 0.00305361,
+    "timestamp": "2026-05-13T19:28:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:02Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 12914,
+    "tokens_out": 74,
+    "cost_usd": 0.00356818,
+    "timestamp": "2026-05-13T19:28:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:04Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 14386,
+    "tokens_out": 95,
+    "cost_usd": 0.00398872,
+    "timestamp": "2026-05-13T19:28:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:07Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 16778,
+    "tokens_out": 202,
+    "cost_usd": 0.00475226,
+    "timestamp": "2026-05-13T19:28:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:17Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10622,
+    "tokens_out": 59,
+    "cost_usd": 0.00293284,
+    "timestamp": "2026-05-13T19:28:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:19Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10702,
+    "tokens_out": 45,
+    "cost_usd": 0.00293904,
+    "timestamp": "2026-05-13T19:28:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:20Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10885,
+    "tokens_out": 45,
+    "cost_usd": 0.00298845,
+    "timestamp": "2026-05-13T19:28:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:21Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10962,
+    "tokens_out": 110,
+    "cost_usd": 0.00308074,
+    "timestamp": "2026-05-13T19:28:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:28:24Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11244,
+    "tokens_out": 170,
+    "cost_usd": 0.00322288,
+    "timestamp": "2026-05-13T19:28:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:05Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10461,
+    "tokens_out": 304,
+    "cost_usd": 0.00315887,
+    "timestamp": "2026-05-13T19:30:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:08Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18853,
+    "tokens_out": 331,
+    "cost_usd": 0.00545441,
+    "timestamp": "2026-05-13T19:30:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:10Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 20096,
+    "tokens_out": 164,
+    "cost_usd": 0.00560632,
+    "timestamp": "2026-05-13T19:30:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:12Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22914,
+    "tokens_out": 163,
+    "cost_usd": 0.00636608,
+    "timestamp": "2026-05-13T19:30:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 25000,
+    "tokens_out": 67,
+    "cost_usd": 0.0068237,
+    "timestamp": "2026-05-13T19:30:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 27069,
+    "tokens_out": 79,
+    "cost_usd": 0.00739553,
+    "timestamp": "2026-05-13T19:30:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 31200,
+    "tokens_out": 82,
+    "cost_usd": 0.0085142,
+    "timestamp": "2026-05-13T19:30:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 33284,
+    "tokens_out": 117,
+    "cost_usd": 0.00911538,
+    "timestamp": "2026-05-13T19:30:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 34630,
+    "tokens_out": 68,
+    "cost_usd": 0.0094249,
+    "timestamp": "2026-05-13T19:30:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:22Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 34725,
+    "tokens_out": 46,
+    "cost_usd": 0.00942635,
+    "timestamp": "2026-05-13T19:30:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:24Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 34867,
+    "tokens_out": 49,
+    "cost_usd": 0.00946799,
+    "timestamp": "2026-05-13T19:30:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:30:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 35716,
+    "tokens_out": 67,
+    "cost_usd": 0.00971702,
+    "timestamp": "2026-05-13T19:30:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:05Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10500,
+    "tokens_out": 317,
+    "cost_usd": 0.0031837,
+    "timestamp": "2026-05-13T19:35:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:08Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18905,
+    "tokens_out": 456,
+    "cost_usd": 0.00560595,
+    "timestamp": "2026-05-13T19:35:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:10Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19489,
+    "tokens_out": 252,
+    "cost_usd": 0.00553923,
+    "timestamp": "2026-05-13T19:35:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:12Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28184,
+    "tokens_out": 111,
+    "cost_usd": 0.00773178,
+    "timestamp": "2026-05-13T19:35:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28873,
+    "tokens_out": 100,
+    "cost_usd": 0.00790571,
+    "timestamp": "2026-05-13T19:35:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 31697,
+    "tokens_out": 112,
+    "cost_usd": 0.00868139,
+    "timestamp": "2026-05-13T19:35:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 40259,
+    "tokens_out": 72,
+    "cost_usd": 0.01094913,
+    "timestamp": "2026-05-13T19:35:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 48121,
+    "tokens_out": 245,
+    "cost_usd": 0.01326217,
+    "timestamp": "2026-05-13T19:35:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:35:27Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 48542,
+    "tokens_out": 519,
+    "cost_usd": 0.01367724,
+    "timestamp": "2026-05-13T19:35:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:04Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10553,
+    "tokens_out": 172,
+    "cost_usd": 0.00303851,
+    "timestamp": "2026-05-13T19:40:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:05Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12277,
+    "tokens_out": 86,
+    "cost_usd": 0.00340939,
+    "timestamp": "2026-05-13T19:40:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:07Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18205,
+    "tokens_out": 136,
+    "cost_usd": 0.00506495,
+    "timestamp": "2026-05-13T19:40:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:09Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18891,
+    "tokens_out": 86,
+    "cost_usd": 0.00519517,
+    "timestamp": "2026-05-13T19:40:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:11Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18999,
+    "tokens_out": 128,
+    "cost_usd": 0.00527053,
+    "timestamp": "2026-05-13T19:40:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19343,
+    "tokens_out": 137,
+    "cost_usd": 0.00537331,
+    "timestamp": "2026-05-13T19:40:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19669,
+    "tokens_out": 127,
+    "cost_usd": 0.00545033,
+    "timestamp": "2026-05-13T19:40:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22548,
+    "tokens_out": 124,
+    "cost_usd": 0.00622436,
+    "timestamp": "2026-05-13T19:40:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 25456,
+    "tokens_out": 168,
+    "cost_usd": 0.00705792,
+    "timestamp": "2026-05-13T19:40:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 27525,
+    "tokens_out": 229,
+    "cost_usd": 0.00768365,
+    "timestamp": "2026-05-13T19:40:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:22Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 31374,
+    "tokens_out": 105,
+    "cost_usd": 0.00858648,
+    "timestamp": "2026-05-13T19:40:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:40:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 32764,
+    "tokens_out": 199,
+    "cost_usd": 0.00906518,
+    "timestamp": "2026-05-13T19:40:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:03Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 14061,
+    "tokens_out": 65,
+    "cost_usd": 0.00386797,
+    "timestamp": "2026-05-13T19:47:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:04Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 14179,
+    "tokens_out": 63,
+    "cost_usd": 0.00389763,
+    "timestamp": "2026-05-13T19:47:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:06Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 14576,
+    "tokens_out": 77,
+    "cost_usd": 0.00402022,
+    "timestamp": "2026-05-13T19:47:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:07Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 14680,
+    "tokens_out": 45,
+    "cost_usd": 0.0040131,
+    "timestamp": "2026-05-13T19:47:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:08Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 14863,
+    "tokens_out": 45,
+    "cost_usd": 0.00406251,
+    "timestamp": "2026-05-13T19:47:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:09Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 15046,
+    "tokens_out": 65,
+    "cost_usd": 0.00413392,
+    "timestamp": "2026-05-13T19:47:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:11Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 20397,
+    "tokens_out": 87,
+    "cost_usd": 0.00560289,
+    "timestamp": "2026-05-13T19:47:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:13Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 21456,
+    "tokens_out": 68,
+    "cost_usd": 0.00586792,
+    "timestamp": "2026-05-13T19:47:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:14Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 21625,
+    "tokens_out": 52,
+    "cost_usd": 0.00589595,
+    "timestamp": "2026-05-13T19:47:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:16Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 26242,
+    "tokens_out": 81,
+    "cost_usd": 0.00717444,
+    "timestamp": "2026-05-13T19:47:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:18Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 31009,
+    "tokens_out": 170,
+    "cost_usd": 0.00855943,
+    "timestamp": "2026-05-13T19:47:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:47:26Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 31201,
+    "tokens_out": 884,
+    "cost_usd": 0.00939667,
+    "timestamp": "2026-05-13T19:47:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:22Z",
+    "description": "?",
+    "agent_name": "master",
+    "tokens_in": 14091,
+    "tokens_out": 8096,
+    "cost_usd": 0.01271017,
+    "timestamp": "2026-05-13T19:50:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10590,
+    "tokens_out": 301,
+    "cost_usd": 0.0031904,
+    "timestamp": "2026-05-13T19:50:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:27Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19282,
+    "tokens_out": 252,
+    "cost_usd": 0.00548334,
+    "timestamp": "2026-05-13T19:50:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:30Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28007,
+    "tokens_out": 173,
+    "cost_usd": 0.00775219,
+    "timestamp": "2026-05-13T19:50:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:32Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 31615,
+    "tokens_out": 182,
+    "cost_usd": 0.00873625,
+    "timestamp": "2026-05-13T19:50:32Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:35Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 37232,
+    "tokens_out": 257,
+    "cost_usd": 0.01033534,
+    "timestamp": "2026-05-13T19:50:35Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:37Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 43070,
+    "tokens_out": 174,
+    "cost_usd": 0.0118203,
+    "timestamp": "2026-05-13T19:50:37Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:39Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 45542,
+    "tokens_out": 99,
+    "cost_usd": 0.01240524,
+    "timestamp": "2026-05-13T19:50:39Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:44Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 47395,
+    "tokens_out": 430,
+    "cost_usd": 0.01326965,
+    "timestamp": "2026-05-13T19:50:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:50:50Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 48161,
+    "tokens_out": 568,
+    "cost_usd": 0.01362827,
+    "timestamp": "2026-05-13T19:50:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:30Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10608,
+    "tokens_out": 105,
+    "cost_usd": 0.00297966,
+    "timestamp": "2026-05-13T19:51:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:41Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11147,
+    "tokens_out": 179,
+    "cost_usd": 0.00320659,
+    "timestamp": "2026-05-13T19:51:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:43Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11963,
+    "tokens_out": 105,
+    "cost_usd": 0.00334551,
+    "timestamp": "2026-05-13T19:51:43Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:45Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12535,
+    "tokens_out": 66,
+    "cost_usd": 0.00345705,
+    "timestamp": "2026-05-13T19:51:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:46Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17071,
+    "tokens_out": 104,
+    "cost_usd": 0.00472357,
+    "timestamp": "2026-05-13T19:51:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:48Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17196,
+    "tokens_out": 74,
+    "cost_usd": 0.00472432,
+    "timestamp": "2026-05-13T19:51:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:49Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17867,
+    "tokens_out": 36,
+    "cost_usd": 0.00486369,
+    "timestamp": "2026-05-13T19:51:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:50Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17921,
+    "tokens_out": 68,
+    "cost_usd": 0.00491347,
+    "timestamp": "2026-05-13T19:51:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:52Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22459,
+    "tokens_out": 106,
+    "cost_usd": 0.00618053,
+    "timestamp": "2026-05-13T19:51:52Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:54Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22586,
+    "tokens_out": 75,
+    "cost_usd": 0.00618072,
+    "timestamp": "2026-05-13T19:51:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:55Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 23298,
+    "tokens_out": 68,
+    "cost_usd": 0.00636526,
+    "timestamp": "2026-05-13T19:51:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:51:57Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 27836,
+    "tokens_out": 69,
+    "cost_usd": 0.00759162,
+    "timestamp": "2026-05-13T19:51:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:01Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10781,
+    "tokens_out": 61,
+    "cost_usd": 0.00297797,
+    "timestamp": "2026-05-13T19:54:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:02Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10863,
+    "tokens_out": 68,
+    "cost_usd": 0.00300781,
+    "timestamp": "2026-05-13T19:54:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:04Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11019,
+    "tokens_out": 133,
+    "cost_usd": 0.00312143,
+    "timestamp": "2026-05-13T19:54:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:05Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 13844,
+    "tokens_out": 98,
+    "cost_usd": 0.00384568,
+    "timestamp": "2026-05-13T19:54:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:07Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 15884,
+    "tokens_out": 94,
+    "cost_usd": 0.00439208,
+    "timestamp": "2026-05-13T19:54:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:09Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 16020,
+    "tokens_out": 122,
+    "cost_usd": 0.0044596,
+    "timestamp": "2026-05-13T19:54:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:11Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 16787,
+    "tokens_out": 87,
+    "cost_usd": 0.00462819,
+    "timestamp": "2026-05-13T19:54:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:13Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 16965,
+    "tokens_out": 225,
+    "cost_usd": 0.00482805,
+    "timestamp": "2026-05-13T19:54:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:15Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10869,
+    "tokens_out": 59,
+    "cost_usd": 0.00299953,
+    "timestamp": "2026-05-13T19:54:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:17Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11274,
+    "tokens_out": 155,
+    "cost_usd": 0.00321448,
+    "timestamp": "2026-05-13T19:54:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:38Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 10440,
+    "tokens_out": 67,
+    "cost_usd": 0.0028925,
+    "timestamp": "2026-05-13T19:54:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:40Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 15792,
+    "tokens_out": 71,
+    "cost_usd": 0.00434194,
+    "timestamp": "2026-05-13T19:54:40Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:42Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 16489,
+    "tokens_out": 108,
+    "cost_usd": 0.00457083,
+    "timestamp": "2026-05-13T19:54:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:43Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 16619,
+    "tokens_out": 126,
+    "cost_usd": 0.00462573,
+    "timestamp": "2026-05-13T19:54:43Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:45Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 16787,
+    "tokens_out": 136,
+    "cost_usd": 0.00468209,
+    "timestamp": "2026-05-13T19:54:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:51Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 16964,
+    "tokens_out": 732,
+    "cost_usd": 0.00538548,
+    "timestamp": "2026-05-13T19:54:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:54:55Z",
+    "description": "createa voice feature from docs/voice-feature-plan.md",
+    "agent_name": "master",
+    "tokens_in": 17732,
+    "tokens_out": 225,
+    "cost_usd": 0.00503514,
+    "timestamp": "2026-05-13T19:54:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:56:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10586,
+    "tokens_out": 163,
+    "cost_usd": 0.00303752,
+    "timestamp": "2026-05-13T19:56:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:56:27Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12467,
+    "tokens_out": 143,
+    "cost_usd": 0.00352339,
+    "timestamp": "2026-05-13T19:56:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:56:29Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 18785,
+    "tokens_out": 176,
+    "cost_usd": 0.00526555,
+    "timestamp": "2026-05-13T19:56:29Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:56:31Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22740,
+    "tokens_out": 103,
+    "cost_usd": 0.0062531,
+    "timestamp": "2026-05-13T19:56:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:56:34Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 23477,
+    "tokens_out": 231,
+    "cost_usd": 0.00659289,
+    "timestamp": "2026-05-13T19:56:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T19:56:39Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 23902,
+    "tokens_out": 473,
+    "cost_usd": 0.00697384,
+    "timestamp": "2026-05-13T19:56:39Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:24Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10737,
+    "tokens_out": 60,
+    "cost_usd": 0.00296499,
+    "timestamp": "2026-05-13T20:00:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:26Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10818,
+    "tokens_out": 65,
+    "cost_usd": 0.00299236,
+    "timestamp": "2026-05-13T20:00:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:27Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 15569,
+    "tokens_out": 76,
+    "cost_usd": 0.00428723,
+    "timestamp": "2026-05-13T20:00:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:29Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 15827,
+    "tokens_out": 119,
+    "cost_usd": 0.00440419,
+    "timestamp": "2026-05-13T20:00:29Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:31Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 16026,
+    "tokens_out": 121,
+    "cost_usd": 0.00446012,
+    "timestamp": "2026-05-13T20:00:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:32Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10491,
+    "tokens_out": 53,
+    "cost_usd": 0.00289087,
+    "timestamp": "2026-05-13T20:00:32Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:34Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10630,
+    "tokens_out": 81,
+    "cost_usd": 0.0029592,
+    "timestamp": "2026-05-13T20:00:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:00:36Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10733,
+    "tokens_out": 80,
+    "cost_usd": 0.00298591,
+    "timestamp": "2026-05-13T20:00:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:01Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 11270,
+    "tokens_out": 64,
+    "cost_usd": 0.0031133,
+    "timestamp": "2026-05-13T20:01:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:03Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 11420,
+    "tokens_out": 114,
+    "cost_usd": 0.0032088,
+    "timestamp": "2026-05-13T20:01:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:05Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 18589,
+    "tokens_out": 173,
+    "cost_usd": 0.00520933,
+    "timestamp": "2026-05-13T20:01:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:07Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 23835,
+    "tokens_out": 142,
+    "cost_usd": 0.00659165,
+    "timestamp": "2026-05-13T20:01:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:09Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 24507,
+    "tokens_out": 76,
+    "cost_usd": 0.00670049,
+    "timestamp": "2026-05-13T20:01:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:12Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 29269,
+    "tokens_out": 214,
+    "cost_usd": 0.00813803,
+    "timestamp": "2026-05-13T20:01:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:14Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 29505,
+    "tokens_out": 138,
+    "cost_usd": 0.00811815,
+    "timestamp": "2026-05-13T20:01:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:26Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 29690,
+    "tokens_out": 1602,
+    "cost_usd": 0.0097785,
+    "timestamp": "2026-05-13T20:01:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:28Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 31341,
+    "tokens_out": 72,
+    "cost_usd": 0.00854127,
+    "timestamp": "2026-05-13T20:01:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:36Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 31634,
+    "tokens_out": 1573,
+    "cost_usd": 0.01027148,
+    "timestamp": "2026-05-13T20:01:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:38Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 33256,
+    "tokens_out": 59,
+    "cost_usd": 0.00904402,
+    "timestamp": "2026-05-13T20:01:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:47Z",
+    "description": "do next",
+    "agent_name": "master",
+    "tokens_in": 33384,
+    "tokens_out": 1573,
+    "cost_usd": 0.01074398,
+    "timestamp": "2026-05-13T20:01:47Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:50Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10563,
+    "tokens_out": 312,
+    "cost_usd": 0.00319521,
+    "timestamp": "2026-05-13T20:01:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:53Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 14231,
+    "tokens_out": 224,
+    "cost_usd": 0.00408877,
+    "timestamp": "2026-05-13T20:01:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:54Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17274,
+    "tokens_out": 70,
+    "cost_usd": 0.00474098,
+    "timestamp": "2026-05-13T20:01:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:55Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19346,
+    "tokens_out": 69,
+    "cost_usd": 0.00529932,
+    "timestamp": "2026-05-13T20:01:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:01:58Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19927,
+    "tokens_out": 132,
+    "cost_usd": 0.00552549,
+    "timestamp": "2026-05-13T20:01:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:02:01Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 20081,
+    "tokens_out": 263,
+    "cost_usd": 0.00571117,
+    "timestamp": "2026-05-13T20:02:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:02:06Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 20376,
+    "tokens_out": 533,
+    "cost_usd": 0.00608782,
+    "timestamp": "2026-05-13T20:02:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10563,
+    "tokens_out": 163,
+    "cost_usd": 0.00303131,
+    "timestamp": "2026-05-13T20:26:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:32Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12466,
+    "tokens_out": 241,
+    "cost_usd": 0.00363092,
+    "timestamp": "2026-05-13T20:26:32Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:34Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15464,
+    "tokens_out": 134,
+    "cost_usd": 0.00432268,
+    "timestamp": "2026-05-13T20:26:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:36Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 16005,
+    "tokens_out": 141,
+    "cost_usd": 0.00447645,
+    "timestamp": "2026-05-13T20:26:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:37Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17697,
+    "tokens_out": 83,
+    "cost_usd": 0.00486949,
+    "timestamp": "2026-05-13T20:26:37Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:39Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 19782,
+    "tokens_out": 105,
+    "cost_usd": 0.00545664,
+    "timestamp": "2026-05-13T20:26:39Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:41Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 22303,
+    "tokens_out": 104,
+    "cost_usd": 0.00613621,
+    "timestamp": "2026-05-13T20:26:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:42Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 24347,
+    "tokens_out": 94,
+    "cost_usd": 0.00667709,
+    "timestamp": "2026-05-13T20:26:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:44Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 26128,
+    "tokens_out": 99,
+    "cost_usd": 0.00716346,
+    "timestamp": "2026-05-13T20:26:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:46Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28309,
+    "tokens_out": 113,
+    "cost_usd": 0.00776773,
+    "timestamp": "2026-05-13T20:26:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:47Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28444,
+    "tokens_out": 104,
+    "cost_usd": 0.00779428,
+    "timestamp": "2026-05-13T20:26:47Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:55Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 28613,
+    "tokens_out": 726,
+    "cost_usd": 0.00852411,
+    "timestamp": "2026-05-13T20:26:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:26:57Z",
+    "description": "hi",
+    "agent_name": "master",
+    "tokens_in": 11490,
+    "tokens_out": 72,
+    "cost_usd": 0.0031815,
+    "timestamp": "2026-05-13T20:26:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:27:22Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10753,
+    "tokens_out": 60,
+    "cost_usd": 0.00296931,
+    "timestamp": "2026-05-13T20:27:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:27:23Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10834,
+    "tokens_out": 104,
+    "cost_usd": 0.00303958,
+    "timestamp": "2026-05-13T20:27:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:27:25Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11303,
+    "tokens_out": 108,
+    "cost_usd": 0.00317061,
+    "timestamp": "2026-05-13T20:27:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:27:26Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10956,
+    "tokens_out": 52,
+    "cost_usd": 0.00301532,
+    "timestamp": "2026-05-13T20:27:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:00Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10584,
+    "tokens_out": 321,
+    "cost_usd": 0.00321078,
+    "timestamp": "2026-05-13T20:28:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:12Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11624,
+    "tokens_out": 397,
+    "cost_usd": 0.00357518,
+    "timestamp": "2026-05-13T20:28:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:15Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 26494,
+    "tokens_out": 254,
+    "cost_usd": 0.00743278,
+    "timestamp": "2026-05-13T20:28:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:16Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 11123,
+    "tokens_out": 64,
+    "cost_usd": 0.00307361,
+    "timestamp": "2026-05-13T20:28:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:18Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 11444,
+    "tokens_out": 152,
+    "cost_usd": 0.00325708,
+    "timestamp": "2026-05-13T20:28:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:19Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 12188,
+    "tokens_out": 62,
+    "cost_usd": 0.00335896,
+    "timestamp": "2026-05-13T20:28:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:20Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 12310,
+    "tokens_out": 62,
+    "cost_usd": 0.0033919,
+    "timestamp": "2026-05-13T20:28:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:22Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 12633,
+    "tokens_out": 76,
+    "cost_usd": 0.00349451,
+    "timestamp": "2026-05-13T20:28:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:23Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 12762,
+    "tokens_out": 45,
+    "cost_usd": 0.00349524,
+    "timestamp": "2026-05-13T20:28:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:24Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 32229,
+    "tokens_out": 953,
+    "cost_usd": 0.00975013,
+    "timestamp": "2026-05-13T20:28:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:24Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 12823,
+    "tokens_out": 44,
+    "cost_usd": 0.00351061,
+    "timestamp": "2026-05-13T20:28:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:26Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 33438,
+    "tokens_out": 76,
+    "cost_usd": 0.00911186,
+    "timestamp": "2026-05-13T20:28:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:26Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 12885,
+    "tokens_out": 64,
+    "cost_usd": 0.00354935,
+    "timestamp": "2026-05-13T20:28:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:27Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 18012,
+    "tokens_out": 72,
+    "cost_usd": 0.00494244,
+    "timestamp": "2026-05-13T20:28:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:29Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 34026,
+    "tokens_out": 326,
+    "cost_usd": 0.00954562,
+    "timestamp": "2026-05-13T20:28:29Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:30Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 34379,
+    "tokens_out": 29,
+    "cost_usd": 0.00931423,
+    "timestamp": "2026-05-13T20:28:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:30Z",
+    "description": "You have just been restarted. Read your RESUME.MD file for context and pending task, then execute it. Do NOT call process_restart again.",
+    "agent_name": "master",
+    "tokens_in": 23370,
+    "tokens_out": 308,
+    "cost_usd": 0.0066487,
+    "timestamp": "2026-05-13T20:28:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:38Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 23774,
+    "tokens_out": 250,
+    "cost_usd": 0.00669398,
+    "timestamp": "2026-05-13T20:28:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:38Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 23774,
+    "tokens_out": 250,
+    "cost_usd": 0.075072,
+    "timestamp": "2026-05-13T20:28:38Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:38Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 10770,
+    "tokens_out": 171,
+    "cost_usd": 0.003096,
+    "timestamp": "2026-05-13T20:28:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:49Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "master",
+    "tokens_in": 12429,
+    "tokens_out": 242,
+    "cost_usd": 0.00362203,
+    "timestamp": "2026-05-13T20:28:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:51Z",
+    "description": "hi",
+    "agent_name": "master",
+    "tokens_in": 11327,
+    "tokens_out": 56,
+    "cost_usd": 0.00311989,
+    "timestamp": "2026-05-13T20:28:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:51Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 11327,
+    "tokens_out": 56,
+    "cost_usd": 0.034821,
+    "timestamp": "2026-05-13T20:28:51Z",
+    "model_used": "claude-sonnet-4-6"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:51Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 18507,
+    "tokens_out": 316,
+    "cost_usd": 0.00534449,
+    "timestamp": "2026-05-13T20:28:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:53Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 22825,
+    "tokens_out": 183,
+    "cost_usd": 0.00636405,
+    "timestamp": "2026-05-13T20:28:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:55Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 28407,
+    "tokens_out": 98,
+    "cost_usd": 0.00777769,
+    "timestamp": "2026-05-13T20:28:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:57Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 31215,
+    "tokens_out": 115,
+    "cost_usd": 0.00855455,
+    "timestamp": "2026-05-13T20:28:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:28:58Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 34134,
+    "tokens_out": 111,
+    "cost_usd": 0.00933828,
+    "timestamp": "2026-05-13T20:28:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:00Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 37010,
+    "tokens_out": 103,
+    "cost_usd": 0.010106,
+    "timestamp": "2026-05-13T20:29:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:02Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 39747,
+    "tokens_out": 102,
+    "cost_usd": 0.01084389,
+    "timestamp": "2026-05-13T20:29:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:03Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 42642,
+    "tokens_out": 109,
+    "cost_usd": 0.01163324,
+    "timestamp": "2026-05-13T20:29:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:05Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 45166,
+    "tokens_out": 99,
+    "cost_usd": 0.01230372,
+    "timestamp": "2026-05-13T20:29:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:09Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "master",
+    "tokens_in": 47872,
+    "tokens_out": 305,
+    "cost_usd": 0.01326094,
+    "timestamp": "2026-05-13T20:29:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:11Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10623,
+    "tokens_out": 174,
+    "cost_usd": 0.00305961,
+    "timestamp": "2026-05-13T20:29:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:12Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11683,
+    "tokens_out": 45,
+    "cost_usd": 0.00320391,
+    "timestamp": "2026-05-13T20:29:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13104,
+    "tokens_out": 271,
+    "cost_usd": 0.00383618,
+    "timestamp": "2026-05-13T20:29:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 16204,
+    "tokens_out": 120,
+    "cost_usd": 0.00450708,
+    "timestamp": "2026-05-13T20:29:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 16346,
+    "tokens_out": 178,
+    "cost_usd": 0.00460922,
+    "timestamp": "2026-05-13T20:29:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:22Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 16656,
+    "tokens_out": 295,
+    "cost_usd": 0.00482162,
+    "timestamp": "2026-05-13T20:29:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:24Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10648,
+    "tokens_out": 119,
+    "cost_usd": 0.00300586,
+    "timestamp": "2026-05-13T20:29:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:26Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10938,
+    "tokens_out": 90,
+    "cost_usd": 0.00305226,
+    "timestamp": "2026-05-13T20:29:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:29:27Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11393,
+    "tokens_out": 70,
+    "cost_usd": 0.00315311,
+    "timestamp": "2026-05-13T20:29:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:15Z",
+    "description": "hi",
+    "agent_name": "master",
+    "tokens_in": 10563,
+    "tokens_out": 15,
+    "cost_usd": 0.00286851,
+    "timestamp": "2026-05-13T20:38:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10581,
+    "tokens_out": 105,
+    "cost_usd": 0.00297237,
+    "timestamp": "2026-05-13T20:38:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:28Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11117,
+    "tokens_out": 69,
+    "cost_usd": 0.00307749,
+    "timestamp": "2026-05-13T20:38:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:30Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15656,
+    "tokens_out": 95,
+    "cost_usd": 0.00433162,
+    "timestamp": "2026-05-13T20:38:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:31Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 16180,
+    "tokens_out": 83,
+    "cost_usd": 0.0044599,
+    "timestamp": "2026-05-13T20:38:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:33Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 20733,
+    "tokens_out": 71,
+    "cost_usd": 0.00567601,
+    "timestamp": "2026-05-13T20:38:33Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:34Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 20815,
+    "tokens_out": 51,
+    "cost_usd": 0.00567615,
+    "timestamp": "2026-05-13T20:38:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:36Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 27377,
+    "tokens_out": 156,
+    "cost_usd": 0.00756339,
+    "timestamp": "2026-05-13T20:38:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:38Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 27555,
+    "tokens_out": 130,
+    "cost_usd": 0.00758285,
+    "timestamp": "2026-05-13T20:38:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:40Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 27776,
+    "tokens_out": 144,
+    "cost_usd": 0.00765792,
+    "timestamp": "2026-05-13T20:38:40Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:38:41Z",
+    "description": "how are you",
+    "agent_name": "master",
+    "tokens_in": 10571,
+    "tokens_out": 26,
+    "cost_usd": 0.00288277,
+    "timestamp": "2026-05-13T20:38:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:01Z",
+    "description": "voice",
+    "agent_name": "master",
+    "tokens_in": 10552,
+    "tokens_out": 85,
+    "cost_usd": 0.00294254,
+    "timestamp": "2026-05-13T20:39:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:04Z",
+    "description": "voice",
+    "agent_name": "master",
+    "tokens_in": 15923,
+    "tokens_out": 270,
+    "cost_usd": 0.00459621,
+    "timestamp": "2026-05-13T20:39:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:30Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11270,
+    "tokens_out": 55,
+    "cost_usd": 0.0031034,
+    "timestamp": "2026-05-13T20:39:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:32Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11346,
+    "tokens_out": 118,
+    "cost_usd": 0.00319322,
+    "timestamp": "2026-05-13T20:39:32Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:34Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11636,
+    "tokens_out": 98,
+    "cost_usd": 0.00324952,
+    "timestamp": "2026-05-13T20:39:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:35Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 12099,
+    "tokens_out": 128,
+    "cost_usd": 0.00340753,
+    "timestamp": "2026-05-13T20:39:35Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:37Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 12299,
+    "tokens_out": 126,
+    "cost_usd": 0.00345933,
+    "timestamp": "2026-05-13T20:39:37Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:38Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10921,
+    "tokens_out": 59,
+    "cost_usd": 0.00301357,
+    "timestamp": "2026-05-13T20:39:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:39:41Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11326,
+    "tokens_out": 154,
+    "cost_usd": 0.00322742,
+    "timestamp": "2026-05-13T20:39:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:43:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10508,
+    "tokens_out": 106,
+    "cost_usd": 0.00295376,
+    "timestamp": "2026-05-13T20:43:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:43:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11048,
+    "tokens_out": 111,
+    "cost_usd": 0.00310506,
+    "timestamp": "2026-05-13T20:43:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:43:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11512,
+    "tokens_out": 217,
+    "cost_usd": 0.00334694,
+    "timestamp": "2026-05-13T20:43:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:43:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11752,
+    "tokens_out": 111,
+    "cost_usd": 0.00329514,
+    "timestamp": "2026-05-13T20:43:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:43:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11951,
+    "tokens_out": 97,
+    "cost_usd": 0.00333347,
+    "timestamp": "2026-05-13T20:43:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:48:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10504,
+    "tokens_out": 101,
+    "cost_usd": 0.00294718,
+    "timestamp": "2026-05-13T20:48:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:48:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11036,
+    "tokens_out": 112,
+    "cost_usd": 0.00310292,
+    "timestamp": "2026-05-13T20:48:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:48:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11505,
+    "tokens_out": 250,
+    "cost_usd": 0.00338135,
+    "timestamp": "2026-05-13T20:48:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:48:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11829,
+    "tokens_out": 148,
+    "cost_usd": 0.00335663,
+    "timestamp": "2026-05-13T20:48:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:53:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10504,
+    "tokens_out": 102,
+    "cost_usd": 0.00294828,
+    "timestamp": "2026-05-13T20:53:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:53:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11037,
+    "tokens_out": 102,
+    "cost_usd": 0.00309219,
+    "timestamp": "2026-05-13T20:53:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:53:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11494,
+    "tokens_out": 129,
+    "cost_usd": 0.00324528,
+    "timestamp": "2026-05-13T20:53:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:53:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11711,
+    "tokens_out": 130,
+    "cost_usd": 0.00330497,
+    "timestamp": "2026-05-13T20:53:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:58:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10552,
+    "tokens_out": 175,
+    "cost_usd": 0.00304154,
+    "timestamp": "2026-05-13T20:58:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:58:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11212,
+    "tokens_out": 170,
+    "cost_usd": 0.00321424,
+    "timestamp": "2026-05-13T20:58:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:58:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 14542,
+    "tokens_out": 107,
+    "cost_usd": 0.00404404,
+    "timestamp": "2026-05-13T20:58:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:58:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15069,
+    "tokens_out": 148,
+    "cost_usd": 0.00423143,
+    "timestamp": "2026-05-13T20:58:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T20:58:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15305,
+    "tokens_out": 134,
+    "cost_usd": 0.00427975,
+    "timestamp": "2026-05-13T20:58:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:03:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10589,
+    "tokens_out": 174,
+    "cost_usd": 0.00305043,
+    "timestamp": "2026-05-13T21:03:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:03:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11648,
+    "tokens_out": 109,
+    "cost_usd": 0.00326486,
+    "timestamp": "2026-05-13T21:03:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:03:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11938,
+    "tokens_out": 132,
+    "cost_usd": 0.00336846,
+    "timestamp": "2026-05-13T21:03:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:03:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12158,
+    "tokens_out": 270,
+    "cost_usd": 0.00357966,
+    "timestamp": "2026-05-13T21:03:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:08:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10614,
+    "tokens_out": 189,
+    "cost_usd": 0.00307368,
+    "timestamp": "2026-05-13T21:08:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:08:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11690,
+    "tokens_out": 214,
+    "cost_usd": 0.0033917,
+    "timestamp": "2026-05-13T21:08:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:08:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11978,
+    "tokens_out": 143,
+    "cost_usd": 0.00339136,
+    "timestamp": "2026-05-13T21:08:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:13:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10619,
+    "tokens_out": 112,
+    "cost_usd": 0.00299033,
+    "timestamp": "2026-05-13T21:13:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:13:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11162,
+    "tokens_out": 111,
+    "cost_usd": 0.00313584,
+    "timestamp": "2026-05-13T21:13:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:13:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11627,
+    "tokens_out": 96,
+    "cost_usd": 0.00324489,
+    "timestamp": "2026-05-13T21:13:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:13:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11744,
+    "tokens_out": 29,
+    "cost_usd": 0.00320278,
+    "timestamp": "2026-05-13T21:13:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:13:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13149,
+    "tokens_out": 151,
+    "cost_usd": 0.00371633,
+    "timestamp": "2026-05-13T21:13:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:13:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13394,
+    "tokens_out": 236,
+    "cost_usd": 0.00387598,
+    "timestamp": "2026-05-13T21:13:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:18:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10622,
+    "tokens_out": 175,
+    "cost_usd": 0.00306044,
+    "timestamp": "2026-05-13T21:18:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:18:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11685,
+    "tokens_out": 246,
+    "cost_usd": 0.00342555,
+    "timestamp": "2026-05-13T21:18:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:18:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12010,
+    "tokens_out": 149,
+    "cost_usd": 0.0034066,
+    "timestamp": "2026-05-13T21:18:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10622,
+    "tokens_out": 185,
+    "cost_usd": 0.00307144,
+    "timestamp": "2026-05-13T21:23:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11694,
+    "tokens_out": 137,
+    "cost_usd": 0.00330808,
+    "timestamp": "2026-05-13T21:23:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12010,
+    "tokens_out": 79,
+    "cost_usd": 0.0033296,
+    "timestamp": "2026-05-13T21:23:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12110,
+    "tokens_out": 44,
+    "cost_usd": 0.0033181,
+    "timestamp": "2026-05-13T21:23:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12175,
+    "tokens_out": 71,
+    "cost_usd": 0.00336535,
+    "timestamp": "2026-05-13T21:23:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:23Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12593,
+    "tokens_out": 245,
+    "cost_usd": 0.00366961,
+    "timestamp": "2026-05-13T21:23:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:23:26Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12947,
+    "tokens_out": 143,
+    "cost_usd": 0.00365299,
+    "timestamp": "2026-05-13T21:23:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:28:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10625,
+    "tokens_out": 179,
+    "cost_usd": 0.00306565,
+    "timestamp": "2026-05-13T21:28:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:28:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11692,
+    "tokens_out": 110,
+    "cost_usd": 0.00327784,
+    "timestamp": "2026-05-13T21:28:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:28:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12222,
+    "tokens_out": 135,
+    "cost_usd": 0.00344844,
+    "timestamp": "2026-05-13T21:28:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:28:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12446,
+    "tokens_out": 136,
+    "cost_usd": 0.00351002,
+    "timestamp": "2026-05-13T21:28:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:33:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10622,
+    "tokens_out": 104,
+    "cost_usd": 0.00298234,
+    "timestamp": "2026-05-13T21:33:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:33:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11157,
+    "tokens_out": 111,
+    "cost_usd": 0.00313449,
+    "timestamp": "2026-05-13T21:33:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:33:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11622,
+    "tokens_out": 139,
+    "cost_usd": 0.00329084,
+    "timestamp": "2026-05-13T21:33:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:33:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11837,
+    "tokens_out": 124,
+    "cost_usd": 0.00333239,
+    "timestamp": "2026-05-13T21:33:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:38:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10618,
+    "tokens_out": 114,
+    "cost_usd": 0.00299226,
+    "timestamp": "2026-05-13T21:38:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:38:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11163,
+    "tokens_out": 180,
+    "cost_usd": 0.00321201,
+    "timestamp": "2026-05-13T21:38:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:38:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11698,
+    "tokens_out": 146,
+    "cost_usd": 0.00331906,
+    "timestamp": "2026-05-13T21:38:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:38:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11933,
+    "tokens_out": 159,
+    "cost_usd": 0.00339681,
+    "timestamp": "2026-05-13T21:38:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:43:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10619,
+    "tokens_out": 175,
+    "cost_usd": 0.00305963,
+    "timestamp": "2026-05-13T21:43:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:43:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11680,
+    "tokens_out": 145,
+    "cost_usd": 0.0033131,
+    "timestamp": "2026-05-13T21:43:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:43:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11914,
+    "tokens_out": 167,
+    "cost_usd": 0.00340048,
+    "timestamp": "2026-05-13T21:43:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:48:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10613,
+    "tokens_out": 184,
+    "cost_usd": 0.00306791,
+    "timestamp": "2026-05-13T21:48:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:48:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11685,
+    "tokens_out": 248,
+    "cost_usd": 0.00342775,
+    "timestamp": "2026-05-13T21:48:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:48:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 14136,
+    "tokens_out": 138,
+    "cost_usd": 0.00396852,
+    "timestamp": "2026-05-13T21:48:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:48:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 14372,
+    "tokens_out": 165,
+    "cost_usd": 0.00406194,
+    "timestamp": "2026-05-13T21:48:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:53:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10613,
+    "tokens_out": 183,
+    "cost_usd": 0.00306681,
+    "timestamp": "2026-05-13T21:53:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:53:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11682,
+    "tokens_out": 249,
+    "cost_usd": 0.00342804,
+    "timestamp": "2026-05-13T21:53:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:53:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 14134,
+    "tokens_out": 280,
+    "cost_usd": 0.00412418,
+    "timestamp": "2026-05-13T21:53:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:53:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 14529,
+    "tokens_out": 146,
+    "cost_usd": 0.00408343,
+    "timestamp": "2026-05-13T21:53:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:58:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10619,
+    "tokens_out": 117,
+    "cost_usd": 0.00299583,
+    "timestamp": "2026-05-13T21:58:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:58:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11170,
+    "tokens_out": 123,
+    "cost_usd": 0.0031512,
+    "timestamp": "2026-05-13T21:58:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:58:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11650,
+    "tokens_out": 232,
+    "cost_usd": 0.0034007,
+    "timestamp": "2026-05-13T21:58:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T21:58:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11971,
+    "tokens_out": 164,
+    "cost_usd": 0.00341257,
+    "timestamp": "2026-05-13T21:58:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10620,
+    "tokens_out": 110,
+    "cost_usd": 0.0029884,
+    "timestamp": "2026-05-13T22:03:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11161,
+    "tokens_out": 169,
+    "cost_usd": 0.00319937,
+    "timestamp": "2026-05-13T22:03:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11966,
+    "tokens_out": 133,
+    "cost_usd": 0.00337712,
+    "timestamp": "2026-05-13T22:03:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12506,
+    "tokens_out": 62,
+    "cost_usd": 0.00344482,
+    "timestamp": "2026-05-13T22:03:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13877,
+    "tokens_out": 80,
+    "cost_usd": 0.00383479,
+    "timestamp": "2026-05-13T22:03:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15907,
+    "tokens_out": 151,
+    "cost_usd": 0.00446099,
+    "timestamp": "2026-05-13T22:03:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:03:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 16156,
+    "tokens_out": 226,
+    "cost_usd": 0.00461072,
+    "timestamp": "2026-05-13T22:03:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:08:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10626,
+    "tokens_out": 184,
+    "cost_usd": 0.00307142,
+    "timestamp": "2026-05-13T22:08:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:08:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11696,
+    "tokens_out": 61,
+    "cost_usd": 0.00322502,
+    "timestamp": "2026-05-13T22:08:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:08:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13133,
+    "tokens_out": 150,
+    "cost_usd": 0.00371091,
+    "timestamp": "2026-05-13T22:08:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:08:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13381,
+    "tokens_out": 200,
+    "cost_usd": 0.00383287,
+    "timestamp": "2026-05-13T22:08:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:13:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10632,
+    "tokens_out": 118,
+    "cost_usd": 0.00300044,
+    "timestamp": "2026-05-13T22:13:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:13:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11181,
+    "tokens_out": 156,
+    "cost_usd": 0.00319047,
+    "timestamp": "2026-05-13T22:13:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:13:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11435,
+    "tokens_out": 149,
+    "cost_usd": 0.00325135,
+    "timestamp": "2026-05-13T22:13:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:18:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10632,
+    "tokens_out": 112,
+    "cost_usd": 0.00299384,
+    "timestamp": "2026-05-13T22:18:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:18:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11175,
+    "tokens_out": 111,
+    "cost_usd": 0.00313935,
+    "timestamp": "2026-05-13T22:18:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:18:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11747,
+    "tokens_out": 147,
+    "cost_usd": 0.00333339,
+    "timestamp": "2026-05-13T22:18:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:18:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11992,
+    "tokens_out": 156,
+    "cost_usd": 0.00340944,
+    "timestamp": "2026-05-13T22:18:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:23:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10632,
+    "tokens_out": 112,
+    "cost_usd": 0.00299384,
+    "timestamp": "2026-05-13T22:23:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:23:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11175,
+    "tokens_out": 130,
+    "cost_usd": 0.00316025,
+    "timestamp": "2026-05-13T22:23:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:23:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13031,
+    "tokens_out": 151,
+    "cost_usd": 0.00368447,
+    "timestamp": "2026-05-13T22:23:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:23:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13280,
+    "tokens_out": 144,
+    "cost_usd": 0.003744,
+    "timestamp": "2026-05-13T22:23:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:28:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10638,
+    "tokens_out": 184,
+    "cost_usd": 0.00307466,
+    "timestamp": "2026-05-13T22:28:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:28:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11708,
+    "tokens_out": 108,
+    "cost_usd": 0.00327996,
+    "timestamp": "2026-05-13T22:28:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:28:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11874,
+    "tokens_out": 52,
+    "cost_usd": 0.00326318,
+    "timestamp": "2026-05-13T22:28:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:28:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15197,
+    "tokens_out": 163,
+    "cost_usd": 0.00428249,
+    "timestamp": "2026-05-13T22:28:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:28:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15383,
+    "tokens_out": 124,
+    "cost_usd": 0.00428981,
+    "timestamp": "2026-05-13T22:28:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:28:23Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15608,
+    "tokens_out": 278,
+    "cost_usd": 0.00451996,
+    "timestamp": "2026-05-13T22:28:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:33:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10638,
+    "tokens_out": 184,
+    "cost_usd": 0.00307466,
+    "timestamp": "2026-05-13T22:33:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:33:15Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11708,
+    "tokens_out": 189,
+    "cost_usd": 0.00336906,
+    "timestamp": "2026-05-13T22:33:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:33:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12995,
+    "tokens_out": 189,
+    "cost_usd": 0.00371655,
+    "timestamp": "2026-05-13T22:33:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:33:21Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13317,
+    "tokens_out": 243,
+    "cost_usd": 0.00386289,
+    "timestamp": "2026-05-13T22:33:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:38:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10638,
+    "tokens_out": 108,
+    "cost_usd": 0.00299106,
+    "timestamp": "2026-05-13T22:38:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:38:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11177,
+    "tokens_out": 186,
+    "cost_usd": 0.00322239,
+    "timestamp": "2026-05-13T22:38:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:38:17Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11876,
+    "tokens_out": 279,
+    "cost_usd": 0.00351342,
+    "timestamp": "2026-05-13T22:38:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:38:19Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 12264,
+    "tokens_out": 144,
+    "cost_usd": 0.00346968,
+    "timestamp": "2026-05-13T22:38:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:13Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 10638,
+    "tokens_out": 190,
+    "cost_usd": 0.00308126,
+    "timestamp": "2026-05-13T22:43:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:14Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 11715,
+    "tokens_out": 114,
+    "cost_usd": 0.00328845,
+    "timestamp": "2026-05-13T22:43:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:16Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 13222,
+    "tokens_out": 235,
+    "cost_usd": 0.00382844,
+    "timestamp": "2026-05-13T22:43:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:18Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 15660,
+    "tokens_out": 103,
+    "cost_usd": 0.0043415,
+    "timestamp": "2026-05-13T22:43:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:20Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17553,
+    "tokens_out": 154,
+    "cost_usd": 0.00490871,
+    "timestamp": "2026-05-13T22:43:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:22Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17730,
+    "tokens_out": 128,
+    "cost_usd": 0.0049279,
+    "timestamp": "2026-05-13T22:43:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-13T22:43:25Z",
+    "description": "[Doctor] Systemic issue detected: CROSS_AGENT_PATTERN: 3 agents (builder, keeper, planning) share error: \"Task timed out after 300s\". Investigate root cause across affected agents. Check recent change",
+    "agent_name": "master",
+    "tokens_in": 17963,
+    "tokens_out": 263,
+    "cost_usd": 0.00513931,
+    "timestamp": "2026-05-13T22:43:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:27:10Z",
+    "description": "hi!",
+    "agent_name": "master",
+    "tokens_in": 8756,
+    "tokens_out": 9,
+    "cost_usd": 0.00237402,
+    "timestamp": "2026-05-14T16:27:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:08Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 8833,
+    "tokens_out": 44,
+    "cost_usd": 0.00243331,
+    "timestamp": "2026-05-14T16:28:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:09Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 10252,
+    "tokens_out": 82,
+    "cost_usd": 0.00285824,
+    "timestamp": "2026-05-14T16:28:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:12Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 11643,
+    "tokens_out": 335,
+    "cost_usd": 0.00351211,
+    "timestamp": "2026-05-14T16:28:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:18Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 12003,
+    "tokens_out": 47,
+    "cost_usd": 0.00329251,
+    "timestamp": "2026-05-14T16:28:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:20Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 12098,
+    "tokens_out": 117,
+    "cost_usd": 0.00339516,
+    "timestamp": "2026-05-14T16:28:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:21Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 12250,
+    "tokens_out": 62,
+    "cost_usd": 0.0033757,
+    "timestamp": "2026-05-14T16:28:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:23Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 12364,
+    "tokens_out": 47,
+    "cost_usd": 0.00338998,
+    "timestamp": "2026-05-14T16:28:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T16:28:28Z",
+    "description": "create a temp agent \"dummy1\", let him use the deepseek-chat, ask him what is Taiwan and delete him",
+    "agent_name": "master",
+    "tokens_in": 12512,
+    "tokens_out": 550,
+    "cost_usd": 0.00398324,
+    "timestamp": "2026-05-14T16:28:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:26:59Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 9089,
+    "tokens_out": 95,
+    "cost_usd": 0.00255853,
+    "timestamp": "2026-05-14T17:26:59Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:01Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 9260,
+    "tokens_out": 135,
+    "cost_usd": 0.0026487,
+    "timestamp": "2026-05-14T17:27:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:04Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 9430,
+    "tokens_out": 330,
+    "cost_usd": 0.0029091,
+    "timestamp": "2026-05-14T17:27:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:05Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 9860,
+    "tokens_out": 46,
+    "cost_usd": 0.0027128,
+    "timestamp": "2026-05-14T17:27:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:07Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 9954,
+    "tokens_out": 127,
+    "cost_usd": 0.00282728,
+    "timestamp": "2026-05-14T17:27:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:09Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 10118,
+    "tokens_out": 65,
+    "cost_usd": 0.00280336,
+    "timestamp": "2026-05-14T17:27:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:12Z",
+    "description": "contunie",
+    "agent_name": "master",
+    "tokens_in": 10276,
+    "tokens_out": 186,
+    "cost_usd": 0.00297912,
+    "timestamp": "2026-05-14T17:27:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:15Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10551,
+    "tokens_out": 239,
+    "cost_usd": 0.00311167,
+    "timestamp": "2026-05-14T17:27:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:16Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9003,
+    "tokens_out": 63,
+    "cost_usd": 0.00250011,
+    "timestamp": "2026-05-14T17:27:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:17Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 10846,
+    "tokens_out": 154,
+    "cost_usd": 0.00309782,
+    "timestamp": "2026-05-14T17:27:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:18Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9158,
+    "tokens_out": 63,
+    "cost_usd": 0.00254196,
+    "timestamp": "2026-05-14T17:27:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:19Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11036,
+    "tokens_out": 64,
+    "cost_usd": 0.00305012,
+    "timestamp": "2026-05-14T17:27:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:19Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9219,
+    "tokens_out": 58,
+    "cost_usd": 0.00255293,
+    "timestamp": "2026-05-14T17:27:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:21Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9311,
+    "tokens_out": 88,
+    "cost_usd": 0.00261077,
+    "timestamp": "2026-05-14T17:27:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:27:23Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9437,
+    "tokens_out": 111,
+    "cost_usd": 0.00267009,
+    "timestamp": "2026-05-14T17:27:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:28:34Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9250,
+    "tokens_out": 92,
+    "cost_usd": 0.0025987,
+    "timestamp": "2026-05-14T17:28:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:28:36Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9395,
+    "tokens_out": 76,
+    "cost_usd": 0.00262025,
+    "timestamp": "2026-05-14T17:28:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:07Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9341,
+    "tokens_out": 63,
+    "cost_usd": 0.00259137,
+    "timestamp": "2026-05-14T17:29:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:09Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9425,
+    "tokens_out": 100,
+    "cost_usd": 0.00265475,
+    "timestamp": "2026-05-14T17:29:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:18Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11274,
+    "tokens_out": 91,
+    "cost_usd": 0.00314408,
+    "timestamp": "2026-05-14T17:29:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:19Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9467,
+    "tokens_out": 53,
+    "cost_usd": 0.00261439,
+    "timestamp": "2026-05-14T17:29:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:20Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 11418,
+    "tokens_out": 142,
+    "cost_usd": 0.00323906,
+    "timestamp": "2026-05-14T17:29:20Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:21Z",
+    "description": "[Auto-notification] Sub-agent task(s) just completed. Read the sub-agent results via read_task_result if needed, then write ONE short summary message for the user describing what was accomplished. Do ",
+    "agent_name": "master",
+    "tokens_in": 9693,
+    "tokens_out": 72,
+    "cost_usd": 0.00269631,
+    "timestamp": "2026-05-14T17:29:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:21Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 9539,
+    "tokens_out": 53,
+    "cost_usd": 0.00263383,
+    "timestamp": "2026-05-14T17:29:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "master:2026-05-14T17:29:23Z",
+    "description": "",
+    "agent_name": "master",
+    "tokens_in": 9765,
+    "tokens_out": 78,
+    "cost_usd": 0.00272235,
+    "timestamp": "2026-05-14T17:29:23Z",
+    "model_used": "deepseek-chat"
   }
 ]

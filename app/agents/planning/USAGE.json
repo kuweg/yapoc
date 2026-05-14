@@ -1,10 +1,10 @@
 {
-  "total_input_tokens": 2878203,
-  "total_output_tokens": 129199,
+  "total_input_tokens": 4048453,
+  "total_output_tokens": 167089,
   "total_cache_creation_tokens": 111917,
   "total_cache_read_tokens": 965167,
-  "total_tool_calls": 407,
-  "total_turns": 357,
+  "total_tool_calls": 522,
+  "total_turns": 455,
   "total_cost_usd": 1.797014,
   "by_model": {
     "claude-sonnet-4-6": {
@@ -26,14 +26,14 @@
       "tool_calls": 105
     },
     "deepseek-v4-pro": {
-      "input_tokens": 1736834,
-      "output_tokens": 78115,
+      "input_tokens": 2907084,
+      "output_tokens": 116005,
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
       "cost_usd": 0.0,
-      "turns": 168,
-      "tool_calls": 226
+      "turns": 266,
+      "tool_calls": 341
     }
   },
-  "last_updated": "2026-05-13T19:13:12Z"
+  "last_updated": "2026-05-14T17:29:16Z"
 }

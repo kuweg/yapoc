@@ -22,7 +22,7 @@ def test_deepseek_normalize_replays_assistant_reasoning_content() -> None:
                 {"type": "reasoning", "text": "first thought"},
                 {"type": "thinking", "thinking": "second thought"},
                 {"type": "text", "text": "Let me call a tool."},
-                {"type": "tool_use", "id": "tc_1", "name": "verify_task_result", "input": {"ok": True}},
+                {"type": "tool_use", "id": "tc_1", "name": "some_tool", "input": {"ok": True}},
             ],
         },
         {
@@ -37,7 +37,7 @@ def test_deepseek_normalize_replays_assistant_reasoning_content() -> None:
     assert out[0]["role"] == "assistant"
     assert out[0]["content"] == "Let me call a tool."
     assert out[0]["reasoning_content"] == "first thought\nsecond thought"
-    assert out[0]["tool_calls"][0]["function"]["name"] == "verify_task_result"
+    assert out[0]["tool_calls"][0]["function"]["name"] == "some_tool"
     assert out[1]["role"] == "tool"
     assert out[1]["tool_call_id"] == "tc_1"
     assert out[1]["content"] == "verified"

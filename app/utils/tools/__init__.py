@@ -1,16 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
 import re
 from typing import Any
 
 from app.utils.adapters import ToolDefinition
-
-
-class RiskTier(str, Enum):
-    AUTO = "auto"        # read-only, memory tools — execute immediately
-    CONFIRM = "confirm"  # shell, restart, writes — require human approval
 
 
 # Hard cap on the size of any tool output that lands back in the agent
@@ -151,7 +145,6 @@ class BaseTool(ABC):
     name: str
     description: str
     input_schema: dict[str, Any]
-    risk_tier: RiskTier = RiskTier.AUTO  # safe default
 
     def to_definition(self) -> ToolDefinition:
         return ToolDefinition(
@@ -160,10 +153,6 @@ class BaseTool(ABC):
             input_schema=self.input_schema,
         )
 
-    def get_risk_tier(self, params: dict[str, Any]) -> RiskTier:
-        """Return risk tier for a specific invocation. Override for dynamic tiers."""
-        return self.risk_tier
-
     @abstractmethod
     async def execute(self, **params: Any) -> str: ...
 
@@ -171,7 +160,7 @@ class BaseTool(ABC):
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 from .file import FileDeleteTool, FileEditTool, FileListTool, FileReadTool, FileWriteTool, ImageReadTool, ParseCsvTool
-from .memory import AddTaskTraceTool, AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, MemoryAppendTool, NotesAppendTool, NotesReadTool, NotesWriteTool, SharedKnowledgeAppendTool
+from .memory import AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, MemoryAppendTool, NotesAppendTool, NotesReadTool, NotesWriteTool, SharedKnowledgeAppendTool
 from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
 from .web import WebSearchTool
@@ -183,7 +172,6 @@ from .delegation import (
     PingAgentTool,
     ReadTaskResultTool,
     SpawnAgentTool,
-    VerifyTaskResultTool,
     WaitForAgentTool,
     WaitForAgentsTool,
 )
@@ -192,7 +180,6 @@ from .agent_settings_tool import HealAgentSettingsTool, ShowAgentSettingsTool
 from .config_update import UpdateConfigTool
 from .model_manager import CheckModelAvailabilityTool, ListModelsTool, UpdateAgentConfigTool
 from .search import SearchMemoryTool
-from .ticket_manage import ManageTicketsTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
@@ -210,14 +197,12 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "health_log": HealthLogTool,
     "learnings_append": LearningsAppendTool,
     "agent_amnesia": AgentAmnesiaTool,
-    "add_task_trace": AddTaskTraceTool,
     "web_search": WebSearchTool,
     "spawn_agent": SpawnAgentTool,
     "ping_agent": PingAgentTool,
     "kill_agent": KillAgentTool,
     "check_task_status": CheckTaskStatusTool,
     "read_task_result": ReadTaskResultTool,
-    "verify_task_result": VerifyTaskResultTool,
     "wait_for_agent": WaitForAgentTool,
     "wait_for_agents": WaitForAgentsTool,
     "notify_parent": NotifyParentTool,
@@ -231,7 +216,6 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "heal_agent_settings": HealAgentSettingsTool,
     "show_agent_settings": ShowAgentSettingsTool,
     "search_memory": SearchMemoryTool,
-    "manage_tickets": ManageTicketsTool,
     "shared_knowledge_append": SharedKnowledgeAppendTool,
     "image_read": ImageReadTool,
     "parse_csv": ParseCsvTool,
@@ -248,10 +232,7 @@ _AGENT_DIR_TOOLS = {
     "update_config",
     "spawn_agent",
     "notify_parent",
-    "add_task_trace",
-    "manage_tickets",
     "shared_knowledge_append",
-    "verify_task_result",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell

@@ -14,16 +14,15 @@ import aiofiles
 from app.config import settings
 from app.utils.adapters import ADAPTER_REGISTRY
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 
 
 class UpdateConfigTool(BaseTool):
     name = "update_config"
     description = (
         "Update your CONFIG.md to switch adapter, model, or temperature. "
-        "Change takes effect on the next turn. Requires human approval."
+        "Change takes effect on the next turn."
     )
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {

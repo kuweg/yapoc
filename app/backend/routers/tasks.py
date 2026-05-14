@@ -7,17 +7,12 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.agents.master.agent import master_agent
-from app.backend.models import ApprovalRequest, TaskRequest, TaskResponse
+from app.backend.models import TaskRequest, TaskResponse
 from app.backend.services.agent_results import build_result_injection, collect_agent_results
 from app.utils.adapters import Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
 from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
 router = APIRouter()
-
-# Module-level store for pending tool approvals.
-# Keys are request UUIDs; safe for single-process uvicorn.
-_pending_approvals: dict[str, asyncio.Event] = {}
-_approval_results: dict[str, bool] = {}
 
 
 def _parse_history(raw: list[dict] | None) -> list[Message] | None:
@@ -89,23 +84,6 @@ async def get_task(task_id: str):
     return task
 
 
-@router.get("/approvals")
-async def list_approvals():
-    """List pending approval requests."""
-    from app.backend.approval_queue import get_pending
-    return get_pending()
-
-
-@router.post("/approvals/{request_id}/resolve")
-async def resolve_approval_endpoint(request_id: str, body: ApprovalRequest):
-    """Approve or deny a queued tool execution."""
-    from app.backend.approval_queue import resolve_approval
-    result = resolve_approval(request_id, body.approved)
-    if not result:
-        raise HTTPException(status_code=404, detail="Approval request not found")
-    return result
-
-
 @router.get("/sessions/{session_id}/events")
 async def get_session_events(
     session_id: str,
@@ -127,16 +105,6 @@ async def get_session_events(
         return events
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.post("/task/approve/{request_id}")
-async def approve_tool(request_id: str, body: ApprovalRequest):
-    ev = _pending_approvals.get(request_id)
-    if ev is None:
-        raise HTTPException(status_code=404, detail="No pending approval with that ID")
-    _approval_results[request_id] = body.approved
-    ev.set()
-    return {"status": "ok"}
 
 
 @router.post("/task/stream")
@@ -161,42 +129,10 @@ async def submit_task_stream(request: TaskRequest):
 
     merged: asyncio.Queue[dict | None] = asyncio.Queue()
 
-    # Track request-local pending approvals for cleanup on disconnect
-    local_pending: dict[str, asyncio.Event] = {}
-
-    async def approval_gate(name: str, input_data: dict) -> bool:
-        req_id = str(_uuid.uuid4())
-        ev = asyncio.Event()
-        local_pending[req_id] = ev
-        _pending_approvals[req_id] = ev
-
-        await merged.put({
-            "type": "tool_approval_request",
-            "request_id": req_id,
-            "name": name,
-            "input": input_data,
-        })
-
-        try:
-            await asyncio.wait_for(ev.wait(), timeout=300.0)
-        except asyncio.TimeoutError:
-            pass
-
-        approved = _approval_results.pop(req_id, False)
-        _pending_approvals.pop(req_id, None)
-        local_pending.pop(req_id, None)
-
-        await merged.put({
-            "type": "tool_approval_result",
-            "request_id": req_id,
-            "approved": approved,
-        })
-        return approved
-
     async def drain_agent() -> None:
         try:
             async for event in master_agent.handle_task_stream(
-                task, history=history, approval_gate=approval_gate,
+                task, history=history,
                 source=request.source,
                 session_id=session_id,
             ):
@@ -255,10 +191,6 @@ async def submit_task_stream(request: TaskRequest):
             _heartbeat_done.set()
             agent_task.cancel()
             heartbeat_task.cancel()
-            # Deny any pending approvals so the agent task unblocks and exits
-            for req_id, ev in list(local_pending.items()):
-                _approval_results[req_id] = False
-                ev.set()
 
     return StreamingResponse(
         event_generator(),

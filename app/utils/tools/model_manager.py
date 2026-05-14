@@ -16,7 +16,7 @@ from app.utils.adapters.models import (
 )
 from app.utils.tools.config_update import _set_yaml_key
 
-from . import BaseTool, RiskTier
+from . import BaseTool
 
 
 # ── CheckModelAvailabilityTool ──────────────────────────────────────────────
@@ -28,7 +28,6 @@ class CheckModelAvailabilityTool(BaseTool):
         "Probe whether a specific model is available on a given provider. "
         "Returns AVAILABLE (with context window and pricing) or UNAVAILABLE/UNREACHABLE/TIMEOUT."
     )
-    risk_tier = RiskTier.AUTO
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -166,7 +165,6 @@ class ListModelsTool(BaseTool):
         "Query the model catalog. Filter by provider, capability tier, task keyword, "
         "or max price. Returns a formatted table. Pure catalog query — no network calls."
     )
-    risk_tier = RiskTier.AUTO
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -260,7 +258,6 @@ class UpdateAgentConfigTool(BaseTool):
         "Update another agent's CONFIG.md (adapter, model, temperature, max_tokens). "
         "Always requires human approval. Logs changes to the target agent's HEALTH.MD."
     )
-    risk_tier = RiskTier.CONFIRM
     input_schema: dict[str, Any] = {
         "type": "object",
         "properties": {

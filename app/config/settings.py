@@ -56,18 +56,32 @@ class Settings(BaseSettings):
     # ── Runner defaults ──────────────────────────────────────────────────────
     max_turns: int = 20
     task_timeout: int = 300
-    # How long a sub-agent will block waiting for a human approval decision
-    # (via the BackgroundApprovalBanner UI) before treating the request as
-    # timed out. Should stay comfortably under task_timeout so a forgotten
-    # approval doesn't burn the entire task budget.
-    approval_wait_timeout_seconds: int = 300
 
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
 
+    # ── Voice / TTS ─────────────────────────────────────────────────────────
+    voice_enabled: bool = False
+    voice_auto_speak: bool = False
+
+    # TTS engine selection: offline | openai | google
+    tts_engine: str = "offline"
+    tts_voice: str = ""
+    tts_speed: float = 1.0
+
+    # STT engine selection: offline | openai | google
+    stt_engine: str = "offline"
+    stt_language: str = "en-US"
+    stt_timeout: float = 5.0
+    stt_phrase_limit: float = 10.0
+
+    # Cloud TTS/STT (optional, requires API keys)
+    openai_tts_model: str = "tts-1"
+    openai_tts_voice: str = "alloy"
+    google_tts_voice: str = "en-US-Wavenet-D"
+
     # ── Safety ────────────────────────────────────────────────────────────
     max_shell_timeout: int = 120  # hard cap on shell command timeout (seconds)
-    safety_mode: str = "interactive"  # "interactive" | "auto_approve" | "strict"
 
     # ── Agent processes ─────────────────────────────────────────────────
     # Seconds before an idle subprocess agent self-terminates. Overridable

@@ -17,7 +17,6 @@ tools:
   - wait_for_agents
   - check_task_status
   - read_task_result
-  - verify_task_result
   - read_agent_logs
   # ── Self ────────────────────────────────────────────────────────────
   - server_restart
@@ -29,24 +28,10 @@ tools:
   - notes_append
   - health_log
   - agent_amnesia
-  - add_task_trace
   - search_memory
   - learnings_append
-  - manage_tickets
   - shared_knowledge_append
   - image_read
-autonomous_policy:
-  file_read:
-    auto_approve: ["*"]
-  file_write:
-    auto_approve: ["*"]
-  file_edit:
-    auto_approve: ["*"]
-  file_delete:
-    auto_approve: ["*"]
-  file_list:
-    auto_approve: ["*"]
-
 sandbox:
   # Master can read anything but writes must go through a sub-agent.
   forbidden:

@@ -14,7 +14,7 @@ poetry run yapoc start   # wraps: uvicorn app.backend.main:app
 | `POST` | `/task` | Blocking, returns `TaskResponse` |
 | `POST` | `/task/stream` | SSE stream, event types: `text`, `tool_start`, `tool_done`, `usage_stats` |
 
-**Important**: `/task/stream` has **no approval gate** — CONFIRM-tier tools execute automatically over HTTP. Approval gate only exists in the CLI.
+**Important**: all tools execute automatically — there is no approval gate.
 
 ### `/agents` (agents.py)
 | Method | Path | Notes |
@@ -41,7 +41,6 @@ Subprocess agents (`planning`, `builder`, `keeper`, `cron`, `doctor`, `model_man
 |---|---|---|
 | `notification_poller` | each agent's TASK.MD frontmatter `## Result` / `## Error` | `notification_queue` → master notification watcher |
 | `session_event_relay` | `data/sessions/*/events.jsonl` (watchdog inotify) | `ws_manager.push_session_event` per line |
-| `BackgroundApprovalBanner` (frontend) | `/approvals` (3s poll) + `approval_needed` WS event | UI banner |
 
 Without `session_event_relay`, sub-agent thinking/tool/text deltas write to JSONL on disk but never reach the UI — only master's events flow through. The relay seeds offsets to EOF on startup so it never replays old backlog.
 

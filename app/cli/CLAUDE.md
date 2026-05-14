@@ -22,15 +22,6 @@ yapoc models list|info
 - **Sub-agent result injection**: on each turn, `_collect_agent_results()` scans all agent TASK.MD files for `assigned_by: master` + `consumed_at: ""` + `status: done/error`. Results are prepended to the user message as a system notification.
 - **RESUME.MD**: populated on clean exit with pending/running tasks; injected as context on next REPL start.
 
-## Approval gate (safety_mode in settings)
-| Mode | Behavior |
-|---|---|
-| `"interactive"` | Prompts y/n for CONFIRM-tier tools |
-| `"auto_approve"` | No gate (all tools execute) |
-| `"strict"` | All CONFIRM-tier tools blocked |
-
-Gate is only constructed in the CLI. HTTP `/task/stream` has no gate.
-
 ## Retry logic
 `_send_to_agent` retries on API overload up to 4 times: waits 5s / 15s / 30s / 60s.
 

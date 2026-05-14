@@ -24,20 +24,6 @@ delegation_targets:
   - keeper
   - doctor
   - master
-autonomous_policy:
-  file_write:
-    auto_approve: ["*"]
-  file_edit:
-    auto_approve: ["*"]
-  file_delete:
-    auto_approve: ["*"]
-  spawn_agent:
-    auto_approve: ["*"]
-    default: auto_approve
-  kill_agent:
-    auto_approve: ["builder", "keeper"]
-    deny: ["master", "doctor"]
-    default: queue
 runner:
   max_turns: 20
   task_timeout: 300

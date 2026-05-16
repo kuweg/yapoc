@@ -13,7 +13,7 @@ from app.config import settings as _settings
 
 
 def _parse_runner_config(config_text: str) -> dict[str, int | bool]:
-    """Extract runner.* integer values and lifecycle.* booleans from CONFIG.md."""
+    """Extract runner.* integer values and lifecycle.* booleans from CONFIG.yaml."""
     limits: dict[str, int | bool] = {}
     in_runner = False
     for line in config_text.splitlines():
@@ -51,21 +51,11 @@ async def _read_if_exists(path: Path) -> str:
         return await f.read()
 
 
-def _tail_lines(text: str, n: int, *, max_line_chars: int = 280) -> str:
-    """Return the last N non-empty lines from text.
-
-    Memory files often contain long, model-generated narration lines. Truncate
-    each line so old verbose turns do not dominate future system prompts.
-    """
+def _tail_lines(text: str, n: int, *, max_line_chars: int = 0) -> str:
+    """Return the last N non-empty lines from text."""
     lines = [l for l in text.splitlines() if l.strip()]
     tail = lines[-n:]
-    sanitized: list[str] = []
-    for line in tail:
-        compact = " ".join(line.strip().split())
-        if len(compact) > max_line_chars:
-            compact = compact[:max_line_chars] + "... (truncated)"
-        sanitized.append(compact)
-    return "\n".join(sanitized)
+    return "\n".join(tail)
 
 
 async def build_system_context(agent_dir: Path, config_text: str | None = None) -> str:
@@ -79,21 +69,20 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
 
     The defaults used here are the **token-bloat-safe** values. Any
     agent that actually needs more can bump them via its ``runner:`` block
-    in ``CONFIG.md`` — that override still wins. But leaving them low by
+    in ``CONFIG.yaml`` — that override still wins. But leaving them low by
     default caps the per-turn system prompt size for every agent at
     creation time, instead of relying on each agent to remember to set
     tight limits.
     """
-    # Read CONFIG.md for limits (use pre-read text if provided)
+    # Read CONFIG.yaml for limits (use pre-read text if provided)
     if config_text is None:
-        config_text = await _read_if_exists(agent_dir / "CONFIG.md")
+        config_text = await _read_if_exists(agent_dir / "CONFIG.yaml")
     runner = _parse_runner_config(config_text)
-    memory_limit = runner.get("context_memory_limit", 10)
-    health_limit = runner.get("context_health_limit", 5)
-    notes_limit = runner.get("context_notes_limit", 3000)  # chars
-
-    learnings_limit = runner.get("context_learnings_limit", 2000)  # chars
-    knowledge_limit = runner.get("context_knowledge_limit", 1500)  # chars
+    memory_limit = runner.get("context_memory_limit", _settings.context_memory_lines)
+    health_limit = runner.get("context_health_limit", _settings.context_health_lines)
+    notes_chars = runner.get("context_notes_chars", _settings.context_notes_chars)
+    learnings_chars = runner.get("context_learnings_chars", _settings.context_learnings_chars)
+    knowledge_chars = runner.get("context_knowledge_chars", _settings.context_knowledge_chars)
 
     # Read all files
     prompt = await _read_if_exists(agent_dir / "PROMPT.MD")
@@ -115,26 +104,37 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
         if tail:
             sections.append(f"## Recent Memory\n{tail}")
 
-    # NOTES.MD — capped to notes_limit chars
+    # NOTES.MD — capped to prevent unbounded context growth
     if notes.strip():
-        trimmed = notes.strip()
-        if len(trimmed) > notes_limit:
-            trimmed = trimmed[:notes_limit] + "\n... (notes truncated — use notes_read for full content)"
+        trimmed = notes.strip()[:notes_chars]
         sections.append(f"## Notes\n{trimmed}")
 
-    # LEARNINGS.MD — capped to learnings_limit chars
+    # LEARNINGS.MD — capped
     if learnings.strip():
-        trimmed = learnings.strip()
-        if len(trimmed) > learnings_limit:
-            trimmed = trimmed[:learnings_limit] + "\n... (learnings truncated)"
+        trimmed = learnings.strip()[:learnings_chars]
         sections.append(f"## Learned Rules\n{trimmed}")
 
-    # KNOWLEDGE.MD — shared, newest entries, capped
+    # KNOWLEDGE.MD — shared, capped
     if knowledge.strip():
-        trimmed = knowledge.strip()
-        if len(trimmed) > knowledge_limit:
-            trimmed = "... (older entries omitted)\n" + trimmed[-knowledge_limit:]
+        trimmed = knowledge.strip()[:knowledge_chars]
         sections.append(f"## Shared Knowledge\n{trimmed}")
+
+    # RAG hint — encourage using search_memory for past work
+    try:
+        from app.utils.db import get_db
+        db = get_db()
+        row = db.execute(
+            "SELECT COUNT(*) FROM memory_entries WHERE agent = ?",
+            (agent_dir.name,),
+        ).fetchone()
+        if row and row[0] > 0:
+            sections.append(
+                f"## Memory Index\n"
+                f"{row[0]} past memories indexed. Use search_memory(query=...) "
+                f"to find relevant past tasks, notes, and learnings."
+            )
+    except Exception:
+        pass  # DB may not be initialized yet
 
     # HEALTH.MD — last N lines
     if health.strip():
@@ -177,8 +177,5 @@ async def build_goals_context(agent_dir: Path) -> str:
     if not active_text:
         return ""
 
-    # Cap at 2000 chars
-    if len(active_text) > 2000:
-        active_text = active_text[:2000] + "\n... (goals truncated)"
-
+    # Cap at 2000 chars -> removed: full goals content
     return f"## Active Goals\n{active_text}"

@@ -7,8 +7,6 @@ from app.config import settings
 
 from . import BaseTool
 
-_MAX_OUTPUT_CHARS = 10_000
-
 
 class ShellExecTool(BaseTool):
     name = "shell_exec"
@@ -71,6 +69,4 @@ class ShellExecTool(BaseTool):
         parts.append(f"Exit code: {proc.returncode}")
 
         output = "\n".join(parts)
-        if len(output) > _MAX_OUTPUT_CHARS:
-            output = output[:_MAX_OUTPUT_CHARS] + "\n... (output truncated)"
         return output

@@ -43,7 +43,7 @@ def _to_class_name(name: str) -> str:
 class CreateAgentTool(BaseTool):
     name = "create_agent"
     description = (
-        "Create a new agent directory with PROMPT.MD, CONFIG.md, agent.py, and "
+        "Create a new agent directory with PROMPT.MD, CONFIG.yaml, agent.py, and "
         "all standard agent files. Cannot overwrite existing agents or protected names."
     )
     input_schema: dict[str, Any] = {
@@ -143,7 +143,7 @@ class CreateAgentTool(BaseTool):
             full_prompt += "\n\n" + "\n\n".join(prompt_fragments)
         (agent_dir / "PROMPT.MD").write_text(full_prompt, encoding="utf-8")
 
-        # Write CONFIG.md
+        # Write CONFIG.yaml
         tools_block = "\n".join(f"  - {t}" for t in tools)
         config = (
             f"adapter: {adapter}\n"
@@ -166,7 +166,7 @@ class CreateAgentTool(BaseTool):
                 config += f"  {hint_key}:\n"
                 for v in hint_vals:
                     config += f"    - {v}\n"
-        (agent_dir / "CONFIG.md").write_text(config, encoding="utf-8")
+        (agent_dir / "CONFIG.yaml").write_text(config, encoding="utf-8")
 
         # Write empty standard files
         for fname in _AGENT_FILES:
@@ -267,6 +267,19 @@ class DeleteAgentTool(BaseTool):
                     ]) or 1
                 except OSError:
                     pass
+
+        # Clean SQLite vector index before deleting directory
+        try:
+            from app.utils.db import get_db
+            db = get_db()
+            db.execute("DELETE FROM memory_entries WHERE agent = ?", (name,))
+            db.execute(
+                "DELETE FROM memory_fts WHERE rowid NOT IN (SELECT rowid FROM memory_entries)"
+            )
+            db.execute("DELETE FROM index_checkpoints WHERE agent = ?", (name,))
+            db.commit()
+        except Exception:
+            pass
 
         shutil.rmtree(agent_dir)
         promo_note = f" ({promoted} learning(s) promoted to shared knowledge)" if promoted else ""

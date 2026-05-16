@@ -481,7 +481,7 @@
   },
   {
     "task_id": "keeper:2026-05-13T09:05:32Z",
-    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.md.",
+    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.yaml.",
     "agent_name": "keeper",
     "tokens_in": 2466,
     "tokens_out": 21,
@@ -491,7 +491,7 @@
   },
   {
     "task_id": "keeper:2026-05-13T09:05:34Z",
-    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.md.",
+    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.yaml.",
     "agent_name": "keeper",
     "tokens_in": 2685,
     "tokens_out": 58,
@@ -501,7 +501,7 @@
   },
   {
     "task_id": "keeper:2026-05-13T09:05:44Z",
-    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.md.",
+    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.yaml.",
     "agent_name": "keeper",
     "tokens_in": 2772,
     "tokens_out": 58,
@@ -511,7 +511,7 @@
   },
   {
     "task_id": "keeper:2026-05-13T09:05:50Z",
-    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.md.",
+    "description": "Add 'model_manager' to the planning agent's delegation_targets list in app/agents/planning/CONFIG.yaml.",
     "agent_name": "keeper",
     "tokens_in": 2859,
     "tokens_out": 49,
@@ -967,6 +967,276 @@
     "tokens_out": 39,
     "cost_usd": 0.00191535,
     "timestamp": "2026-05-14T17:28:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:42Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 3322,
+    "tokens_out": 58,
+    "cost_usd": 0.00096074,
+    "timestamp": "2026-05-14T18:13:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:44Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 3967,
+    "tokens_out": 155,
+    "cost_usd": 0.00124159,
+    "timestamp": "2026-05-14T18:13:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:45Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 4142,
+    "tokens_out": 63,
+    "cost_usd": 0.00118764,
+    "timestamp": "2026-05-14T18:13:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:46Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 4238,
+    "tokens_out": 44,
+    "cost_usd": 0.00119266,
+    "timestamp": "2026-05-14T18:13:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:48Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 4901,
+    "tokens_out": 97,
+    "cost_usd": 0.00142997,
+    "timestamp": "2026-05-14T18:13:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:49Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 5065,
+    "tokens_out": 124,
+    "cost_usd": 0.00150395,
+    "timestamp": "2026-05-14T18:13:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-14T18:13:51Z",
+    "description": "Add `VOICE_ENABLED=true` to the `.env` file in the project root. Check if it already exists first — if it does, update the existing line. If not, append it.",
+    "agent_name": "keeper",
+    "tokens_in": 5209,
+    "tokens_out": 97,
+    "cost_usd": 0.00151313,
+    "timestamp": "2026-05-14T18:13:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:00:58Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 3304,
+    "tokens_out": 63,
+    "cost_usd": 0.00096138,
+    "timestamp": "2026-05-15T22:00:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:01:00Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 4743,
+    "tokens_out": 273,
+    "cost_usd": 0.00158091,
+    "timestamp": "2026-05-15T22:01:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:01:02Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 5041,
+    "tokens_out": 181,
+    "cost_usd": 0.00156017,
+    "timestamp": "2026-05-15T22:01:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:01:03Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 5255,
+    "tokens_out": 49,
+    "cost_usd": 0.00147275,
+    "timestamp": "2026-05-15T22:01:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:01:05Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 6679,
+    "tokens_out": 108,
+    "cost_usd": 0.00192213,
+    "timestamp": "2026-05-15T22:01:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:01:07Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 6835,
+    "tokens_out": 115,
+    "cost_usd": 0.00197195,
+    "timestamp": "2026-05-15T22:01:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:01:08Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-flash\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 6970,
+    "tokens_out": 42,
+    "cost_usd": 0.0019281,
+    "timestamp": "2026-05-15T22:01:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:23:45Z",
+    "description": "Update the librarian's model in app/config/agent-settings.json from \"deepseek-v4-flash\" to \"deepseek-v4-pro\". Only change the \"model\" field under the \"librarian\" agent entry. Do NOT change anything else.",
+    "agent_name": "keeper",
+    "tokens_in": 3228,
+    "tokens_out": 66,
+    "cost_usd": 0.00094416,
+    "timestamp": "2026-05-15T22:23:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:23:47Z",
+    "description": "Update the librarian's model in app/config/agent-settings.json from \"deepseek-v4-flash\" to \"deepseek-v4-pro\". Only change the \"model\" field under the \"librarian\" agent entry. Do NOT change anything else.",
+    "agent_name": "keeper",
+    "tokens_in": 4668,
+    "tokens_out": 252,
+    "cost_usd": 0.00153756,
+    "timestamp": "2026-05-15T22:23:47Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:23:48Z",
+    "description": "Update the librarian's model in app/config/agent-settings.json from \"deepseek-v4-flash\" to \"deepseek-v4-pro\". Only change the \"model\" field under the \"librarian\" agent entry. Do NOT change anything else.",
+    "agent_name": "keeper",
+    "tokens_in": 4945,
+    "tokens_out": 57,
+    "cost_usd": 0.00139785,
+    "timestamp": "2026-05-15T22:23:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:23:50Z",
+    "description": "Update the librarian's model in app/config/agent-settings.json from \"deepseek-v4-flash\" to \"deepseek-v4-pro\". Only change the \"model\" field under the \"librarian\" agent entry. Do NOT change anything else.",
+    "agent_name": "keeper",
+    "tokens_in": 6378,
+    "tokens_out": 114,
+    "cost_usd": 0.00184746,
+    "timestamp": "2026-05-15T22:23:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:23:52Z",
+    "description": "Update the librarian's model in app/config/agent-settings.json from \"deepseek-v4-flash\" to \"deepseek-v4-pro\". Only change the \"model\" field under the \"librarian\" agent entry. Do NOT change anything else.",
+    "agent_name": "keeper",
+    "tokens_in": 6570,
+    "tokens_out": 156,
+    "cost_usd": 0.0019455,
+    "timestamp": "2026-05-15T22:23:52Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-15T22:23:53Z",
+    "description": "Update the librarian's model in app/config/agent-settings.json from \"deepseek-v4-flash\" to \"deepseek-v4-pro\". Only change the \"model\" field under the \"librarian\" agent entry. Do NOT change anything else.",
+    "agent_name": "keeper",
+    "tokens_in": 6746,
+    "tokens_out": 46,
+    "cost_usd": 0.00187202,
+    "timestamp": "2026-05-15T22:23:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:02Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 3327,
+    "tokens_out": 67,
+    "cost_usd": 0.00097199,
+    "timestamp": "2026-05-16T00:06:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:04Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 4769,
+    "tokens_out": 193,
+    "cost_usd": 0.00149993,
+    "timestamp": "2026-05-16T00:06:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:06Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 4987,
+    "tokens_out": 157,
+    "cost_usd": 0.00151919,
+    "timestamp": "2026-05-16T00:06:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:07Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 5177,
+    "tokens_out": 49,
+    "cost_usd": 0.00145169,
+    "timestamp": "2026-05-16T00:06:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:08Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 6601,
+    "tokens_out": 106,
+    "cost_usd": 0.00189887,
+    "timestamp": "2026-05-16T00:06:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:10Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 6768,
+    "tokens_out": 112,
+    "cost_usd": 0.00195056,
+    "timestamp": "2026-05-16T00:06:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "keeper:2026-05-16T00:06:11Z",
+    "description": "Update the librarian agent config in app/config/agent-settings.json. Change the model from \"deepseek-v4-pro\" to \"deepseek-chat\". The librarian entry currently reads:",
+    "agent_name": "keeper",
+    "tokens_in": 6900,
+    "tokens_out": 43,
+    "cost_usd": 0.0019103,
+    "timestamp": "2026-05-16T00:06:11Z",
     "model_used": "deepseek-chat"
   }
 ]

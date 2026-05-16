@@ -15,10 +15,6 @@ from pathlib import Path
 from app.agents.base import BaseAgent
 from app.config import settings
 
-# Cap per-agent result snippet in the injection block.
-# Agents can write very long results; we don't want to blow up master's context.
-_INJECTION_RESULT_CAP = 8_000
-
 
 async def collect_agent_results(
     parent_agent: str = "master",
@@ -137,9 +133,6 @@ def build_result_injection(results: list[tuple[str, str, bool, int]]) -> str:
             agent_name, result_text, is_error, depth = entry  # type: ignore[misc]
 
         label = "ERROR" if is_error else "DONE"
-        if len(result_text) > _INJECTION_RESULT_CAP:
-            result_text = result_text[:_INJECTION_RESULT_CAP] + "\n... (truncated)"
-
         if depth == 0:
             heading = f"### Agent: {agent_name} — {label}"
         elif depth == 1:

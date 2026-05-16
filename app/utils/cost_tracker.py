@@ -146,7 +146,7 @@ def _parse_task_description(task_content: str) -> str:
         for line in text.splitlines():
             line = line.strip()
             if line:
-                return line[:200]
+                return line
 
     body = task_content
     fm = re.match(r"^---\s*\n.*?\n---\s*\n?", task_content, re.DOTALL)
@@ -156,9 +156,9 @@ def _parse_task_description(task_content: str) -> str:
     for line in body.splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
-            return line[:200]
+            return line
 
-    return task_content.strip()[:200]
+    return task_content.strip()
 
 
 def _make_task_id(agent_name: str, timestamp: str) -> str:

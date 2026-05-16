@@ -39,10 +39,12 @@ app = typer.Typer(help="YAPOC \u2014 Yet Another Python OpenClaw CLI", no_args_i
 agents_app = typer.Typer(help="Agent management commands", no_args_is_help=True)
 models_app = typer.Typer(help="Model configuration commands", no_args_is_help=True)
 cron_app = typer.Typer(help="Cron task commands (not yet implemented)", no_args_is_help=True)
+doctor_app = typer.Typer(help="Doctor agent commands")
 
 app.add_typer(agents_app, name="agents")
 app.add_typer(models_app, name="models")
 app.add_typer(cron_app, name="cron")
+app.add_typer(doctor_app, name="doctor")
 
 console = Console()
 
@@ -65,12 +67,12 @@ def _fetch_openrouter_models_sync() -> list[str]:
         )
         resp.raise_for_status()
         data = resp.json().get("data", [])
-        # Filter to models that support tool use, take top 50
+        # Filter to models that support tool use
         models = [
             m["id"] for m in data
             if m.get("id")
         ]
-        return models[:50]
+        return models
     except (httpx.HTTPError, KeyError, ValueError):
         return []
 
@@ -275,6 +277,7 @@ def _handle_repl_slash(
             "  /speak        Read last assistant response aloud\n"
             "  /listen       Capture microphone and transcribe to text\n"
             "  /voice        Toggle continuous voice mode (listen -> send)\n"
+            "  /doctor       Run doctor health check\n"
             "  /clear        Clear conversation history\n"
             "  /exit         Quit\n"
             "\n"
@@ -407,6 +410,17 @@ def _handle_repl_slash(
                 console.print("[dim]Voice mode enabled — speak to interact, /voice to stop[/dim]")
             else:
                 console.print("[dim]Voice mode disabled[/dim]")
+    elif cmd == "/doctor":
+        import asyncio
+        from app.utils.tools.delegation import SpawnAgentTool
+        async def _run():
+            spawn = SpawnAgentTool()
+            result = await spawn.execute(
+                agent_name="doctor",
+                task="run-health-check: Execute a full health check of all agents and report findings.",
+            )
+            console.print(f"[yellow]{result}[/yellow]")
+        asyncio.run(_run())
     else:
         console.print(f"[yellow]Unknown command: {cmd} \u2014 type /help[/yellow]")
     return True
@@ -435,6 +449,7 @@ _SLASH_COMMANDS: dict[str, str] = {
     "/speak": "Read last assistant response aloud",
     "/listen": "Capture microphone and transcribe to text",
     "/voice": "Toggle continuous voice mode",
+    "/doctor": "Run doctor health check",
     "/exit": "Quit",
 }
 
@@ -469,7 +484,7 @@ class FileCompleter(Completer):
         try:
             root = settings.project_root
             # Glob for matching files, cap results
-            matches = sorted(root.glob(f"**/{partial}*"))[:30]
+            matches = sorted(root.glob(f"**/{partial}*"))
             for p in matches:
                 if p.is_file():
                     rel = str(p.relative_to(root))
@@ -491,8 +506,6 @@ def _expand_file_mentions(text: str) -> str:
         if full.is_file():
             try:
                 content = full.read_text(encoding="utf-8", errors="replace")
-                if len(content) > 18000:
-                    content = content[:18000] + "\n... (truncated)"
                 return f"@{path_str}\n```\n{content}\n```"
             except Exception:
                 pass
@@ -790,7 +803,7 @@ async def _repl(
                 for ag, result_text, is_error, _depth in spawned:
                     label = "ERROR" if is_error else "DONE"
                     prefix = "  " + ("  " * _depth)
-                    summary = result_text[:200].replace("\n", " ")
+                    summary = result_text.replace("\n", " ")
                     if is_error:
                         console.print(f"{prefix}[magenta]{ag}: {label}[/magenta] — {summary}")
                     else:
@@ -821,7 +834,7 @@ async def _repl(
                             st = _read_status(ag_name)
                             state = st.get("state", "?") if st else "?"
                             if state != prev_state and state in ("running",):
-                                summary = (st.get("task_summary", "") or "")[:60]
+                                summary = (st.get("task_summary", "") or "")
                                 console.print(f"  [dim]{ag_name}: {state}[/dim] {summary}")
                                 pending_agents[ag_name] = state
                             task_path = settings.agents_dir / ag_name / "TASK.MD"
@@ -835,7 +848,7 @@ async def _repl(
                                     )
                                     result = result_text.group(1).strip() if result_text else "(no result)"
                                     label = "ERROR" if fm["status"] == "error" else "DONE"
-                                    summary = result[:200].replace("\n", " ")
+                                    summary = result.replace("\n", " ")
                                     if fm["status"] == "error":
                                         console.print(f"  [magenta]{ag_name}: {label}[/magenta] — {summary}")
                                     else:
@@ -1204,6 +1217,53 @@ def deep_amnesia():
     typer.echo(f"Done. Cleared {cleared_count} file(s) across all agents.")
 
 
+@app.command("session-clear")
+def session_clear(
+    full: bool = typer.Option(False, "--full", "-f", help="Also clear notification queue and spawn registry"),
+):
+    """Clear all UI sessions and optionally the notification queue."""
+    import shutil
+    from pathlib import Path
+
+    sessions_dir = settings.project_root / "data" / "sessions"
+    queue_path = settings.project_root / "data" / "notification_queue.json"
+    trace_path = settings.project_root / "data" / "notification_trace.jsonl"
+    registry_path = settings.project_root / "data" / "spawn_registry.json"
+
+    count = 0
+
+    if sessions_dir.exists():
+        entries = list(sessions_dir.iterdir())
+        for d in entries:
+            if d.is_dir():
+                shutil.rmtree(d)
+                count += 1
+            elif d.is_file():
+                d.unlink()
+                count += 1
+
+    typer.echo(f"Cleared {count} session(s) from {sessions_dir}")
+
+    if full:
+        for p, label in [(queue_path, "notification queue"), (trace_path, "notification trace"), (registry_path, "spawn registry")]:
+            if p.exists():
+                if p.suffix == ".json":
+                    p.write_text("{}" if "registry" in p.name else "[]")
+                else:
+                    p.write_text("")
+                typer.echo(f"Cleared {label}: {p}")
+        typer.echo("Full reset complete.")
+
+    # Also clear CLI session store (app/agents/master/sessions/*.jsonl)
+    cli_sessions_dir = settings.agents_dir / "master" / "sessions"
+    if cli_sessions_dir.exists():
+        cli_count = 0
+        for f in cli_sessions_dir.glob("*.jsonl"):
+            f.unlink()
+            cli_count += 1
+        typer.echo(f"Cleared {cli_count} CLI session(s) from {cli_sessions_dir}")
+
+
 # -- Agents sub-commands -------------------------------------------------------
 
 @agents_app.command("list")
@@ -1251,7 +1311,7 @@ def agents_status(name: str = typer.Argument(..., help="Agent name")):
 @agents_app.command("model")
 def agents_model(name: str = typer.Argument(..., help="Agent name")):
     """View or change the model for a specific agent."""
-    config_path = settings.agents_dir / name / "CONFIG.md"
+    config_path = settings.agents_dir / name / "CONFIG.yaml"
     if not config_path.parent.exists():
         console.print(f"[magenta]Agent '{name}' not found[/magenta]")
         raise typer.Exit(1)
@@ -1290,7 +1350,7 @@ def agents_model(name: str = typer.Argument(..., help="Agent name")):
     if not model:
         raise typer.Exit()
 
-    # Update CONFIG.md
+    # Update CONFIG.yaml
     import re as _config_re
 
     if content.strip():
@@ -1412,6 +1472,23 @@ def cron_status():
         ping = PingAgentTool()
         result = await ping.execute(agent_name="cron")
         console.print(result)
+
+    asyncio.run(_run())
+
+
+@doctor_app.command("run")
+def doctor_run():
+    """Trigger the doctor agent to run a full health check."""
+    import asyncio
+    from app.utils.tools.delegation import SpawnAgentTool
+
+    async def _run():
+        spawn = SpawnAgentTool()
+        result = await spawn.execute(
+            agent_name="doctor",
+            task="run-health-check: Execute a full health check of all agents and report findings.",
+        )
+        console.print(f"[yellow]{result}[/yellow]")
 
     asyncio.run(_run())
 

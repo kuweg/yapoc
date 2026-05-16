@@ -63,7 +63,7 @@ Used by:
 
 ## parse_config_block(content) -> dict
 Dual-format YAML parser. Handles both:
-- Bare YAML (CONFIG.md format)
+- Bare YAML (CONFIG.yaml format)
 - `[config]` block inside NOTES.MD (legacy)
 
 Returns flat `dict[str, str]`.

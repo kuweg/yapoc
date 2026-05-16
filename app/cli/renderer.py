@@ -147,7 +147,7 @@ def _make_toolbar(poll_state: AgentPollState):
         parts = []
         for name, data in sorted(active.items()):
             state = _STATE_LABELS.get(data.get("state", ""), "?")
-            summary = (data.get("task_summary", "") or "")[:40]
+            summary = (data.get("task_summary", "") or "")
             if summary:
                 parts.append(f"{name}:{state}  {summary}")
             else:
@@ -184,7 +184,7 @@ def _format_tool_input(inp: dict) -> str:
     parts = [f"{k}={v!r}" for k, v in inp.items()]
     preview = ", ".join(parts)
     if len(preview) > 80:
-        preview = preview[:77] + "..."
+            preview = preview
     return preview
 
 
@@ -346,12 +346,9 @@ class TurnRenderer:
         agent_name = self._current_tool_input.get("agent_name", "")
 
         if is_delegation:
-            # Store full result for delegation tools — no truncation
             stored = result
         else:
-            stored = result[:120].replace("\n", " ")
-            if len(result) > 120:
-                stored += "..."
+            stored = result.replace("\n", " ")
 
         self._completed_tools.append(_CompletedTool(
             name=name, result=stored, is_error=is_error,
@@ -482,7 +479,7 @@ class TurnRenderer:
             table.add_row(
                 Text(name, style="bold"),
                 Text(state, style=style),
-                Text(summary[:60], style="dim"),
+                Text(summary, style="dim"),
             )
 
         if overflow > 0:
@@ -557,7 +554,7 @@ class TurnRenderer:
                     sub = _read_agent_status(agent_name)
                     if sub:
                         state = sub.get("state", "?")
-                        summary = sub.get("task_summary", "")[:50]
+                        summary = sub.get("task_summary", "")
                         if summary:
                             status = f"Waiting for {agent_name} [{state}]: {summary}…"
                         else:

@@ -162,6 +162,11 @@ class NotificationPoller:
             if status not in _TERMINAL_STATUSES:
                 continue
 
+            # Skip tasks already marked consumed (post-restart re-detection guard)
+            consumed_at = fm.get("consumed_at", "")
+            if consumed_at:
+                continue
+
             completed_at = str(fm.get("completed_at", ""))
             task_id = str(fm.get("task_id", ""))
             dedup_marker = completed_at or task_id or status

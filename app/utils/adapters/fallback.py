@@ -150,7 +150,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     "[fallback] %s failed (%s: %s) — trying next",
                     self._describe(idx),
                     exc.__class__.__name__,
-                    str(exc)[:200],
+                    str(exc),
                 )
                 last_exc = exc
                 continue
@@ -274,7 +274,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     "[fallback] %s stream_with_tools init failed (%s: %s) — next",
                     self._describe(idx),
                     exc.__class__.__name__,
-                    str(exc)[:200],
+                    str(exc),
                 )
                 last_exc = exc
                 continue

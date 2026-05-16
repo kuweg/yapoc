@@ -52,7 +52,10 @@ export default function App() {
   // Single render tree — all tabs stay mounted; inactive tabs are hidden via display:none
   // This preserves React state (e.g. ChatPanel input) across tab switches.
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
+    <div
+      className="flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden"
+      style={{ height: '100dvh', minHeight: '100dvh' }}
+    >
 
       {/* ── Chat tab header (only visible when chat is active) ── */}
       {tab === 'chat' ? (
@@ -67,12 +70,12 @@ export default function App() {
             <NavButton id="vault" label="Vault" />
           </div>
 
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             {sessions.length > 0 && (
               <select
                 value={activeId ?? ''}
                 onChange={(e) => loadSession(e.target.value)}
-                className="bg-zinc-800 text-zinc-200 text-xs px-2 py-1 border border-zinc-700 focus:outline-none max-w-[240px] truncate font-mono"
+                className="bg-zinc-800 text-zinc-200 text-xs px-2 py-1 border border-zinc-700 focus:outline-none max-w-[240px] min-w-0 truncate font-mono"
               >
                 {sessions.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -101,10 +104,10 @@ export default function App() {
       {/* ── Chat tab content — always mounted, hidden when inactive ── */}
       <div
         className="flex flex-1 overflow-hidden"
-        style={{ display: tab === 'chat' ? 'flex' : 'none' }}
+        style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
         <AgentSidebar />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden" style={{ minWidth: 0 }}>
           <ChatPanel />
         </main>
       </div>
@@ -112,7 +115,7 @@ export default function App() {
       {/* ── Agents tab ── */}
       <div
         className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'agents' ? 'flex' : 'none' }}
+        style={{ display: tab === 'agents' ? 'flex' : 'none', minHeight: 0 }}
       >
         <AgentDashboard />
       </div>
@@ -120,7 +123,7 @@ export default function App() {
       {/* ── Memory Graph tab ── */}
       <div
         className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'graph' ? 'flex' : 'none' }}
+        style={{ display: tab === 'graph' ? 'flex' : 'none', minHeight: 0 }}
       >
         <MemoryGraphTab />
       </div>
@@ -128,7 +131,7 @@ export default function App() {
       {/* ── Vault tab ── */}
       <div
         className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'vault' ? 'flex' : 'none' }}
+        style={{ display: tab === 'vault' ? 'flex' : 'none', minHeight: 0 }}
       >
         <VaultTab />
       </div>

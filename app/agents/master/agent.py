@@ -70,7 +70,7 @@ class MasterAgent(BaseAgent):
             previous_session_id = self._session_id
             if session_id is not None:
                 self._session_id = session_id
-            self._write_status("running", task_summary=task[:120])
+            self._write_status("running", task_summary=task)
             try:
                 await self.set_task(task)
                 return await self.run(history=history)
@@ -109,12 +109,19 @@ class MasterAgent(BaseAgent):
                 filter(None, [source_line, notifications_context])
             )
 
-            self._write_status("running", task_summary=task[:120])
+            self._write_status("running", task_summary=task)
             try:
                 await self.set_task(task)
+                # Block destructive tools during notification processing
+                _blocked = (
+                    {"server_restart", "process_restart", "spawn_agent", "kill_agent", "shell_exec"}
+                    if source == "notification"
+                    else None
+                )
                 async for event in self.run_stream_with_tools(
                     history=history,
                     notifications_context=combined_context,
+                    blocked_tools=_blocked,
                 ):
                     yield event
             finally:

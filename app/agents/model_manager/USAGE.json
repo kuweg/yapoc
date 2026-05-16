@@ -1,10 +1,10 @@
 {
-  "total_input_tokens": 66388,
-  "total_output_tokens": 33258,
+  "total_input_tokens": 111003,
+  "total_output_tokens": 37094,
   "total_cache_creation_tokens": 105070,
   "total_cache_read_tokens": 421878,
-  "total_tool_calls": 171,
-  "total_turns": 60,
+  "total_tool_calls": 209,
+  "total_turns": 68,
   "total_cost_usd": 0.329305,
   "by_model": {
     "claude-haiku-4-5-20251001": {
@@ -17,14 +17,14 @@
       "tool_calls": 120
     },
     "gpt-5.4-nano": {
-      "input_tokens": 53231,
-      "output_tokens": 4689,
+      "input_tokens": 97846,
+      "output_tokens": 8525,
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
       "cost_usd": 0.0,
-      "turns": 11,
-      "tool_calls": 51
+      "turns": 19,
+      "tool_calls": 89
     }
   },
-  "last_updated": "2026-05-13T11:56:34Z"
+  "last_updated": "2026-05-14T18:19:36Z"
 }

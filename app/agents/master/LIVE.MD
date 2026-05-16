@@ -1,0 +1,34 @@
+
+[thinking...]
+
+[tool:start] read_task_result {'agent_name': 'librarian'}
+
+[tool:done] read_task_result I'll read the agent-settings file now.  <update_status>status: running</update_status>
+
+[thinking...]
+
+[tool:start] read_agent_logs {'agent_name': 'librarian', 'file': 'CRASH.MD'}
+
+[tool:start] read_agent_logs {'agent_name': 'librarian', 'file': 'OUTPUT.MD', 'tail_lines': 50}
+
+[tool:done] read_agent_logs [empty] librarian/CRASH.MD does not exist yet
+
+[tool:done] read_agent_logs [showing last 50 of 55 lines] [32m2026-05-16 00:21:48[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=50 status=done [32m2026-05-16 00:21:48[0m [1m[INFO ][0m [librarian ] Redis inbox: task_assign — running task (137 chars) [32m2026-05-16 00:21:48[0m [1m[INFO ][0m [librarian ] Turn 0 start | model=deepseek-chat est_tokens=137 [32m2026-05-16 00:21:49[0m [1m[INFO ][0m [librarian ] Usage turn=0 | in=926 out=60 cache_r=0 cache_w=0 tps=54.5 cost=$0.000316 [32m2026-05-16 00:21:49[0m [1m[INFO ][0m [librarian ] Task done | turns=1 response_chars=220 [32m2026-05-16 00:21:49[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=108 status=done [32m2026-05-16 00:24:06[0m [1m[INFO ][0m [librarian ] Redis inbox: prepare_shutdown acknowledged — TASK.MD preserved [32m2026-05-16 00:25:27[0m [1m[INFO ][0m [message_bus] RedisBus connected to redis://localhost:6379 [32m2026-05-16 00:25:27[0m [1m[INFO ][0m [librarian ] Claimed 2 pending message(s) from previous instance [32m2026-05-16 00:25:27[0m [1m[INFO ][0m [librarian ] Redis inbox: task_assign — running task (223 chars) [32m2026-05-16 00:25:27[0m [1m[INFO ][0m [librarian ] Turn 0 start | model=deepseek-v4-pro est_tokens=115 [32m2026-05-16 00:25:32[0m [1m[INFO ][0m [librarian ] Usage turn=0 | in=998 out=122 cache_r=0 cache_w=0 tps=24.4 cost=$0.002972 [32m2026-05-16 00:25:32[0m [1m[INFO ][0m [librarian ] Task done | turns=1 response_chars=134 [32m2026-05-16 00:25:33[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=134 status=done [32m2026-05-16 00:25:33[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=32 status=error [32m2026-05-16 00:25:33[0m [1m[INFO ][0m [librarian ] Redis inbox ready (stream=agent:librarian:inbox, consumer=librarian_259320)  --- librarian exited (code 0) at 2026-05-16 00:25:33 --- [32m2026-05-16 00:30:36[0m [1m[INFO ][0m [message_bus] RedisBus connected to redis://localhost:6379 [32m2026-05-16 00:30:36[0m [1m[INFO ][0m [librarian ] Redis inbox ready (stream=agent:librarian:inbox, consumer=librarian_265405) [32m2026-05-16 00:30:36[0m [1m[INFO ][0m [librarian ] Turn 0 start | model=deepseek-v4-pro est_tokens=142 [32m2026-05-16 00:30:43[0m [1m[INFO ][0m [librarian ] Usage turn=0 | in=1151 out=126 cache_r=0 cache_w=0 tps=19.9 cost=$0.003310 [32m2026-05-16 00:30:43[0m [1m[INFO ][0m [librarian ] Task done | turns=1 response_chars=225 [32m2026-05-16 00:30:43[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=225 status=done [32m2026-05-16 00:30:43[0m [1m[INFO ][0m [librarian ] Redis inbox: task_assign — running task (180 chars) [32m2026-05-16 00:30:43[0m [1m[INFO ][0m [librarian ] Turn 0 start | model=deepseek-v4-pro est_tokens=207 [32m2026-05-16 00:30:59[0m [1m[INFO ][0m [librarian ] Usage turn=0 | in=1375 out=480 cache_r=0 cache_w=0 tps=30.1 cost=$0.006590 [32m2026-05-16 00:30:59[0m [1m[INFO ][0m [librarian ] Task done | turns=1 response_chars=221 [32m2026-05-16 00:30:59[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=221 status=done  --- librarian exited (code 0) at 2026-05-16 00:31:07 --- [32m2026-05-16 00:45:44[0m [1m[INFO ][0m [message_bus] RedisBus connected to redis://localhost:6379 [32m2026-05-16 00:45:44[0m [1m[INFO ][0m [librarian ] Claimed 2 pending message(s) from previous instance [32m2026-05-16 00:45:44[0m [1m[INFO ][0m [librarian ] Redis inbox: task_assign — running task (108 chars) [32m2026-05-16 00:45:44[0m [1m[INFO ][0m [librarian ] Turn 0 start | model=deepseek-v4-pro est_tokens=155 [32m2026-05-16 00:45:49[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=6 status=error [32m2026-05-16 00:45:51[0m [1m[INFO ][0m [librarian ] Usage turn=0 | in=1425 out=156 cache_r=0 cache_w=0 tps=22.2 cost=$0.004098 [32m2026-05-16 00:45:51[0m [1m[INFO ][0m [librarian ] Task done | turns=1 response_chars=144 [32m2026-05-16 00:45:51[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=144 status=done [32m2026-05-16 00:45:51[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=32 status=error [32m2026-05-16 00:45:51[0m [1m[INFO ][0m [librarian ] Redis inbox ready (stream=agent:librarian:inbox, consumer=librarian_280753)  --- librarian exited (code 0) at 2026-05-16 00:45:51 --- [32m2026-05-16 02:00:24[0m [1m[INFO ][0m [message_bus] RedisBus connected to redis://localhost:6379 [32m2026-05-16 02:00:24[0m [1m[INFO ][0m [librarian ] Redis inbox ready (stream=agent:librarian:inbox, consumer=librarian_336554) [32m2026-05-16 02:00:24[0m [1m[INFO ][0m [librarian ] Turn 0 start | model=deepseek-v4-pro est_tokens=158 [32m2026-05-16 02:01:26[0m [1m[INFO ][0m [librarian ] Usage turn=0 | in=1592 out=72 cache_r=0 cache_w=0 tps=1.2 cost=$0.003760 [32m2026-05-16 02:01:26[0m [1m[INFO ][0m [librarian ] Task done | turns=1 response_chars=86 [32m2026-05-16 02:01:26[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=86 status=done [32m2026-05-16 02:01:26[0m [1m[INFO ][0m [librarian ] Redis notify: parent=master result_len=32 status=error
+
+[thinking...]
+
+[thinking...]
+
+[thinking...]
+## Librarian Result Summary
+
+The **most recent librarian run** (at 02:01 UTC) still suffers from the **same raw XML tool-call bug**:
+
+- **Status:** `done` (completed 1 turn)
+- **Model:** `deepseek-v4-pro`
+- **Cost:** ~$0.0038 (1,592 tokens in, 72 out)
+- **Output:** Instead of reading the file it was asked to, the librarian emitted raw XML tags — `<update_status>status: running</update_status>` — as plain text in its response, rather than actually invoking `file_read`.
+
+**Bottom line:** The DeepSeek adapter fix from the builder task hasn't fully resolved the issue for the librarian's `deepseek-v4-pro` model. It's still outputting tool-call syntax as text instead of executing the tools. This is the same pattern we've seen across multiple runs.
+
+No new spawns or restarts needed — just surfacing the ongoing state. The librarian needs further adapter work before it can function correctly.

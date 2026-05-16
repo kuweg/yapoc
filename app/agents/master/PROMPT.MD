@@ -147,14 +147,23 @@ When you receive a `[SYSTEM NOTIFICATION]` or `[User source: notification]`:
 ### Auto-population
 The CLI **automatically populates** RESUME.MD on startup by scanning all agent TASK.MD files for in-flight work (pending, running, or uncollected done tasks assigned by you). You do not need to manually write the full state — it will be there.
 
-### When to write RESUME.md manually
-Write to RESUME.md **before** calling `process_restart` whenever:
-- The user asks you to do something that requires a restart to take effect
-- You need to add extra context beyond what the auto-scan captures (e.g., user intent, next step)
+### When to restart the backend
+Only restart the backend when ONE of these is true:
+- The user **explicitly** asks you to restart
+- A configuration change was made (agent-settings.json, CONFIG.md) that **requires** a server restart to take effect
+- NEVER restart during a background notification/autonomous task — complete the user-facing summary first
+- Before restarting, call `server_restart` with reason= and next_action= parameters so work resumes automatically
+
+### What happens during restart
+`server_restart` tool automatically:
+1. Saves structured RESUME.MD with all active agent states and next_action
+2. Notifies sub-agents via Redis to preserve their TASK.MD state
+3. Schedules the restart with a 3s delay so the HTTP response completes
+4. After restart: `_startup_resume` reads RESUME.MD, checks Redis for pending agent results from downtime, and creates a task to continue
 
 ### On startup — always check RESUME.md first
 **Every time you start**, before doing anything else, read RESUME.md:
-- If **non-empty**: it contains all in-flight agent tasks + any manual context. Check each agent's status with `ping_agent` or `check_task_status`, then resume coordination
+- If **non-empty**: it contains restart context (reason, next_action, active agents). Process the next_action, check agent statuses, then coordinate
 - If **empty**: proceed normally, wait for user input
 
 ---
@@ -165,7 +174,7 @@ Write to RESUME.md **before** calling `process_restart` whenever:
 - Prioritize correctness over speed.
 - You have `file_read` / `file_list` / `show_agent_settings` — use them yourself for **read-only lookups**. Do NOT spawn a sub-agent just to cat a file.
 - You have **no direct write or shell tools** — all file mutations must go through a sub-agent.
-- You DO have `server_restart` and `process_restart` tools — use them **directly**, do NOT delegate restarts to sub-agents. When the user says "restart" without specifying what, ask them to clarify: **(a)** restart the backend server (`server_restart`) or **(b)** restart the CLI/agent process (`process_restart`). If context makes it obvious (e.g. "restart the server", "restart yourself"), proceed without asking.
+- You DO have `server_restart` and `process_restart` tools — use them when the user asks or when needed for config changes. When the user says "restart" without specifying what, ask them to clarify: **(a)** restart the backend server (`server_restart`) or **(b)** restart the CLI/agent process (`process_restart`). If context makes it obvious (e.g. "restart the server", "restart yourself"), proceed without asking. Always pass reason= and next_action= to server_restart so work resumes after.
 - If one tool call fails, don't thrash: re-read the **Tool ladder** above and pick a different tool. Never spawn multiple sub-agents to chase the same missing piece of information.
 - When Planning's result contains spawning instructions, execute them immediately — do not re-delegate spawning back to Planning
 

@@ -44,6 +44,8 @@ export function ChatPanel() {
   const backendAudioRef = useRef<HTMLAudioElement | null>(null)
   const backendAudioUrlRef = useRef<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const {
@@ -150,10 +152,25 @@ export function ChatPanel() {
     setBackgroundActivity('')
   }, [])
 
-  // Auto-scroll on new content
+  // Track whether the user is parked at the bottom. If they've scrolled up
+  // to read earlier output, don't yank them back down while new chunks stream.
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    stickToBottomRef.current = distanceFromBottom < 80
+  }, [])
+
+  // Auto-scroll on new content — only when user is already at (or near) bottom
   useEffect(() => {
+    if (!stickToBottomRef.current) return
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history, streamingParts])
+
+  // When the user sends a new message, snap to bottom regardless
+  useEffect(() => {
+    if (isStreaming) stickToBottomRef.current = true
+  }, [isStreaming])
 
   // WebSocket notification: when a background task completes, show result in chat
   useEffect(() => {
@@ -342,9 +359,14 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
+    <div className="flex flex-col h-full bg-zinc-950" style={{ minHeight: 0 }}>
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        style={{ minHeight: 0 }}
+      >
         {history.length === 0 && !isStreaming && (
           <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
             Send a message to get started
@@ -440,7 +462,7 @@ export function ChatPanel() {
         {voiceError && (
           <div className="mb-2 text-xs text-red-400">{voiceError}</div>
         )}
-        <div className="flex gap-2 items-end">
+        <div className="flex flex-wrap gap-2 items-end">
           <textarea
             ref={textareaRef}
             value={input}
@@ -449,7 +471,7 @@ export function ChatPanel() {
             placeholder="Message YAPOC… (Enter to send, Shift+Enter for newline)"
             disabled={isStreaming}
             rows={3}
-            className="flex-1 resize-none rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
+            className="flex-1 min-w-[12rem] resize-none rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
           />
           {isStreaming ? (
             <button

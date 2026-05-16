@@ -12,9 +12,7 @@ import aiofiles
 from app.config import settings
 from app.utils.secrets import scrub_pii
 
-from . import BaseTool, TOOL_OUTPUT_CHAR_CAP, truncate_tool_output
-
-_MAX_READ_CHARS = 18000
+from . import BaseTool, truncate_tool_output
 
 # Protected file patterns that FileDeleteTool refuses to remove
 _PROTECTED_NAMES = {".env", ".git", ".gitignore"}
@@ -24,7 +22,7 @@ _PROTECTED_AGENT_FILES = {
     "MEMORY.MD",
     "NOTES.MD",
     "HEALTH.MD",
-    "CONFIG.md",
+    "CONFIG.yaml",
 }
 
 
@@ -40,7 +38,7 @@ def _sandbox(path_str: str) -> Path:
 class FileReadTool(BaseTool):
     name = "file_read"
     description = (
-        "Read a file relative to the project root. Content is truncated at 8000 chars."
+        "Read a file relative to the project root. Returns full file content."
     )
     input_schema: dict[str, Any] = {
         "type": "object",
@@ -66,12 +64,10 @@ class FileReadTool(BaseTool):
 
         try:
             async with aiofiles.open(resolved, encoding="utf-8") as f:
-                content = await f.read(_MAX_READ_CHARS + 1)
+                content = await f.read()
         except Exception as exc:
             return f"ERROR: {exc}"
 
-        if len(content) > _MAX_READ_CHARS:
-            return content[:_MAX_READ_CHARS] + "\n... (truncated)"
         return content
 
 
@@ -131,12 +127,6 @@ class FileListTool(BaseTool):
 
         if not entries:
             return "(empty directory)"
-
-        # Truncate if too many entries
-        if len(entries) > 200:
-            remaining = len(entries) - 200
-            entries = entries[:200]
-            entries.append(f"... ({remaining} more entries)")
 
         return "\n".join(entries)
 

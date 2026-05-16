@@ -83,55 +83,14 @@ def format_timestamp(dt: datetime | None, format: str = "iso") -> str | float:
 
 def truncate_text(
     text: str | None,
-    max_length: int,
+    max_length: int = 0,
     suffix: str = "...",
 ) -> str | None:
-    """Truncate *text* to at most *max_length* characters.
+    """No-op pass-through. All truncation caps have been removed.
 
-    If truncation is required the result ends with *suffix* and the total
-    length (including the suffix) does not exceed *max_length*.
-
-    Parameters
-    ----------
-    text:
-        The string to truncate.  If ``None``, ``None`` is returned immediately.
-    max_length:
-        Maximum number of characters in the returned string (including the
-        suffix when truncation occurs).  If ``<= 0``, an empty string is
-        returned.
-    suffix:
-        String appended when truncation occurs (default: ``"..."``).
-
-    Returns
-    -------
-    str | None
-        - ``None`` if *text* is ``None``.
-        - ``""`` if *max_length* ``<= 0``.
-        - *text* unchanged if ``len(text) <= max_length``.
-        - Truncated string otherwise.
-
-    Examples
-    --------
-    >>> truncate_text("Hello, world!", 8)
-    'Hello...'
-    >>> truncate_text("Hi", 10)
-    'Hi'
-    >>> truncate_text(None, 10) is None
-    True
+    Returns *text* unchanged (or ``None`` for ``None`` input).
     """
-    if text is None:
-        return None
-
-    if max_length <= 0:
-        return ""
-
-    if len(text) <= max_length:
-        return text
-
-    # Clamp cut point to 0 so a very short max_length never produces a
-    # negative slice index (e.g. max_length=1, suffix="...").
-    cut = max(0, max_length - len(suffix))
-    return text[:cut] + suffix
+    return text
 
 
 # ---------------------------------------------------------------------------

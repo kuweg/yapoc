@@ -1,0 +1,412 @@
+[
+  {
+    "task_id": "librarian:2026-05-15T17:20:42Z",
+    "description": "Explore the project structure and provide a concise summary of what this project is, its key directories, and how the main components fit together. Focus on: (1) the overall architecture, (2) key dire",
+    "agent_name": "librarian",
+    "tokens_in": 792,
+    "tokens_out": 193,
+    "cost_usd": 0.00042614,
+    "timestamp": "2026-05-15T17:20:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T17:20:56Z",
+    "description": "Read the following files and create a concise project overview. Save it to app/projects/project_overview.md.",
+    "agent_name": "librarian",
+    "tokens_in": 946,
+    "tokens_out": 168,
+    "cost_usd": 0.00044022,
+    "timestamp": "2026-05-15T17:20:56Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T17:24:08Z",
+    "description": "Read and summarize the file app/agents/master/MEMORY.MD. Save the summary to app/agents/librarian/summaries/master-memory-summary.md. Then output the summary as your final result.",
+    "agent_name": "librarian",
+    "tokens_in": 977,
+    "tokens_out": 68,
+    "cost_usd": 0.00033859,
+    "timestamp": "2026-05-15T17:24:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T17:24:09Z",
+    "description": "Read and summarize the file app/agents/master/MEMORY.MD. Save the summary to app/agents/librarian/summaries/master-memory-summary.md. Then output the summary as your final result.",
+    "agent_name": "librarian",
+    "tokens_in": 1172,
+    "tokens_out": 51,
+    "cost_usd": 0.00037254,
+    "timestamp": "2026-05-15T17:24:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T21:45:02Z",
+    "description": "Read the file app/agents/master/MEMORY.MD and write a 3-sentence summary of what the Master agent has been working on recently. Save the summary to app/projects/librarian_test_summary.md",
+    "agent_name": "librarian",
+    "tokens_in": 1414,
+    "tokens_out": 68,
+    "cost_usd": 0.00045658,
+    "timestamp": "2026-05-15T21:45:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:01:42Z",
+    "description": "Read the file `app/config/agent-settings.json` and write a summary at `app/agents/librarian/summary_test.md` containing: the first agent's name and model, and the second agent's name and model. Format it as plain text only.",
+    "agent_name": "librarian",
+    "tokens_in": 841,
+    "tokens_out": 53,
+    "cost_usd": 0.00028537,
+    "timestamp": "2026-05-15T22:01:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:21:48Z",
+    "description": "Read app/agents/master/MEMORY.MD and create a summary of the recent activity. Save the summary to app/projects/librarian_test_summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 800,
+    "tokens_out": 44,
+    "cost_usd": 0.0002644,
+    "timestamp": "2026-05-15T22:21:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:21:49Z",
+    "description": "Read app/agents/master/MEMORY.MD and create a summary of the recent activity. Save the summary to app/projects/librarian_test_summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 926,
+    "tokens_out": 60,
+    "cost_usd": 0.00031602,
+    "timestamp": "2026-05-15T22:21:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:25:32Z",
+    "description": "Read app/agents/master/MEMORY.MD and create a 3-bullet summary saved to app/agents/librarian/summary_test.md",
+    "agent_name": "librarian",
+    "tokens_in": 998,
+    "tokens_out": 122,
+    "cost_usd": 0.002972,
+    "timestamp": "2026-05-15T22:25:32Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:30:43Z",
+    "description": "Read the file at app/config/agent-settings.json and provide a summary of what each agent is configured to use (model + adapter). Save the summary to /tmp/librarian_test_summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 1151,
+    "tokens_out": 126,
+    "cost_usd": 0.00331,
+    "timestamp": "2026-05-15T22:30:43Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:30:59Z",
+    "description": "Read the file at app/config/agent-settings.json and provide a summary of what each agent is configured to use (model + adapter). Save the summary to /tmp/librarian_test_summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 1375,
+    "tokens_out": 480,
+    "cost_usd": 0.00659,
+    "timestamp": "2026-05-15T22:30:59Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-15T22:45:51Z",
+    "description": "Read the file app/agents/master/RESUME.MD and write a one-paragraph summary explaining what happened before the restart and what the next action is. Save your summary to a new file at app/agents/librarian/resume-test-output.md.",
+    "agent_name": "librarian",
+    "tokens_in": 1425,
+    "tokens_out": 156,
+    "cost_usd": 0.004098,
+    "timestamp": "2026-05-15T22:45:51Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:01:26Z",
+    "description": "Read the file app/config/agent-settings.json and provide a concise summary of what you find. List each agent's primary model and adapter. Keep it to 3-4 sentences.",
+    "agent_name": "librarian",
+    "tokens_in": 1592,
+    "tokens_out": 72,
+    "cost_usd": 0.00376,
+    "timestamp": "2026-05-16T00:01:26Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:02:20Z",
+    "description": "Read the file app/agents/master/MEMORY.MD and provide a concise summary of what the master agent has been working on recently. Focus on the last 5-10 entries.",
+    "agent_name": "librarian",
+    "tokens_in": 1686,
+    "tokens_out": 81,
+    "cost_usd": 0.00402,
+    "timestamp": "2026-05-16T00:02:20Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:04:35Z",
+    "description": "",
+    "agent_name": "librarian",
+    "tokens_in": 1832,
+    "tokens_out": 6421,
+    "cost_usd": 0.055032,
+    "timestamp": "2026-05-16T00:04:35Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:15:44Z",
+    "description": "Read the document at app/agents/librarian/test-doc.md and produce a concise summary of it. Save the summary to app/agents/librarian/summaries/yapoc-architecture-summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 1014,
+    "tokens_out": 27,
+    "cost_usd": 0.00030348,
+    "timestamp": "2026-05-16T00:15:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:15:46Z",
+    "description": "Read the document at app/agents/librarian/test-doc.md and produce a concise summary of it. Save the summary to app/agents/librarian/summaries/yapoc-architecture-summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 1167,
+    "tokens_out": 59,
+    "cost_usd": 0.00037999,
+    "timestamp": "2026-05-16T00:15:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:16:00Z",
+    "description": "I need you to: 1) Read the document at app/agents/librarian/test-doc.md 2) Write a concise summary to app/agents/librarian/summaries/yapoc-architecture-summary.md using file_write 3) Report the summary content as your result. Do NOT stop after reading — you MUST call file_write to save the summary.",
+    "agent_name": "librarian",
+    "tokens_in": 1304,
+    "tokens_out": 27,
+    "cost_usd": 0.00038178,
+    "timestamp": "2026-05-16T00:16:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:17:04Z",
+    "description": "Read the file at app/agents/librarian/test-doc.md and produce a summary.",
+    "agent_name": "librarian",
+    "tokens_in": 1536,
+    "tokens_out": 27,
+    "cost_usd": 0.00044442,
+    "timestamp": "2026-05-16T00:17:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:24:10Z",
+    "description": "Produce a 3-5 paragraph summary of the document at app/agents/librarian/test-doc.md and save it to app/agents/librarian/summaries/yapoc-history-summary.md.",
+    "agent_name": "librarian",
+    "tokens_in": 1708,
+    "tokens_out": 27,
+    "cost_usd": 0.00049086,
+    "timestamp": "2026-05-16T00:24:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:26:17Z",
+    "description": "Read the document at app/agents/librarian/test-doc.md and produce a written summary. Follow your PROMPT.MD workflow exactly: (1) Read the file, (2) Write summary to app/agents/librarian/summaries/test-summary.md, (3) Log to MEMORY.MD, (4) Output the full summary in your ## Result section.",
+    "agent_name": "librarian",
+    "tokens_in": 1802,
+    "tokens_out": 27,
+    "cost_usd": 0.00051624,
+    "timestamp": "2026-05-16T00:26:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:28:47Z",
+    "description": "Read the document at app/agents/librarian/test-doc.md and produce a written summary. Follow your PROMPT.MD workflow exactly: (1) Read the file with file_read, (2) Write the summary to app/agents/librarian/summaries/test-summary.md using file_write, (3) Log to MEMORY.MD with memory_append, (4) Output the full summary in your ## Result section as plain text.",
+    "agent_name": "librarian",
+    "tokens_in": 1921,
+    "tokens_out": 32,
+    "cost_usd": 0.00055387,
+    "timestamp": "2026-05-16T00:28:47Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:28:54Z",
+    "description": "Read the document at app/agents/librarian/test-doc.md and produce a written summary. Follow your PROMPT.MD workflow exactly: (1) Read the file with file_read, (2) Write the summary to app/agents/librarian/summaries/test-summary.md using file_write, (3) Log to MEMORY.MD with memory_append, (4) Output the full summary in your ## Result section as plain text.",
+    "agent_name": "librarian",
+    "tokens_in": 2079,
+    "tokens_out": 973,
+    "cost_usd": 0.00163163,
+    "timestamp": "2026-05-16T00:28:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:37:32Z",
+    "description": "Read the file at app/agents/librarian/test-doc.md and write a 3-5 paragraph summary to app/agents/librarian/summaries/yapoc-history-summary.md",
+    "agent_name": "librarian",
+    "tokens_in": 2244,
+    "tokens_out": 29,
+    "cost_usd": 0.00063778,
+    "timestamp": "2026-05-16T00:37:32Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:37:34Z",
+    "description": "Read the file at app/agents/librarian/test-doc.md and write a 3-5 paragraph summary to app/agents/librarian/summaries/yapoc-history-summary.md",
+    "agent_name": "librarian",
+    "tokens_in": 2413,
+    "tokens_out": 29,
+    "cost_usd": 0.00068341,
+    "timestamp": "2026-05-16T00:37:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:43:49Z",
+    "description": "Read your own PROMPT.MD file (path: app/agents/librarian/PROMPT.MD) and summarize it back to me in plain English — what is your role, what are your rules, and what is your workflow?",
+    "agent_name": "librarian",
+    "tokens_in": 2438,
+    "tokens_out": 241,
+    "cost_usd": 0.00092336,
+    "timestamp": "2026-05-16T00:43:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:45:30Z",
+    "description": "Read your own prompt at PROMPT.MD and output a 3-5 sentence summary of your role and workflow in the ## Result section.",
+    "agent_name": "librarian",
+    "tokens_in": 2517,
+    "tokens_out": 152,
+    "cost_usd": 0.00084679,
+    "timestamp": "2026-05-16T00:45:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:47:17Z",
+    "description": "Read app/agents/librarian/test-doc.md and produce a 3-5 paragraph summary covering YAPOC's history, architecture, agent roles, and communication protocol. Output the full summary text in your ## Result section — do NOT write to any files.",
+    "agent_name": "librarian",
+    "tokens_in": 2741,
+    "tokens_out": 576,
+    "cost_usd": 0.00137367,
+    "timestamp": "2026-05-16T00:47:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T00:47:21Z",
+    "description": "Read app/agents/librarian/test-doc.md and produce a 3-5 paragraph summary covering YAPOC's history, architecture, agent roles, and communication protocol. Output the full summary text in your ## Result section — do NOT write to any files.",
+    "agent_name": "librarian",
+    "tokens_in": 3507,
+    "tokens_out": 576,
+    "cost_usd": 0.00158049,
+    "timestamp": "2026-05-16T00:47:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:19Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 3834,
+    "tokens_out": 71,
+    "cost_usd": 0.00111328,
+    "timestamp": "2026-05-16T01:11:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:22Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 13429,
+    "tokens_out": 145,
+    "cost_usd": 0.00378533,
+    "timestamp": "2026-05-16T01:11:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:24Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 16266,
+    "tokens_out": 111,
+    "cost_usd": 0.00451392,
+    "timestamp": "2026-05-16T01:11:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:26Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 17293,
+    "tokens_out": 142,
+    "cost_usd": 0.00482531,
+    "timestamp": "2026-05-16T01:11:26Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:28Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 21472,
+    "tokens_out": 161,
+    "cost_usd": 0.00597454,
+    "timestamp": "2026-05-16T01:11:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:38Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 23003,
+    "tokens_out": 965,
+    "cost_usd": 0.00727231,
+    "timestamp": "2026-05-16T01:11:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:40Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 5029,
+    "tokens_out": 71,
+    "cost_usd": 0.00143593,
+    "timestamp": "2026-05-16T01:11:40Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:41Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 5183,
+    "tokens_out": 107,
+    "cost_usd": 0.00151711,
+    "timestamp": "2026-05-16T01:11:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:43Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 5364,
+    "tokens_out": 110,
+    "cost_usd": 0.00156928,
+    "timestamp": "2026-05-16T01:11:43Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:44Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 5540,
+    "tokens_out": 115,
+    "cost_usd": 0.0016223,
+    "timestamp": "2026-05-16T01:11:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:46Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 5899,
+    "tokens_out": 61,
+    "cost_usd": 0.00165983,
+    "timestamp": "2026-05-16T01:11:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T01:11:56Z",
+    "description": "Find a long document in the project (any .md file over 100 lines) and summarize it. Read the document, then output a comprehensive summary in your result. Do NOT write any files — just output the summary directly.",
+    "agent_name": "librarian",
+    "tokens_in": 9968,
+    "tokens_out": 1403,
+    "cost_usd": 0.00423466,
+    "timestamp": "2026-05-16T01:11:56Z",
+    "model_used": "deepseek-chat"
+  }
+]

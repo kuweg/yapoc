@@ -80,7 +80,7 @@ _AGENT_SETTINGS_PATH = settings.project_root / "app" / "config" / "agent-setting
 
 @router.put("/agents/{name}/config")
 async def update_agent_config(name: str, payload: ConfigUpdateRequest):
-    """Update adapter and model in both agent-settings.json (authoritative) and CONFIG.md."""
+    """Update adapter and model in both agent-settings.json (authoritative) and CONFIG.yaml."""
     agent_dir = AGENTS_DIR / name
     if not agent_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
@@ -121,10 +121,10 @@ async def update_agent_config(name: str, payload: ConfigUpdateRequest):
                 json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
             )
         except Exception:
-            pass  # Fall through to CONFIG.md update
+            pass  # Fall through to CONFIG.yaml update
 
-    # 2. Also update CONFIG.md (fallback source, keeps files in sync)
-    config_path = agent_dir / "CONFIG.md"
+    # 2. Also update CONFIG.yaml (fallback source, keeps files in sync)
+    config_path = agent_dir / "CONFIG.yaml"
     if config_path.exists():
         text = config_path.read_text(encoding="utf-8")
         text = re.sub(r"^adapter:\s*.*$", f"adapter: {payload.adapter}", text, count=1, flags=re.MULTILINE)

@@ -3,6 +3,7 @@ import json
 import os
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, models_router, notification_trace_router, stale_tasks_router, tasks_router, test_endpoint_router, vault_router, voice_router, webhook_router
 from app.backend.websocket import websocket_endpoint
+from app.backend.message_bus import bus
 from app.config import settings
 
 
@@ -164,15 +166,16 @@ async def _master_notification_watcher() -> None:
                         "[Auto-notification] Sub-agent task(s) just completed. "
                         "Read the sub-agent results via read_task_result if needed, "
                         "then write ONE short summary message for the user describing "
-                        "what was accomplished. Do NOT re-spawn agents, do NOT re-verify "
-                        "work that is already verified, and do NOT investigate beyond "
-                        "reading the result text. The chain has already finished — your "
-                        "only job here is to surface the outcome to the user."
+                        "what was accomplished. Do NOT spawn agents, do NOT restart servers, "
+                        "do NOT re-verify. Your only job: surface the outcome to the user."
                     ),
                     source="notification",
                     session_id=sid,
                 ):
                     pass  # events consumed; result written to RESULT.MD by BaseAgent
+
+                # Drain notification_queue so this session doesn't re-trigger
+                notification_queue.drain("master", session_id=sid)
 
                 # Push result to WebSocket: session_event for chat panel AND
                 # task_complete for downstream subscribers.
@@ -240,12 +243,157 @@ async def _master_notification_watcher() -> None:
             )
 
 
+async def _master_redis_watcher() -> None:
+    """Background task: read master's Redis inbox for child-agent results.
+
+    Child agents publish ``task_result`` to ``agent:master:inbox`` on
+    completion. Master has no AgentRunner, so this watcher fills that role
+    for Redis-delivered notifications.
+
+    Drains notification_queue after each session to prevent re-triggers.
+    """
+    from app.agents.master.agent import master_agent
+    from app.backend.message_bus import bus as _bus
+    from app.backend.websocket import ws_manager
+    from app.backend.services.notification_queue import notification_queue
+
+    inbox = "agent:master:inbox"
+    group = "master_group"
+    consumer = f"master_{os.getpid()}"
+    status_path = settings.agents_dir / "master" / "STATUS.json"
+
+    # Create consumer group (idempotent)
+    await _bus.stream_create_group(inbox, group)
+    # Claim + process any messages from a dead previous server instance
+    claimed = await _bus.stream_claim_pending(inbox, group, consumer)
+    if claimed:
+        logger.info("Redis master watcher: claimed {} pending messages", len(claimed))
+        for msg in claimed:
+            await _process_inbox_message(
+                msg, _bus, inbox, group, master_agent, ws_manager,
+                status_path, notification_queue,
+            )
+    await _bus.flush_outbox("master")
+
+    logger.info(
+        "Redis master watcher: reading {} (consumer={})",
+        inbox, consumer,
+    )
+
+    while True:
+        try:
+            msgs = await _bus.stream_read_group(inbox, group, consumer, block_ms=5000)
+            for msg in msgs:
+                await _process_inbox_message(
+                    msg, _bus, inbox, group, master_agent, ws_manager,
+                    status_path, notification_queue,
+                )
+        except Exception as _exc:
+            logger.warning(
+                "Redis master watcher iteration failed (will retry): {}", _exc
+            )
+            await asyncio.sleep(2)
+
+
+async def _process_inbox_message(
+    msg: dict,
+    _bus,
+    inbox: str,
+    group: str,
+    master_agent,
+    ws_manager,
+    status_path: Path,
+    notification_queue,
+) -> None:
+    """Process a single Redis inbox message for master."""
+    data = msg.get("data", {})
+    if not isinstance(data, dict):
+        return
+
+    msg_type = data.get("type", "")
+    msg_id = str(msg.get("id", ""))
+
+    if msg_type != "task_result":
+        await _bus.stream_ack(inbox, group, msg_id)
+        return
+
+    child_agent = str(data.get("child_agent", "unknown"))
+    child_status = str(data.get("status", "done"))
+    session_id = str(data.get("session_id", ""))
+
+    # Guard: don't interrupt a running master
+    try:
+        state = json.loads(status_path.read_text()).get("state", "")
+        if state == "running":
+            await _bus.stream_ack(inbox, group, msg_id)
+            return
+    except Exception:
+        pass
+
+    logger.info(
+        "Redis master watcher: {} ({}) sid={}",
+        child_agent, child_status, session_id[:8] if session_id else "<none>",
+    )
+
+    task_prompt = (
+        f"[Auto-notification via Redis] {child_agent} completed ({child_status}). "
+        "Read the sub-agent results via read_task_result if needed, "
+        "then write ONE short summary message for the user describing "
+        "what was accomplished. Do NOT re-spawn agents, do NOT re-verify "
+        "work that is already verified, and do NOT investigate beyond "
+        "reading the result text. The chain has already finished — your "
+        "only job here is to surface the outcome to the user."
+    )
+
+    try:
+        async for _ in master_agent.handle_task_stream(
+            task=task_prompt,
+            source="notification",
+            session_id=session_id or None,
+        ):
+            pass
+
+        # Drain notification_queue so the same session doesn't re-trigger
+        notification_queue.drain("master", session_id=session_id or None)
+
+        # Push result to WebSocket
+        result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+            encoding="utf-8", errors="replace"
+        ).strip()
+        if result_text:
+            if session_id:
+                await ws_manager.push_session_event(
+                    session_id,
+                    {"type": "notification_result", "text": result_text},
+                )
+                await ws_manager.push_event("task_complete", {
+                    "session_id": session_id,
+                    "text": result_text,
+                    "source": "notification",
+                    "agent": "master",
+                })
+            else:
+                await ws_manager.push_event(
+                    "notification_result",
+                    {"text": result_text, "session_id": ""},
+                )
+            logger.info(
+                "Redis master watcher: pushed result to session={} ({} chars)",
+                (session_id or "<none>")[:8], len(result_text),
+            )
+    except Exception as _proc_exc:
+        logger.warning("Redis master watcher: processing failed: {}", _proc_exc)
+
+    # ACK after successful processing (or best-effort on error)
+    await _bus.stream_ack(inbox, group, msg_id)
+
+
 async def _startup_resume() -> None:
     """Resume interrupted work after server restart.
 
-    Reads master/RESUME.MD for incomplete tasks and master/GOALS.MD for
-    active goals. Creates task_queue entries so the dispatcher picks them up.
-    Called via loop.call_later(5, ...) to let agents stabilize first.
+    Reads master/RESUME.MD for restart context, checks Redis for pending
+    task_result messages from agents that completed during downtime, and
+    creates task_queue entries for the dispatcher.
     """
     import uuid
     from app.utils.db import create_queued_task, get_tasks_by_status
@@ -253,37 +401,86 @@ async def _startup_resume() -> None:
 
     resumed = 0
 
-    # 1. Check RESUME.MD for incomplete tasks
+    # 1. Check RESUME.MD for restart context
     resume_path = settings.agents_dir / "master" / "RESUME.MD"
+    next_action = ""
+    resume_session_id = ""
     if resume_path.exists():
         content = resume_path.read_text(encoding="utf-8").strip()
         if content:
-            # Each non-empty, non-heading line that looks like a task gets queued
-            lines = [
-                line.strip()
-                for line in content.splitlines()
-                if line.strip()
-                and not line.strip().startswith("#")
-                and not line.strip().startswith("---")
-            ]
-            for line in lines:
-                # Strip markdown list markers
-                task_text = re.sub(r"^[-*]\s*(\[.\]\s*)?", "", line).strip()
-                if not task_text or len(task_text) < 5:
-                    continue
+            # Parse YAML frontmatter for next_action and session_id
+            fm: dict[str, str] = {}
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    for line in parts[1].strip().splitlines():
+                        if ":" in line:
+                            k, _, v = line.partition(":")
+                            fm[k.strip()] = v.strip()
+                    next_action = fm.get("next_action", "")
+                    resume_session_id = fm.get("session_id", "")
+
+            if next_action:
                 task_id = str(uuid.uuid4())
                 create_queued_task(
                     id=task_id,
-                    prompt=f"[Resume] {task_text}",
+                    prompt=f"[Resume] {next_action}",
                     source="resume",
+                    session_id=resume_session_id,
                 )
                 resumed += 1
-                logger.info(f"Resumed task from RESUME.MD: {task_text[:80]}")
+                logger.info(
+                    "Resumed from RESUME.MD: {} (session={})",
+                    next_action,
+                    resume_session_id[:8] if resume_session_id else "<none>",
+                )
 
             # Clear RESUME.MD after consuming
             resume_path.write_text("")
 
-    # 2. If no pending user tasks and budget allows, check goals
+    # 2. Check Redis for pending task_result messages in master's inbox
+    #    (agents that finished during shutdown/downtime)
+    try:
+        from app.backend.message_bus import bus as _bus
+        if _bus.connected:
+            inbox = "agent:master:inbox"
+            group = "master_group"
+            consumer = f"master_resume_{os.getpid()}"
+            await _bus.stream_create_group(inbox, group)
+            claimed = await _bus.stream_claim_pending(inbox, group, consumer)
+            if claimed:
+                logger.info("Startup resume: claimed {} pending messages from Redis inbox", len(claimed))
+                from app.backend.services.notification_queue import notification_queue as _nq
+                from app.backend.websocket import ws_manager as _ws
+                for msg in claimed:
+                    data = msg.get("data", {})
+                    if not isinstance(data, dict):
+                        await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
+                        continue
+                    msg_type = data.get("type", "")
+                    if msg_type == "task_result":
+                        child = str(data.get("child_agent", "unknown"))
+                        status = str(data.get("status", "done"))
+                        result = str(data.get("result", ""))
+                        sid = str(data.get("session_id", ""))
+                        # Enqueue to notification_queue so the watcher picks it up naturally
+                        _nq.enqueue(
+                            parent_agent="master",
+                            child_agent=child,
+                            status=status,
+                            result=result if status == "done" else "",
+                            error=result if status == "error" else "",
+                            session_id=sid,
+                        )
+                        logger.info(
+                            "Startup resume: enqueued {} ({}) result for master (sid={})",
+                            child, status, sid[:8] if sid else "<none>",
+                        )
+                    await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
+    except Exception as _exc:
+        logger.warning("Startup resume: Redis pending check failed: {}", _exc)
+
+    # 3. If no pending user tasks and budget allows, check goals
     if resumed == 0:
         pending = get_tasks_by_status("pending", limit=1)
         if not pending and not is_autonomous_budget_exhausted():
@@ -304,7 +501,7 @@ async def _startup_resume() -> None:
                             source="goal",
                         )
                         resumed += 1
-                        logger.info(f"Startup goal dispatch: '{top_goal[:80]}'")
+                        logger.info(f"Startup goal dispatch: '{top_goal}'")
 
     if resumed:
         logger.info(f"Startup resume: {resumed} task(s) queued")
@@ -364,6 +561,9 @@ async def lifespan(app: FastAPI):
     from app.backend.logging_config import setup_logging
     setup_logging()
 
+    # Connect to Redis message bus (non-fatal: agents fall back to outbox if down)
+    await bus.connect()
+
     _cleanup_stale_agent_statuses()
 
     # Initialize SQLite schema
@@ -385,19 +585,23 @@ async def lifespan(app: FastAPI):
     from app.backend.services.spawn_registry import registry
     from app.backend.services.notification_queue import notification_queue
     from app.backend.services.notification_poller import create_poller
-    from app.backend.services.session_event_relay import relay as session_event_relay
+    from app.backend.relay import relay as message_bus_relay
     registry.load()
     notification_queue.load()
-    # Tail subprocess-written session JSONL → WebSocket so sub-agent LLM
-    # events (thinking/tool/message deltas) reach the UI. Without this, the
-    # subprocess's own ws_manager.push_session_event is a no-op because the
-    # subprocess holds no WS connections.
-    session_event_relay.start()
+    # Redis pub/sub → WebSocket relay — routes agent events to connected browser clients.
+    await message_bus_relay.start()
+    # Notification poller: always runs as cross-process safety net.
+    # Even when Redis is connected, some subprocess agents may not have
+    # a working Redis connection. The poller catches completions via TASK.MD.
+    # Redis paths deliver faster; poller deduplicates via notification_queue.
     poller = create_poller(
         settings.agents_dir,
         poll_interval=settings.notification_poll_interval_seconds,
     )
     poller.start()
+    if bus.connected:
+        logger.info("Redis connected — starting Redis master watcher")
+        asyncio.ensure_future(_master_redis_watcher())
     asyncio.ensure_future(_master_notification_watcher())
 
     # Start task dispatcher (background loop that executes queued tasks)
@@ -447,7 +651,8 @@ async def lifespan(app: FastAPI):
         dispatcher_task.cancel()
         scheduler.shutdown(wait=False)
         poller.stop()
-        session_event_relay.stop()
+        await message_bus_relay.stop()
+        await bus.disconnect()
 
 
 app = FastAPI(title="YAPOC", version="0.1.0", lifespan=lifespan)

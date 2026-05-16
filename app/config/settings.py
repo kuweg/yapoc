@@ -44,7 +44,10 @@ class Settings(BaseSettings):
     default_model: str = "claude-sonnet-4-6"
     default_temperature: float = 0.7
     enable_thinking: bool = False
-    thinking_budget_tokens: int = 8000  # must be < max_tokens (default 8096)
+    thinking_budget_tokens: int = 24000  # per-turn cap; must be < max_tokens (32768)
+
+    # ── Message bus ──────────────────────────────────────────────────────────
+    redis_url: str = "redis://localhost:6379"
 
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
@@ -54,14 +57,14 @@ class Settings(BaseSettings):
     cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
 
     # ── Runner defaults ──────────────────────────────────────────────────────
-    max_turns: int = 20
+    max_turns: int = 999
     task_timeout: int = 300
 
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
 
     # ── Voice / TTS ─────────────────────────────────────────────────────────
-    voice_enabled: bool = False
+    voice_enabled: bool = True
     voice_auto_speak: bool = False
 
     # TTS engine selection: offline | openai | google
@@ -105,6 +108,13 @@ class Settings(BaseSettings):
     context_compact_model: str = (
         "claude-haiku-4-5-20251001"  # cheap model for compaction
     )
+    # Caps for file content injected into the system prompt each turn.
+    # Prevents unbounded context growth when agents accumulate notes/learnings.
+    context_notes_chars: int = 4000
+    context_learnings_chars: int = 2000
+    context_knowledge_chars: int = 2000
+    context_memory_lines: int = 20  # last N lines of MEMORY.MD
+    context_health_lines: int = 10  # last N lines of HEALTH.MD
 
     # ── Task dispatcher ─────────────────────────────────────────────────
     max_concurrent_tasks: int = 3  # max parallel tasks in the background dispatcher

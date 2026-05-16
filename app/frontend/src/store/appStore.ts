@@ -27,9 +27,9 @@ export const useAppStore = create<AppStore>()(
     (set) => ({
       activeTab: 'chat',
       setActiveTab: (tab) => set({ activeTab: tab }),
-      voiceEnabled: false,
+      voiceEnabled: true,
       setVoiceEnabled: (v) => set({ voiceEnabled: v }),
-      voiceAutoSpeak: false,
+      voiceAutoSpeak: true,
       setVoiceAutoSpeak: (v) => set({ voiceAutoSpeak: v }),
       selectedVoice: '',
       setSelectedVoice: (v) => set({ selectedVoice: v }),

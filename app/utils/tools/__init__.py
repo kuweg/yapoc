@@ -7,36 +7,16 @@ from typing import Any
 from app.utils.adapters import ToolDefinition
 
 
-# Hard cap on the size of any tool output that lands back in the agent
-# context. Tools that return file contents, log tails, or sub-agent results
-# truncate to this many characters with a "truncated" notice. This is the
-# primary defense against token bloat in long-running agent loops —
-# unbounded tool outputs are how a single request climbs to $3+.
-TOOL_OUTPUT_CHAR_CAP = 6000
-
-
-def truncate_tool_output(text: str, *, cap: int = TOOL_OUTPUT_CHAR_CAP, note: str = "") -> str:
-    """Cap ``text`` at ``cap`` chars, appending a truncation notice.
-
-    ``note`` lets the caller add a hint about how to retrieve the full
-    content (e.g. "use file_read for full content"). Passing a short
-    string keeps the notice readable while staying within the cap.
-    """
-    if len(text) <= cap:
-        return text
-    suffix = "\n... (truncated)"
-    if note:
-        suffix = f"\n... (truncated — {note})"
-    # Leave room for the suffix.
-    keep = max(0, cap - len(suffix))
-    return text[:keep] + suffix
+def truncate_tool_output(text: str, *, cap: int = 0, note: str = "") -> str:
+    """No-op pass-through. All truncation caps have been removed."""
+    return text
 
 
 # ── Sandbox ───────────────────────────────────────────────────────────────
 
 @dataclass
 class SandboxPolicy:
-    """Per-agent file/shell restrictions parsed from ``CONFIG.md``.
+    """Per-agent file/shell restrictions parsed from ``CONFIG.yaml``.
 
     Two independent policies live in one object:
 
@@ -85,7 +65,7 @@ class SandboxPolicy:
 
 
 def _parse_sandbox_policy(agent_dir: Path) -> SandboxPolicy:
-    """Read ``CONFIG.md`` in ``agent_dir`` and extract the sandbox block.
+    """Read ``CONFIG.yaml`` in ``agent_dir`` and extract the sandbox block.
 
     Expected YAML shape (we scan with simple regex — the project does not
     depend on PyYAML)::
@@ -97,7 +77,7 @@ def _parse_sandbox_policy(agent_dir: Path) -> SandboxPolicy:
           shell_allowlist:
             - poetry
     """
-    cfg = agent_dir / "CONFIG.md"
+    cfg = agent_dir / "CONFIG.yaml"
     if not cfg.exists():
         return SandboxPolicy()
     try:
@@ -233,6 +213,7 @@ _AGENT_DIR_TOOLS = {
     "spawn_agent",
     "notify_parent",
     "shared_knowledge_append",
+    "server_restart",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell
@@ -248,7 +229,7 @@ def build_tools(
 ) -> list[BaseTool]:
     """Instantiate the requested tools for ``agent_dir``.
 
-    Parses the caller's ``CONFIG.md`` sandbox block once and passes a
+    Parses the caller's ``CONFIG.yaml`` sandbox block once and passes a
     :class:`SandboxPolicy` into every tool that cares. Agents without a
     sandbox block get an empty policy (no restrictions), preserving the
     pre-sandbox behavior.

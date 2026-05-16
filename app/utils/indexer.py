@@ -255,6 +255,90 @@ def index_shared_knowledge() -> int:
     return count
 
 
+def _extract_task_and_result(task_path: Path) -> str | None:
+    """Extract the ## Task + ## Result sections from a TASK.MD file for indexing.
+
+    Returns combined content or None if the task is not in a terminal state.
+    """
+    if not task_path.exists():
+        return None
+    content = task_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+
+    # Only index tasks that are done or error (not pending/running)
+    fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
+    if fm_match:
+        for line in fm_match.group(1).splitlines():
+            if line.startswith("status:") and "done" not in line and "error" not in line:
+                return None
+
+    task_section = ""
+    result_section = ""
+    m = re.search(r"## Task\n(.*?)(?=\n##|\Z)", content, re.DOTALL)
+    if m:
+        task_section = m.group(1).strip()
+    m = re.search(r"## Result\n(.*?)(?=\n##|\Z)", content, re.DOTALL)
+    if m:
+        result_section = m.group(1).strip()
+
+    combined = f"Task: {task_section}\nResult: {result_section}"
+    if len(combined.strip()) < _MIN_CONTENT_LEN:
+        return None
+    return combined
+
+
+def index_agent_tasks(agent_name: str, agent_dir: Path) -> int:
+    """Index completed TASK.MD results for semantic search of past work.
+
+    Only indexes tasks that are done or error (not pending/running).
+    Uses hash-based change detection like NOTES.MD.
+    """
+    task_path = agent_dir / "TASK.MD"
+    if not task_path.exists():
+        return 0
+
+    content = task_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return 0
+
+    content_hash = hashlib.md5(content.encode()).hexdigest()
+    if get_checkpoint_hash(agent_name, "TASK.MD") == content_hash:
+        return 0
+
+    deleted = delete_agent_source_entries(agent_name, "TASK.MD")
+    if deleted:
+        _log.debug("Removed {} stale TASK.MD entries for '{}'", deleted, agent_name)
+
+    entry_text = _extract_task_and_result(task_path)
+    if not entry_text:
+        set_checkpoint_hash(agent_name, "TASK.MD", content_hash)
+        return 0
+
+    try:
+        embeddings = embed_batch([entry_text])
+    except Exception as exc:
+        _log.error("Embedding failed for agent {} TASK.MD: {}", agent_name, exc)
+        return 0
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        insert_memory_entry(
+            agent=agent_name,
+            source="TASK.MD",
+            content=entry_text,
+            timestamp=now,
+            embedding=embeddings[0],
+        )
+    except Exception as exc:
+        _log.warning("Failed to insert task entry for {}: {}", agent_name, exc)
+        return 0
+
+    set_checkpoint_hash(agent_name, "TASK.MD", content_hash)
+    _log.info("Indexed TASK.MD result for agent '{}'", agent_name)
+    return 1
+
+
 def run_indexer() -> int:
     """Index all agents' MEMORY.MD, NOTES.MD, and LEARNINGS.MD files. Returns total entries indexed."""
     init_schema()
@@ -271,6 +355,7 @@ def run_indexer() -> int:
             total += index_agent_memory(agent_dir.name, agent_dir)
             total += index_agent_notes(agent_dir.name, agent_dir)
             total += index_agent_learnings(agent_dir.name, agent_dir)
+            total += index_agent_tasks(agent_dir.name, agent_dir)
         except Exception as exc:
             _log.error("Indexer error for agent '{}': {}", agent_dir.name, exc)
 

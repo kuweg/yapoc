@@ -152,7 +152,7 @@ class BaseAgent:
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             **payload,
         }
-        # Write to session event log
+        # Write to session event log (local audit)
         session_dir = settings.project_root / "data" / "sessions" / self._session_id
         session_dir.mkdir(parents=True, exist_ok=True)
         event_file = session_dir / "events.jsonl"
@@ -163,13 +163,17 @@ class BaseAgent:
             _log.bind(agent=self._name).warning(
                 "Session event JSONL write failed: {}", _ev_exc
             )
-        # Push to WebSocket subscribers (non-blocking)
+        # Publish to Redis pub/sub for real-time streaming to UI
         try:
-            from app.backend.websocket import ws_manager
-            await ws_manager.push_session_event(self._session_id, event)
-        except Exception as _ws_exc:
+            from app.backend.message_bus import bus
+            await bus.publish(
+                f"session:{self._session_id}:events",
+                event,
+                agent_name=self._name,
+            )
+        except Exception as _redis_exc:
             _log.bind(agent=self._name).warning(
-                "Session event WebSocket push failed: {}", _ws_exc
+                "Session event Redis publish failed: {}", _redis_exc
             )
 
     # ── File helpers ────────────────────────────────────────────────────────
@@ -233,9 +237,9 @@ class BaseAgent:
 
         1. ``app/config/agent-settings.json`` — cross-provider primary
            for this agent, if present. This is now the authoritative
-           source; CONFIG.md is the fallback for agents not listed in
+           source; CONFIG.yaml is the fallback for agents not listed in
            the JSON (mostly temporary agents created at runtime).
-        2. ``CONFIG.md`` YAML block.
+        2. ``CONFIG.yaml`` YAML block.
         3. ``NOTES.MD`` ``[config]`` block (legacy).
         4. ``settings`` defaults.
 
@@ -252,8 +256,8 @@ class BaseAgent:
                 max_tokens=entry["max_tokens"],
             )
 
-        # 2+3. CONFIG.md / NOTES.MD legacy
-        raw = config_raw if config_raw is not None else await self._read_file("CONFIG.md")
+        # 2+3. CONFIG.yaml / NOTES.MD legacy
+        raw = config_raw if config_raw is not None else await self._read_file("CONFIG.yaml")
         if raw.strip():
             cfg = parse_config_block(raw)
         else:
@@ -267,9 +271,9 @@ class BaseAgent:
         except (TypeError, ValueError):
             temperature = settings.default_temperature
         try:
-            max_tokens = int(cfg.get("max_tokens", 8096))
+            max_tokens = int(cfg.get("max_tokens", 32768))
         except (TypeError, ValueError):
-            max_tokens = 8096
+            max_tokens = 32768
         return AgentConfig(
             adapter=adapter, model=model, temperature=temperature, max_tokens=max_tokens
         )
@@ -431,7 +435,21 @@ class BaseAgent:
                     if not response:
                         await self._write_result("")
                 else:
-                    await self._write_result(response)
+                    # Strip raw XML tool call syntax from response before writing to RESULT.MD
+                    cleaned = response
+                    # Strip <tool_calls> wrapper blocks (entire block including content)
+                    cleaned = re.sub(r'<tool_calls>.*?</tool_calls>', '', cleaned, flags=re.DOTALL)
+                    # Strip individual <invoke ...> blocks (with attributes, entire block including content)
+                    cleaned = re.sub(r'<invoke\b[^>]*>.*?</invoke>', '', cleaned, flags=re.DOTALL)
+                    # Strip <parameter ...> tags left inside
+                    cleaned = re.sub(r'<parameter\b[^>]*/>', '', cleaned, flags=re.DOTALL)
+                    cleaned = re.sub(r'<parameter\b[^>]*>.*?</parameter>', '', cleaned, flags=re.DOTALL)
+                    # Strip <function_call> blocks
+                    cleaned = re.sub(r'<function_call>.*?</function_call>', '', cleaned, flags=re.DOTALL)
+                    # Strip <tool_call> blocks
+                    cleaned = re.sub(r'<tool_call>.*?</tool_call>', '', cleaned, flags=re.DOTALL)
+                    cleaned = cleaned.strip()
+                    await self._write_result(cleaned if cleaned else response)
                     await self._write_error("")
             except Exception as exc:
                 _log.bind(agent=self._name).warning(
@@ -475,13 +493,13 @@ class BaseAgent:
     # ── Tool helpers ────────────────────────────────────────────────────────
 
     async def _load_tool_names(self, config_raw: str | None = None) -> list[str]:
-        """Parse tool names from CONFIG.md tools: block.
+        """Parse tool names from CONFIG.yaml tools: block, falling back to agent-settings.json.
 
         Tolerates blank lines and ``#`` comments between list items so
         that agents can annotate their tool lists without breaking the
         parser.
         """
-        raw = config_raw if config_raw is not None else await self._read_file("CONFIG.md")
+        raw = config_raw if config_raw is not None else await self._read_file("CONFIG.yaml")
         if not raw.strip():
             return []
         # Find lines after "tools:" that start with "  - "
@@ -490,31 +508,38 @@ class BaseAgent:
         for line in raw.splitlines():
             stripped = line.strip()
             if stripped == "tools:" or stripped.startswith("tools:"):
-                # Check for inline value
-                after = stripped[len("tools:") :].strip()
+                after = stripped[len("tools:"):].strip()
                 if after:
-                    # Single-line comma-separated
                     names.extend(t.strip() for t in after.split(",") if t.strip())
                     break
                 in_tools = True
                 continue
             if in_tools:
-                # Skip blank lines and comments — they don't end the block.
                 if not stripped or stripped.startswith("#"):
                     continue
                 match = re.match(r"\s+-\s+(.+)", line)
                 if match:
                     item = match.group(1).strip()
-                    # Strip inline comments after the item, e.g. "- foo  # bar"
                     if "#" in item:
                         item = item.split("#", 1)[0].strip()
                     if item:
                         names.append(item)
                 else:
-                    # A top-level (non-indented) key that isn't a list
-                    # item means we've left the tools: block.
                     if not line.startswith(" "):
                         break
+
+        # Fallback: check agent-settings.json when CONFIG.yaml has no tools:
+        if not names:
+            try:
+                from app.utils.agent_settings import load_agent_settings
+                settings_json = load_agent_settings()
+                agent_cfg = (settings_json.get("agents") or {}).get(self._name, {})
+                json_tools = agent_cfg.get("tools", [])
+                if json_tools:
+                    names = list(json_tools)
+            except Exception:
+                pass
+
         return names
 
     async def _execute_tool(
@@ -617,14 +642,14 @@ class BaseAgent:
             user_message=convo_text,
         )
 
-        # Return a single user message with the compacted summary + system prompt re-injection
+        # Return a single user message with the compacted summary
         return [
             {
                 "role": "user",
                 "content": (
                     f"[Compacted conversation summary]\n{summary}\n\n"
-                    f"[System prompt re-injected]\n{system_prompt}"
-                ),
+                    "[System prompt preserved separately — see PROMPT.MD and Notes]"
+                )
             }
         ]
 
@@ -635,18 +660,19 @@ class BaseAgent:
         history: list[Message] | None = None,
         manage_task_file: bool = True,
         notifications_context: str = "",
+        blocked_tools: set[str] | None = None,
     ) -> AsyncIterator[StreamEvent]:
         # Read per-agent task_timeout. Priority: agent-settings.json →
-        # CONFIG.md runner block → settings default. agent-settings.json is
-        # the authoritative cross-cutting runtime config; CONFIG.md is legacy.
-        _cfg_raw = await self._read_file("CONFIG.md")
+        # CONFIG.yaml runner block → settings default. agent-settings.json is
+        # the authoritative cross-cutting runtime config; CONFIG.yaml is legacy.
+        _cfg_raw = await self._read_file("CONFIG.yaml")
         _runner = _parse_runner_config(_cfg_raw)
         try:
             from app.utils.agent_settings import resolve_runner_settings
             _as_runner = resolve_runner_settings(self._name)
         except Exception as _rs_exc:
             _log.bind(agent=self._name).warning(
-                "resolve_runner_settings failed (falling back to CONFIG.md/settings): {}",
+                "resolve_runner_settings failed (falling back to CONFIG.yaml/settings): {}",
                 _rs_exc,
             )
             _as_runner = {}
@@ -672,6 +698,12 @@ class BaseAgent:
 
                 # Load and build tools
                 tool_names = await self._load_tool_names(config_raw=_cfg_raw)
+                if blocked_tools:
+                    tool_names = [n for n in tool_names if n not in blocked_tools]
+                    _log.bind(agent=self._name).info(
+                        "Blocked tools: {} ({} tools available after filtering)",
+                        blocked_tools, len(tool_names),
+                    )
                 tools = build_tools(tool_names, self._dir, session_id=self._session_id)
                 tool_defs = [t.to_definition() for t in tools]
                 tool_map = {t.name: t for t in tools}
@@ -756,7 +788,7 @@ class BaseAgent:
                             await self._emit_event("message_delta", {"text": event.text})
                         elif isinstance(event, ToolStart):
                             _tool_start_times[event.name] = _time.monotonic()
-                            _input_repr = repr(event.input)[:200]
+                            _input_repr = repr(event.input)
                             _log.bind(
                                 agent=self._name, event="tool_start", turn=_turn,
                                 model=config.model, tool=event.name, tool_input=_input_repr,
@@ -865,7 +897,7 @@ class BaseAgent:
                         yield tool_done
                         await self._emit_event("tool_result", {
                             "name": tool_done.name,
-                            "result": tool_done.result[:2000] if tool_done.result else "",
+                            "result": tool_done.result if tool_done.result else "",
                             "is_error": tool_done.is_error,
                         })
                         _elapsed = _time.monotonic() - _tool_start_times.pop(tool_done.name, _time.monotonic())
@@ -933,13 +965,27 @@ class BaseAgent:
                 # Log and clean up
                 response = "".join(full_text_parts)
 
-                # If the model only used tools and produced no text, generate
-                # a brief summary so RESULT.MD is never empty.
+                # If the model only used tools and produced no text, include
+                # tool outputs so the parent/runner can see actual results.
                 if not response.strip():
-                    response = (
-                        "Task completed via tool calls. "
-                        "No text response was generated by the model."
-                    )
+                    parts: list[str] = []
+                    if messages:
+                        last_msg = messages[-1]
+                        if isinstance(last_msg.get("content"), list):
+                            for item in last_msg["content"]:
+                                if isinstance(item, dict):
+                                    name = item.get("tool_use_id", "")
+                                    content = str(item.get("content", ""))
+                                    is_err = item.get("is_error", False)
+                                    label = "ERROR" if is_err else "OK"
+                                    parts.append(f"[{name}] {label}: {content}")
+                    if parts:
+                        response = "Task completed via tools:\n" + "\n".join(parts)
+                    else:
+                        response = (
+                            "Task completed via tool calls. "
+                            "No text response was generated by the model."
+                        )
 
                 _log.bind(
                     agent=self._name, event="task_done",
@@ -985,7 +1031,21 @@ class BaseAgent:
                     if not response:
                         await self._write_result("")
                 else:
-                    await self._write_result(response)
+                    # Strip raw XML tool call syntax from response before writing to RESULT.MD
+                    cleaned = response
+                    # Strip <tool_calls> wrapper blocks (entire block including content)
+                    cleaned = re.sub(r'<tool_calls>.*?</tool_calls>', '', cleaned, flags=re.DOTALL)
+                    # Strip individual <invoke ...> blocks (with attributes, entire block including content)
+                    cleaned = re.sub(r'<invoke\b[^>]*>.*?</invoke>', '', cleaned, flags=re.DOTALL)
+                    # Strip <parameter ...> tags left inside
+                    cleaned = re.sub(r'<parameter\b[^>]*/>', '', cleaned, flags=re.DOTALL)
+                    cleaned = re.sub(r'<parameter\b[^>]*>.*?</parameter>', '', cleaned, flags=re.DOTALL)
+                    # Strip <function_call> blocks
+                    cleaned = re.sub(r'<function_call>.*?</function_call>', '', cleaned, flags=re.DOTALL)
+                    # Strip <tool_call> blocks
+                    cleaned = re.sub(r'<tool_call>.*?</tool_call>', '', cleaned, flags=re.DOTALL)
+                    cleaned = cleaned.strip()
+                    await self._write_result(cleaned if cleaned else response)
                     await self._write_error("")
             except Exception as exc:
                 _log.bind(agent=self._name).warning(

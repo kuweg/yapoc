@@ -2368,5 +2368,225 @@
     "cost_usd": 0.0,
     "timestamp": "2026-05-14T17:29:16Z",
     "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:09:15Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 6254,
+    "tokens_out": 403,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:09:15Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:09:21Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 6763,
+    "tokens_out": 141,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:09:21Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:33:16Z",
+    "description": "Add a new \"Claude Code\" theme to the YAPOC frontend.",
+    "agent_name": "planning",
+    "tokens_in": 6531,
+    "tokens_out": 1482,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:33:16Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:33:22Z",
+    "description": "Add a new \"Claude Code\" theme to the YAPOC frontend.",
+    "agent_name": "planning",
+    "tokens_in": 8042,
+    "tokens_out": 122,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:33:22Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:34:05Z",
+    "description": "Add a new \"Claude Code\" theme to the YAPOC frontend.",
+    "agent_name": "planning",
+    "tokens_in": 8657,
+    "tokens_out": 526,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:34:05Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:34:12Z",
+    "description": "Add a new \"Claude Code\" theme to the YAPOC frontend.",
+    "agent_name": "planning",
+    "tokens_in": 9203,
+    "tokens_out": 181,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:34:12Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:34:21Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 6081,
+    "tokens_out": 272,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:34:21Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:34:36Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 6934,
+    "tokens_out": 473,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:34:36Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-14T18:34:39Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 7427,
+    "tokens_out": 56,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-14T18:34:39Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:14:26Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 6052,
+    "tokens_out": 1362,
+    "cost_usd": 0.023,
+    "timestamp": "2026-05-16T01:14:26Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:14:45Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 7462,
+    "tokens_out": 187,
+    "cost_usd": 0.01642,
+    "timestamp": "2026-05-16T01:14:45Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:14:58Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 8307,
+    "tokens_out": 84,
+    "cost_usd": 0.017286,
+    "timestamp": "2026-05-16T01:14:58Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:15:08Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 8429,
+    "tokens_out": 252,
+    "cost_usd": 0.018874,
+    "timestamp": "2026-05-16T01:15:08Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:15:22Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 8740,
+    "tokens_out": 406,
+    "cost_usd": 0.020728,
+    "timestamp": "2026-05-16T01:15:22Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:15:27Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 9195,
+    "tokens_out": 94,
+    "cost_usd": 0.019142,
+    "timestamp": "2026-05-16T01:15:27Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:16:05Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 9327,
+    "tokens_out": 1434,
+    "cost_usd": 0.030126,
+    "timestamp": "2026-05-16T01:16:05Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:16:10Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 10810,
+    "tokens_out": 80,
+    "cost_usd": 0.02226,
+    "timestamp": "2026-05-16T01:16:10Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:16:30Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 10915,
+    "tokens_out": 651,
+    "cost_usd": 0.027038,
+    "timestamp": "2026-05-16T01:16:30Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:16:35Z",
+    "description": "Add a `yapoc doctor run` CLI command and a `/doctor` REPL slash command that triggers the doctor agent's health check manually.",
+    "agent_name": "planning",
+    "tokens_in": 11615,
+    "tokens_out": 100,
+    "cost_usd": 0.02403,
+    "timestamp": "2026-05-16T01:16:35Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:18:53Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 6484,
+    "tokens_out": 276,
+    "cost_usd": 0.015176,
+    "timestamp": "2026-05-16T01:18:53Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:19:13Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 7329,
+    "tokens_out": 590,
+    "cost_usd": 0.019378,
+    "timestamp": "2026-05-16T01:19:13Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T01:19:15Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 7939,
+    "tokens_out": 27,
+    "cost_usd": 0.016094,
+    "timestamp": "2026-05-16T01:19:15Z",
+    "model_used": "deepseek-v4-pro"
   }
 ]

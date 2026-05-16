@@ -149,9 +149,9 @@ def insert_task(
             assigned_by,
             assigned_at or now,
             now,
-            task_summary[:500],
-            result_summary[:2000],
-            error_summary[:2000],
+            task_summary,
+            result_summary,
+            error_summary,
         ),
     )
     db.commit()

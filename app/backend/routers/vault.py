@@ -17,7 +17,6 @@ from app.config import settings
 router = APIRouter(prefix="/vault")
 
 _VAULT_ROOT: Path = settings.project_root / "app" / "projects"
-_MAX_TEXT = 500_000  # 500 KB
 _MAX_DEPTH = 8
 
 _SKIP_DIRS = {
@@ -176,11 +175,10 @@ async def vault_read(path: str = Query(...)):
         elif name_lower == "makefile":
             lang = "makefile"
 
-    truncated = len(content) > _MAX_TEXT
     return {
         "path": path, "type": "text",
-        "content": content[:_MAX_TEXT],
-        "truncated": truncated,
+        "content": content,
+        "truncated": False,
         "size": len(content),
         "lang": lang,
     }

@@ -11,7 +11,6 @@ from app.config import settings
 router = APIRouter(prefix="/files")
 
 _MAX_DEPTH = 6
-_MAX_FILE_SIZE = 50_000  # chars
 
 # Directories to skip in the tree
 _SKIP_DIRS = {
@@ -98,10 +97,8 @@ async def read_file(path: str = Query(..., description="Path relative to project
     except OSError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    truncated = len(content) > _MAX_FILE_SIZE
     return {
         "path": path,
-        "content": content[:_MAX_FILE_SIZE],
-        "truncated": truncated,
+        "content": content,
         "size": len(content),
     }

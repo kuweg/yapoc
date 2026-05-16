@@ -182,12 +182,111 @@
   --scanline-opacity: 0.015;
 }
 
+/* ── Claude theme — Warm Terracotta ──────────────────────────────────────────── */
+[data-theme="claude"] {
+  /* Backgrounds — warm earthy tones */
+  --color-bg-primary:   #f4f3ee;
+  --color-bg-secondary: #eae7df;
+  --color-bg-tertiary:  #e0dbd0;
+  --color-bg-panel:     #efede6;
+
+  /* Legacy aliases */
+  --color-bg-base:       #f4f3ee;
+  --color-bg-overlay:    #eae7df;
+  --color-bg-raised:     #e0dbd0;
+  --color-bg-subtle:     #d4d0c8;
+  --color-bg-muted:      #eae7df;
+
+  /* Borders — warm muted */
+  --color-border:         #d4d0c8;
+  --color-border-accent:  #c15f3c;
+  --color-border-default: #d4d0c8;
+  --color-border-muted:   #e0dbd0;
+  --color-border-subtle:  #c0b8a8;
+
+  /* Text — warm dark tones */
+  --color-text-primary:   #2c2420;
+  --color-text-secondary: #6a6058;
+  --color-text-muted:     #b1ada1;
+  --color-text-disabled:  #d4d0c8;
+
+  /* Accent — warm terracotta */
+  --color-accent:         #c15f3c;
+  --color-accent-dim:     #a04a2a;
+  --color-accent-glow:    rgba(193, 95, 60, 0.15);
+
+  /* Legacy accent aliases */
+  --color-accent-blue:    #c15f3c;
+  --color-accent-green:   #5a8a5a;
+  --color-accent-yellow:  #b08a30;
+  --color-accent-red:     #b03a2a;
+  --color-accent-purple:  #7a5a8a;
+  --color-accent-orange:  #c15f3c;
+
+  /* Status */
+  --color-success: #5a8a5a;
+  --color-warning: #c15f3c;
+  --color-error:   #b03a2a;
+  --color-info:    #3a6a8a;
+
+  /* Status badge backgrounds */
+  --color-status-running-bg:     #f4ede0;
+  --color-status-running-border: #c15f3c;
+  --color-status-error-bg:       #f4e0e0;
+  --color-status-error-border:   #b03a2a;
+  --color-status-done-bg:        #e0f0e0;
+  --color-status-done-border:    #5a8a5a;
+  --color-status-idle-bg:        #eae7df;
+  --color-status-idle-border:    #d4d0c8;
+
+  /* Zinc-scale aliases — warm earthy equivalents */
+  --color-zinc-950: #f4f3ee;
+  --color-zinc-900: #eae7df;
+  --color-zinc-800: #e0dbd0;
+  --color-zinc-700: #d4d0c8;
+  --color-zinc-600: #b1ada1;
+  --color-zinc-500: #8a8078;
+  --color-zinc-400: #6a6058;
+  --color-zinc-300: #4a4038;
+  --color-zinc-200: #2c2420;
+  --color-zinc-100: #1a1410;
+
+  /* Shadows — soft warm shadows */
+  --shadow-panel: 0 8px 32px rgba(44, 36, 32, 0.12);
+  --shadow-card:  0 2px 8px rgba(44, 36, 32, 0.08);
+
+  /* SVG / chart text */
+  --color-chart-text:     #b1ada1;
+  --color-chart-grid:     #e0dbd0;
+  --color-tooltip-bg:     #eae7df;
+  --color-tooltip-border: #d4d0c8;
+  --color-tooltip-text:   #2c2420;
+
+  /* Terminal specifics */
+  --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
+  --border-terminal:  1px solid var(--color-border);
+  --border-accent:    1px solid var(--color-border-accent);
+  --scanline-opacity: 0.012;
+}
+
 /* ── Base styles ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 html, body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  /* Allow vertical scroll only if content forces it (browser zoom, narrow viewport).
+     Hard `overflow: hidden` traps clipped content with no way to reach it. */
+  overflow-x: hidden;
+  overflow-y: auto;
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 14px;
+  line-height: 1.5;
   transition: background-color 0.2s ease, color 0.2s ease;
   /* Subtle scanline effect */
   background-image: repeating-linear-gradient(
@@ -200,6 +299,23 @@ html, body {
   /* Standard anti-aliasing for smooth, readable text */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Responsive scaling: smaller font on narrow viewports */
+@media (max-width: 768px) {
+  html, body {
+    font-size: 12px;
+  }
+}
+@media (max-width: 480px) {
+  html, body {
+    font-size: 11px;
+  }
+}
+
+/* Root container must fill viewport for h-screen to work */
+#root {
+  min-height: 100%;
 }
 
 /* ── Terminal window chrome ──────────────────────────────────────────────────── */

@@ -9,7 +9,7 @@ _AGENT_DIR_TOOLS = {"memory_append", "notes_read", "notes_write", "notes_append"
 ```
 
 ## Execution model
-All tools execute immediately. There is no approval gate, no risk-tier system, and no per-agent `autonomous_policy` block — the LLM is solely responsible for not invoking destructive tools without good reason. Sandboxing (`sandbox.forbidden`, `sandbox.shell_allowlist` in CONFIG.md) is the remaining safety boundary.
+All tools execute immediately. There is no approval gate, no risk-tier system, and no per-agent `autonomous_policy` block — the LLM is solely responsible for not invoking destructive tools without good reason. Sandboxing (`sandbox.forbidden`, `sandbox.shell_allowlist` in CONFIG.yaml) is the remaining safety boundary.
 
 ## Full tool list by file
 
@@ -28,13 +28,13 @@ All tools execute immediately. There is no approval gate, no risk-tier system, a
 ## Key tool behaviors
 
 ### `shell_exec`
-Runs in `/bin/sh -c` with `start_new_session=True`. Timeout hard-capped at `settings.max_shell_timeout` (120s); kills entire process group on timeout. Output truncated at 10,000 chars. Optional `sandbox.shell_allowlist` in the agent's CONFIG.md restricts commands by binary name.
+Runs in `/bin/sh -c` with `start_new_session=True`. Timeout hard-capped at `settings.max_shell_timeout` (120s); kills entire process group on timeout. Output truncated at 10,000 chars. Optional `sandbox.shell_allowlist` in the agent's CONFIG.yaml restricts commands by binary name.
 
 ### `file_edit`
 `old_string` must appear **exactly once** in the file. Atomic write via `mkstemp + os.replace`.
 
 ### `file_delete` — protected names
-Refuses to delete: `.env`, `.git`, `.gitignore`, `PROMPT.MD`, `TASK.MD`, `MEMORY.MD`, `NOTES.MD`, `HEALTH.MD`, `CONFIG.md`.
+Refuses to delete: `.env`, `.git`, `.gitignore`, `PROMPT.MD`, `TASK.MD`, `MEMORY.MD`, `NOTES.MD`, `HEALTH.MD`, `CONFIG.yaml`.
 
 ### `file_read`
 Truncates output at 8,000 chars. All file tools enforce sandbox via `_sandbox(path)` — resolves to absolute path and checks it's inside `project_root`.
@@ -58,4 +58,4 @@ Refuses if agent STATUS.json shows `running` or `idle` — suggests `kill_agent`
 1. Create class in appropriate `tools/*.py` implementing `BaseTool`
 2. Add to `TOOL_REGISTRY` in `__init__.py`
 3. If it needs `agent_dir` at construction, add name to `_AGENT_DIR_TOOLS`
-4. Add tool name to relevant agents' `CONFIG.md` tools list
+4. Add tool name to relevant agents' `CONFIG.yaml` tools list

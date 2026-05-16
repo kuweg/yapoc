@@ -1,0 +1,13 @@
+adapter: deepseek
+model: deepseek-chat
+temperature: 0.1
+max_tokens: 8096
+tools:
+  - file_read
+  - file_write
+  - file_edit
+  - file_delete
+  - file_list
+  - memory_append
+runner:
+  task_timeout: 300

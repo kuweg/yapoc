@@ -206,8 +206,8 @@ class NotificationQueue:
             child_agent=child_agent,
             status=status,
             session_id=session_id or "",
-            result_preview=(result or "")[:120],
-            error_preview=(error or "")[:120],
+            result_preview=(result or ""),
+            error_preview=(error or ""),
         )
 
     def drain(

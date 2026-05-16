@@ -25,7 +25,7 @@ Tools:
 - **Restarts**: `server_restart`, `process_restart`
 - **Utility**: `web_search`, `memory_append`, `notes_read`, `notes_write`, `health_log`
 
-## CONFIG.md
+## CONFIG.yaml
 ```yaml
 adapter: anthropic
 model: claude-sonnet-4-6
@@ -41,5 +41,5 @@ task_timeout: 300
 3. `run_stream_with_tools` detects non-empty history → uses it directly, doesn't re-read TASK.MD as user message
 
 ## Gotchas
-- Config is reloaded on every turn (not cached) — editing CONFIG.md takes effect immediately on the next turn
+- Config is reloaded on every turn (not cached) — editing CONFIG.yaml takes effect immediately on the next turn
 - The singleton is shared across all concurrent requests; it is not thread-safe for parallel `/task` calls

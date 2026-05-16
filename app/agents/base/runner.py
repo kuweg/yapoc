@@ -65,8 +65,8 @@ class AgentRunner:
         self._temporary = self._load_temporary_flag()
 
     def _load_temporary_flag(self) -> bool:
-        """Check CONFIG.md for lifecycle.temporary flag."""
-        config_path = self._agent_dir / "CONFIG.md"
+        """Check CONFIG.yaml for lifecycle.temporary flag."""
+        config_path = self._agent_dir / "CONFIG.yaml"
         if not config_path.exists():
             return False
         cfg = _parse_runner_config(config_path.read_text(encoding="utf-8"))
@@ -145,7 +145,7 @@ class AgentRunner:
 
     async def _run_task(self, task_body: str) -> None:
         """Execute a single task, updating TASK.MD frontmatter on completion."""
-        self._write_status("running", task_summary=task_body[:120])
+        self._write_status("running", task_summary=task_body)
         _fm = self._parse_task_frontmatter()
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
@@ -156,7 +156,7 @@ class AgentRunner:
         # so (a) idle_since stays None even if no UsageStats events fire for
         # long periods, and (b) the UI's /agents poll sees a fresh updated_at
         # and renders the agent as still-alive.
-        _hb_summary = task_body[:120]
+        _hb_summary = task_body
         _hb_stop = asyncio.Event()
 
         async def _heartbeat() -> None:
@@ -187,10 +187,10 @@ class AgentRunner:
                 lines = ["[SYSTEM NOTIFICATION] The following child agents have completed:"]
                 for n in pending:
                     if n["status"] == "done":
-                        summary = (n["result"] or "(no result)")[:500]
+                        summary = (n["result"] or "(no result)")
                         lines.append(f'- {n["child_agent"]} (completed): "{summary}"')
                     else:
-                        summary = (n["error"] or "(no error)")[:200]
+                        summary = (n["error"] or "(no error)")
                         lines.append(f'- {n["child_agent"]} (error): "{summary}"')
                 notifications_context = "\n".join(lines)
         except Exception as _queue_exc:
@@ -206,9 +206,16 @@ class AgentRunner:
             last_input: int | None = None
             last_output: int | None = None
 
+            # Notification tasks: block destructive tools for ALL agents
+            _blocked = (
+                {"server_restart", "process_restart", "spawn_agent", "kill_agent", "shell_exec"}
+                if task_body.startswith("[Process incoming")
+                else None
+            )
             async for event in self._agent.run_stream_with_tools(
                 manage_task_file=False,
                 notifications_context=notifications_context,
+                blocked_tools=_blocked,
             ):
                 if isinstance(event, TextDelta):
                     live_buf.append(event.text)
@@ -227,16 +234,12 @@ class AgentRunner:
                         last_thinking_marker = now
                 elif isinstance(event, ToolStart):
                     input_preview = str(event.input).replace("\n", " ")
-                    if len(input_preview) > 180:
-                        input_preview = input_preview[:180] + "... (truncated)"
                     live_buf.append(f"\n[tool:start] {event.name} {input_preview}\n")
                     now = time.monotonic()
                     self._write_live("".join(live_buf))
                     last_live_flush = now
                 elif isinstance(event, ToolDone):
                     result_preview = (event.result or "").replace("\n", " ")
-                    if len(result_preview) > 180:
-                        result_preview = result_preview[:180] + "... (truncated)"
                     status_label = "error" if event.is_error else "done"
                     live_buf.append(f"\n[tool:{status_label}] {event.name} {result_preview}\n")
                     now = time.monotonic()
@@ -248,7 +251,7 @@ class AgentRunner:
                     last_output = event.output_tokens
                     self._write_status(
                         "running",
-                        task_summary=task_body[:120],
+                        task_summary=task_body,
                         tokens_per_second=last_tps,
                         input_tokens=last_input,
                         output_tokens=last_output,
@@ -275,13 +278,20 @@ class AgentRunner:
                     status="done",
                     assigned_by=_done_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_done_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
-                    task_summary=task_body[:500],
-                    result_summary=result_text[:2000],
+                    task_summary=task_body,
+                    result_summary=result_text,
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
                     "DB insert_task(done) failed (task still completed): {}", _db_exc
                 )
+
+            # Publish result to parent's Redis inbox (non-blocking)
+            await self._notify_parent_via_bus(result_text, "done")
+
+            # Mark notification tasks as consumed so the poller skips them
+            if task_body.startswith("[Process incoming"):
+                await self._agent.mark_task_consumed()
 
         except TimeoutError:
             await self._agent.set_task_status("error", error="Task timed out (exceeded configured timeout)")
@@ -295,13 +305,16 @@ class AgentRunner:
                     status="error",
                     assigned_by=_err_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_err_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
-                    task_summary=task_body[:500],
+                    task_summary=task_body,
                     error_summary="Task timed out",
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
                     "DB insert_task(timeout) failed: {}", _db_exc
                 )
+            await self._notify_parent_via_bus("Task timed out", "error")
+            if task_body.startswith("[Process incoming"):
+                await self._agent.mark_task_consumed()
         except Exception as exc:
             await self._agent.set_task_status("error", error=str(exc) or repr(exc))
             _exc_fm = self._parse_task_frontmatter()
@@ -314,14 +327,16 @@ class AgentRunner:
                     status="error",
                     assigned_by=_exc_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_exc_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
-                    task_summary=task_body[:500],
-                    error_summary=str(exc)[:2000],
+                    task_summary=task_body,
+                    error_summary=str(exc),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
                     "DB insert_task(error) failed: {}", _db_exc
                 )
-        finally:
+            await self._notify_parent_via_bus(str(exc), "error")
+            if task_body.startswith("[Process incoming"):
+                await self._agent.mark_task_consumed()
             # Clear live buffer so UI shows nothing when idle
             self._write_live("")
 
@@ -336,11 +351,236 @@ class AgentRunner:
                 return True
         return False
 
+    # ── Redis inbox ────────────────────────────────────────────────────
+
+    async def _setup_redis(self) -> bool:
+        """Connect to Redis, create consumer group, claim pending messages.
+
+        Returns True if Redis is available, False otherwise.
+        """
+        try:
+            from app.backend.message_bus import bus
+
+            if not await bus.connect():
+                _log.bind(agent=self._name).warning(
+                    "Redis unavailable — falling back to TASK.MD watchdog only"
+                )
+                return False
+
+            self._bus = bus
+            self._consumer_name = f"{self._name}_{os.getpid()}"
+            self._inbox_stream = f"agent:{self._name}:inbox"
+            group = f"{self._name}_group"
+
+            # Idempotent consumer group creation
+            await bus.stream_create_group(self._inbox_stream, group)
+
+            # Claim messages from a previous instance that crashed
+            claimed = await bus.stream_claim_pending(
+                self._inbox_stream, group, self._consumer_name
+            )
+            if claimed:
+                _log.bind(agent=self._name).info(
+                    "Claimed {} pending message(s) from previous instance", len(claimed)
+                )
+                for msg in claimed:
+                    await self._process_inbox_message(msg)
+
+            # Flush any outbox from a previous instance
+            await bus.flush_outbox(self._name)
+
+            _log.bind(agent=self._name).info(
+                "Redis inbox ready (stream={}, consumer={})",
+                self._inbox_stream,
+                self._consumer_name,
+            )
+            return True
+        except Exception as _exc:
+            _log.bind(agent=self._name).warning(
+                "Redis setup failed (continuing without Redis): {}", _exc
+            )
+            return False
+
+    async def _read_inbox(self) -> list[dict[str, object]]:
+        """Read one message from the agent's Redis inbox stream."""
+        return await self._bus.stream_read_group(
+            self._inbox_stream,
+            f"{self._name}_group",
+            self._consumer_name,
+            block_ms=1000,
+            count=1,
+        )
+
+    async def _ack_inbox(self, msg_id: str) -> None:
+        await self._bus.stream_ack(
+            self._inbox_stream, f"{self._name}_group", msg_id
+        )
+
+    async def _process_inbox_message(self, msg: dict[str, object]) -> bool:
+        """Process a message from the Redis inbox. Returns True if a task was run."""
+        data = msg.get("data", {})
+        if not isinstance(data, dict):
+            return False
+
+        msg_type = data.get("type", "")
+        msg_id = str(msg.get("id", ""))
+
+        if msg_type == "task_assign":
+            task_text = str(data.get("task", "") or data.get("payload", ""))
+            if not task_text:
+                await self._ack_inbox(msg_id)
+                return False
+            _log.bind(agent=self._name).info(
+                "Redis inbox: task_assign — running task ({} chars)", len(task_text)
+            )
+            await self._ack_inbox(msg_id)
+            await self._run_task(task_text)
+            return True
+
+        elif msg_type == "kill":
+            reason = str(data.get("reason", "requested via Redis"))
+            await self._ack_inbox(msg_id)
+            await self._notify_parent_via_bus(f"killed: {reason}", "error")
+            await self._shutdown(f"kill: {reason}")
+
+        elif msg_type == "prepare_shutdown":
+            # Server is restarting — save current task state (already in TASK.MD)
+            # and ack. The runner continues; server SIGTERM kills it.
+            await self._ack_inbox(msg_id)
+            _log.bind(agent=self._name).info(
+                "Redis inbox: prepare_shutdown acknowledged — TASK.MD preserved"
+            )
+            return False
+
+        elif msg_type == "task_result":
+            # Child agent completed — write a trigger TASK.MD so the next
+            # iteration picks it up and processes it via the normal notification pipeline.
+            child = str(data.get("child_agent", "unknown"))
+            status = str(data.get("status", "done"))
+            result = str(data.get("result", ""))
+            session_id = str(data.get("session_id", ""))
+            await self._ack_inbox(msg_id)
+            fm = self._parse_task_frontmatter()
+            parent = fm.get("assigned_by", "master")
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            task_body = (
+                f"[Process incoming result from {child} ({status})]\n\n"
+                f"Child agent '{child}' completed with status '{status}'. "
+                f"Summarize the result for the user. Do NOT spawn, restart, or verify."
+            )
+            context = (
+                f"Result from {child} ({status}):\n{result}"
+                if result
+                else f"Agent {child} completed ({status}) but produced no output."
+            )
+            trigger = (
+                f"---\n"
+                f"status: pending\n"
+                f"session_id: {session_id or fm.get('session_id', '')}\n"
+                f"assigned_by: {parent}\n"
+                f"assigned_at: {ts}\n"
+                f"---\n\n## Task\n{task_body}\n\n## Context\n{context}\n\n## Result\n\n## Error\n"
+            )
+            self._task_path.write_text(trigger, encoding="utf-8")
+            _log.bind(agent=self._name).info(
+                "Redis inbox: task_result from {} ({}) result_len={} — trigger written",
+                child, status, len(result),
+            )
+            return False
+            return False
+
+        elif msg_type == "ping":
+            await self._ack_inbox(msg_id)
+            # Publish status response
+            status_data = self._read_current_status()
+            await self._bus.publish(
+                f"agent:{self._name}:status",
+                {
+                    "type": "pong",
+                    "agent": self._name,
+                    "state": status_data.get("state", "unknown") if status_data else "unknown",
+                    "pid": os.getpid(),
+                },
+                agent_name=self._name,
+            )
+            return False
+
+        # Unknown message type — ack and ignore
+        if msg_id:
+            await self._ack_inbox(msg_id)
+        return False
+
+    async def _notify_parent_via_bus(self, result: str, status: str) -> None:
+        """Publish task result to the parent via Redis, falling back to notification_queue."""
+        fm = self._parse_task_frontmatter()
+        parent = fm.get("assigned_by", "")
+        if not parent or parent == self._name:
+            return
+
+        session_id = fm.get("session_id", "")
+
+        # Try Redis first
+        bus_ok = False
+        if hasattr(self, '_bus') and self._bus is not None:
+            try:
+                async with asyncio.timeout(5):
+                    await self._bus.stream_add(
+                        f"agent:{parent}:inbox",
+                        {
+                            "type": "task_result",
+                            "child_agent": self._name,
+                            "status": status,
+                            "result": result,
+                            "session_id": session_id,
+                        },
+                        agent_name=self._name,
+                    )
+                bus_ok = True
+                _log.bind(agent=self._name).info(
+                    "Redis notify: parent={} result_len={} status={}", parent, len(result), status
+                )
+            except TimeoutError:
+                _log.bind(agent=self._name).warning(
+                    "Redis notify timed out ({}): falling back to notification_queue", parent
+                )
+            except Exception as _exc:
+                _log.bind(agent=self._name).warning(
+                    "Redis notify failed ({}): falling back to notification_queue — {}", parent, _exc
+                )
+
+        # Fall back to file-based notification_queue (always works cross-process)
+        if not bus_ok:
+            try:
+                from app.backend.services.notification_queue import notification_queue as _nq
+                _nq.enqueue(
+                    parent_agent=parent,
+                    child_agent=self._name,
+                    status=status,
+                    result=result if status == "done" else "",
+                    error=result if status == "error" else "",
+                    session_id=session_id,
+                )
+                _log.bind(agent=self._name).info(
+                    "Queue notify: parent={} result_len={} status={}", parent, len(result), status
+                )
+            except Exception as _q_exc:
+                _log.bind(agent=self._name).warning(
+                    "Queue notify failed ({}): {}", parent, _q_exc
+                )
+
     # ── Shutdown ─────────────────────────────────────────────────────────
 
     async def _shutdown(self, reason: str) -> None:
         if self._shutting_down:
             return
+        # If there's an active task, notify parent before dying so the
+        # parent doesn't hang waiting for a result that will never arrive.
+        try:
+            fm = self._parse_task_frontmatter()
+            if fm.get("status") == "running":
+                await self._notify_parent_via_bus("killed", "error")
+        except Exception:
+            pass  # best-effort: don't block shutdown on notification failure
         self._shutting_down = True
         self._write_status("terminated", task_summary=f"shutdown: {reason}")
 
@@ -362,6 +602,9 @@ class AgentRunner:
 
         self._write_status("idle")
 
+        # Set up Redis inbox (non-fatal fallback to watchdog-only)
+        _has_redis = await self._setup_redis()
+
         # Check for task written before this process started
         # (SpawnAgentTool writes TASK.MD first, then spawns subprocess)
         ran = await self._check_task()
@@ -372,20 +615,48 @@ class AgentRunner:
 
         try:
             while not self._shutting_down:
-                # Wait for file change or poll timeout
-                try:
-                    await asyncio.wait_for(
-                        task_changed.wait(),
-                        timeout=self._poll_interval,
+                if _has_redis:
+                    # Run Redis inbox read and watchdog wait concurrently
+                    inbox_task = asyncio.create_task(self._read_inbox())
+                    wd_task = asyncio.create_task(
+                        asyncio.wait_for(task_changed.wait(), timeout=self._poll_interval)
                     )
-                except TimeoutError:
-                    pass  # poll fallback
+                    try:
+                        done, pending = await asyncio.wait(
+                            [inbox_task, wd_task], return_when=asyncio.FIRST_COMPLETED
+                        )
+                        for t in pending:
+                            t.cancel()
+                    except Exception:
+                        await asyncio.sleep(0.1)
+                        task_changed.clear()
+                        continue
+                else:
+                    # Pure watchdog mode (no Redis)
+                    try:
+                        await asyncio.wait_for(
+                            task_changed.wait(), timeout=self._poll_interval
+                        )
+                    except TimeoutError:
+                        pass
                 task_changed.clear()
 
                 if self._shutting_down:
                     break
 
-                ran = await self._check_task()
+                ran = False
+
+                # Process Redis inbox messages (if any)
+                if _has_redis and inbox_task in done:
+                    try:
+                        for msg in inbox_task.result():
+                            if await self._process_inbox_message(msg):
+                                ran = True
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+                if not ran:
+                    ran = await self._check_task()
                 if ran and self._temporary:
                     await self._shutdown("task complete")
                     break
@@ -393,9 +664,10 @@ class AgentRunner:
                     self._write_status("idle")
 
                 # Check notification queue for pending notifications.
-                # With the cross-process-safe NotificationQueue, subprocesses
-                # can read notifications enqueued by the server or other agents.
-                if not ran:
+                # Only needed when Redis is down (file-based fallback).
+                # When Redis is available, task_assign and task_result
+                # messages arrive via the inbox stream directly.
+                if not ran and not _has_redis:
                     try:
                         from app.backend.services.notification_queue import notification_queue as _nq
                         if _nq.pending_count(self._name) > 0:

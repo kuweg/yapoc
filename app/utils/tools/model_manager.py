@@ -229,22 +229,16 @@ class ListModelsTool(BaseTool):
         else:  # cost
             models.sort(key=lambda m: m.input_price + m.output_price)
 
-        # Cap at 30
-        capped = models[:30]
-
         # Format table
         lines = [
             f"{'Model ID':<40} {'Context':>9} {'$/MTok In':>10} {'$/MTok Out':>11} {'Tier':<12} {'Tools':>5}",
             "-" * 92,
         ]
-        for m in capped:
+        for m in models:
             lines.append(
                 f"{m.id:<40} {m.context_window:>9,} {m.input_price:>10.2f} {m.output_price:>11.2f} "
                 f"{m.capability_tier or '-':<12} {'Y' if m.supports_tools else 'N':>5}"
             )
-
-        if len(models) > 30:
-            lines.append(f"\n... and {len(models) - 30} more models matching filters.")
 
         return "\n".join(lines)
 
@@ -255,7 +249,7 @@ class ListModelsTool(BaseTool):
 class UpdateAgentConfigTool(BaseTool):
     name = "update_agent_config"
     description = (
-        "Update another agent's CONFIG.md (adapter, model, temperature, max_tokens). "
+        "Update another agent's CONFIG.yaml (adapter, model, temperature, max_tokens). "
         "Always requires human approval. Logs changes to the target agent's HEALTH.MD."
     )
     input_schema: dict[str, Any] = {
@@ -307,7 +301,7 @@ class UpdateAgentConfigTool(BaseTool):
         if not agent_dir.exists():
             return f"Error: Agent '{agent_name}' not found at {agent_dir}"
 
-        config_path = agent_dir / "CONFIG.md"
+        config_path = agent_dir / "CONFIG.yaml"
         health_path = agent_dir / "HEALTH.MD"
 
         # Validate adapter
@@ -344,7 +338,7 @@ class UpdateAgentConfigTool(BaseTool):
         if not any([adapter, model, temperature is not None, max_tokens is not None]):
             return "Error: provide at least one of adapter, model, temperature, or max_tokens to update."
 
-        # Read current CONFIG.md
+        # Read current CONFIG.yaml
         content = ""
         if config_path.exists():
             async with aiofiles.open(config_path, encoding="utf-8") as f:
@@ -365,7 +359,7 @@ class UpdateAgentConfigTool(BaseTool):
             content = _set_yaml_key(content, "max_tokens", str(max_tokens))
             changes.append(f"max_tokens={max_tokens}")
 
-        # Write updated CONFIG.md
+        # Write updated CONFIG.yaml
         async with aiofiles.open(config_path, "w", encoding="utf-8") as f:
             await f.write(content)
 
@@ -376,4 +370,4 @@ class UpdateAgentConfigTool(BaseTool):
         async with aiofiles.open(health_path, "a", encoding="utf-8") as f:
             await f.write(audit)
 
-        return f"Updated {agent_name} CONFIG.md: {change_str}. Change takes effect on next turn."
+        return f"Updated {agent_name} CONFIG.yaml: {change_str}. Change takes effect on next turn."

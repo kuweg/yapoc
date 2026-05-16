@@ -127,8 +127,8 @@ def _count_live_agents(exclude: str | None = None) -> int:
 
 
 def _is_temporary_agent(agent_name: str) -> bool:
-    """Check if an agent has lifecycle.temporary set in CONFIG.md."""
-    config_path = settings.agents_dir / agent_name / "CONFIG.md"
+    """Check if an agent has lifecycle.temporary set in CONFIG.yaml."""
+    config_path = settings.agents_dir / agent_name / "CONFIG.yaml"
     if not config_path.exists():
         return False
     # Inline parse to avoid circular import with app.agents.base.context
@@ -166,7 +166,7 @@ def _cleanup_temporary_agent(agent_name: str) -> str:
 
 
 def _parse_delegation_targets(agent_name: str) -> list[str]:
-    """Read the delegation_targets list from an agent's CONFIG.md.
+    """Read the delegation_targets list from an agent's CONFIG.yaml.
 
     Expected format::
 
@@ -174,7 +174,7 @@ def _parse_delegation_targets(agent_name: str) -> list[str]:
           - builder
           - keeper
     """
-    config_path = settings.agents_dir / agent_name / "CONFIG.md"
+    config_path = settings.agents_dir / agent_name / "CONFIG.yaml"
     if not config_path.exists():
         return []
     try:
@@ -248,27 +248,30 @@ class SpawnAgentTool(BaseTool):
 
         # Peer delegation check — only master has unrestricted spawn rights.
         # All other agents must have the
-        # target in their CONFIG.md delegation_targets list.
+        # target in their CONFIG.yaml delegation_targets list.
         if self._caller not in _UNRESTRICTED_SPAWNERS:
             allowed = _parse_delegation_targets(self._caller)
             if not allowed:
                 return (
-                    f"Error: agent '{self._caller}' has no delegation_targets in CONFIG.md. "
+                    f"Error: agent '{self._caller}' has no delegation_targets in CONFIG.yaml. "
                     "Only master can spawn agents without explicit delegation_targets."
                 )
             if agent_name not in allowed:
                 return (
                     f"Error: agent '{self._caller}' is not authorized to delegate to '{agent_name}'. "
                     f"Allowed targets: {allowed}. Add '{agent_name}' to delegation_targets in "
-                    f"app/agents/{self._caller}/CONFIG.md to enable this delegation."
+                    f"app/agents/{self._caller}/CONFIG.yaml to enable this delegation."
                 )
-            # Log peer delegation to master's HEALTH.MD for audit trail
+            # Log peer delegation to system:health for audit trail
             try:
-                master_health = settings.agents_dir / "master" / "HEALTH.MD"
-                ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-                log_line = f"[{ts}] INFO: [PEER DELEGATION] {self._caller} -> {agent_name}: {task[:100]}\n"
-                master_health.open("a", encoding="utf-8").write(log_line)
-            except OSError:
+                from app.backend.message_bus import bus
+                await bus.publish("system:health", {
+                    "type": "peer_delegation",
+                    "source": self._caller,
+                    "target": agent_name,
+                    "task": task,
+                })
+            except Exception:
                 pass  # never block delegation on audit failure
 
         # Check if process is already alive
@@ -330,6 +333,31 @@ class SpawnAgentTool(BaseTool):
             from loguru import logger as _spawn_log
             _spawn_log.bind(parent=self._caller, child=agent_name).warning(
                 "Spawn registry update failed (continuing): {}", _reg_exc
+            )
+
+        # Publish task_assign to target agent's Redis inbox stream
+        try:
+            from app.backend.message_bus import bus
+            from loguru import logger as _bus_log
+            await bus.stream_add(
+                f"agent:{agent_name}:inbox",
+                {
+                    "type": "task_assign",
+                    "task": task,
+                    "context": context,
+                    "task_id": task_id,
+                    "session_id": self._session_id or "",
+                    "assigned_by": self._caller,
+                },
+                agent_name=self._caller,
+            )
+            _bus_log.bind(parent=self._caller, child=agent_name).info(
+                "Redis task_assign: {} → {} inbox ({} chars)", self._caller, agent_name, len(task)
+            )
+        except Exception as _bus_exc:
+            from loguru import logger as _spawn_log2
+            _spawn_log2.bind(parent=self._caller, child=agent_name).warning(
+                "Redis task_assign publish failed (agent will pick up via TASK.MD): {}", _bus_exc
             )
 
         # If process is alive (idle or spawning), the watchdog picks up the new pending task
@@ -433,11 +461,24 @@ class KillAgentTool(BaseTool):
 
         try:
             os.kill(pid, signal.SIGTERM)
-            return f"Agent '{agent_name}': SIGTERM sent to PID {pid}"
         except ProcessLookupError:
             return f"Agent '{agent_name}': PID {pid} already exited"
         except PermissionError:
             return f"Agent '{agent_name}': permission denied sending SIGTERM to PID {pid}"
+
+        # Also publish a kill message to the agent's Redis inbox so the
+        # runner processes it even if it doesn't catch the signal.
+        try:
+            from app.backend.message_bus import bus
+            await bus.stream_add(
+                f"agent:{agent_name}:inbox",
+                {"type": "kill", "reason": "killed via KillAgentTool"},
+                agent_name="master",
+            )
+        except Exception:
+            pass  # non-fatal; SIGTERM was already delivered
+
+        return f"Agent '{agent_name}': SIGTERM sent to PID {pid}"
 
 
 class CheckTaskStatusTool(BaseTool):
@@ -572,9 +613,6 @@ class WaitForAgentTool(BaseTool):
             f"Timeout waiting for agent '{agent_name}' after {timeout}s "
             f"({polls} polls). Last status: {last_status}."
         )
-
-
-_PER_AGENT_WAIT_SECTION_CAP = 8000
 
 
 def _format_wait_results(results: dict[str, dict], polls: int, early_exit: str | None = None) -> str:
@@ -819,6 +857,21 @@ async def _wake_agent_if_idle(agent_name: str, session_id: str | None = None) ->
     if not effective_session_id:
         effective_session_id = await _read_session_id(task_path)
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Publish notification to agent's Redis inbox (immediate wake-up)
+    try:
+        from app.backend.message_bus import bus
+        await bus.stream_add(
+            f"agent:{agent_name}:inbox",
+            {
+                "type": "wake",
+                "reason": "notification",
+                "session_id": effective_session_id or "",
+                "assigned_by": original_parent,
+            },
+            agent_name=original_parent,
+        )
+    except Exception:
+        pass  # non-fatal; TASK.MD write below is the fallback
     async with aiofiles.open(task_path, "w", encoding="utf-8") as f:
         await f.write(
             _NOTIFY_TRIGGER_TASK.format(
@@ -881,6 +934,26 @@ class NotifyParentTool(BaseTool):
             error=result_text if status == "error" else "",
             session_id=session_id or "",
         )
+
+        # Publish result to parent's Redis inbox stream
+        try:
+            from app.backend.message_bus import bus
+            await bus.stream_add(
+                f"agent:{parent_name}:inbox",
+                {
+                    "type": "task_result",
+                    "child_agent": self._agent_dir.name,
+                    "status": status,
+                    "result": result_text,
+                    "session_id": session_id or "",
+                },
+                agent_name=self._agent_dir.name,
+            )
+        except Exception as _bus_exc:
+            from loguru import logger as _notify_log
+            _notify_log.bind(child=self._agent_dir.name, parent=parent_name).warning(
+                "Redis notify_parent publish failed (notification queue fallback intact): {}", _bus_exc
+            )
 
         await _wake_agent_if_idle(parent_name, session_id=session_id or "")
 

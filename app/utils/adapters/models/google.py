@@ -10,6 +10,30 @@ from .base import ModelInfo
 
 MODELS: list[ModelInfo] = [
     ModelInfo(
+        id="gemini-3-flash-preview",
+        context_window=1_000_000,
+        max_output=65_536,
+        input_price=0.50,
+        output_price=3.00,
+        supports_tools=True,
+        supports_vision=True,
+        description="Gemini 3 Flash Preview — next-gen reasoning with thinking",
+        capability_tier="frontier",
+        latency_tier="fast",
+    ),
+    ModelInfo(
+        id="gemini-3-pro-preview",
+        context_window=1_000_000,
+        max_output=65_536,
+        input_price=1.25,
+        output_price=10.0,
+        supports_tools=True,
+        supports_vision=True,
+        description="Gemini 3 Pro Preview — frontier reasoning, large context",
+        capability_tier="frontier",
+        latency_tier="medium",
+    ),
+    ModelInfo(
         id="gemini-2.5-pro",
         context_window=2_000_000,
         max_output=8_192,

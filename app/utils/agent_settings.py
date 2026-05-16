@@ -238,7 +238,7 @@ def resolve_agent(agent_name: str) -> dict[str, Any] | None:
 
     ``fallbacks`` is trimmed to ``default_n_fallbacks_models`` (env-overridable
     via ``DEFAULT_N_FALLBACKS_MODELS``). Returns ``None`` if the agent has no
-    entry — the caller should fall back to CONFIG.md.
+    entry — the caller should fall back to CONFIG.yaml.
     """
     data = _read()
     agents = _agents_map(data)
@@ -270,11 +270,11 @@ def resolve_runner_settings(agent_name: str) -> dict[str, int]:
       2. ``app.config.settings`` defaults (``task_timeout``,
          ``agent_idle_timeout``).
 
-    The CONFIG.md ``runner:`` block also defines ``task_timeout`` but is
+    The CONFIG.yaml ``runner:`` block also defines ``task_timeout`` but is
     resolved separately by ``_parse_runner_config`` at the call site in
     ``BaseAgent.run_stream_with_tools``. Callers should prefer the value
     here when both are present (agent-settings.json is authoritative for
-    cross-cutting runtime config; CONFIG.md is the legacy fallback).
+    cross-cutting runtime config; CONFIG.yaml is the legacy fallback).
     """
     data = _read()
     agents = _agents_map(data)
@@ -378,7 +378,7 @@ def _main(argv: list[str]) -> int:
                 return 2
             entry = resolve_agent(argv[1])
             if entry is None:
-                print(f"[agent-settings] no entry for '{argv[1]}' — will fall back to CONFIG.md")
+                print(f"[agent-settings] no entry for '{argv[1]}' — will fall back to CONFIG.yaml")
                 return 1
             print(json.dumps(entry, indent=2))
         elif cmd == "heal":

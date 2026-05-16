@@ -134,11 +134,11 @@ class BaseLLMAdapter(ABC):
 
 
 def parse_config_block(content: str) -> dict:
-    """Parse config from either [config] block (NOTES.MD) or bare YAML (CONFIG.md).
+    """Parse config from either [config] block (NOTES.MD) or bare YAML (CONFIG.yaml).
 
     Supports both formats:
       1. [config]\\nadapter: anthropic\\nmodel: ...  (NOTES.MD style)
-      2. adapter: anthropic\\nmodel: ...             (CONFIG.md YAML style)
+      2. adapter: anthropic\\nmodel: ...             (CONFIG.yaml YAML style)
     """
     # Try [config] block first
     match = re.search(r"\[config\](.*?)(?:\n\[|\Z)", content, re.DOTALL | re.IGNORECASE)

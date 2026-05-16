@@ -7,6 +7,7 @@ different base URL and API key.
 
 import json
 import logging
+import re
 import time
 from typing import Any, AsyncIterator
 
@@ -160,6 +161,103 @@ def _raise_with_detail(response: httpx.Response) -> None:
         request=response.request,
         response=response,
     )
+
+
+def _parse_raw_tool_calls(text: str) -> list[dict[str, Any]]:
+    """Parse raw XML tool calls from DeepSeek V4 models.
+
+    Handles two formats:
+    1. <invoke name="func_name"><parameter name="x">val</parameter></invoke>
+    2. <functioncall><invoke name="func_name"><parameter name="x" string="true">val</parameter></invoke></functioncall>
+    3. <functioncall>func_name({"x": "val"})</functioncall>
+    """
+    tool_calls: list[dict[str, Any]] = []
+
+    # Format 1 & 2: <invoke name="...">...</invoke>
+    for match in re.finditer(r'<invoke\s+name="([^"]+)"[^>]*>(.*?)</invoke>', text, re.DOTALL):
+        name = match.group(1)
+        params_xml = match.group(2)
+        params: dict[str, Any] = {}
+        for p in re.finditer(r'<parameter\s+name="([^"]+)"[^>]*>(.*?)</parameter>', params_xml, re.DOTALL):
+            param_name = p.group(1)
+            param_val = p.group(2).strip()
+            # Try to parse as JSON
+            try:
+                params[param_name] = json.loads(param_val)
+            except (json.JSONDecodeError, TypeError):
+                params[param_name] = param_val
+        tool_calls.append({"name": name, "input": params})
+
+    # Format 3: <functioncall>name({"key": "val"})</functioncall>
+    for match in re.finditer(
+        r'<functioncall>(?:<invoke[^>]*>)?\s*(\w+)\s*\(\s*(.*?)\s*\)\s*(?:</invoke>)?</functioncall>',
+        text,
+        re.DOTALL,
+    ):
+        name = match.group(1)
+        args_str = match.group(2)
+        try:
+            params = json.loads(args_str)
+        except (json.JSONDecodeError, TypeError):
+            params = {}
+        tool_calls.append({"name": name, "input": params})
+
+    # Format 4: Self-closing tags like <tool_name param="value" />
+    _structural_tags = frozenset({
+        "br", "hr", "img", "input", "meta", "link", "area", "base", "col",
+        "embed", "source", "track", "wbr", "param", "command", "keygen",
+    })
+    for match in re.finditer(
+        r'<(\w+)\s+([^>/]+?)\s*/>',
+        text,
+        re.DOTALL,
+    ):
+        name = match.group(1)
+        attrs_str = match.group(2)
+        if name in _structural_tags:
+            continue
+        params: dict[str, Any] = {}
+        for a in re.finditer(r'(\w+)\s*=\s*"([^"]*)"', attrs_str):
+            param_name = a.group(1)
+            param_val = a.group(2).strip()
+            try:
+                params[param_name] = json.loads(param_val)
+            except (json.JSONDecodeError, TypeError):
+                params[param_name] = param_val
+        tool_calls.append({"name": name, "input": params})
+
+    # Format 5: <function_name><param_name>value</param_name></function_name>
+    # DeepSeek V4 Pro outputs tool calls where the function name IS the XML element.
+    # Known structural tags to skip (already handled or non-functional).
+    structural = frozenset({
+        "invoke", "functioncall", "function", "parameter",
+        "tool_calls", "tool_use", "thinking", "reasoning",
+        "content", "input", "result", "output", "error",
+    })
+    for match in re.finditer(
+        r'<(\w+)>((?:\s*<\w+>[^<]*</\w+>\s*)*)</\1>',
+        text,
+        re.DOTALL,
+    ):
+        outer_tag = match.group(1)
+        if outer_tag in structural:
+            continue
+        inner = match.group(2)
+        params: dict[str, Any] = {}
+        for p in re.finditer(r'<(\w+)>([^<]*)</\1>', inner, re.DOTALL):
+            param_name = p.group(1)
+            param_val = p.group(2).strip()
+            try:
+                params[param_name] = json.loads(param_val)
+            except (json.JSONDecodeError, TypeError):
+                params[param_name] = param_val
+        if params:
+            tool_calls.append({"name": outer_tag, "input": params})
+        else:
+            # Treat the entire inner text as the argument
+            tool_calls.append({"name": outer_tag, "input": {"value": inner.strip()}})
+
+    return tool_calls
 
 
 class DeepSeekAdapter(BaseLLMAdapter):
@@ -341,10 +439,30 @@ class DeepSeekAdapter(BaseLLMAdapter):
                         if args_chunk := tc_delta.get("function", {}).get("arguments", ""):
                             tc_accum[idx]["arguments_parts"].append(args_chunk)
 
+        # Check for raw XML tool calls that weren't captured as structured tool_calls
+        raw_xml = "".join(text_parts)
+        parsed_tool_calls = _parse_raw_tool_calls(raw_xml)
+
         elapsed = time.perf_counter() - t_start
 
         tool_calls: list[ToolCall] = []
         assistant_content: list[dict[str, Any]] = []
+
+        # If raw XML tool calls were parsed, use those instead of text_parts
+        if parsed_tool_calls:
+            # Clear text_parts since the XML was tool calls, not actual text
+            text_parts.clear()
+            for tc in parsed_tool_calls:
+                tc_id = f"call_{int(time.time() * 1000)}_{len(tool_calls)}"
+                tc_obj = ToolCall(id=tc_id, name=tc["name"], input=tc["input"])
+                tool_calls.append(tc_obj)
+                assistant_content.append({
+                    "type": "tool_use",
+                    "id": tc_id,
+                    "name": tc["name"],
+                    "input": tc["input"],
+                })
+                yield ToolStart(name=tc["name"], input=tc["input"])
 
         if include_reasoning_content and reasoning_parts:
             assistant_content.append(

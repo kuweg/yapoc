@@ -7,7 +7,7 @@ interface Props {
 
 const FILE_COLORS: Record<string, string> = {
   'PROMPT.MD': 'border-blue-500/40 text-blue-400',
-  'CONFIG.md': 'border-amber-500/40 text-amber-400',
+  'CONFIG.yaml': 'border-amber-500/40 text-amber-400',
   'MEMORY.MD': 'border-emerald-500/40 text-emerald-400',
   'NOTES.MD': 'border-purple-500/40 text-purple-400',
   'HEALTH.MD': 'border-red-500/40 text-red-400',

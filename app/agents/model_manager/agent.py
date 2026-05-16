@@ -19,7 +19,7 @@ class ModelManagerAgent(BaseAgent):
         super().__init__(settings.agents_dir / "model_manager")
 
     async def run_model_audit(self) -> str:
-        """Scan all agent CONFIG.md files, check catalog coverage, write findings to NOTES.MD.
+        """Scan all agent CONFIG.yaml files, check catalog coverage, write findings to NOTES.MD.
 
         Pure Python — no LLM calls. Informational only — never applies changes autonomously.
         """
@@ -37,10 +37,10 @@ class ModelManagerAgent(BaseAgent):
 
         for agent_dir in agent_dirs:
             name = agent_dir.name
-            config_path = agent_dir / "CONFIG.md"
+            config_path = agent_dir / "CONFIG.yaml"
 
             if not config_path.exists():
-                issues.append(f"- **{name}**: No CONFIG.md found")
+                issues.append(f"- **{name}**: No CONFIG.yaml found")
                 continue
 
             raw = config_path.read_text(encoding="utf-8", errors="replace")
@@ -99,7 +99,7 @@ class ModelManagerAgent(BaseAgent):
 
     @staticmethod
     def _extract_yaml_value(content: str, key: str) -> str | None:
-        """Extract a simple YAML key value from CONFIG.md content."""
+        """Extract a simple YAML key value from CONFIG.yaml content."""
         m = re.search(rf"^{re.escape(key)}\s*:\s*(.+)$", content, re.MULTILINE)
         return m.group(1).strip() if m else None
 

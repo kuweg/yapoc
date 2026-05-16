@@ -5,7 +5,8 @@ import signal
 import subprocess
 import sys
 import textwrap
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from app.config import settings
@@ -38,14 +39,6 @@ def _spawn_server(cmd: list[str]) -> subprocess.Popen:
 
 
 def _schedule_deferred_restart(old_pid: int, cmd: list[str], delay: float = 3.0) -> None:
-    """
-    Spawn a detached helper process that kills *old_pid* and starts a new server
-    after *delay* seconds.
-
-    Used when server_restart is called from inside the running backend — the
-    deferred approach lets the current HTTP response complete before the kill fires.
-    """
-    # Encode the command as JSON so the inline script can parse it safely.
     cmd_json = json.dumps(cmd)
     pid_file = str(_PID_FILE)
     server_output = str(_SERVER_OUTPUT)
@@ -70,17 +63,124 @@ def _schedule_deferred_restart(old_pid: int, cmd: list[str], delay: float = 3.0)
     )
 
 
+async def _save_resume_state(reason: str = "", next_action: str = "", session_id: str = "") -> str:
+    """Gather agent state and write a structured RESUME.MD for post-restart continuity."""
+    agents_dir = settings.agents_dir
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    active: list[str] = []
+    for agent_dir in sorted(agents_dir.iterdir()):
+        if not agent_dir.is_dir() or agent_dir.name in ("base",):
+            continue
+        status_path = agent_dir / "STATUS.json"
+        task_path = agent_dir / "TASK.MD"
+        if status_path.exists():
+            try:
+                sj = json.loads(status_path.read_text())
+                state = sj.get("state", "")
+                if state in ("running", "idle", "spawning"):
+                    task_summary = sj.get("task_summary", "")
+                    fm = {}
+                    if task_path.exists():
+                        t = task_path.read_text(encoding="utf-8")
+                        for line in t.splitlines():
+                            if ":" in line:
+                                k, _, v = line.partition(":")
+                                fm[k.strip()] = v.strip()
+                    tid = fm.get("task_id", "")
+                    sid = fm.get("session_id", "")
+                    active.append(
+                        f"  - {agent_dir.name} (state: {state}, task_id: {tid[:16] if tid else 'none'}, session: {sid[:8] if sid else 'none'})"
+                    )
+            except Exception:
+                pass
+
+    content = (
+        f"---\n"
+        f"restart_at: {now}\n"
+        f"restart_reason: {reason}\n"
+        f"next_action: {next_action}\n"
+        f"session_id: {session_id}\n"
+        f"---\n\n"
+        f"## Active agents\n"
+        + ("\n".join(active) if active else "  (none)\n")
+    )
+
+    _RESUME_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _RESUME_FILE.write_text(content)
+    return content
+
+
+async def _notify_agents_pre_shutdown() -> None:
+    """Publish prepare_shutdown to all active agent Redis inboxes."""
+    agents_dir = settings.agents_dir
+    try:
+        from app.backend.message_bus import bus
+    except Exception:
+        return
+
+    if not bus.connected:
+        return
+
+    for agent_dir in agents_dir.iterdir():
+        if not agent_dir.is_dir() or agent_dir.name in ("base", "master"):
+            continue
+        status_path = agent_dir / "STATUS.json"
+        if not status_path.exists():
+            continue
+        try:
+            sj = json.loads(status_path.read_text())
+            if sj.get("state") in ("running", "idle"):
+                await bus.stream_add(
+                    f"agent:{agent_dir.name}:inbox",
+                    {"type": "prepare_shutdown", "reason": "server restart"},
+                    agent_name="master",
+                )
+        except Exception:
+            pass
+
+
 class ServerRestartTool(BaseTool):
     name = "server_restart"
-    description = "Restart the YAPOC backend server. Use when the user asks to restart, reboot, or reset the server."
-    input_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
+    description = (
+        "Restart the YAPOC backend server. Saves active agent state to RESUME.MD "
+        "and notifies sub-agents before shutdown so work can be resumed after restart."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "Why the server is being restarted (e.g. 'applying config changes')",
+            },
+            "next_action": {
+                "type": "string",
+                "description": "What to do after restart (e.g. 'wait for keeper then summarize')",
+            },
+        },
+        "required": [],
+    }
+
+    def __init__(
+        self,
+        agent_dir: "Path | None" = None,
+        session_id: str | None = None,
+    ) -> None:
+        self._session_id = session_id
 
     async def execute(self, **params: Any) -> str:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        _RESUME_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _RESUME_FILE.write_text(
-            f"[{timestamp}] action: restart_server | context: user asked to restart | status: pending\n"
+        reason = str(params.get("reason", "user requested"))
+        next_action = str(params.get("next_action", "check RESUME.MD for pending work"))
+
+        # 1. Save structured resume state
+        await _save_resume_state(
+            reason=reason,
+            next_action=next_action,
+            session_id=self._session_id or "",
         )
+
+        # 2. Notify sub-agents to save their state
+        await _notify_agents_pre_shutdown()
 
         old_pid: int | None = None
         if _PID_FILE.exists():
@@ -91,20 +191,16 @@ class ServerRestartTool(BaseTool):
 
         cmd = _build_uvicorn_cmd()
 
-        # ── Self-restart: called from within the running backend ─────────────
-        # Killing ourselves synchronously would tear down the event loop before
-        # the response is sent.  Hand off to a detached helper that fires after
-        # a short delay, giving the SSE stream time to deliver this message.
+        # Self-restart: hand off to detached helper
         if old_pid is not None and old_pid == os.getpid():
             _schedule_deferred_restart(old_pid, cmd, delay=3.0)
-            _RESUME_FILE.write_text("")
             return (
                 f"Server self-restart scheduled (fires in ~3 s). "
-                f"Old PID: {old_pid}. "
-                f"New backend will be at http://{settings.host}:{settings.port}."
+                f"RESUME.MD saved with {reason!r}. "
+                f"Sub-agents notified. New backend will be at http://{settings.host}:{settings.port}."
             )
 
-        # ── Normal restart: called from CLI, killing a daemon ────────────────
+        # Normal restart (CLI-initiated)
         if old_pid is not None:
             try:
                 os.kill(old_pid, signal.SIGTERM)
@@ -113,9 +209,7 @@ class ServerRestartTool(BaseTool):
             _PID_FILE.unlink(missing_ok=True)
 
         await asyncio.sleep(1)
-
         proc = _spawn_server(cmd)
-        _RESUME_FILE.write_text("")
         return f"Server restarted. Old PID: {old_pid or 'none'}, New PID: {proc.pid}"
 
 

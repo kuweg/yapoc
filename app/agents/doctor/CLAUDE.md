@@ -15,14 +15,14 @@ Scans all agent directories (skips `_*` and `base`):
 - Writes summary to `doctor/HEALTH_SUMMARY.MD` (overwritten each run)
 - Appends own MEMORY.MD entry
 
-## CONFIG.md — uses OpenAI, not Anthropic
+## CONFIG.yaml — uses OpenAI, not Anthropic
 ```yaml
 adapter: openai
 model: gpt-4o-mini
 ```
 Requires `OPENAI_API_KEY` in `.env`. Without it, all LLM-triggered doctor tasks fail silently (APScheduler catches exceptions). The programmatic `run_health_check()` still works — no LLM needed.
 
-To use Anthropic instead: edit `app/agents/doctor/CONFIG.md`, change adapter to `anthropic` and model to `claude-haiku-4-5-20251001`.
+To use Anthropic instead: edit `app/agents/doctor/CONFIG.yaml`, change adapter to `anthropic` and model to `claude-haiku-4-5-20251001`.
 
 ## Singleton
 ```python

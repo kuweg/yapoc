@@ -1,4 +1,4 @@
-"""UpdateConfigTool — allows agents to modify their own CONFIG.md.
+"""UpdateConfigTool — allows agents to modify their own CONFIG.yaml.
 
 Used for self-optimization: agents can switch adapters, models, or temperature
 when they determine a different configuration would better serve their task.
@@ -20,7 +20,7 @@ from . import BaseTool
 class UpdateConfigTool(BaseTool):
     name = "update_config"
     description = (
-        "Update your CONFIG.md to switch adapter, model, or temperature. "
+        "Update your CONFIG.yaml to switch adapter, model, or temperature. "
         "Change takes effect on the next turn."
     )
     input_schema: dict[str, Any] = {
@@ -54,7 +54,7 @@ class UpdateConfigTool(BaseTool):
 
     def __init__(self, agent_dir: Path) -> None:
         self._agent_dir = agent_dir
-        self._config_path = agent_dir / "CONFIG.md"
+        self._config_path = agent_dir / "CONFIG.yaml"
         self._health_path = agent_dir / "HEALTH.MD"
 
     async def execute(self, **params: Any) -> str:
@@ -96,7 +96,7 @@ class UpdateConfigTool(BaseTool):
         if not any([adapter, model, temperature is not None, max_tokens is not None]):
             return "Error: provide at least one of adapter, model, temperature, or max_tokens to update."
 
-        # Read current CONFIG.md
+        # Read current CONFIG.yaml
         content = ""
         if self._config_path.exists():
             async with aiofiles.open(self._config_path, encoding="utf-8") as f:
@@ -117,7 +117,7 @@ class UpdateConfigTool(BaseTool):
             content = _set_yaml_key(content, "max_tokens", str(max_tokens))
             changes.append(f"max_tokens={max_tokens}")
 
-        # Write updated CONFIG.md
+        # Write updated CONFIG.yaml
         async with aiofiles.open(self._config_path, "w", encoding="utf-8") as f:
             await f.write(content)
 
@@ -132,7 +132,7 @@ class UpdateConfigTool(BaseTool):
 
 
 def _set_yaml_key(content: str, key: str, value: str) -> str:
-    """Set a YAML key in CONFIG.md content. Adds the key if not present."""
+    """Set a YAML key in CONFIG.yaml content. Adds the key if not present."""
     pattern = re.compile(rf"^({re.escape(key)}\s*:\s*)(.*)$", re.MULTILINE)
     if pattern.search(content):
         return pattern.sub(rf"\g<1>{value}", content)

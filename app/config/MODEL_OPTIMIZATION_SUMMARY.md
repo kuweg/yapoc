@@ -33,7 +33,7 @@ All 4 approved model optimizations have been successfully implemented. The chang
 | Status | ⚠️ Not in catalog | ✅ Verified in catalog | Resolved |
 
 **Justification:**  
-Master was using `claude-sonnet-4-5` which is not in the current model catalog. Upgraded to `claude-sonnet-4-6` (same pricing, same capabilities, verified available). This aligns `agent-settings.json` with the CONFIG.md file which already specified sonnet-4-6.
+Master was using `claude-sonnet-4-5` which is not in the current model catalog. Upgraded to `claude-sonnet-4-6` (same pricing, same capabilities, verified available). This aligns `agent-settings.json` with the CONFIG.yaml file which already specified sonnet-4-6.
 
 **Risk Assessment:** ✅ **ZERO** — Same model family, identical pricing and capabilities.
 
@@ -134,7 +134,7 @@ Doctor was already using `claude-haiku-4-5-20251001` (cloud-based). Downgrading 
 - ✅ **Cron**: claude-haiku-4-5-20251001 → claude-3-haiku-20240307 (verified in catalog)
 - ✅ **Keeper**: claude-haiku-4-5-20251001 → claude-3-haiku-20240307 (verified in catalog)
 - ✅ **Doctor**: claude-haiku-4-5-20251001 → claude-3-haiku-20240307 (verified in catalog)
-- ✅ **CONFIG.md files** already aligned with new settings
+- ✅ **CONFIG.yaml files** already aligned with new settings
 - ✅ **Fallback chains** preserved for resilience
 - ✅ **Health log** updated with audit trail
 - ✅ **Memory log** updated with implementation details

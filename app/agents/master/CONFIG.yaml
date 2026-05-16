@@ -39,7 +39,6 @@ sandbox:
     - app/config/settings.py
     - pyproject.toml
 runner:
-  max_turns: 12
   task_timeout: 300
   poll_interval: 30
   retry_attempts: 3

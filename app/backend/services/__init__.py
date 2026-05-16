@@ -39,7 +39,7 @@ def _is_stale_status(status: dict) -> bool:
 
 
 def _parse_config(agent_dir) -> tuple[str, str]:
-    """Return (model, adapter) from agent-settings.json, then CONFIG.md, then defaults."""
+    """Return (model, adapter) from agent-settings.json, then CONFIG.yaml, then defaults."""
     model = ""
     adapter = ""
 
@@ -52,8 +52,8 @@ def _parse_config(agent_dir) -> tuple[str, str]:
     except Exception:
         pass
 
-    # 2. Check CONFIG.md
-    config_path = agent_dir / "CONFIG.md"
+    # 2. Check CONFIG.yaml
+    config_path = agent_dir / "CONFIG.yaml"
     if config_path.exists():
         text = config_path.read_text(encoding="utf-8", errors="ignore")
         m = re.search(r"model\s*:\s*([^\s\n]+)", text, re.IGNORECASE)
@@ -132,7 +132,7 @@ def _parse_memory(agent_dir) -> tuple[int, str | None, list[str]]:
         return 0, None, []
     lines = [l.strip() for l in path.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]
     count = len(lines)
-    last = lines[-1][:100] if lines else None
+    last = lines[-1] if lines else None
     last_5 = lines[-5:] if lines else []
     return count, last, last_5
 
@@ -251,12 +251,11 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
 
     # Fill task_summary from TASK.MD if STATUS.json doesn't have one
     if not task_summary and task and task.task_text:
-        task_summary = task.task_text[:120]
-    # For completed tasks also show result/status context
+        task_summary = task.task_text
     if not task_summary and task and task.result_text:
-        task_summary = f"[done] {task.result_text[:110]}"
+        task_summary = f"[done] {task.result_text}"
     if not task_summary and task and task.error_text:
-        task_summary = f"[error] {task.error_text[:110]}"
+        task_summary = f"[error] {task.error_text}"
 
     # Legacy status field — combines process state + task state
     if state == "running":
@@ -285,7 +284,7 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
         health_errors=health_errors,
         process_state=effective_state,
         pid=pid,
-        task_summary=task_summary[:120] if task_summary else "",
+        task_summary=task_summary if task_summary else "",
         adapter=adapter,
         state=effective_state,
         health=health,

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type Theme = 'dark' | 'light'
+export type Theme = 'dark' | 'light' | 'claude'
 
 interface ThemeStore {
   theme: Theme
@@ -20,7 +20,8 @@ export const useThemeStore = create<ThemeStore>((set) => ({
   theme: savedTheme,
   toggleTheme: () =>
     set((state) => {
-      const next: Theme = state.theme === 'dark' ? 'light' : 'dark'
+      const cycle: Record<Theme, Theme> = { dark: 'light', light: 'claude', claude: 'dark' }
+      const next = cycle[state.theme]
       applyTheme(next)
       return { theme: next }
     }),

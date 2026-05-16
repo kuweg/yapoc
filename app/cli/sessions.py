@@ -75,7 +75,7 @@ def list_sessions(limit: int = 20) -> list[SessionMeta]:
 
         # First user message as name
         first_user = next((m["content"] for m in messages if m["role"] == "user"), "")
-        name = first_user[:60].replace("\n", " ")
+        name = first_user.replace("\n", " ")
 
         # Created at from file mtime (or parse from session id)
         created = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).strftime(

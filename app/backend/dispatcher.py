@@ -43,7 +43,7 @@ async def _deliver_webhook_callback(task_id: str, result: str) -> None:
             await client.post(callback_url, json={
                 "task_id": task_id,
                 "status": task.get("status", "done"),
-                "result": result[:5000],
+                "result": result,
             })
         logger.info(f"Webhook callback delivered for {task_id[:8]}… to {callback_url}")
     except Exception as exc:
@@ -103,12 +103,25 @@ async def _execute_task(task_id: str) -> None:
         "session_id": session_id,
         "source": source,
     })
+    # Publish to Redis for MessageBusRelay → WebSocket + agents
+    try:
+        from app.backend.message_bus import bus as _bus
+        await _bus.publish("system:tasks", {
+            "type": "task_update",
+            "task_id": task_id,
+            "status": "running",
+            "started_at": now,
+            "session_id": session_id,
+            "source": source,
+        })
+    except Exception:
+        pass
 
     # Total chain timeout: prevents infinite delegation chains.
     # 2x master's task_timeout gives sub-agents time to finish.
     _chain_timeout = settings.task_timeout * 2
 
-    logger.info(f"Dispatching task {task_id[:8]}… prompt={prompt[:80]} (chain_timeout={_chain_timeout}s)")
+    logger.info(f"Dispatching task {task_id[:8]}… prompt={prompt} (chain_timeout={_chain_timeout}s)")
 
     response_parts: list[str] = []
     total_cost = 0.0
@@ -134,17 +147,30 @@ async def _execute_task(task_id: str) -> None:
         update_queued_task(
             task_id,
             status="done",
-            result=result_text[:10000],
+            result=result_text,
             completed_at=completed_at,
         )
         await ws_manager.push_event("task_complete", {
             "task_id": task_id,
             "status": "done",
-            "result": result_text[:2000],
+            "result": result_text,
             "completed_at": completed_at,
             "session_id": session_id,
             "source": source,
         })
+        try:
+            from app.backend.message_bus import bus as _bus2
+            await _bus2.publish("system:tasks", {
+                "type": "task_complete",
+                "task_id": task_id,
+                "status": "done",
+                "result": result_text,
+                "completed_at": completed_at,
+                "session_id": session_id,
+                "source": source,
+            })
+        except Exception:
+            pass
         logger.info(f"Task {task_id[:8]}… completed ({len(result_text)} chars)")
 
         # Webhook callback delivery
@@ -162,10 +188,23 @@ async def _execute_task(task_id: str) -> None:
             "session_id": session_id,
             "source": source,
         })
+        try:
+            from app.backend.message_bus import bus as _bus3
+            await _bus3.publish("system:tasks", {
+                "type": "task_error",
+                "task_id": task_id,
+                "status": "timeout",
+                "error": error_text,
+                "completed_at": completed_at,
+                "session_id": session_id,
+                "source": source,
+            })
+        except Exception:
+            pass
         # Return partial result if any text was collected
         partial = "".join(response_parts)
         if partial:
-            update_queued_task(task_id, result=f"[PARTIAL] {partial[:5000]}")
+            update_queued_task(task_id, result=f"[PARTIAL] {partial}")
         logger.warning(f"Task {task_id[:8]}… chain timeout after {_chain_timeout}s")
 
     except Exception as exc:
@@ -174,18 +213,31 @@ async def _execute_task(task_id: str) -> None:
         update_queued_task(
             task_id,
             status="error",
-            error=error_text[:5000],
+            error=error_text,
             completed_at=completed_at,
         )
         await ws_manager.push_event("task_error", {
             "task_id": task_id,
             "status": "error",
-            "error": error_text[:2000],
+            "error": error_text,
             "completed_at": completed_at,
             "session_id": session_id,
             "source": source,
         })
-        logger.error(f"Task {task_id[:8]}… failed: {error_text[:200]}")
+        try:
+            from app.backend.message_bus import bus as _bus4
+            await _bus4.publish("system:tasks", {
+                "type": "task_error",
+                "task_id": task_id,
+                "status": "error",
+                "error": error_text,
+                "completed_at": completed_at,
+                "session_id": session_id,
+                "source": source,
+            })
+        except Exception:
+            pass
+        logger.error(f"Task {task_id[:8]}… failed: {error_text}")
 
     finally:
         _running_task_ids.discard(task_id)
@@ -300,7 +352,7 @@ async def _check_goals() -> None:
         return
 
     top_goal = unchecked[0].strip()
-    logger.info(f"Goal-driven dispatch: '{top_goal[:80]}'")
+    logger.info(f"Goal-driven dispatch: '{top_goal}'")
 
     import uuid
     task_id = str(uuid.uuid4())

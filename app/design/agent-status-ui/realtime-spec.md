@@ -100,7 +100,7 @@ export interface AgentStatus {
   health: 'ok' | 'warning' | 'critical';
   health_error_count: number;      // Count of ERROR/CRITICAL entries in HEALTH.MD
   
-  // Configuration (from CONFIG.md or agent.py)
+  // Configuration (from CONFIG.yaml or agent.py)
   model: string;                   // e.g. "claude-sonnet-4-6"
   adapter: string;                 // e.g. "anthropic", "openai", "google"
   
@@ -403,7 +403,7 @@ Returns the status of all known agents.
 **Implementation notes:**
 - Scan `app/agents/` directory for subdirectories
 - Read `STATUS.json`, `HEALTH.MD`, `MEMORY.MD` for each
-- Read `CONFIG.md` or `agent.py` to extract model/adapter
+- Read `CONFIG.yaml` or `agent.py` to extract model/adapter
 - Return sorted by: running first, then error, then idle, then done
 
 ### 5.2 `GET /api/agents/:name`

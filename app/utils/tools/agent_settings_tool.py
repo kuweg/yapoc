@@ -59,7 +59,7 @@ class ShowAgentSettingsTool(BaseTool):
             if name:
                 entry = agent_settings.resolve_agent(name)
                 if entry is None:
-                    return f"[show_agent_settings] no entry for '{name}' (will fall back to CONFIG.md)"
+                    return f"[show_agent_settings] no entry for '{name}' (will fall back to CONFIG.yaml)"
                 return json.dumps(entry, indent=2)
             return json.dumps(agent_settings.show(), indent=2)
         except Exception as exc:

@@ -16,12 +16,12 @@ Master  →  Planning  →  Builder / Keeper / Cron  (spawned as subprocesses)
 | `MEMORY.MD` | Append-only: `[datetime] task: ... \| response: ...` | Self |
 | `NOTES.MD` | Persistent knowledge / config fallback | Self |
 | `HEALTH.MD` | Error log: `[datetime] ERROR: ...` | Self / Doctor |
-| `CONFIG.md` | YAML: adapter, model, temperature, tools, runner | Developer / Keeper |
+| `CONFIG.yaml` | YAML: adapter, model, temperature, tools, runner | Developer / Keeper |
 | `STATUS.json` | Live runner state (spawning/idle/running/terminated) | AgentRunner |
 | `CRASH.MD` | Crash reports from subprocess exits | AgentRunner / crash.py |
 
 ## Config resolution order
-`app/config/agent-settings.json` (per-agent binding, authoritative) → `CONFIG.md` YAML → `NOTES.MD [config]` block → `settings` defaults
+`app/config/agent-settings.json` (per-agent binding, authoritative) → `CONFIG.yaml` YAML → `NOTES.MD [config]` block → `settings` defaults
 
 agent-settings.json supports per-agent overrides for `adapter`, `model`, `temperature`, `max_tokens`, `fallbacks`, **`task_timeout`** (seconds, default 300 — wraps `run_stream_with_tools`), and **`idle_timeout`** (seconds, default 900 — when an idle subprocess agent self-terminates).
 

@@ -1,18 +1,10 @@
-"""Google Gemini adapter.
+"""Google Gemini adapter using the native google-genai SDK."""
 
-Uses Google's OpenAI-compatible endpoint at
-https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
-which accepts the same request/response shape as OpenAI.
-
-This keeps the adapter implementation minimal and shares message/tool
-normalization with the OpenAI path.
-"""
-
-import json
 import time
 from typing import Any, AsyncIterator
 
-import httpx
+from google import genai
+from google.genai import types
 
 from app.config import settings
 
@@ -29,57 +21,93 @@ from .base import (
     UsageStats,
 )
 from .models import ALL_CONTEXT_WINDOWS
-from .normalize import normalize_to_openai
-
-_GOOGLE_API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-)
 
 _DEFAULT_CONTEXT_WINDOW = 1_000_000
-
-
-def _raise_with_detail(response: httpx.Response) -> None:
-    if response.is_success:
-        return
-    try:
-        body = response.json()
-        detail = body.get("error", {}).get("message", response.text)
-    except Exception:
-        detail = response.text
-    raise httpx.HTTPStatusError(
-        f"Google Gemini API error ({response.status_code}): {detail}",
-        request=response.request,
-        response=response,
-    )
 
 
 class GoogleAdapter(BaseLLMAdapter):
     def __init__(self, config: AgentConfig) -> None:
         super().__init__(config)
-        self._api_key = settings.google_api_key
-        if not self._api_key:
+        api_key = settings.google_api_key
+        if not api_key:
             raise ValueError(
                 "Google API key is not set. "
                 "Set GOOGLE_API_KEY in your .env file or environment."
             )
+        self._client = genai.Client(api_key=api_key)
 
     def context_window_size(self) -> int:
         return ALL_CONTEXT_WINDOWS.get(self._config.model, _DEFAULT_CONTEXT_WINDOW)
 
-    def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self._api_key}"}
+    # ── Message conversion ───────────────────────────────────────────────────
 
-    def _build_messages(
-        self,
-        system_prompt: str,
-        user_message: str,
-        history: list[Message] | None,
-    ) -> list[dict]:
-        messages = [{"role": "system", "content": system_prompt}]
-        for msg in (history or []):
-            messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": user_message})
-        return messages
+    @staticmethod
+    def _role_to_gemini(role: str) -> str:
+        return "model" if role == "assistant" else role
+
+    @staticmethod
+    def _messages_to_contents(
+        messages: list[dict[str, Any]],
+    ) -> list[types.Content]:
+        tool_names: dict[str, str] = {}
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_names[block["id"]] = block.get("name", "")
+
+        contents: list[types.Content] = []
+        for msg in messages:
+            role = msg["role"]
+            gemini_role = "model" if role == "assistant" else role
+            content = msg.get("content", "")
+            parts: list[types.Part] = []
+
+            if isinstance(content, str):
+                if content:
+                    parts.append(types.Part(text=content))
+            elif isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        parts.append(types.Part(text=str(block)))
+                        continue
+                    btype = block.get("type", "")
+                    if btype == "text":
+                        text = block.get("text", "")
+                        if text:
+                            parts.append(types.Part(text=text))
+                    elif btype == "thinking":
+                        pass
+                    elif btype == "tool_use":
+                        parts.append(
+                            types.Part(
+                                function_call=types.FunctionCall(
+                                    id=block["id"],
+                                    name=block["name"],
+                                    args=block.get("input", {}),
+                                )
+                            )
+                        )
+                    elif btype == "tool_result":
+                        tool_use_id = block["tool_use_id"]
+                        name = tool_names.get(tool_use_id, "")
+                        parts.append(
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    id=tool_use_id,
+                                    name=name,
+                                    response={"result": block.get("content", "")},
+                                )
+                            )
+                        )
+
+            if parts:
+                contents.append(types.Content(role=gemini_role, parts=parts))
+
+        return contents
+
+    # ── API methods ──────────────────────────────────────────────────────────
 
     async def complete(
         self,
@@ -87,22 +115,29 @@ class GoogleAdapter(BaseLLMAdapter):
         user_message: str,
         history: list[Message] | None = None,
     ) -> str:
-        payload = {
-            "model": self._config.model,
-            "messages": self._build_messages(system_prompt, user_message, history),
-            "temperature": self._config.temperature,
-            "max_tokens": self._config.max_tokens,
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                _GOOGLE_API_URL,
-                json=payload,
-                headers=self._headers(),
-                timeout=120,
-            )
-            _raise_with_detail(response)
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+        contents: list[types.Content] = []
+        for msg in history or []:
+            role = self._role_to_gemini(msg.role)
+            if msg.content:
+                contents.append(
+                    types.Content(role=role, parts=[types.Part(text=msg.content)])
+                )
+        contents.append(
+            types.Content(role="user", parts=[types.Part(text=user_message)])
+        )
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=self._config.temperature,
+            max_output_tokens=self._config.max_tokens,
+        )
+
+        response = await self._client.aio.models.generate_content(
+            model=self._config.model,
+            contents=contents,
+            config=config,
+        )
+        return response.text or ""
 
     async def stream(
         self,
@@ -110,33 +145,30 @@ class GoogleAdapter(BaseLLMAdapter):
         user_message: str,
         history: list[Message] | None = None,
     ) -> AsyncIterator[str]:
-        payload = {
-            "model": self._config.model,
-            "messages": self._build_messages(system_prompt, user_message, history),
-            "temperature": self._config.temperature,
-            "max_tokens": self._config.max_tokens,
-            "stream": True,
-        }
-        async with httpx.AsyncClient() as client:
-            async with client.stream(
-                "POST",
-                _GOOGLE_API_URL,
-                json=payload,
-                headers=self._headers(),
-                timeout=120,
-            ) as response:
-                if not response.is_success:
-                    await response.aread()
-                    _raise_with_detail(response)
-                async for line in response.aiter_lines():
-                    if line.startswith("data: ") and line != "data: [DONE]":
-                        chunk = json.loads(line[6:])
-                        choices = chunk.get("choices") or []
-                        if not choices:
-                            continue
-                        delta = choices[0].get("delta", {}).get("content", "")
-                        if delta:
-                            yield delta
+        contents: list[types.Content] = []
+        for msg in history or []:
+            role = self._role_to_gemini(msg.role)
+            if msg.content:
+                contents.append(
+                    types.Content(role=role, parts=[types.Part(text=msg.content)])
+                )
+        contents.append(
+            types.Content(role="user", parts=[types.Part(text=user_message)])
+        )
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=self._config.temperature,
+            max_output_tokens=self._config.max_tokens,
+        )
+
+        async for chunk in self._client.aio.models.generate_content_stream(
+            model=self._config.model,
+            contents=contents,
+            config=config,
+        ):
+            if chunk.text:
+                yield chunk.text
 
     async def stream_with_tools(
         self,
@@ -144,114 +176,80 @@ class GoogleAdapter(BaseLLMAdapter):
         messages: list[dict[str, Any]],
         tools: list[ToolDefinition],
     ) -> AsyncIterator[StreamEvent]:
-        openai_messages = [{"role": "system", "content": system_prompt}]
-        openai_messages.extend(normalize_to_openai(messages))
+        gemini_contents = self._messages_to_contents(messages)
 
-        openai_tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.input_schema,
-                },
-            }
-            for t in tools
-        ]
+        gemini_tools = None
+        if tools:
+            declarations = [
+                types.FunctionDeclaration(
+                    name=t.name,
+                    description=t.description,
+                    parameters=t.input_schema,
+                )
+                for t in tools
+            ]
+            gemini_tools = [types.Tool(function_declarations=declarations)]
 
-        payload: dict[str, Any] = {
-            "model": self._config.model,
-            "messages": openai_messages,
-            "temperature": self._config.temperature,
-            "max_tokens": self._config.max_tokens,
-            "stream": True,
-            "stream_options": {"include_usage": True},
-        }
-        if openai_tools:
-            payload["tools"] = openai_tools
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=self._config.temperature,
+            max_output_tokens=self._config.max_tokens,
+            tools=gemini_tools,
+        )
+
+        if settings.enable_thinking:
+            config.thinking_config = types.ThinkingConfig(
+                thinking_level="LOW",
+                thinking_budget=settings.thinking_budget_tokens,
+            )
 
         t_start = time.perf_counter()
-
-        tc_accum: dict[int, dict[str, Any]] = {}
         input_tokens = 0
         output_tokens = 0
+        seen_call_ids: set[str] = set()
+        tool_calls: list[ToolCall] = []
+        assistant_text_parts: list[str] = []
 
-        async with httpx.AsyncClient() as client:
-            async with client.stream(
-                "POST",
-                _GOOGLE_API_URL,
-                json=payload,
-                headers=self._headers(),
-                timeout=300,
-            ) as response:
-                if not response.is_success:
-                    await response.aread()
-                    _raise_with_detail(response)
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: ") or line == "data: [DONE]":
-                        continue
-                    chunk = json.loads(line[6:])
+        async for chunk in self._client.aio.models.generate_content_stream(
+            model=self._config.model,
+            contents=gemini_contents,
+            config=config,
+        ):
+            if chunk.text:
+                assistant_text_parts.append(chunk.text)
+                yield TextDelta(chunk.text)
 
-                    if chunk.get("usage"):
-                        usage = chunk["usage"]
-                        input_tokens = usage.get("prompt_tokens", 0)
-                        output_tokens = usage.get("completion_tokens", 0)
+            if chunk.function_calls:
+                for fc in chunk.function_calls:
+                    if fc.id and fc.id not in seen_call_ids:
+                        seen_call_ids.add(fc.id)
+                        args = fc.args if isinstance(fc.args, dict) else {}
+                        tc = ToolCall(id=fc.id, name=fc.name or "", input=args)
+                        tool_calls.append(tc)
+                        yield ToolStart(name=tc.name, input=tc.input)
 
-                    choices = chunk.get("choices", [])
-                    if not choices:
-                        continue
-
-                    delta = choices[0].get("delta", {})
-
-                    if text := delta.get("content"):
-                        yield TextDelta(text)
-
-                    for tc_delta in delta.get("tool_calls", []):
-                        idx = tc_delta.get("index", 0)
-                        if idx not in tc_accum:
-                            tc_accum[idx] = {
-                                "id": tc_delta.get("id", ""),
-                                "name": tc_delta.get("function", {}).get("name", ""),
-                                "arguments_parts": [],
-                            }
-                        else:
-                            if tc_delta.get("id"):
-                                tc_accum[idx]["id"] = tc_delta["id"]
-                            if tc_delta.get("function", {}).get("name"):
-                                tc_accum[idx]["name"] = tc_delta["function"]["name"]
-                        if args_chunk := tc_delta.get("function", {}).get("arguments", ""):
-                            tc_accum[idx]["arguments_parts"].append(args_chunk)
+            if chunk.usage_metadata:
+                input_tokens = chunk.usage_metadata.prompt_token_count or 0
+                output_tokens = chunk.usage_metadata.candidates_token_count or 0
 
         elapsed = time.perf_counter() - t_start
-
-        tool_calls: list[ToolCall] = []
-        assistant_content: list[dict[str, Any]] = []
-
-        for idx in sorted(tc_accum):
-            acc = tc_accum[idx]
-            arguments_str = "".join(acc["arguments_parts"])
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError:
-                arguments = {}
-
-            tc = ToolCall(id=acc["id"] or f"tc_{idx}", name=acc["name"], input=arguments)
-            tool_calls.append(tc)
-            assistant_content.append({
-                "type": "tool_use",
-                "id": tc.id,
-                "name": acc["name"],
-                "input": arguments,
-            })
-            yield ToolStart(name=acc["name"], input=arguments)
-
         tps = output_tokens / elapsed if elapsed > 0 else 0.0
+
         yield UsageStats(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             tokens_per_second=tps,
             context_window=self.context_window_size(),
         )
+
+        assistant_content: list[dict[str, Any]] = []
+        combined_text = "".join(assistant_text_parts).strip()
+        if combined_text:
+            assistant_content.append({"type": "text", "text": combined_text})
+        for tc in tool_calls:
+            assistant_content.append(
+                {"type": "tool_use", "id": tc.id, "name": tc.name, "input": tc.input}
+            )
 
         stop_reason = "tool_use" if tool_calls else "end_turn"
         yield TurnComplete(

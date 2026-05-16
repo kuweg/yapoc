@@ -23,6 +23,32 @@ _SELF_OPT_RE = re.compile(r"SELF_OPT:")
 _ERROR_EXTRACT_RE = re.compile(r"ERROR:\s*(.{10,80})")
 
 
+async def _publish_health_alert(alert_type: str, payload: dict) -> None:
+    """Publish a health alert to Redis system:health pub/sub channel."""
+    try:
+        from app.backend.message_bus import bus
+        await bus.publish("system:health", {
+            "type": alert_type,
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "source": "doctor",
+            **payload,
+        })
+    except Exception:
+        pass  # best-effort; doctor/HEALTH_SUMMARY.MD is the authoritative record
+
+
+async def _publish_master_inbox(msg_type: str, payload: dict) -> None:
+    """Publish a command/request to master's Redis inbox stream."""
+    try:
+        from app.backend.message_bus import bus
+        await bus.stream_add("agent:master:inbox", {
+            "type": msg_type,
+            **payload,
+        })
+    except Exception:
+        pass  # best-effort; Redis may be down
+
+
 class DoctorAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(settings.agents_dir / "doctor")
@@ -54,41 +80,32 @@ class DoctorAgent(BaseAgent):
 
     # ── Optimization suggestions ─────────────────────────────────────
 
-    def _write_optimization_suggestions(
+    async def _write_optimization_suggestions(
         self,
         agents_dir: Path,
         targets: list[tuple[str, str, int]],
     ) -> None:
-        """Write optimization suggestions to target agents' HEALTH.MD.
+        """Publish optimization suggestions via Redis instead of writing to agent files.
 
         targets: list of (agent_name, issue_type, count)
         """
-        now = datetime.now().strftime("%Y-%m-%d %H:%M")
         for agent_name, issue_type, count in targets:
-            health_path = agents_dir / agent_name / "HEALTH.MD"
-            if not health_path.parent.exists():
-                continue
-
-            if issue_type == "repeated_timeouts":
-                suggestion = (
-                    f"[{now}] WARNING: OPTIMIZATION_SUGGESTION: "
-                    f"{count} timeouts detected. Consider switching to a faster model "
-                    f"or increasing task_timeout in CONFIG.md.\n"
-                )
-            elif issue_type == "high_error_rate":
-                suggestion = (
-                    f"[{now}] WARNING: OPTIMIZATION_SUGGESTION: "
-                    f"{count} errors detected. Consider switching to a more capable model "
-                    f"or reviewing the agent's prompt and tools configuration.\n"
-                )
-            else:
-                continue
-
-            try:
-                with open(health_path, "a", encoding="utf-8") as f:
-                    f.write(suggestion)
-            except OSError:
-                pass
+            alert_type = (
+                "optimization_repeated_timeouts" if issue_type == "repeated_timeouts"
+                else "optimization_high_error_rate"
+            )
+            detail = (
+                f"{count} timeouts detected. Consider switching to a faster model "
+                f"or increasing task_timeout in CONFIG.yaml."
+                if issue_type == "repeated_timeouts"
+                else f"{count} errors detected. Consider switching to a more capable model "
+                     f"or reviewing the agent's prompt and tools configuration."
+            )
+            await _publish_health_alert(alert_type, {
+                "agent": agent_name,
+                "count": count,
+                "detail": detail,
+            })
 
     # ── Stale task detection ─────────────────────────────────────────
 
@@ -192,7 +209,7 @@ class DoctorAgent(BaseAgent):
                 # Normalize: strip timestamps, whitespace, truncate
                 snippet = m.group(1).strip()
                 # Take first 50 chars as the "signature" for grouping
-                sig = snippet[:50]
+                sig = snippet
                 snippets.append(sig)
             if snippets:
                 agent_errors[agent_dir.name] = snippets
@@ -298,25 +315,12 @@ class DoctorAgent(BaseAgent):
                 break
 
             if "ZOMBIE_TASK" in diag or "CRASHED_TASK" in diag:
-                # Clean up STATUS.json
-                status_path = settings.agents_dir / agent_name / "STATUS.json"
-                if status_path.exists():
-                    try:
-                        sj = json.loads(status_path.read_text(encoding="utf-8"))
-                        sj["state"] = "terminated"
-                        sj["task_summary"] = "doctor: cleaned up zombie"
-                        status_path.write_text(json.dumps(sj, indent=2))
-                        actions.append(f"CLEANUP: Reset {agent_name} STATUS.json (was zombie)")
-                    except Exception:
-                        pass
-
-                # Reset TASK.MD status to allow re-dispatch
-                task_path = settings.agents_dir / agent_name / "TASK.MD"
-                if task_path.exists():
-                    text = task_path.read_text(encoding="utf-8")
-                    text = re.sub(r"^status:\s*running", "status: error", text, flags=re.MULTILINE)
-                    task_path.write_text(text)
-                    actions.append(f"RESET: {agent_name} TASK.MD status → error")
+                # Publish zombie alert to master's inbox (master decides kill/restart)
+                await _publish_master_inbox("zombie_agent", {
+                    "agent": agent_name,
+                    "detail": diag,
+                })
+                actions.append(f"ALERT: Zombie agent {agent_name} — notified master via Redis")
 
             elif "STALE_TASK" in diag:
                 # Create a diagnostic task
@@ -401,15 +405,15 @@ class DoctorAgent(BaseAgent):
                         issues_found += len(error_lines)
                         agent_section.append(f"  - HEALTH.MD: {len(error_lines)} error(s)")
                         for line in error_lines[-3:]:
-                            agent_section.append(f"    - {line.strip()[:200]}")
+                            agent_section.append(f"    - {line.strip()}")
                     if warning_lines:
                         agent_section.append(f"  - HEALTH.MD: {len(warning_lines)} warning(s)")
                         for line in warning_lines[-3:]:
-                            agent_section.append(f"    - {line.strip()[:200]}")
+                            agent_section.append(f"    - {line.strip()}")
                     if self_opt_lines:
                         agent_section.append(f"  - HEALTH.MD: {len(self_opt_lines)} self-optimization event(s)")
                         for line in self_opt_lines[-3:]:
-                            agent_section.append(f"    - {line.strip()[:200]}")
+                            agent_section.append(f"    - {line.strip()}")
                     # Track timeouts for optimization suggestions
                     if len(timeout_lines) >= 3:
                         optimization_targets.append((name, "repeated_timeouts", len(timeout_lines)))
@@ -439,58 +443,39 @@ class DoctorAgent(BaseAgent):
         stale_findings = self._check_stale_tasks(agents_dir, agent_dirs)
         if stale_findings:
             stale_section = ["## Stale / Crashed Tasks\n"]
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             for agent_name, diag in stale_findings:
                 stale_section.append(f"  - **{agent_name}**: {diag}")
                 issues_found += 1
-                # Write warning to the affected agent's HEALTH.MD
-                health_path = agents_dir / agent_name / "HEALTH.MD"
-                try:
-                    with open(health_path, "a", encoding="utf-8") as f:
-                        f.write(f"[{now_str}] WARNING: {diag}\n")
-                except OSError:
-                    pass
-                # Also notify master
-                master_health = agents_dir / "master" / "HEALTH.MD"
-                try:
-                    with open(master_health, "a", encoding="utf-8") as f:
-                        f.write(f"[{now_str}] WARNING: [doctor] {agent_name}: {diag}\n")
-                except OSError:
-                    pass
+                # Publish to Redis system:health instead of writing to agent files
+                await _publish_health_alert("stale_task", {
+                    "agent": agent_name,
+                    "detail": diag,
+                })
             sections.append("\n".join(stale_section))
 
         # ── Cross-agent pattern recognition (M5B) ──
         cross_patterns = self._detect_cross_agent_patterns(agents_dir, agent_dirs)
         if cross_patterns:
             pattern_section = ["## Cross-Agent Error Patterns\n"]
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             for finding in cross_patterns:
                 pattern_section.append(f"  - {finding}")
                 issues_found += 1
-                # Write to master's HEALTH.MD
-                master_health = agents_dir / "master" / "HEALTH.MD"
-                try:
-                    with open(master_health, "a", encoding="utf-8") as f:
-                        f.write(f"[{now_str}] WARNING: [doctor] {finding}\n")
-                except OSError:
-                    pass
+                await _publish_health_alert("cross_agent_pattern", {
+                    "detail": finding,
+                })
             sections.append("\n".join(pattern_section))
 
         # ── Runaway cost detection (M9D) ──
         runaway_findings = self._detect_runaway_agents(agents_dir, agent_dirs)
         if runaway_findings:
             runaway_section = ["## Runaway Cost Alerts\n"]
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             for agent_name, diag in runaway_findings:
                 runaway_section.append(f"  - **{agent_name}**: {diag}")
                 issues_found += 1
-                # Write to master's HEALTH.MD
-                master_health = agents_dir / "master" / "HEALTH.MD"
-                try:
-                    with open(master_health, "a", encoding="utf-8") as f:
-                        f.write(f"[{now_str}] WARNING: [doctor] {agent_name}: {diag}\n")
-                except OSError:
-                    pass
+                await _publish_health_alert("runaway_cost", {
+                    "agent": agent_name,
+                    "detail": diag,
+                })
             sections.append("\n".join(runaway_section))
 
         # ── Response actions (Phase 7) ──
@@ -509,8 +494,8 @@ class DoctorAgent(BaseAgent):
 
         report = "\n\n".join(sections) + "\n"
 
-        # Write optimization suggestions to target agents' HEALTH.MD
-        self._write_optimization_suggestions(agents_dir, optimization_targets)
+        # Publish optimization suggestions to Redis system:health
+        await self._write_optimization_suggestions(agents_dir, optimization_targets)
 
         # Write to HEALTH_SUMMARY.MD
         summary_path = self._dir / "HEALTH_SUMMARY.MD"

@@ -45,7 +45,7 @@ YAPOC runs 7 agents (`master`, `planning`, `builder`, `keeper`, `cron`, `doctor`
 | # | Decision | Options | Recommendation |
 |---|----------|---------|----------------|
 | 1 | **SSE vs. polling for event log** | SSE (push) or polling + diff | SSE preferred; implement polling fallback if proxy strips `text/event-stream` |
-| 2 | **Model/adapter source** | Read from `CONFIG.md`, `agent.py`, or a new `MANIFEST.json` | Parse `CONFIG.md` for now; consider adding a structured `MANIFEST.json` per agent |
+| 2 | **Model/adapter source** | Read from `CONFIG.yaml`, `agent.py`, or a new `MANIFEST.json` | Parse `CONFIG.yaml` for now; consider adding a structured `MANIFEST.json` per agent |
 | 3 | **Task history** | Show only current task or full task history | Current task only for v1; history requires archiving completed TASK.MD files |
 | 4 | **Health sparkline data** | Parse HEALTH.MD timestamps to build hourly buckets | Implement server-side aggregation in `/api/agents/:name/health` response |
 | 5 | **Mobile swipe gestures** | Swipe right to open detail, swipe left to dismiss | Implement with Framer Motion `drag` prop; deprioritize for v1 |

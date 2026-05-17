@@ -794,12 +794,27 @@ async def lifespan(app: FastAPI):
     from app.utils.db import init_schema, get_tasks_by_status, update_queued_task
     init_schema()
 
-    # Recover stale tasks from previous server run
+    # Recover stale tasks from previous server run. Goal-source tasks
+    # naturally resume because _check_goals' new duplicate guard sees the
+    # pending task and skips re-dispatching the same goal text.
     stale = get_tasks_by_status("running")
+    _resumed_goals: list[str] = []
     for task in stale:
         tid = task["id"]
-        logger.info(f"Recovering stale task {tid[:8]}… (was running, resetting to pending)")
+        src = (task.get("source") or "").lower()
+        prompt_preview = (task.get("prompt") or "")[:80]
+        logger.info(
+            "Recovering stale task {} source={} prompt={!r} (running → pending)",
+            tid[:8], src, prompt_preview,
+        )
         update_queued_task(tid, status="pending", started_at=None, assigned_agent=None)
+        if src == "goal":
+            _resumed_goals.append(prompt_preview)
+    if _resumed_goals:
+        logger.info(
+            "Goal resumption: {} goal-source task(s) re-queued for pickup: {}",
+            len(_resumed_goals), _resumed_goals,
+        )
 
     # Load tool plugins from plugins/ directory
     from app.utils.tools.plugin_loader import load_plugins

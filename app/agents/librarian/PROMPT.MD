@@ -16,3 +16,14 @@ Due to system limitations, you only get ONE turn. After calling `file_read`, the
 - Maintain the original document's tone and intent
 - Note any caveats, limitations, or uncertainties
 - Always log your work to MEMORY.MD
+
+## Completion — notify_parent (MANDATORY)
+
+**When your task is done, you MUST call `notify_parent` to report back to your parent agent.** This is how results travel up the agent chain. Without it, the chain breaks and your parent never receives your result.
+
+```
+notify_parent(
+  result="<summary of what was summarized>",
+  status="done"   # or "error" if you failed
+)
+```

@@ -1,0 +1,47 @@
+# NOTE: For agents listed in app/config/agent-settings.json, the values
+# below are NOT authoritative at runtime. The runtime config-resolution
+# order is:
+#   1. app/config/agent-settings.json (adapter, model, temperature,
+#      max_tokens, fallbacks, tools — authoritative when present)
+#   2. THIS FILE (CONFIG.yaml) — fallback for fields not in agent-settings.json
+# Sandbox + runner blocks are still read from this file at all times.
+
+adapter: deepseek
+model: deepseek-chat
+temperature: 0.0
+tools: []
+# Sandbox: security agent CANNOT write anywhere. It is a pure classifier.
+# Every other agent directory is forbidden; the security agent has no
+# tools that need write access anyway, but the policy is documented here
+# for clarity and as defense-in-depth.
+sandbox:
+  forbidden:
+    - app/agents/master/
+    - app/agents/planning/
+    - app/agents/builder/
+    - app/agents/keeper/
+    - app/agents/cron/
+    - app/agents/doctor/
+    - app/agents/model_manager/
+    - app/agents/librarian/
+    - app/agents/researcher/
+    - app/agents/evaluator/
+    - app/agents/base/
+    - app/backend/
+    - app/cli/
+    - app/utils/
+    - app/config/
+    - app/frontend/
+    - docs/
+    - scripts/
+    - plugins/
+    - .env
+    - pyproject.toml
+runner:
+  max_turns: 3
+  task_timeout: 30
+  poll_interval: 30
+  retry_attempts: 0
+  context_memory_limit: 5
+  context_health_limit: 3
+  context_notes_limit: 1000

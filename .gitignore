@@ -49,6 +49,8 @@ app/agents/*/HEALTH_SUMMARY.MD
 app/agents/*/SERVER_CRASH.MD
 app/agents/*/SERVER_OUTPUT.MD
 app/agents/*/COSTS.lock
+app/agents/*/CHECKPOINT.json
+app/agents/security/AUDIT.MD
 
 # Builder output workspace
 projects/
@@ -73,3 +75,6 @@ app/agents/*/sessions/
 # Codex CLI local state
 .codex
 .codex/
+
+# Playwright MCP snapshots/logs (debug output, can be large + noisy)
+.playwright-mcp/

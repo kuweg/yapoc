@@ -142,6 +142,14 @@ class Settings(BaseSettings):
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_index_interval_minutes: int = 10
 
+    # ── Git autocheckpoint ──────────────────────────────────────────────
+    # Snapshot HEAD before each sub-agent task spawn; verify (smoke test +
+    # JSON sanity) on terminal status; commit or roll back. Per-sub-agent-task
+    # granularity. Disable to skip entirely (snapshot returns a no-op handle).
+    git_autocheckpoint_enabled: bool = True
+    git_verify_smoke_test: bool = True
+    git_checkpoint_label_prefix: str = "yapoc"
+
     # ── Paths ────────────────────────────────────────────────────────────────
     @property
     def project_root(self) -> Path:

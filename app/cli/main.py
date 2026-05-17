@@ -40,11 +40,13 @@ agents_app = typer.Typer(help="Agent management commands", no_args_is_help=True)
 models_app = typer.Typer(help="Model configuration commands", no_args_is_help=True)
 cron_app = typer.Typer(help="Cron task commands (not yet implemented)", no_args_is_help=True)
 doctor_app = typer.Typer(help="Doctor agent commands")
+git_app = typer.Typer(help="Git autocheckpoint commands", no_args_is_help=True)
 
 app.add_typer(agents_app, name="agents")
 app.add_typer(models_app, name="models")
 app.add_typer(cron_app, name="cron")
 app.add_typer(doctor_app, name="doctor")
+app.add_typer(git_app, name="git")
 
 console = Console()
 
@@ -128,23 +130,101 @@ def _do_start(host: str = settings.host, port: int = settings.port) -> None:
     console.print(f"[yellow]Server started[/yellow] (PID {proc.pid}) on http://{host}:{port}")
 
 
+def _is_pid_alive(pid: int) -> bool:
+    """Return True if a PID is alive (signal 0 = liveness check, no signal sent)."""
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def _is_port_bound(port: int) -> bool:
+    """Return True if a TCP listener is on ``port`` (best-effort, ignores errors)."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(0.2)
+    try:
+        # connect() succeeding means someone is listening
+        s.connect(("127.0.0.1", port))
+        return True
+    except (OSError, ConnectionRefusedError):
+        return False
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
 def _do_stop() -> None:
     pid = _read_pid()
     if not pid:
         console.print("[yellow]No running server found[/yellow]")
         return
+    if not _is_pid_alive(pid):
+        _remove_pid()
+        console.print(
+            f"[yellow]Process {pid} not found \u2014 cleaning up PID file[/yellow]"
+        )
+        return
+
+    # Step 1: graceful SIGTERM, wait up to 8s.
     try:
         os.kill(pid, signal.SIGTERM)
-        _remove_pid()
-        console.print(f"[yellow]Server stopped[/yellow] (PID {pid})")
     except ProcessLookupError:
-        console.print(f"[yellow]Process {pid} not found \u2014 cleaning up PID file[/yellow]")
         _remove_pid()
+        console.print(f"[yellow]Process {pid} exited before SIGTERM[/yellow]")
+        return
+
+    sigterm_deadline = time.monotonic() + 8.0
+    while time.monotonic() < sigterm_deadline:
+        if not _is_pid_alive(pid):
+            break
+        time.sleep(0.2)
+
+    # Step 2: still alive? Escalate to SIGKILL.
+    # Without this, `yapoc restart` could leave the old uvicorn running
+    # while reporting success. After enough restarts that produces a pile
+    # of zombie uvicorns chewing CPU (we saw 5 in one session).
+    if _is_pid_alive(pid):
+        console.print(
+            f"[magenta]PID {pid} ignored SIGTERM \u2014 escalating to SIGKILL[/magenta]"
+        )
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        sigkill_deadline = time.monotonic() + 3.0
+        while time.monotonic() < sigkill_deadline:
+            if not _is_pid_alive(pid):
+                break
+            time.sleep(0.2)
+        if _is_pid_alive(pid):
+            console.print(
+                f"[red]PID {pid} survived SIGKILL \u2014 manual intervention required[/red]"
+            )
+            # Do NOT remove the PID file; next start will skip
+            return
+
+    # Step 3: wait for the listening port to actually free up so a
+    # subsequent _do_start doesn't race with TCP TIME_WAIT or a slow
+    # socket release.
+    port = settings.port
+    port_deadline = time.monotonic() + 5.0
+    while _is_port_bound(port) and time.monotonic() < port_deadline:
+        time.sleep(0.2)
+
+    _remove_pid()
+    console.print(f"[yellow]Server stopped[/yellow] (PID {pid})")
 
 
 def _do_restart() -> None:
     _do_stop()
-    time.sleep(1)
+    # _do_stop now waits for the process to actually exit + the port to
+    # free. An explicit sleep here is no longer needed; if the stop didn't
+    # complete cleanly _do_start will surface "already running" via the
+    # PID file check.
     _do_start()
 
 
@@ -1500,6 +1580,58 @@ def doctor_run(
             task=task,
         )
         console.print(f"[yellow]{result}[/yellow]")
+
+    asyncio.run(_run())
+
+
+@git_app.command("checkpoints")
+def git_checkpoints(
+    limit: int = typer.Option(50, "--limit", "-n", help="Max checkpoints to show"),
+):
+    """List recent autocheckpoint commits (yapoc:agent:*:done) with labels."""
+    from app.backend.git_safety import list_checkpoint_commits
+
+    async def _run() -> None:
+        rows = await list_checkpoint_commits(limit=limit)
+        if not rows:
+            console.print("[yellow]No yapoc autocheckpoints found.[/yellow]")
+            return
+        from rich.table import Table
+        table = Table(title=f"Autocheckpoint commits (showing {len(rows)})")
+        table.add_column("SHA", style="cyan", no_wrap=True)
+        table.add_column("When", style="dim")
+        table.add_column("Subject")
+        for r in rows:
+            table.add_row(r["short_sha"], r["ts"], r["subject"])
+        console.print(table)
+
+    asyncio.run(_run())
+
+
+@git_app.command("revert")
+def git_revert(
+    sha: str = typer.Argument(..., help="Commit SHA to reset HEAD to (≥4 chars)"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+):
+    """Hard-reset HEAD to the given checkpoint SHA. Destroys uncommitted state."""
+    from app.backend.git_safety import manual_revert
+
+    if not yes:
+        confirmed = questionary.confirm(
+            f"WARNING: 'git reset --hard {sha}' will discard any uncommitted changes. Continue?",
+            default=False,
+        ).ask()
+        if not confirmed:
+            typer.echo("Aborted.")
+            raise typer.Exit()
+
+    async def _run() -> None:
+        ok, msg = await manual_revert(sha)
+        if ok:
+            console.print(f"[green]{msg}[/green]")
+        else:
+            console.print(f"[red]revert failed:[/red] {msg}")
+            raise typer.Exit(code=1)
 
     asyncio.run(_run())
 

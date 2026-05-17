@@ -210,3 +210,16 @@ When a delegated task fails:
 - If a task is unclear, say so in the result rather than guessing
 - Keep subtask descriptions specific and actionable (Builder can't work with vague instructions)
 - Log significant decisions to memory with `memory_append`
+
+## Completion — notify_parent (MANDATORY)
+
+**When your task is done, you MUST call `notify_parent` to report back to your parent agent.** This is how results travel up the agent chain. Without it, the chain breaks and your parent never receives your result.
+
+```
+notify_parent(
+  result="<summary of what was accomplished>",
+  status="done"   # or "error" if you failed
+)
+```
+
+Call this as the **last thing** after verifying your changes.

@@ -568,6 +568,32 @@ class BaseAgent:
             )
             return result, ToolDone(name=tc.name, result=result.content, is_error=True)
 
+        # ── Security gate ──
+        # Hardcoded fast-path + LLM classifier for risky tools. Denies are
+        # surfaced to the LLM as a tool error so the model can reason about
+        # the block rather than re-trying the same forbidden call.
+        try:
+            from app.utils.tools.security_gate import classify as _sec_classify
+            _decision, _sec_reason = await _sec_classify(
+                tool=tc.name, params=dict(tc.input or {}), caller=self._name,
+            )
+        except Exception as _gate_exc:
+            _log.bind(agent=self._name, tool=tc.name).warning(
+                "security_gate error ({}) — defaulting to allow", _gate_exc,
+            )
+            _decision, _sec_reason = "allow", "gate-error"
+        if _decision == "deny":
+            _block_msg = (
+                f"BLOCKED by security gate: {_sec_reason}. "
+                f"The action was not executed. Choose a different approach "
+                f"or use a non-destructive alternative."
+            )
+            _log.bind(agent=self._name, tool=tc.name).warning(
+                "BLOCKED by security gate ({})", _sec_reason,
+            )
+            result = ToolResult(tool_use_id=tc.id, content=_block_msg, is_error=True)
+            return result, ToolDone(name=tc.name, result=_block_msg, is_error=True)
+
         # Transient errors get one automatic retry before surfacing to the LLM.
         # Note: FileNotFoundError, PermissionError, IsADirectoryError, NotADirectoryError
         # all inherit from OSError but are permanent — exclude them explicitly.

@@ -9,6 +9,97 @@ happened (`> Applied 2026-05-18: edited X. Tested via Y. Result: Z.`).
 
 ---
 
+## 2026-05-17 21:33 — Self-evaluation (round 8)
+
+### Observations
+- **Total spend**: $41.93 across 10 agents (423 tasks) — marginal increase from round 7 ($41.73)
+- **Top spender**: master at $23.74 (57%) — structurally expected
+- **Second spender**: builder at $13.22 (32%) — unchanged
+- **Recent error count**: 16 — includes 2 DeepSeek 400 errors (master 16:34, builder 16:18) plus rollback test entries
+- **Agents with health issues**: master (36), builder (26), planning (22), doctor (3) — master up from 32 in round 6
+- **Active agents**: evaluator (running), master (idle) — all healthy
+- **Tier 1 changes landed**: startup orphan cleanup, daily-budget halt, stuck detector — no regressions observed
+
+### Top issues
+
+1. **Fallback adapter mismatch — DeepSeek adapter receiving Anthropic model names** — Impact: HIGH
+   Two 400 errors (master 16:34, builder 16:18) show `claude-haiku-4-5-20251001` being passed to the DeepSeek API, which rejects it. The error message says "The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001." This means the fallback routing logic is ignoring the `adapter` field on fallback entries and passing the model name to the primary adapter. Security's fallback chain has `{"adapter": "anthropic", "model": "claude-haiku-4-5-20251001"}` — if the primary DeepSeek call fails and the system tries this fallback but routes it through the DeepSeek adapter instead of Anthropic, it would produce exactly this error. This causes every fallback attempt to fail with a 400 error instead of gracefully switching providers.
+
+2. **Librarian has zero fallback models** — Impact: MEDIUM
+   `app/config/agent-settings.json` confirms librarian has no `fallbacks` key at all. If the primary model (`deepseek-chat`) fails or the DeepSeek API returns an error, the librarian's 20 tasks ($0.14 spend) fail with no recovery path. Every other agent has at least 2 fallbacks. This is a single point of failure.
+
+3. **Builder's `codex` adapter in fallback chain may be unregistered** — Impact: MEDIUM
+   Builder's fallback chain starts with `{"adapter": "codex", "model": "gpt-5.1-codex"}`. If `codex` is not a registered adapter in the system's adapter registry, this fallback will fail silently on every builder task that triggers a fallback. Combined with issue #1 (fallback routing ignoring adapter field), this could mean builder has effectively zero working fallbacks despite having 3 configured. Builder has 51 tasks and $13.22 spend — the second highest cost agent.
+
+### Proposed changes (read-only — for human review)
+
+1. **Target**: `app/agents/base/adapter.py` or fallback routing logic (wherever `_route_fallback` or equivalent lives)
+   **Change**:
+   ```
+   # Current behavior (inferred from errors):
+   # When a fallback is triggered, the model name is passed to the primary adapter
+   # regardless of the fallback entry's "adapter" field.
+   
+   # Desired behavior:
+   # When a fallback entry specifies "adapter": "anthropic", route the call
+   # through the Anthropic adapter, not the primary DeepSeek adapter.
+   ```
+   **Why**: Two 400 errors (master 16:34, builder 16:18) confirm `claude-haiku-4-5-20251001` was passed to the DeepSeek API, which means the fallback routing is ignoring the adapter field and using the primary adapter instead.
+   **Risk**: Fixing fallback routing could change behavior for all agents — test thoroughly. The fallback chain may intentionally use the primary adapter for some entries (e.g., planning's first fallback is `{"adapter": "deepseek", "model": "deepseek-v4-pro"}` — that one SHOULD use the DeepSeek adapter). The routing logic needs to respect the fallback entry's adapter, not blindly use the primary.
+
+2. **Target**: `app/config/agent-settings.json` — librarian agent
+   **Change**:
+   ```
+   "librarian": {
+     "adapter": "deepseek",
+     "model": "deepseek-chat",
+     "temperature": 0.1,
+     "max_tokens": 8096,
+     "tools": [...],
+     "delegation_targets": []
+   }
+   ↓
+   "librarian": {
+     "adapter": "deepseek",
+     "model": "deepseek-chat",
+     "temperature": 0.1,
+     "max_tokens": 8096,
+     "tools": [...],
+     "delegation_targets": [],
+     "fallbacks": [
+       {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+       {"adapter": "openai", "model": "gpt-5.4-mini"}
+     ]
+   }
+   ```
+   **Why**: Librarian is the only agent with zero fallbacks — if the primary model fails, its 20 tasks fail with no recovery path. Every other agent has at least 2 fallbacks.
+   **Risk**: Minimal — adding fallbacks only helps. However, if issue #1 (fallback adapter mismatch) is not fixed first, these fallbacks would also fail with 400 errors. Fix issue #1 first, then add librarian's fallbacks.
+
+3. **Target**: `app/config/agent-settings.json` — builder agent's fallback chain
+   **Change**:
+   ```
+   "fallbacks": [
+     {"adapter": "codex", "model": "gpt-5.1-codex"},
+     {"adapter": "openai", "model": "gpt-5.2"},
+     {"adapter": "google", "model": "gemini-2.5-pro"}
+   ]
+   ↓
+   "fallbacks": [
+     {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+     {"adapter": "openai", "model": "gpt-5.4-mini"},
+     {"adapter": "google", "model": "gemini-2.5-pro"}
+   ]
+   ```
+   **Why**: The `codex` adapter with `gpt-5.1-codex` is not a standard adapter used by any other agent. If it's unregistered, builder's first fallback always fails, forcing it to the second or third fallback — adding latency on every builder task that needs a fallback. Replacing with `anthropic/claude-sonnet-4-6` (proven in master's and keeper's fallback chains) provides a reliable first fallback.
+   **Risk**: If `codex` is a valid adapter that was intentionally configured, removing it loses that capability. Verify whether `codex` is registered before applying.
+
+### Open questions
+- Does the fallback routing logic actually respect the `adapter` field in fallback entries? The 400 errors suggest it doesn't — but this needs code inspection to confirm. The error at master 16:34 and builder 16:18 both show Claude models being passed to DeepSeek API.
+- Is `deepseek-chat` a valid model name for the DeepSeek API? The error messages only show Claude models being rejected, not `deepseek-chat` itself. If `deepseek-chat` works, the primary model is fine and only fallback routing is broken.
+- The rollback test errors (20:44, 20:47, 20:53) are labeled `ROLLBACK` with `reason='smoke test'` — these appear to be intentional tests of the new rollback machinery, not actual errors.
+
+---
+
 ## 2026-05-17 21:24 — Self-evaluation (round 7)
 
 ### Observations
@@ -79,23 +170,5 @@ happened (`> Applied 2026-05-18: edited X. Tested via Y. Result: Z.`).
 ### Open questions
 - Does `deepseek-chat` actually work as a model name with the DeepSeek API, or does every primary call silently fail? The error feed shows 400 errors for `claude-haiku-4-5-20251001` (a fallback model), not for `deepseek-chat` itself. A test call with `deepseek-chat` vs `deepseek-v4-pro` would disambiguate.
 - The rollback test errors (20:44, 20:47, 20:53) are labeled `ROLLBACK` level — are these expected smoke tests or actual failures? The labels `'rollback-test'` and `'smoke test'` suggest intentional testing.
-
----
-
-## 2026-05-17 16:59 — Self-evaluation (round 6 — sanity)
-
-### Observations
-- **Total spend**: $41.18 across 10 agents (415 tasks) — marginal increase from round 5
-- **Top spender**: master at $23.17 (56%) — consistent
-- **Recent error count**: 12 — all historical, no new ERROR-level entries since round 5
-- **Agents with health issues**: master (32), builder (26), planning (22), doctor (3) — all pre-existing, no new issues
-- **Active agents**: evaluator (running), master (idle) — all healthy
-
-### Status: System clean. All prior fixes holding.
-
-No new errors, timeouts, or crashes since round 5. The DeepSeek model routing errors (master 16:34, builder 16:18) are historical and pre-date the fix applied in earlier rounds. The planning timeout (16:21) is also historical.
-
-### Proposed changes
-None — system is within expected parameters.
 
 ---

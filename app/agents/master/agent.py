@@ -19,6 +19,17 @@ class MasterAgent(BaseAgent):
         # Mark master as idle immediately (it runs in-process, not via AgentRunner)
         self._write_status("idle")
 
+    # ── Lifecycle accessors ──────────────────────────────────────────────
+
+    def is_busy(self) -> bool:
+        """True if master is currently inside handle_task / handle_task_stream.
+
+        This is the authoritative concurrency check. STATUS.json is a UI
+        denormalization and may be stale (file write fails, race with lock,
+        etc.) — use this method for routing decisions.
+        """
+        return self._run_lock.locked()
+
     # ── STATUS.json helpers ──────────────────────────────────────────────
 
     def _write_status(self, state: str, task_summary: str = "") -> None:

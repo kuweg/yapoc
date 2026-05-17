@@ -7,7 +7,10 @@ Poll interval: 30 seconds (matches runner_poll_interval in settings).
 from __future__ import annotations
 
 import asyncio
+import fcntl
+import json
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -23,6 +26,43 @@ _TOP_LEVEL_AGENTS = frozenset({"master"})
 
 # TASK.MD statuses that indicate completion
 _TERMINAL_STATUSES = frozenset({"done", "error"})
+
+# Fix 3.5: persistent dedup set so notifications already enqueued survive restart.
+_NOTIFIED_PATH = Path("data/poller_notified.json")
+_NOTIFIED_MAX_ENTRIES = 2000  # cap to prevent unbounded growth
+
+
+def _load_notified() -> set[tuple[str, str]]:
+    """Load the persistent _notified set from disk. Returns empty on failure."""
+    try:
+        if not _NOTIFIED_PATH.exists():
+            return set()
+        raw = json.loads(_NOTIFIED_PATH.read_text(encoding="utf-8"))
+        return {(str(a), str(b)) for a, b in raw}
+    except Exception as exc:
+        logger.warning("NotificationPoller: failed to load %s: %s", _NOTIFIED_PATH, exc)
+        return set()
+
+
+def _save_notified(notified: set[tuple[str, str]]) -> None:
+    """Persist the _notified set atomically with fcntl-protected write."""
+    try:
+        _NOTIFIED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        # Cap size: keep most recent _NOTIFIED_MAX_ENTRIES entries.
+        items = list(notified)
+        if len(items) > _NOTIFIED_MAX_ENTRIES:
+            items = items[-_NOTIFIED_MAX_ENTRIES:]
+        lock_path = _NOTIFIED_PATH.with_suffix(".lock")
+        with open(lock_path, "w") as lock_fd:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            try:
+                tmp = _NOTIFIED_PATH.with_suffix(".tmp")
+                tmp.write_text(json.dumps([list(t) for t in items]), encoding="utf-8")
+                os.replace(tmp, _NOTIFIED_PATH)
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    except Exception as exc:
+        logger.warning("NotificationPoller: failed to save %s: %s", _NOTIFIED_PATH, exc)
 
 
 def _read_task_frontmatter(task_md_path: Path) -> Optional[dict]:
@@ -42,7 +82,11 @@ def _read_task_frontmatter(task_md_path: Path) -> Optional[dict]:
 
 
 def _read_result_section(task_md_path: Path) -> str:
-    """Extract the ## Result section from TASK.MD."""
+    """Extract the ## Result section from TASK.MD.
+
+    Kept for legacy UI/result-collection paths. Notification producers should
+    use `_read_result_text` so dedup byte-comparison works across all paths.
+    """
     try:
         content = task_md_path.read_text(encoding="utf-8")
         if "## Result" in content:
@@ -57,7 +101,11 @@ def _read_result_section(task_md_path: Path) -> str:
 
 
 def _read_error_section(task_md_path: Path) -> str:
-    """Extract the ## Error section from TASK.MD."""
+    """Extract the ## Error section from TASK.MD.
+
+    Kept for legacy UI/result-collection paths. Notification producers should
+    use `_read_error_text` so dedup byte-comparison works across all paths.
+    """
     try:
         content = task_md_path.read_text(encoding="utf-8")
         if "## Error" in content:
@@ -68,6 +116,45 @@ def _read_error_section(task_md_path: Path) -> str:
     except Exception:
         pass
     return ""
+
+
+def _read_result_text(agent_dir: Path) -> str:
+    """Fix 3.2: canonical notification payload source.
+
+    All notification producers (runner._notify_parent_via_bus, NotifyParentTool,
+    NotificationPoller) read result text from RESULT.MD so that dedup in
+    notification_queue.enqueue can compare bytes correctly. TASK.MD's
+    ## Result section is a denormalization written separately and may differ
+    by whitespace / XML-stripping artifacts.
+
+    Falls back to TASK.MD's ## Result when RESULT.MD is missing or empty.
+    """
+    result_md = agent_dir / "RESULT.MD"
+    try:
+        if result_md.exists():
+            text = result_md.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    except Exception:
+        pass
+    # Fallback for agents that haven't written RESULT.MD yet
+    return _read_result_section(agent_dir / "TASK.MD")
+
+
+def _read_error_text(agent_dir: Path) -> str:
+    """Fix 3.2: canonical error payload source. RESULT.MD is not written on
+    error paths; the runner sets ## Error in TASK.MD via set_task_status.
+    Falls back to ERROR.MD if present, otherwise TASK.MD's ## Error.
+    """
+    error_md = agent_dir / "ERROR.MD"
+    try:
+        if error_md.exists():
+            text = error_md.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    except Exception:
+        pass
+    return _read_error_section(agent_dir / "TASK.MD")
 
 
 class NotificationPoller:
@@ -90,8 +177,10 @@ class NotificationPoller:
         self._poll_interval = poll_interval
         self._task: Optional[asyncio.Task] = None
         # Track which (agent, completed_at) pairs we've already notified
-        # to avoid duplicate notifications on repeated polls
-        self._notified: set[tuple[str, str]] = set()
+        # to avoid duplicate notifications on repeated polls.
+        # Fix 3.5: persisted to disk so it survives restart.
+        self._notified: set[tuple[str, str]] = _load_notified()
+        self._notified_dirty: bool = False
 
     def start(self) -> None:
         """Start the background polling task."""
@@ -186,10 +275,13 @@ class NotificationPoller:
                     agent_name,
                 )
                 self._notified.add(dedup_key)
+                self._notified_dirty = True
                 continue
 
-            result = _read_result_section(task_md) if status == "done" else ""
-            error = _read_error_section(task_md) if status == "error" else ""
+            # Fix 3.2: read from RESULT.MD/ERROR.MD (canonical) rather than
+            # TASK.MD's denormalized sections, so dedup byte-comparison works.
+            result = _read_result_text(agent_dir) if status == "done" else ""
+            error = _read_error_text(agent_dir) if status == "error" else ""
 
             self._queue.enqueue(
                 parent_agent=parent,
@@ -200,6 +292,7 @@ class NotificationPoller:
                 session_id=str(fm.get("session_id", "") or ""),
             )
             self._notified.add(dedup_key)
+            self._notified_dirty = True
             parents_to_wake.append((parent, str(fm.get("session_id", "") or "")))
             logger.info(
                 "NotificationPoller: %s completed (%s) → notifying parent %s",
@@ -210,6 +303,10 @@ class NotificationPoller:
 
         # Periodically purge old consumed notifications
         self._queue.purge_consumed(keep_last=200)
+        # Fix 3.5: persist dedup set if anything changed this poll.
+        if self._notified_dirty:
+            _save_notified(self._notified)
+            self._notified_dirty = False
         return parents_to_wake
 
 

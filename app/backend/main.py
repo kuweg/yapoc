@@ -118,16 +118,11 @@ async def _master_notification_watcher() -> None:
                 continue  # user task — leave it alone
             trigger_session_match = re.search(r"^session_id:\s*(.*)$", content, re.MULTILINE)
             trigger_session_id = trigger_session_match.group(1).strip() if trigger_session_match else ""
-            # Guard: don't interrupt a running master
-            try:
-                state = json.loads(status_path.read_text()).get("state", "")
-                if state == "running":
-                    continue
-            except Exception as _state_exc:
-                logger.warning(
-                    "Notification watcher: STATUS.json read/parse failed (proceeding): {}",
-                    _state_exc,
-                )
+            # Guard: don't interrupt a running master.
+            # Authoritative concurrency check via _run_lock state; STATUS.json
+            # is a UI denormalization and not safe for routing. See Fix 1.3.
+            if master_agent.is_busy():
+                continue
             # Only fire if there are actual pending notifications
             if notification_queue.pending_count("master") == 0:
                 # No pending notifications; if a stale trigger exists, clear it
@@ -320,15 +315,57 @@ async def _process_inbox_message(
     child_agent = str(data.get("child_agent", "unknown"))
     child_status = str(data.get("status", "done"))
     session_id = str(data.get("session_id", ""))
+    raw_result = str(data.get("result", ""))
 
-    # Guard: don't interrupt a running master
-    try:
-        state = json.loads(status_path.read_text()).get("state", "")
-        if state == "running":
-            await _bus.stream_ack(inbox, group, msg_id)
-            return
-    except Exception:
-        pass
+    def _safety_enqueue() -> bool:
+        """Enqueue this Redis payload into notification_queue. Returns True on success.
+
+        Queue convention: result is non-empty only for status=done, error
+        non-empty only for status=error. Matches NotifyParentTool's split so
+        dedup byte-comparison works.
+        """
+        try:
+            notification_queue.enqueue(
+                parent_agent="master",
+                child_agent=child_agent,
+                status=child_status,
+                result=raw_result if child_status == "done" else "",
+                error=raw_result if child_status == "error" else "",
+                session_id=session_id,
+            )
+            return True
+        except Exception as _enq_exc:
+            logger.warning(
+                "Redis master watcher: safety enqueue failed: {}", _enq_exc
+            )
+            return False
+
+    # Fix 1.1: don't ACK when master is busy. Without an ACK, Redis keeps the
+    # message in the consumer-group pending list and re-delivers on the next
+    # cycle. The safety enqueue also gives the notification watcher a chance
+    # to pick it up the moment master idles. Queue dedup handles the
+    # double-write if Redis later redelivers.
+    if master_agent.is_busy():
+        _safety_enqueue()
+        return
+
+    # Fix 3.4 (transitional defer): if the notification_queue already has a
+    # matching unconsumed entry, let the notification watcher handle it — do
+    # not ACK Redis (let it redeliver if the queue path also drops the ball).
+    # After Fix 3.1 fully rolls out NotifyParentTool should not emit both
+    # paths, so this branch rarely fires.
+    if notification_queue.has_matching_unconsumed(
+        parent_agent="master",
+        child_agent=child_agent,
+        status=child_status,
+        result=raw_result if child_status == "done" else "",
+        error=raw_result if child_status == "error" else "",
+        session_id=session_id,
+    ):
+        logger.debug(
+            "Redis master watcher: queue match — deferring to notification watcher"
+        )
+        return
 
     logger.info(
         "Redis master watcher: {} ({}) sid={}",
@@ -381,11 +418,42 @@ async def _process_inbox_message(
                 "Redis master watcher: pushed result to session={} ({} chars)",
                 (session_id or "<none>")[:8], len(result_text),
             )
-    except Exception as _proc_exc:
-        logger.warning("Redis master watcher: processing failed: {}", _proc_exc)
 
-    # ACK after successful processing (or best-effort on error)
-    await _bus.stream_ack(inbox, group, msg_id)
+        # Successful processing — safe to ACK.
+        await _bus.stream_ack(inbox, group, msg_id)
+        return
+    except Exception as _proc_exc:
+        # Fix 1.2: re-enqueue on processing failure so notification watcher
+        # can retry. Only ACK Redis if the queue path accepted the payload —
+        # otherwise leave it pending in Redis for redelivery.
+        logger.warning("Redis master watcher: processing failed: {}", _proc_exc)
+        if _safety_enqueue():
+            await _bus.stream_ack(inbox, group, msg_id)
+        else:
+            logger.error(
+                "Redis master watcher: BOTH processing AND safety enqueue failed for "
+                "child={} sid={} — leaving message pending for Redis redelivery.",
+                child_agent, session_id[:8] if session_id else "<none>",
+            )
+        return
+
+
+def _is_task_already_consumed(agent_name: str) -> bool:
+    """Return True if the agent's TASK.MD has a non-empty consumed_at frontmatter.
+
+    Used during startup reconcile to decide whether a queued notification or
+    a pending Redis message refers to work that was already processed before
+    crash/restart.
+    """
+    try:
+        task_path = settings.agents_dir / agent_name / "TASK.MD"
+        if not task_path.exists():
+            return False
+        content = task_path.read_text(encoding="utf-8")
+        m = re.search(r"^consumed_at:\s*(\S.*)$", content, re.MULTILINE)
+        return bool(m and m.group(1).strip())
+    except Exception:
+        return False
 
 
 async def _startup_resume() -> None:
@@ -451,7 +519,6 @@ async def _startup_resume() -> None:
             if claimed:
                 logger.info("Startup resume: claimed {} pending messages from Redis inbox", len(claimed))
                 from app.backend.services.notification_queue import notification_queue as _nq
-                from app.backend.websocket import ws_manager as _ws
                 for msg in claimed:
                     data = msg.get("data", {})
                     if not isinstance(data, dict):
@@ -463,6 +530,16 @@ async def _startup_resume() -> None:
                         status = str(data.get("status", "done"))
                         result = str(data.get("result", ""))
                         sid = str(data.get("session_id", ""))
+                        # Fix 3.3: skip if the child's TASK.MD already has
+                        # consumed_at set — this Redis message arrived from
+                        # work that was already processed before crash.
+                        if _is_task_already_consumed(child):
+                            logger.info(
+                                "Startup resume: skipping {} ({}) — TASK.MD already consumed",
+                                child, status,
+                            )
+                            await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
+                            continue
                         # Enqueue to notification_queue so the watcher picks it up naturally
                         _nq.enqueue(
                             parent_agent="master",
@@ -479,6 +556,30 @@ async def _startup_resume() -> None:
                     await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
     except Exception as _exc:
         logger.warning("Startup resume: Redis pending check failed: {}", _exc)
+
+    # Fix 3.3: reconcile any pre-existing queue entries whose source TASK.MD
+    # is already marked consumed_at. This catches the case where master
+    # crashed between mark_task_consumed and queue drain on the prior run.
+    try:
+        from app.backend.services.notification_queue import notification_queue as _nq_rec
+        pending = _nq_rec.pending_entries("master")
+        reconciled = 0
+        for entry in pending:
+            child = entry.get("child_agent", "")
+            if child and _is_task_already_consumed(child):
+                marked = _nq_rec.mark_consumed_matching(
+                    parent_agent="master",
+                    child_agent=child,
+                    session_id=entry.get("session_id", ""),
+                )
+                reconciled += marked
+        if reconciled:
+            logger.info(
+                "Startup resume: reconciled {} queue entry(ies) with consumed TASK.MD",
+                reconciled,
+            )
+    except Exception as _exc:
+        logger.warning("Startup resume: queue reconcile failed: {}", _exc)
 
     # 3. If no pending user tasks and budget allows, check goals
     if resumed == 0:
@@ -599,6 +700,15 @@ async def lifespan(app: FastAPI):
         poll_interval=settings.notification_poll_interval_seconds,
     )
     poller.start()
+
+    # Fix 1.4: run startup resume to completion BEFORE scheduling the live
+    # watchers, so they don't race for the same pending Redis messages or
+    # queue entries. Latency cost is bounded (a few seconds at most).
+    try:
+        await _startup_resume()
+    except Exception as _resume_exc:
+        logger.warning("Startup resume failed (continuing): {}", _resume_exc)
+
     if bus.connected:
         logger.info("Redis connected — starting Redis master watcher")
         asyncio.ensure_future(_master_redis_watcher())
@@ -607,10 +717,6 @@ async def lifespan(app: FastAPI):
     # Start task dispatcher (background loop that executes queued tasks)
     from app.backend.dispatcher import dispatcher_loop, request_shutdown
     dispatcher_task = asyncio.create_task(dispatcher_loop())
-
-    # Schedule startup resume after a short delay (let agents stabilize)
-    loop = asyncio.get_event_loop()
-    loop.call_later(5, lambda: asyncio.ensure_future(_startup_resume()))
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(

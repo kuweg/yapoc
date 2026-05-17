@@ -676,17 +676,23 @@ class BaseAgent:
                 _rs_exc,
             )
             _as_runner = {}
-        _task_timeout = (
-            _as_runner.get("task_timeout")
-            or _runner.get("task_timeout")
-            or settings.task_timeout
-        )
+        # Resolution priority: agent-settings.json → CONFIG.yaml → settings.
+        # `or` chains skip 0, so we explicitly use sentinel checks to preserve
+        # an explicit `task_timeout: 0` (which means "no timeout"). See Fix 2.1.
+        _task_timeout = _as_runner.get("task_timeout")
+        if _task_timeout is None:
+            _task_timeout = _runner.get("task_timeout")
+        if _task_timeout is None:
+            _task_timeout = settings.task_timeout
+        # task_timeout <= 0 means unbounded. asyncio.timeout(None) is a
+        # documented no-op context — keeps the wrap in place but never fires.
+        _timeout_value = _task_timeout if (_task_timeout and _task_timeout > 0) else None
         response: str = ""
         _stream_exc: BaseException | None = None
         _stream_exc_tb: str = ""
 
         try:
-            async with asyncio.timeout(_task_timeout):
+            async with asyncio.timeout(_timeout_value):
                 config = await self._load_config(config_raw=_cfg_raw)
                 await self._detect_config_change(config)
                 adapter = await self._load_adapter(config)

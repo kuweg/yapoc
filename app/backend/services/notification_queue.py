@@ -265,6 +265,76 @@ class NotificationQueue:
                 }
         return sorted(sessions)
 
+    def pending_entries(self, parent_agent: str) -> list[Notification]:
+        """Return a snapshot copy of unconsumed notifications for parent_agent."""
+        with self._lock:
+            with self._disk_transaction(readonly=True):
+                return [
+                    dict(n) for n in self._items
+                    if n["parent_agent"] == parent_agent and not n["consumed"]
+                ]
+
+    def has_matching_unconsumed(
+        self,
+        parent_agent: str,
+        child_agent: str,
+        status: str,
+        result: str = "",
+        error: str = "",
+        session_id: str = "",
+    ) -> bool:
+        """Return True if an unconsumed entry with this exact payload already exists.
+
+        Same field comparison as enqueue's dedup logic.
+        """
+        with self._lock:
+            with self._disk_transaction(readonly=True):
+                for existing in self._items:
+                    if (
+                        existing["parent_agent"] == parent_agent
+                        and existing["child_agent"] == child_agent
+                        and existing["status"] == status
+                        and existing.get("result", "") == result
+                        and existing.get("error", "") == error
+                        and existing.get("session_id", "") == (session_id or "")
+                        and not existing["consumed"]
+                    ):
+                        return True
+        return False
+
+    def mark_consumed_matching(
+        self,
+        parent_agent: str,
+        child_agent: str,
+        session_id: str | None = None,
+    ) -> int:
+        """Mark unconsumed entries matching (parent, child[, session]) as consumed.
+
+        Returns the number of entries marked. Used by startup reconcile so a
+        TASK.MD that's already consumed_at doesn't get re-processed via the queue.
+        """
+        marked = 0
+        with self._lock:
+            with self._disk_transaction() as items:
+                for n in items:
+                    if (
+                        n["parent_agent"] == parent_agent
+                        and n["child_agent"] == child_agent
+                        and not n["consumed"]
+                        and (session_id is None or n.get("session_id", "") == (session_id or ""))
+                    ):
+                        n["consumed"] = True
+                        marked += 1
+        if marked:
+            self._record_trace(
+                "reconciled_consumed",
+                parent_agent=parent_agent,
+                child_agent=child_agent,
+                session_id=session_id or "",
+                count=marked,
+            )
+        return marked
+
     def read_trace(
         self,
         limit: int = 200,

@@ -415,9 +415,14 @@ def _handle_repl_slash(
         from app.utils.tools.delegation import SpawnAgentTool
         async def _run():
             spawn = SpawnAgentTool()
+            args_lower = args.strip().lower()
+            if "hard" in args_lower or "fix" in args_lower:
+                task = "hard-fix: Read all agents' HEALTH.MD files, fix any stale errors or issues found, and notify master agent of the results via notify_parent tool."
+            else:
+                task = "run-health-check: Execute a full health check of all agents and report findings."
             result = await spawn.execute(
                 agent_name="doctor",
-                task="run-health-check: Execute a full health check of all agents and report findings.",
+                task=task,
             )
             console.print(f"[yellow]{result}[/yellow]")
         asyncio.run(_run())
@@ -1477,16 +1482,22 @@ def cron_status():
 
 
 @doctor_app.command("run")
-def doctor_run():
+def doctor_run(
+    hard_fix: bool = typer.Option(False, "--hard-fix", help="Run doctor in hard-fix mode: read all health logs, fix issues, and notify master"),
+):
     """Trigger the doctor agent to run a full health check."""
     import asyncio
     from app.utils.tools.delegation import SpawnAgentTool
 
     async def _run():
         spawn = SpawnAgentTool()
+        if hard_fix:
+            task = "hard-fix: Read all agents' HEALTH.MD files, fix any stale errors or issues found, and notify master agent of the results via notify_parent tool."
+        else:
+            task = "run-health-check: Execute a full health check of all agents and report findings."
         result = await spawn.execute(
             agent_name="doctor",
-            task="run-health-check: Execute a full health check of all agents and report findings.",
+            task=task,
         )
         console.print(f"[yellow]{result}[/yellow]")
 

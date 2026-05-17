@@ -926,16 +926,12 @@ class NotifyParentTool(BaseTool):
         if parent_name.lower() == "user":
             parent_name = "master"
 
-        notification_queue.enqueue(
-            parent_agent=parent_name,
-            child_agent=self._agent_dir.name,
-            status=status,
-            result=result_text if status == "done" else "",
-            error=result_text if status == "error" else "",
-            session_id=session_id or "",
-        )
-
-        # Publish result to parent's Redis inbox stream
+        # Redis-first delivery. Only fall back to notification_queue if Redis
+        # publish fails. Previously this fired BOTH paths unconditionally,
+        # causing dual delivery and race conditions between master's two
+        # watchers. See docs/master-audit.md §3.1 and claude-solution-design.md
+        # §Fix 3.1.
+        redis_ok = False
         try:
             from app.backend.message_bus import bus
             await bus.stream_add(
@@ -949,12 +945,26 @@ class NotifyParentTool(BaseTool):
                 },
                 agent_name=self._agent_dir.name,
             )
+            redis_ok = True
         except Exception as _bus_exc:
             from loguru import logger as _notify_log
             _notify_log.bind(child=self._agent_dir.name, parent=parent_name).warning(
-                "Redis notify_parent publish failed (notification queue fallback intact): {}", _bus_exc
+                "Redis notify_parent publish failed; falling back to notification_queue: {}",
+                _bus_exc,
             )
 
+        if not redis_ok:
+            notification_queue.enqueue(
+                parent_agent=parent_name,
+                child_agent=self._agent_dir.name,
+                status=status,
+                result=result_text if status == "done" else "",
+                error=result_text if status == "error" else "",
+                session_id=session_id or "",
+            )
+
+        # Wake signal always fires — carries no payload, only triggers a
+        # TASK.MD probe if the parent is idle.
         await _wake_agent_if_idle(parent_name, session_id=session_id or "")
 
         return f"Parent '{parent_name}' notified ({status})."

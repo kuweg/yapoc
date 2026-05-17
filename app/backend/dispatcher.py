@@ -190,14 +190,23 @@ async def _execute_task(task_id: str) -> None:
 
         # Morning report — emit on autonomous task completion so an overnight
         # operator sees the result without scraping logs.
+        #
+        # The primary, reliable trigger is the system:tasks Redis subscriber
+        # (app/backend/morning_report_listener.py). This inline hook stays as
+        # belt-and-suspenders. Both writes go through asyncio.to_thread so
+        # the synchronous I/O inside write_morning_report (file reads + SQLite +
+        # git log subprocess) can never starve this fire-and-forget task.
         if (source or "").lower() in ("cron", "goal", "doctor", "webhook"):
             try:
                 from app.backend.morning_report import write_morning_report
-                write_morning_report("goal_completed", {
-                    "task_id": task_id[:8],
-                    "source": source or "",
-                    "result_preview": result_text[:180] if result_text else "",
-                })
+                asyncio.create_task(asyncio.to_thread(
+                    write_morning_report, "goal_completed", {
+                        "task_id": task_id[:8],
+                        "source": source or "",
+                        "result_preview": result_text[:180] if result_text else "",
+                        "via": "dispatcher inline",
+                    },
+                ))
             except Exception:
                 pass
 

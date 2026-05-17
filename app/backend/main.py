@@ -852,6 +852,14 @@ async def lifespan(app: FastAPI):
         asyncio.ensure_future(_master_redis_watcher())
     asyncio.ensure_future(_master_notification_watcher())
 
+    # Morning report subscriber — the primary, reliable trigger for autonomous
+    # task_complete events. Inline hooks in dispatcher.py + master/agent.py
+    # are kept as belt-and-suspenders but were observed to silently miss for
+    # some cron-source completions (event loop starvation by sync I/O).
+    if bus.connected:
+        from app.backend.morning_report_listener import morning_report_subscriber
+        asyncio.ensure_future(morning_report_subscriber())
+
     # Start task dispatcher (background loop that executes queued tasks)
     from app.backend.dispatcher import dispatcher_loop, request_shutdown
     dispatcher_task = asyncio.create_task(dispatcher_loop())

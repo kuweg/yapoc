@@ -2878,5 +2878,55 @@
     "cost_usd": 0.017446,
     "timestamp": "2026-05-17T14:26:15Z",
     "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T20:34:18Z",
+    "description": "Add a \"## Completion — notify_parent (MANDATORY)\" section to 3 agent PROMPT.MD files that are missing it.",
+    "agent_name": "planning",
+    "tokens_in": 8236,
+    "tokens_out": 150,
+    "cost_usd": 0.00238872,
+    "timestamp": "2026-05-17T20:34:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "planning:2026-05-17T20:34:25Z",
+    "description": "Add a \"## Completion — notify_parent (MANDATORY)\" section to 3 agent PROMPT.MD files that are missing it.",
+    "agent_name": "planning",
+    "tokens_in": 12539,
+    "tokens_out": 1235,
+    "cost_usd": 0.00474403,
+    "timestamp": "2026-05-17T20:34:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "planning:2026-05-17T20:34:27Z",
+    "description": "Add a \"## Completion — notify_parent (MANDATORY)\" section to 3 agent PROMPT.MD files that are missing it.",
+    "agent_name": "planning",
+    "tokens_in": 13854,
+    "tokens_out": 151,
+    "cost_usd": 0.00390668,
+    "timestamp": "2026-05-17T20:34:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "planning:2026-05-17T20:34:30Z",
+    "description": "Add a \"## Completion — notify_parent (MANDATORY)\" section to 3 agent PROMPT.MD files that are missing it.",
+    "agent_name": "planning",
+    "tokens_in": 18471,
+    "tokens_out": 373,
+    "cost_usd": 0.00539747,
+    "timestamp": "2026-05-17T20:34:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "planning:2026-05-17T20:34:32Z",
+    "description": "Add a \"## Completion — notify_parent (MANDATORY)\" section to 3 agent PROMPT.MD files that are missing it.",
+    "agent_name": "planning",
+    "tokens_in": 18999,
+    "tokens_out": 32,
+    "cost_usd": 0.00516493,
+    "timestamp": "2026-05-17T20:34:32Z",
+    "model_used": "deepseek-chat"
   }
 ]

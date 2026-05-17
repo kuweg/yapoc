@@ -29,3 +29,13 @@
 [2026-05-17 18:10] model_audit: 10 agents scanned, 1 issue(s)
 [2026-05-17 18:22] model_audit: 10 agents scanned, 1 issue(s)
 [2026-05-17 18:38] model_audit: 10 agents scanned, 1 issue(s)
+[2026-05-17 18:50] model_audit: 10 agents scanned, 1 issue(s)
+[2026-05-17 18:58] model_audit: 10 agents scanned, 1 issue(s)
+[2026-05-17 22:20] model_audit: 10 agents scanned, 1 issue(s)
+[2026-05-17 22:29] task: --- status: running task_id: 4d1211ba-0a67-4d73-9184-7ed69945dd7d session_id: 42538f29-56d9-46a0-a4d5-7c70dffebccf assigned_by: master | result: Task completed via tools: [call_4pMAZhuiVcDLeY2neAM67LJC] OK: { "total_input_tokens": 38614196, "total_output_tokens": 554961, "total_cache_creation_tokens": 1954128, | outcome: success
+[2026-05-17 22:36] task: --- status: running task_id: 2eb91c67-5687-4271-ba3b-649f9b85933c session_id: 42538f29-56d9-46a0-a4d5-7c70dffebccf assigned_by: master | result: Task completed via tools: [call_cEtAA3unEYNKVA3IHWJRlwUc] OK: Model 'claude-3-haiku-20240307' (anthropic): UNAVAILABLE — HTTP 400 | outcome: success
+[2026-05-17 22:38] model_audit: 10 agents scanned, 1 issue(s)
+[2026-05-17 22:38] task: --- status: running task_id: e3e20e50-a038-4b96-bb24-b84a34ddd843 session_id: 42538f29-56d9-46a0-a4d5-7c70dffebccf assigned_by: master | result: Task completed via tools: [call_CBou7xgtct2wuZN8tzaQzLoy] OK: { "version": 2, "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk — keys are always resolved from the environment via app.config.settings at runtime. Per-agent optional fields: temperature, max_tokens, fallbacks, task_timeout (seconds, default 300), idle_timeout (seconds, default 900).", "default_n_fallbacks_models": 3, | outcome: success
+[2026-05-17 22:55] model_audit: 11 agents scanned, 1 issue(s)
+[2026-05-17 23:13] model_audit: 11 agents scanned, 1 issue(s)
+[2026-05-17 23:23] model_audit: 11 agents scanned, 1 issue(s)

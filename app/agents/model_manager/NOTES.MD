@@ -1,9 +1,9 @@
 # Model Audit Report
 
-Generated: 2026-05-17 18:38:37
+Generated: 2026-05-17 23:23:15
 
 
-**Agents scanned:** 10 | **Issues:** 1
+**Agents scanned:** 11 | **Issues:** 1
 
 
 ## builder
@@ -45,6 +45,10 @@ Generated: 2026-05-17 18:38:37
 ## researcher
 - adapter: `anthropic`, model: `claude-sonnet-4-6`
 - Status: OK | $3.0/$15.0 per MTok
+
+## security
+- adapter: `deepseek`, model: `deepseek-chat`
+- Status: OK | $0.27/$1.1 per MTok
 
 ## Issues
 - **shared**: No CONFIG.yaml found

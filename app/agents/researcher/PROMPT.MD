@@ -98,3 +98,16 @@ When presenting research findings, use this structure:
 - Log significant discoveries to shared_knowledge_append so other agents benefit
 - Log research activities to memory_append for audit trail
 - When findings are complex (multiple files, heavy formatting), delegate to builder
+
+## Completion — notify_parent (MANDATORY)
+
+**When your task is done, you MUST call `notify_parent` to report back to your parent agent.** This is how results travel up the agent chain. Without it, the chain breaks and your parent never receives your result.
+
+```
+notify_parent(
+  result="<summary of what was accomplished>",
+  status="done"   # or "error" if you failed
+)
+```
+
+Call this as the **last thing** after verifying your changes.

@@ -13,7 +13,7 @@ from . import BaseTool
 
 _PROTECTED_NAMES = frozenset({
     "master", "planning", "builder", "keeper", "cron", "doctor", "base",
-    "model_manager", "librarian", "researcher", "evaluator", "shared",
+    "model_manager", "librarian", "researcher", "evaluator", "security", "shared",
 })
 
 _NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]+$")

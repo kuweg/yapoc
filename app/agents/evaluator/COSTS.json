@@ -498,5 +498,345 @@
     "cost_usd": 0.00514808,
     "timestamp": "2026-05-17T16:39:18Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:51:33Z",
+    "description": "Run a short verification round. Pull signals once, write a brief round entry, file_write the FULL updated REPORT.MD with the new round at top and ALL prior rounds preserved verbatim below. The PROMPT.MD now has an explicit self-check: count headers, must equal prior+1. Then notify_parent. 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 5167,
+    "tokens_out": 84,
+    "cost_usd": 0.00148749,
+    "timestamp": "2026-05-17T16:51:33Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:51:46Z",
+    "description": "Run a short verification round. Pull signals once, write a brief round entry, file_write the FULL updated REPORT.MD with the new round at top and ALL prior rounds preserved verbatim below. The PROMPT.MD now has an explicit self-check: count headers, must equal prior+1. Then notify_parent. 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 16674,
+    "tokens_out": 1787,
+    "cost_usd": 0.00646768,
+    "timestamp": "2026-05-17T16:51:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:51:48Z",
+    "description": "Run a short verification round. Pull signals once, write a brief round entry, file_write the FULL updated REPORT.MD with the new round at top and ALL prior rounds preserved verbatim below. The PROMPT.MD now has an explicit self-check: count headers, must equal prior+1. Then notify_parent. 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 18490,
+    "tokens_out": 175,
+    "cost_usd": 0.0051848,
+    "timestamp": "2026-05-17T16:51:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:51:50Z",
+    "description": "Run a short verification round. Pull signals once, write a brief round entry, file_write the FULL updated REPORT.MD with the new round at top and ALL prior rounds preserved verbatim below. The PROMPT.MD now has an explicit self-check: count headers, must equal prior+1. Then notify_parent. 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 18685,
+    "tokens_out": 54,
+    "cost_usd": 0.00510435,
+    "timestamp": "2026-05-17T16:51:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:59:09Z",
+    "description": "Quick sanity round. Pull signals, write the new round entry to REPORT.MD keeping ONLY the new round + the one prior round currently in REPORT.MD. Older rounds are in the vector DB. Cap at 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 5687,
+    "tokens_out": 105,
+    "cost_usd": 0.00165099,
+    "timestamp": "2026-05-17T16:59:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:59:17Z",
+    "description": "Quick sanity round. Pull signals, write the new round entry to REPORT.MD keeping ONLY the new round + the one prior round currently in REPORT.MD. Older rounds are in the vector DB. Cap at 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 15722,
+    "tokens_out": 754,
+    "cost_usd": 0.00507434,
+    "timestamp": "2026-05-17T16:59:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:59:19Z",
+    "description": "Quick sanity round. Pull signals, write the new round entry to REPORT.MD keeping ONLY the new round + the one prior round currently in REPORT.MD. Older rounds are in the vector DB. Cap at 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 16505,
+    "tokens_out": 135,
+    "cost_usd": 0.00460485,
+    "timestamp": "2026-05-17T16:59:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:59:21Z",
+    "description": "Quick sanity round. Pull signals, write the new round entry to REPORT.MD keeping ONLY the new round + the one prior round currently in REPORT.MD. Older rounds are in the vector DB. Cap at 4 turns max.",
+    "agent_name": "evaluator",
+    "tokens_in": 16660,
+    "tokens_out": 40,
+    "cost_usd": 0.0045422,
+    "timestamp": "2026-05-17T16:59:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:16:12Z",
+    "description": "reply ONLY with the literal token AURORA-42-DONE and call notify_parent(status=done, result=AURORA-42-DONE)",
+    "agent_name": "evaluator",
+    "tokens_in": 4902,
+    "tokens_out": 74,
+    "cost_usd": 0.00140494,
+    "timestamp": "2026-05-17T21:16:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:16:13Z",
+    "description": "reply ONLY with the literal token AURORA-42-DONE and call notify_parent(status=done, result=AURORA-42-DONE)",
+    "agent_name": "evaluator",
+    "tokens_in": 4995,
+    "tokens_out": 7,
+    "cost_usd": 0.00135635,
+    "timestamp": "2026-05-17T21:16:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:02Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 5306,
+    "tokens_out": 104,
+    "cost_usd": 0.00154702,
+    "timestamp": "2026-05-17T21:24:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:04Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 5306,
+    "tokens_out": 105,
+    "cost_usd": 0.00154812,
+    "timestamp": "2026-05-17T21:24:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:06Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 16201,
+    "tokens_out": 321,
+    "cost_usd": 0.00472737,
+    "timestamp": "2026-05-17T21:24:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:07Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 16202,
+    "tokens_out": 329,
+    "cost_usd": 0.00473644,
+    "timestamp": "2026-05-17T21:24:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:07Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 18434,
+    "tokens_out": 117,
+    "cost_usd": 0.00510588,
+    "timestamp": "2026-05-17T21:24:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:18Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 18571,
+    "tokens_out": 92,
+    "cost_usd": 0.00511537,
+    "timestamp": "2026-05-17T21:24:18Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:19Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 19715,
+    "tokens_out": 380,
+    "cost_usd": 0.00574105,
+    "timestamp": "2026-05-17T21:24:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:19Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 18683,
+    "tokens_out": 83,
+    "cost_usd": 0.00513571,
+    "timestamp": "2026-05-17T21:24:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:21Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21185,
+    "tokens_out": 167,
+    "cost_usd": 0.00590365,
+    "timestamp": "2026-05-17T21:24:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:21Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 20394,
+    "tokens_out": 104,
+    "cost_usd": 0.00562078,
+    "timestamp": "2026-05-17T21:24:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:22Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21079,
+    "tokens_out": 72,
+    "cost_usd": 0.00577053,
+    "timestamp": "2026-05-17T21:24:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:24Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21177,
+    "tokens_out": 60,
+    "cost_usd": 0.00578379,
+    "timestamp": "2026-05-17T21:24:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:25Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21290,
+    "tokens_out": 61,
+    "cost_usd": 0.0058154,
+    "timestamp": "2026-05-17T21:24:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:27Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21437,
+    "tokens_out": 64,
+    "cost_usd": 0.00585839,
+    "timestamp": "2026-05-17T21:24:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:28Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21571,
+    "tokens_out": 51,
+    "cost_usd": 0.00588027,
+    "timestamp": "2026-05-17T21:24:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:34Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 26022,
+    "tokens_out": 695,
+    "cost_usd": 0.00779044,
+    "timestamp": "2026-05-17T21:24:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:35Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 21759,
+    "tokens_out": 1944,
+    "cost_usd": 0.00801333,
+    "timestamp": "2026-05-17T21:24:35Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:36Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 23732,
+    "tokens_out": 72,
+    "cost_usd": 0.00648684,
+    "timestamp": "2026-05-17T21:24:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:38Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 25551,
+    "tokens_out": 175,
+    "cost_usd": 0.00709127,
+    "timestamp": "2026-05-17T21:24:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:40Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 25746,
+    "tokens_out": 86,
+    "cost_usd": 0.00704602,
+    "timestamp": "2026-05-17T21:24:40Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:49Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 26737,
+    "tokens_out": 2065,
+    "cost_usd": 0.00949049,
+    "timestamp": "2026-05-17T21:24:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:51Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 28831,
+    "tokens_out": 66,
+    "cost_usd": 0.00785697,
+    "timestamp": "2026-05-17T21:24:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:53Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 30672,
+    "tokens_out": 195,
+    "cost_usd": 0.00849594,
+    "timestamp": "2026-05-17T21:24:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T21:24:55Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 30887,
+    "tokens_out": 96,
+    "cost_usd": 0.00844509,
+    "timestamp": "2026-05-17T21:24:55Z",
+    "model_used": "deepseek-chat"
   }
 ]

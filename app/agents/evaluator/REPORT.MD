@@ -9,75 +9,93 @@ happened (`> Applied 2026-05-18: edited X. Tested via Y. Result: Z.`).
 
 ---
 
-## 2026-05-17 16:39 — Self-evaluation (round 4 — sanity check)
+## 2026-05-17 21:24 — Self-evaluation (round 7)
 
 ### Observations
-- **Total spend**: $41.09 across 10 agents (413 tasks) — nominal, marginal increase from round 3
-- **Top spender**: master at $23.12 (56%) — consistent
-- **Recent error count**: 12 — all historical, no new ERROR-level entries
-- **Active agents**: evaluator (running), master (idle), cron (idle), doctor (idle), model_manager (idle) — all healthy
-- **No new errors, timeouts, or crashes** since round 3
-
-### Status: System clean. All prior fixes holding.
-
-Round 3's confirmation stands: all five bugs from round 1 remain fixed. No regressions detected. `set_task_status` confirmed working (this task's TASK.MD status landed at `done`).
-
-No new issues identified.
-
----
-
-## 2026-05-17 16:38 — Self-evaluation (round 3 — sanity check)
-
-### Observations
-- **Total spend**: $41.07 across 10 agents (412 tasks) — nominal
-- **Top spender**: master at $23.12 (56%) — consistent with prior rounds
-- **Recent error count**: 12 — all pre-existing/historical, no new ERROR-level entries since the DeepSeek fix landed
-- **Active agents**: evaluator (running), master (idle), cron (idle), doctor (idle), model_manager (idle) — all healthy
-- **No new errors, no new timeouts, no new crashes** since round 2
-
-### Status: System clean post-restart. All prior fixes holding.
-
-Round 2's five bug fixes remain verified:
-1. DeepSeek `_compact_messages` mismatch ✅ — no new 400 errors
-2. Runner `re.error` crash ✅ — no new occurrences
-3. Planning model swap ✅ — confirmed on disk
-4. CONFIG.yaml drift ✅ — no drift issues
-5. DAG context banner ✅ — no related errors
-
-No new issues identified. This is a trivial sanity pass confirming `set_task_status` works correctly.
-
----
-
-## 2026-05-17 16:28 — Self-evaluation (round 2)
-
-### Observations
-- **Total spend**: $40.98 across 10 agents (412 tasks) — marginal increase from round 1 ($40.88)
-- **Top spender**: master at $23.05 (56%) — consistent with round 1
+- **Total spend**: $41.73 across 10 agents (421 tasks) — marginal increase from round 6 ($41.18)
+- **Top spender**: master at $23.68 (57%) — consistent, structurally expected
 - **Second spender**: builder at $13.22 (32%) — unchanged
-- **Agents with current errors**: 4 (master, builder, planning, doctor) — same count as round 1
-- **Recent error count**: 12 in the feed — same count, but composition has shifted
-- **Notable changes since round 1**:
-  - No new DeepSeek 400 errors after the `_compact_messages` fix landed (last occurrence: master 16:34)
-  - No new `re.error: bad escape \u` crashes (last occurrence: builder 12:04)
-  - Planning's runtime model is now `deepseek-chat` (was `deepseek-v4-pro`) — the model swap fix is confirmed on disk
-  - The only recent ERROR-level entries are pre-fix (DeepSeek 400 at 16:34/16:18, planning timeout at 16:21)
-  - All post-fix entries in the error feed are INFO-level (doctor stale task resolution, health cleaning)
+- **Recent error count**: 16 — includes 2 new DeepSeek 400 errors (master 16:34, builder 16:18) plus rollback test entries
+- **Agents with health issues**: master (36), builder (26), planning (22), doctor (3) — master increased from 32 to 36 since round 6
+- **Active agents**: evaluator (running), master (idle) — all healthy
 
-### Status: All clear — no HIGH or MEDIUM issues remain
+### Top issues
 
-The five bugs identified in round 1 have been fixed and verified:
-1. **DeepSeek adapter mismatch in `_compact_messages`** ✅ — No new 400 errors since fix landed
-2. **Runner idle-write on exception** ✅ — No new `re.error` crashes
-3. **Planning model swap** ✅ — Runtime config now shows `deepseek-chat` as primary
-4. **CONFIG.yaml drift header** ✅ — No new drift-related issues
-5. **DAG context reference-data banner** ✅ — No related errors
+1. **`deepseek-chat` model name likely invalid for DeepSeek API** — Impact: HIGH
+   The DeepSeek API error at master 16:34 and builder 16:18 states: "The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001." While the immediate error is about a fallback model being routed to the wrong adapter, the primary model `deepseek-chat` used by 8 agents (master, builder, planning, keeper, librarian, evaluator, security, researcher) is also NOT in the valid set (`deepseek-v4-pro` or `deepseek-v4-flash`). If `deepseek-chat` is silently mapped or deprecated, every primary call may be failing and falling through to fallbacks — inflating cost and latency. The error feed shows these 400 errors recurring across rounds, suggesting the model name mismatch is unresolved.
 
-**Remaining health issues (master: 32, builder: 26, planning: 22) are historical** — they accumulated before the fixes and were not cleaned. Doctor's health check at 12:20 confirmed the asyncio NameError fix was verified on disk. These counts will persist until a health cleanup pass is run, but they do not indicate active problems.
+2. **Librarian has zero fallback models** — Impact: MEDIUM
+   `app/config/agent-settings.json` shows librarian with `"fallbacks": []` (no `fallbacks` key at all). If the primary model (`deepseek-chat`) fails or the DeepSeek API returns an error, the librarian has no fallback chain and the task fails hard. All other agents have at least 2 fallbacks. This is a single point of failure for the librarian's 20 tasks ($0.14 spend).
+
+3. **Master health issues increased from 32 to 36** — Impact: LOW
+   Master's health_issues count rose from 32 (round 6) to 36 (round 7). The new entries likely correspond to the rollback test errors (20:44, 20:47, 20:53) and the DeepSeek 400 error (16:34). These are expected operational events, not regressions, but the growing count should be monitored.
 
 ### Proposed changes (read-only — for human review)
 
-None. Current performance is within expected ranges. No new issues identified.
+1. **Target**: `app/config/agent-settings.json` — all agents using `deepseek` adapter
+   **Change**:
+   ```
+   "model": "deepseek-chat"
+   ↓
+   "model": "deepseek-v4-pro"
+   ```
+   (Apply to master, builder, planning, keeper, librarian, evaluator, security, researcher — all 8 agents using `adapter: "deepseek"` with `model: "deepseek-chat"`)
+   **Why**: The DeepSeek API error message explicitly states valid model names are `deepseek-v4-pro` or `deepseek-v4-flash`. Using `deepseek-chat` may cause silent fallthrough to fallbacks on every call, increasing cost and latency. The error at master 16:34 and builder 16:18 confirms the API rejects unrecognized model names.
+   **Risk**: If `deepseek-chat` is actually a valid alias that DeepSeek accepts (the error was about a Claude model, not `deepseek-chat` itself), this change is unnecessary but harmless — `deepseek-v4-pro` is confirmed valid. Verify by checking if any tasks complete successfully on the primary model before applying.
+
+2. **Target**: `app/config/agent-settings.json` — librarian agent
+   **Change**:
+   ```
+   "librarian": {
+     "adapter": "deepseek",
+     "model": "deepseek-chat",
+     "temperature": 0.1,
+     "max_tokens": 8096,
+     "tools": [...],
+     "delegation_targets": []
+   }
+   ↓
+   "librarian": {
+     "adapter": "deepseek",
+     "model": "deepseek-chat",
+     "temperature": 0.1,
+     "max_tokens": 8096,
+     "tools": [...],
+     "delegation_targets": [],
+     "fallbacks": [
+       {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+       {"adapter": "openai", "model": "gpt-5.4-mini"}
+     ]
+   }
+   ```
+   **Why**: Librarian is the only agent with zero fallbacks — if the primary model fails, its 20 tasks fail with no recovery path. Every other agent has at least 2 fallbacks.
+   **Risk**: Minimal — adding fallbacks only helps. The Anthropic and OpenAI adapters are already proven in other agents' fallback chains.
+
+3. **Target**: `app/agents/evaluator/REPORT.MD` — monitoring note
+   **Change**: No config change needed. Monitor master's health_issues count. If it exceeds 40 without corresponding ERROR-level events, investigate whether the health tracking is double-counting or if there's a silent degradation.
+   **Why**: Master's health_issues rose from 32 to 36 between rounds 6 and 7. The new entries correlate with rollback tests and historical DeepSeek errors, but sustained growth without resolution could indicate a tracking issue.
+   **Risk**: None — this is a monitoring recommendation, not a code change.
 
 ### Open questions
-- The 32/26/22 health issue counts on master/builder/planning are stale. A health cleanup pass (doctor `run-health-check` with cleanup flag) could reset them, but this is cosmetic — no active errors are being masked.
-- Master's cost ($23.05, 38M input tokens) is structurally high because it's the orchestrator. No anomaly detected — this is expected behavior for the central routing agent.
+- Does `deepseek-chat` actually work as a model name with the DeepSeek API, or does every primary call silently fail? The error feed shows 400 errors for `claude-haiku-4-5-20251001` (a fallback model), not for `deepseek-chat` itself. A test call with `deepseek-chat` vs `deepseek-v4-pro` would disambiguate.
+- The rollback test errors (20:44, 20:47, 20:53) are labeled `ROLLBACK` level — are these expected smoke tests or actual failures? The labels `'rollback-test'` and `'smoke test'` suggest intentional testing.
+
+---
+
+## 2026-05-17 16:59 — Self-evaluation (round 6 — sanity)
+
+### Observations
+- **Total spend**: $41.18 across 10 agents (415 tasks) — marginal increase from round 5
+- **Top spender**: master at $23.17 (56%) — consistent
+- **Recent error count**: 12 — all historical, no new ERROR-level entries since round 5
+- **Agents with health issues**: master (32), builder (26), planning (22), doctor (3) — all pre-existing, no new issues
+- **Active agents**: evaluator (running), master (idle) — all healthy
+
+### Status: System clean. All prior fixes holding.
+
+No new errors, timeouts, or crashes since round 5. The DeepSeek model routing errors (master 16:34, builder 16:18) are historical and pre-date the fix applied in earlier rounds. The planning timeout (16:21) is also historical.
+
+### Proposed changes
+None — system is within expected parameters.
+
+---

@@ -1,222 +1,124 @@
 
-[tool:start] file_list {'path': 'app/agents', 'recursive': False}
-
 [tool:start] file_read {'path': 'app/config/agent-settings.json'}
 
-[tool:done] file_list CLAUDE.md __init__.py __pycache__/ base/ builder/ cron/ doctor/ keeper/ librarian/ master/ model_manager/ planning/ shared/
+[tool:start] file_list {'path': 'app/agents', 'recursive': True}
 
-[tool:done] file_read {   "version": 2,   "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk — keys are always resolved from the environment via... (truncated)
+[tool:start] file_read {'path': 'Doctor/HEALTH_SUMMARY.MD'}
 
-[tool:start] file_read {'path': 'app/agents/master/USAGE.json'}
+[tool:start] file_list {'path': 'app/agents', 'recursive': False}
 
-[tool:start] file_read {'path': 'app/agents/planning/USAGE.json'}
+[tool:done] file_read {   "version": 2,   "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk — keys are always resolved from the environment via app.config.settings at runtime. Per-agent optional fields: temperature, max_tokens, fallbacks, task_timeout (seconds, default 300), idle_timeout (seconds, default 900).",   "default_n_fallbacks_models": 3,   "stale_task_threshold_seconds": 600,   "agents": {     "master": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.3,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash"         }       ]     },     "planning": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.3,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "deepseek",           "model": "deepseek-v4-pro"         },         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "google",           "model": "gemini-2.5-flash"         }       ]     },     "builder": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "codex",           "model": "gpt-5.1-codex"         },         {           "adapter": "openai",           "model": "gpt-5.2"         },         {           "adapter": "google",           "model": "gemini-2.5-pro"         }       ]     },     "keeper": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash-lite"         }       ]     },     "cron": {       "adapter": "openai",       "model": "gpt-4.1-nano",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash-lite"         }       ]     },     "doctor": {       "adapter": "openai",       "model": "gpt-5.4-mini",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "google",           "model": "gemini-2.5-flash"         },         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         }       ]     },     "model_manager": {       "adapter": "openai",       "model": "gpt-5.4-nano",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash-lite"         },         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         }       ]     },     "librarian": {       "adapter": "deepseek",       "model": "deepseek-chat",       "temperature": 0.1,       "max_tokens": 8096,       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "delegation_targets": []     },     "evaluator": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "get_recent_signals",         "file_read",         "file_write",         "file_list",         "search_memory",         "memory_append",         "notes_read",         "notes_write",         "notes_append",         "health_log",         "notify_parent",         "shared_knowledge_append"       ],       "temperature": 0.2,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         }       ]     },     "researcher": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "web_search",         "fetch_page",         "file_read",         "file_write",         "file_list",         "memory_append",         "notes_read",         "notes_write",         "notes_append",         "search_memory",         "shared_knowledge_append",         "health_log",         "notify_parent",         "spawn_agent",         "wait_for_agent",         "check_task_status"       ],       "temperature": 0.3,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash"         }       ]     }   } } 
 
-[tool:start] file_read {'path': 'app/agents/builder/USAGE.json'}
+[tool:done] file_list app/agents/CLAUDE.md app/agents/__init__.py app/agents/__pycache__/ app/agents/__pycache__/__init__.cpython-312.pyc app/agents/__pycache__/__init__.cpython-314.pyc app/agents/base/ app/agents/base/CLAUDE.md app/agents/base/__init__.py app/agents/base/__pycache__/ app/agents/base/__pycache__/__init__.cpython-312.pyc app/agents/base/__pycache__/__init__.cpython-314.pyc app/agents/base/__pycache__/context.cpython-312.pyc app/agents/base/__pycache__/context.cpython-314.pyc app/agents/base/__pycache__/runner.cpython-312.pyc app/agents/base/__pycache__/runner.cpython-314.pyc app/agents/base/__pycache__/runner_entry.cpython-312.pyc app/agents/base/context.py app/agents/base/runner.py app/agents/base/runner_entry.py app/agents/builder/ app/agents/builder/CONFIG.yaml app/agents/builder/COSTS.json app/agents/builder/COSTS.lock app/agents/builder/CRASH.MD app/agents/builder/ERROR.MD app/agents/builder/HEALTH.MD app/agents/builder/LEARNINGS.MD app/agents/builder/LIVE.MD app/agents/builder/MEMORY.MD app/agents/builder/NOTES.MD app/agents/builder/OUTPUT.MD app/agents/builder/PROMPT.MD app/agents/builder/RESULT.MD app/agents/builder/STATUS.json app/agents/builder/TASK.MD app/agents/builder/USAGE.json app/agents/builder/__init__.py app/agents/builder/__pycache__/ app/agents/builder/__pycache__/__init__.cpython-312.pyc app/agents/builder/__pycache__/agent.cpython-312.pyc app/agents/builder/agent.py app/agents/cron/ app/agents/cron/CONFIG.yaml app/agents/cron/COSTS.json app/agents/cron/COSTS.lock app/agents/cron/CRASH.MD app/agents/cron/HEALTH.MD app/agents/cron/LEARNINGS.MD app/agents/cron/LIVE.MD app/agents/cron/MEMORY.MD app/agents/cron/NOTES.MD app/agents/cron/OUTPUT.MD app/agents/cron/PROMPT.MD app/agents/cron/RESULT.MD app/agents/cron/STATUS.json app/agents/cron/TASK.MD app/agents/cron/USAGE.json app/agents/cron/__init__.py app/agents/cron/__pycache__/ app/agents/cron/__pycache__/__init__.cpython-312.pyc app/agents/cron/__pycache__/agent.cpython-312.pyc app/agents/cron/agent.py app/agents/doctor/ app/agents/doctor/CLAUDE.md app/agents/doctor/CONFIG.yaml app/agents/doctor/COSTS.json app/agents/doctor/COSTS.lock app/agents/doctor/CRASH.MD app/agents/doctor/ERROR.MD app/agents/doctor/HEALTH.MD app/agents/doctor/HEALTH_SUMMARY.MD app/agents/doctor/LEARNINGS.MD app/agents/doctor/LIVE.MD app/agents/doctor/MEMORY.MD app/agents/doctor/NOTES.MD app/agents/doctor/OUTPUT.MD app/agents/doctor/PROMPT.MD app/agents/doctor/RESULT.MD app/agents/doctor/STATUS.json app/agents/doctor/TASK.MD app/agents/doctor/USAGE.json app/agents/doctor/__init__.py app/agents/doctor/__pycache__/ app/agents/doctor/__pycache__/__init__.cpython-312.pyc app/agents/doctor/__pycache__/__init__.cpython-314.pyc app/agents/doctor/__pycache__/agent.cpython-312.pyc app/agents/doctor/__pycache__/agent.cpython-314.pyc app/agents/doctor/agent.py app/agents/evaluator/ app/agents/evaluator/CONFIG.yaml app/agents/evaluator/COSTS.json app/agents/evaluator/COSTS.lock app/agents/evaluator/ERROR.MD app/agents/evaluator/HEALTH.MD app/agents/evaluator/LIVE.MD app/agents/evaluator/MEMORY.MD app/agents/evaluator/NOTES.MD app/agents/evaluator/OUTPUT.MD app/agents/evaluator/PROMPT.MD app/agents/evaluator/REPORT.MD app/agents/evaluator/RESULT.MD app/agents/evaluator/STATUS.json app/agents/evaluator/TASK.MD app/agents/evaluator/USAGE.json app/agents/evaluator/__init__.py app/agents/evaluator/__pycache__/ app/agents/evaluator/__pycache__/__init__.cpython-312.pyc app/agents/evaluator/__pycache__/agent.cpython-312.pyc app/agents/evaluator/agent.py app/agents/keeper/ app/agents/keeper/CONFIG.yaml app/agents/keeper/COSTS.json app/agents/keeper/COSTS.lock app/agents/keeper/ERROR.MD app/agents/keeper/HEALTH.MD app/agents/keeper/LEARNINGS.MD app/agents/keeper/LIVE.MD app/agents/keeper/MEMORY.MD app/agents/keeper/NOTES.MD app/agents/keeper/OUTPUT.MD app/agents/keeper/PROMPT.MD app/agents/keeper/RESULT.MD app/agents/keeper/STATUS.json app/agents/keeper/TASK.MD app/agents/keeper/USAGE.json app/agents/keeper/__init__.py app/agents/keeper/__pycache__/ app/agents/keeper/__pycache__/__init__.cpython-312.pyc app/agents/keeper/__pycache__/agent.cpython-312.pyc app/agents/keeper/agent.py app/agents/librarian/ app/agents/librarian/CONFIG.yaml app/agents/librarian/COSTS.json app/agents/librarian/COSTS.lock app/agents/librarian/ERROR.MD app/agents/librarian/GOALS.MD app/agents/librarian/HEALTH.MD app/agents/librarian/LEARNINGS.MD app/agents/librarian/LIVE.MD app/agents/librarian/MEMORY.MD app/agents/librarian/NOTES.MD app/agents/librarian/OUTPUT.MD app/agents/librarian/PROMPT.MD app/agents/librarian/RESULT.MD app/agents/librarian/STATUS.json app/agents/librarian/SYSTEM.md app/agents/librarian/TASK.MD app/agents/librarian/USAGE.json app/agents/librarian/summaries/ app/agents/librarian/test-doc.md app/agents/master/ app/agents/master/CLAUDE.md app/agents/master/CONFIG.yaml app/agents/master/COSTS.json app/agents/master/COSTS.lock app/agents/master/ERROR.MD app/agents/master/GOALS.MD app/agents/master/HEALTH.MD app/agents/master/LEARNINGS.MD app/agents/master/LIVE.MD app/agents/master/MEMORY.MD app/agents/master/MEMORY.MD.quarantine app/agents/master/NOTES.MD app/agents/master/OUTPUT.MD app/agents/master/PROMPT.MD app/agents/master/RESULT.MD app/agents/master/RESUME.MD app/agents/master/SERVER_CRASH.MD app/agents/master/SERVER_OUTPUT.MD app/agents/master/STATUS.json app/agents/master/TASK.MD app/agents/master/USAGE.json app/agents/master/__init__.py app/agents/master/__pycache__/ app/agents/master/__pycache__/__init__.cpython-312.pyc app/agents/master/__pycache__/agent.cpython-312.pyc app/agents/master/__pycache__/agent.cpython-314.pyc app/agents/master/agent.py app/agents/master/fix_task.md app/agents/master/project_managing.md app/agents/master/sessions/ app/agents/model_manager/ app/agents/model_manager/CONFIG.yaml app/agents/model_manager/COSTS.json app/agents/model_manager/COSTS.lock app/agents/model_manager/ERROR.MD app/agents/model_manager/HEALTH.MD app/agents/model_manager/LIVE.MD app/agents/model_manager/MEMORY.MD app/agents/model_manager/NOTES.MD app/agents/model_manager/OUTPUT.MD app/agents/model_manager/PROMPT.MD app/agents/model_manager/RESULT.MD app/agents/model_manager/STATUS.json app/agents/model_manager/TASK.MD app/agents/model_manager/USAGE.json app/agents/model_manager/__init__.py app/agents/model_manager/__pycache__/ app/agents/model_manager/__pycache__/__init__.cpython-312.pyc app/agents/model_manager/__pycache__/agent.cpython-312.pyc app/agents/model_manager/agent.py app/agents/planning/ app/agents/planning/CONFIG.yaml app/agents/planning/COSTS.json app/agents/planning/COSTS.lock app/agents/planning/ERROR.MD app/agents/planning/HEALTH.MD app/agents/planning/LEARNINGS.MD app/agents/planning/LIVE.MD app/agents/planning/MEMORY.MD app/agents/planning/NOTES.MD app/agents/planning/OUTPUT.MD app/agents/planning/PROMPT.MD app/agents/planning/RESULT.MD app/agents/planning/STATUS.json app/agents/planning/TASK.MD app/agents/planning/USAGE.json app/agents/planning/__init__.py app/agents/planning/__pycache__/ app/agents/planning/__pycache__/__init__.cpython-312.pyc app/agents/planning/__pycache__/agent.cpython-312.pyc app/agents/planning/agent.py app/agents/planning/prompt_structure.txt app/agents/researcher/ app/agents/researcher/CONFIG.yaml app/agents/researcher/COSTS.json app/agents/researcher/COSTS.lock app/agents/researcher/ERROR.MD app/agents/researcher/HEALTH.MD app/agents/researcher/LIVE.MD app/agents/researcher/MEMORY.MD app/agents/researcher/NOTES.MD app/agents/researcher/OUTPUT.MD app/agents/researcher/PROMPT.MD app/agents/researcher/RESULT.MD app/agents/researcher/STATUS.json app/agents/researcher/TASK.MD app/agents/researcher/USAGE.json app/agents/researcher/__init__.py app/agents/researcher/__pycache__/ app/agents/researcher/__pycache__/__init__.cpython-312.pyc app/agents/researcher/__pycache__/agent.cpython-312.pyc app/agents/researcher/agent.py app/agents/shared/ app/agents/shared/KNOWLEDGE.MD
 
-[tool:start] file_read {'path': 'app/agents/cron/USAGE.json'}
+[tool:done] file_read ERROR: File not found: Doctor/HEALTH_SUMMARY.MD
 
-[tool:start] file_read {'path': 'app/agents/keeper/USAGE.json'}
+[tool:done] file_list CLAUDE.md __init__.py __pycache__/ base/ builder/ cron/ doctor/ evaluator/ keeper/ librarian/ master/ model_manager/ planning/ researcher/ shared/
 
-[tool:start] file_read {'path': 'app/agents/doctor/USAGE.json'}
+[tool:start] check_model_availability {'model_id': 'deepseek-chat', 'adapter': 'deepseek'}
 
-[tool:start] file_read {'path': 'app/agents/model_manager/USAGE.json'}
+[tool:start] check_model_availability {'model_id': 'deepseek-v4-pro', 'adapter': 'deepseek'}
 
-[tool:start] file_read {'path': 'app/agents/librarian/USAGE.json'}
+[tool:start] check_model_availability {'model_id': 'claude-sonnet-4-6', 'adapter': 'anthropic'}
 
-[tool:done] file_read {   "total_input_tokens": 17756074,   "total_output_tokens": 279211,   "total_cache_creation_tokens": 1954128,   "total_cache_read_tokens": 7375311,   "total_tool_calls": 2058,   "... (truncated)
+[tool:start] check_model_availability {'model_id': 'gpt-5.4-mini', 'adapter': 'openai'}
 
-[tool:done] file_read {   "total_input_tokens": 4061470,   "total_output_tokens": 167633,   "total_cache_creation_tokens": 111917,   "total_cache_read_tokens": 965167,   "total_tool_calls": 524,   "tota... (truncated)
+[tool:start] check_model_availability {'model_id': 'gemini-2.5-flash', 'adapter': 'google'}
 
-[tool:done] file_read {   "total_input_tokens": 5898907,   "total_output_tokens": 215260,   "total_cache_creation_tokens": 899898,   "total_cache_read_tokens": 7663602,   "total_tool_calls": 1011,   "to... (truncated)
+[tool:start] check_model_availability {'model_id': 'gpt-5.1-codex', 'adapter': 'codex'}
 
-[tool:done] file_read {   "total_input_tokens": 148856,   "total_output_tokens": 97125,   "total_cache_creation_tokens": 125993,   "total_cache_read_tokens": 436780,   "total_tool_calls": 96,   "total_t... (truncated)
+[tool:start] check_model_availability {'model_id': 'gpt-5.2', 'adapter': 'openai'}
 
-[tool:done] file_read {   "total_input_tokens": 510022,   "total_output_tokens": 21470,   "total_cache_creation_tokens": 46295,   "total_cache_read_tokens": 169192,   "total_tool_calls": 115,   "total_t... (truncated)
+[tool:start] check_model_availability {'model_id': 'gemini-2.5-pro', 'adapter': 'google'}
 
-[tool:done] file_read {   "total_input_tokens": 367266,   "total_output_tokens": 8647,   "total_cache_creation_tokens": 74223,   "total_cache_read_tokens": 250643,   "total_tool_calls": 126,   "total_tu... (truncated)
+[tool:start] check_model_availability {'model_id': 'gpt-5.4-nano', 'adapter': 'openai'}
 
-[tool:done] file_read {   "total_input_tokens": 90862,   "total_output_tokens": 34443,   "total_cache_creation_tokens": 105070,   "total_cache_read_tokens": 421878,   "total_tool_calls": 191,   "total_t... (truncated)
+[tool:start] check_model_availability {'model_id': 'gpt-4.1-nano', 'adapter': 'openai'}
 
-[tool:done] file_read ERROR: File not found: app/agents/librarian/USAGE.json
+[tool:start] check_model_availability {'model_id': 'gemini-2.5-flash-lite', 'adapter': 'google'}
 
-[tool:start] check_model_availability {'adapter': 'deepseek', 'model_id': 'deepseek-chat'}
+[tool:start] check_model_availability {'model_id': 'gemini-2.5-flash', 'adapter': 'google'}
 
-[tool:start] check_model_availability {'adapter': 'deepseek', 'model_id': 'deepseek-v4-pro'}
+[tool:start] check_model_availability {'model_id': 'claude-sonnet-4-6', 'adapter': 'anthropic'}
 
-[tool:start] check_model_availability {'adapter': 'openai', 'model_id': 'gpt-4.1-nano'}
-
-[tool:start] check_model_availability {'adapter': 'deepseek', 'model_id': 'deepseek-reasoner'}
-
-[tool:start] check_model_availability {'adapter': 'openai', 'model_id': 'gpt-5.4-mini'}
-
-[tool:start] check_model_availability {'adapter': 'openai', 'model_id': 'gpt-5.4-nano'}
+[tool:start] check_model_availability {'model_id': 'deepseek-reasoner', 'adapter': 'deepseek'}
 
 [tool:done] check_model_availability Error: No availability check implemented for adapter 'deepseek'
 
 [tool:done] check_model_availability Error: No availability check implemented for adapter 'deepseek'
 
-[tool:done] check_model_availability Model 'gpt-4.1-nano' (openai): AVAILABLE — context=1,000,000, $0.2/MTok in, $0.8/MTok out
-
-[tool:done] check_model_availability Error: No availability check implemented for adapter 'deepseek'
+[tool:done] check_model_availability Model 'claude-sonnet-4-6' (anthropic): UNAVAILABLE — HTTP 400
 
 [tool:done] check_model_availability Model 'gpt-5.4-mini' (openai): AVAILABLE — not in catalog (no pricing info)
 
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'google'
+
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'codex'
+
+[tool:done] check_model_availability Model 'gpt-5.2' (openai): AVAILABLE — context=400,000, $1.75/MTok in, $14.0/MTok out
+
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'google'
+
 [tool:done] check_model_availability Model 'gpt-5.4-nano' (openai): AVAILABLE — not in catalog (no pricing info)
 
-[tool:start] list_models {'provider': 'openai', 'capability_tier': 'lightweight', 'sort_by': 'cost'}
+[tool:done] check_model_availability Model 'gpt-4.1-nano' (openai): AVAILABLE — context=1,000,000, $0.2/MTok in, $0.8/MTok out
 
-[tool:start] list_models {'provider': 'anthropic', 'capability_tier': 'lightweight', 'sort_by': 'cost'}
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'google'
 
-[tool:start] list_models {'provider': 'deepseek', 'capability_tier': 'lightweight', 'sort_by': 'cost'}
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'google'
 
-[tool:start] list_models {'provider': 'google', 'capability_tier': 'lightweight', 'sort_by': 'cost'}
+[tool:done] check_model_availability Model 'claude-sonnet-4-6' (anthropic): UNAVAILABLE — HTTP 400
 
-[tool:done] list_models Model ID                                   Context  $/MTok In  $/MTok Out Tier         Tools ---------------------------------------------------------------------------------------... (truncated)
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'deepseek'
 
-[tool:done] list_models No models match the given filters.
+[tool:start] file_read {'path': 'app/Doctor/HEALTH_SUMMARY.MD'}
 
-[tool:done] list_models No models match the given filters.
+[tool:done] file_read ERROR: File not found: app/Doctor/HEALTH_SUMMARY.MD
 
-[tool:done] list_models Model ID                                   Context  $/MTok In  $/MTok Out Tier         Tools ---------------------------------------------------------------------------------------... (truncated)
-## 1) Agents found
-`app/agents/`: `builder, cron, doctor, keeper, librarian, master, model_manager, planning` (plus shared/base scaffolding).
+[tool:start] file_list {'path': 'app/agents/doctor', 'recursive': False}
 
-## 2) Current bindings (from `app/config/agent-settings.json`)
-- **master**: `deepseek` / `deepseek-chat`
-- **planning**: `deepseek` / `deepseek-v4-pro`
-- **builder**: `deepseek` / `deepseek-chat`
-- **keeper**: `deepseek` / `deepseek-chat`
-- **cron**: `openai` / `gpt-4.1-nano`
-- **doctor**: `openai` / `gpt-5.4-mini`
-- **model_manager**: `openai` / `gpt-5.4-nano`
-- **librarian**: `deepseek` / `deepseek-chat`
+[tool:done] file_list CLAUDE.md CONFIG.yaml COSTS.json COSTS.lock CRASH.MD ERROR.MD HEALTH.MD HEALTH_SUMMARY.MD LEARNINGS.MD LIVE.MD MEMORY.MD NOTES.MD OUTPUT.MD PROMPT.MD RESULT.MD STATUS.json TASK.MD USAGE.json __init__.py __pycache__/ agent.py
 
-## 3) USAGE stats (from `app/agents/<agent>/USAGE.json`)
-> Note: `app/agents/librarian/USAGE.json` was missing, so no usage stats for librarian.
+[tool:start] file_read {'path': 'app/agents/doctor/HEALTH_SUMMARY.MD'}
 
-### master
-- **Total cost:** **$15.1946**
-- **By model:**
-  - `deepseek-chat`: $4.6959 (turns 1081)
-  - `claude-sonnet-4-6`: $10.4987 (turns 533)
-  - `deepseek-v4-pro`: $0.0 (turns 88)
+[tool:done] file_read # Health Summary  Generated: 2026-05-17 22:38:15   **Status:** ISSUES DETECTED (11 issue(s) across 11 agents)   ## builder   - HEALTH.MD: 2 error(s)     - [2026-05-17 16:18] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.     - [2026-05-17 16:18] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.   - CRASH.MD: 2 crash(es)  ## cron   - OK  ## doctor   - HEALTH.MD: 1 warning(s)     - [2026-05-16 03:20] WARNING: HEALTH_CHECK_COMPLETE: issues detected across 9 agents; master and planning each timed out after 300s; builder remains under runaway cost alert. | context: doctor run-health-check   - CRASH.MD: 1 crash(es)  ## evaluator   - OK  ## keeper   - OK  ## librarian   - OK  ## master   - HEALTH.MD: 2 error(s)     - [2026-05-17 12:20] INFO: Health cleaned — historical asyncio NameError entries removed. Fix verified on disk: import asyncio present, asyncio.timeout(60) wrapping aiter_lines loop.[2026-05-17 16:13] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.     - [2026-05-17 16:34] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.  ## model_manager   - OK  ## planning   - HEALTH.MD: 1 error(s)     - [2026-05-17 16:21] ERROR: Task timed out after 300s  ## researcher   - OK  ## shared   - OK  ## Runaway Cost Alerts    - **builder**: RUNAWAY_COST: $13.2208 exceeds 5.0x median ($0.3414 median, $1.7069 threshold)   - **master**: RUNAWAY_COST: $23.4892 exceeds 5.0x median ($0.3414 median, $1.7069 threshold)   - **planning**: RUNAWAY_COST: $2.7265 exceeds 5.0x median ($0.3414 median, $1.7069 threshold) 
 
-### planning
-- **Total cost:** **$1.7970**
-- **By model:**
-  - `deepseek-v4-pro`: $0.6800 (turns 111)
-  - `claude-sonnet-4-6`: $1.1170 (turns 78)
+[tool:start] file_write {'path': 'REPORT.MD', 'content': '# Fresh Agent Audit Report\n\nGenerated: 2026-05-17\n\n## Scope\n- Read authoritative bindings from `app/config/agent-settings.json`.\n- Verified model availability for each agent’s primary model and key fallbacks.\n- Checked doctor’s health summary for misconfig/cost anomalies.\n\n## Findings (availability)\n### Unavailable / failing\n- **anthropic / claude-sonnet-4-6**: **UNAVAILABLE (HTTP 400)**\n  - Impact: any agent whose fallback chain includes `claude-sonnet-4-6` will fail over to it.\n\n### Available\n- **openai / gpt-4.1-nano**: AVAILABLE\n- **openai / gpt-5.2**: AVAILABLE\n- **openai / gpt-5.4-mini**: AVAILABLE (catalog pricing not found)\n- **openai / gpt-5.4-nano**: AVAILABLE (catalog pricing not found)\n\n### Not verifiable with current tooling\nThe `check_model_availability` tool returned: **“No availability check implemented for adapter …”** for:\n- `deepseek` (e.g., `deepseek-chat`, `deepseek-v4-pro`, `deepseek-reasoner`)\n- `google` (e.g., `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`)\n- `codex` (e.g., `gpt-5.1-codex`)\n\nSo, for those adapters, we cannot confirm reachability via this tool.\n\n## Findings (fallback chain correctness)\n- Fallback chains are syntactically present in `agent-settings.json`.\n- However, **`claude-sonnet-4-6` is a known-bad fallback** (HTTP 400), so any chain relying on it is effectively broken.\n\n## Findings (health + cost anomalies)\nFrom `app/agents/doctor/HEALTH_SUMMARY.MD`:\n- **builder**: DeepSeek API errors (400) due to passing an incorrect model name (`claude-haiku-4-5-20251001`) to DeepSeek; also 2 crashes.\n- **master**: same DeepSeek API error (400) and 2 errors.\n- **planning**: task timed out after 300s.\n- **Runaway Cost Alerts**:\n  - builder, master, planning exceed 5.0x median runaway-cost thresholds.\n\n## Misconfiguration / anomaly highlights\n1. **Broken fallback**: `anthropic/claude-sonnet-4-6` returns HTTP 400.\n2. **DeepSeek model-name mismatch**: health summary indicates DeepSeek calls are being made with a Claude model id.\n3. **Timeouts**: planning timed out after 300s.\n4. **Runaway cost**: builder/master/planning show repeated high spend.\n\n## Recommended next actions (not applied)\n- Remove or reorder `claude-sonnet-4-6` from fallback chains to avoid guaranteed HTTP 400 failures.\n- Investigate the source of the DeepSeek model-name mismatch (`claude-haiku-4-5-20251001` being sent to DeepSeek). This likely indicates a stale/incorrect mapping in code that selects DeepSeek model IDs.\n- For cost: consider lowering max_tokens / temperature or tightening task timeouts for builder/master/planning.\n\n'}
 
-### builder
-- **Total cost:** **$11.4707**
-- **By model:**
-  - `deepseek-chat`: $1.5521 (turns 250)
-  - `gpt-4o`: $2.1027 (turns 91)
-  - `claude-opus-4-6`: $3.2359 (turns 96)
-  - `claude-sonnet-4-6`: $4.5801 (turns 226)
+[tool:done] file_write Written 2582 chars to REPORT.MD
 
-### cron
-- **Total cost:** **$0.3334**
-- **By model:**
-  - `claude-haiku-4-5-20251001`: $0.3194 (turns 81)
-  - `claude-3-haiku-20240307`: $0.0140 (turns 27)
-  - (some lmstudio entries at $0.0)
+[tool:start] check_model_availability {'model_id': 'claude-sonnet-4-6', 'adapter': 'anthropic'}
 
-### keeper
-- **Total cost:** **$0.1805**
-- **By model:**
-  - `gpt-4.1-nano`: $0.0536 (turns 51)
-  - `deepseek-chat`: $0.0828 (turns 44)
-  - `claude-3-haiku-20240307`: $0.0347 (turns 31)
-  - (also `claude-haiku-4-5-20251001` at $0.0248)
+[tool:done] check_model_availability Model 'claude-sonnet-4-6' (anthropic): UNAVAILABLE — HTTP 400
 
-### doctor
-- **Total cost:** **$0.0347**
-- **By model:**
-  - `claude-3-haiku-20240307`: $0.0347 (turns 31)
-  - `gpt-5.4-nano`: $0.0 (turns 16)
+[tool:start] check_model_availability {'model_id': 'gpt-4.1-nano', 'adapter': 'openai'}
 
-### model_manager
-- **Total cost:** **$0.3293**
-- **By model:**
-  - `claude-haiku-4-5-20251001`: $0.3293 (turns 49)
-  - `gpt-5.4-nano`: $0.0 (turns 16)
+[tool:done] check_model_availability Model 'gpt-4.1-nano' (openai): AVAILABLE — context=1,000,000, $0.2/MTok in, $0.8/MTok out
 
-### librarian
-- **USAGE.json missing** → cannot compute spend.
+[tool:start] check_model_availability {'model_id': 'gpt-5.4-mini', 'adapter': 'openai'}
 
-## 4) Model availability checks (for models “currently in use”)
-Availability tool behavior:
-- **deepseek adapter:** “No availability check implemented for adapter 'deepseek'” (so I can’t verify reachability via this tool)
-- **openai adapter:** works
+[tool:done] check_model_availability Model 'gpt-5.4-mini' (openai): AVAILABLE — not in catalog (no pricing info)
 
-Checked:
-- `openai/gpt-4.1-nano` → **AVAILABLE** (context 1,000,000; $0.2/MTok in, $0.8/MTok out)
-- `openai/gpt-5.4-mini` → **AVAILABLE** but **not in catalog** (no pricing info returned)
-- `openai/gpt-5.4-nano` → **AVAILABLE** but **not in catalog** (no pricing info returned)
-- `deepseek/*` → tool limitation (no check)
+[tool:start] check_model_availability {'model_id': 'gpt-5.4-nano', 'adapter': 'openai'}
 
-## 5) Cheaper alternatives (from `list_models`)
-Catalog results (lightweight tiers):
-- **openai**
-  - `gpt-5-nano`: $0.05 in / $0.40 out
-  - `gpt-4.1-nano`: $0.20 in / $0.80 out (already used by cron)
-- **google**
-  - `gemini-2.5-flash-lite`: $0.10 in / $0.40 out
-- **anthropic / deepseek**: no matches returned for the lightweight filter in this query run.
+[tool:done] check_model_availability Model 'gpt-5.4-nano' (openai): AVAILABLE — not in catalog (no pricing info)
 
-## 6) Recommended cost optimizations (and estimated savings)
-### A) Cron: likely already optimized
-- Cron’s **current binding** is `openai/gpt-4.1-nano`, but **its USAGE shows most spend on `claude-haiku-4-5-20251001`** ($0.3194 of $0.3334).
-- That suggests fallbacks are already steering cost down.
-✅ **Recommendation:** no change required unless you want to force cron to prefer a specific cheaper provider/model (but that would require config edits and we don’t have evidence it’s currently misconfigured).
+[tool:start] check_model_availability {'model_id': 'gpt-5.2', 'adapter': 'openai'}
 
-### B) Doctor / model_manager: bindings look expensive, but spend is tiny
-- **doctor** binding: `gpt-5.4-mini` but USAGE shows only **$0.0347** total, mostly on `claude-3-haiku-20240307`.
-- **model_manager** binding: `gpt-5.4-nano` but USAGE shows **$0.3293** total, mostly on `claude-haiku-4-5-20251001`.
-✅ **Recommendation:** no change required; the fallbacks are already keeping spend low.
+[tool:done] check_model_availability Model 'gpt-5.2' (openai): AVAILABLE — context=400,000, $1.75/MTok in, $14.0/MTok out
 
-### C) Biggest potential savings: master / builder / planning (but requires careful model-quality tradeoff)
-These agents have the highest spend:
-- **master:** $15.19 total (dominant: `claude-sonnet-4-6` at $10.50)
-- **builder:** $11.47 total (dominant: `claude-sonnet-4-6` $4.58 and `claude-opus-4-6` $3.24)
-- **planning:** $1.80 total (dominant: `claude-sonnet-4-6` $1.12)
+[tool:start] check_model_availability {'model_id': 'gemini-2.5-flash', 'adapter': 'google'}
 
-However, the *current bindings* for these agents are **deepseek models**, and the USAGE indicates they are frequently falling back to **Anthropic Claude Sonnet/Opus**. That means the cost driver is likely the **fallback chain**, not the primary model.
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'google'
 
-✅ **Recommendation (high impact, but needs config edits):**
-- For **master / planning / builder / keeper**, adjust their `fallbacks` to prefer a cheaper “efficient/lightweight” model first (e.g., an Haiku/Flash-lite style model) *before* Sonnet/Opus.
-- This should reduce the large $10.5 (master) and $3.2 (builder) chunks.
+[tool:start] check_model_availability {'model_id': 'deepseek-chat', 'adapter': 'deepseek'}
 
-**Estimated savings (rough):**
-- If we could reduce the Sonnet/Opus share by even **50%** for master+builder+planning, the savings could plausibly be on the order of:
-  - master: ~$10.50 * 50% ≈ **$5.25**
-  - builder: ~$4.58 + $3.24 ≈ $7.82; 50% ≈ **$3.91**
-  - planning: ~$1.12; 50% ≈ **$0.56**
-  - **Total ≈ $9.7** over the measured period
-This is a *scenario estimate*; actual savings depend on how often those fallbacks trigger.
+[tool:done] check_model_availability Error: No availability check implemented for adapter 'deepseek'
 
-### D) Librarian: cannot optimize without usage data
-- `librarian/USAGE.json` missing, so we can’t quantify spend.
-✅ **Recommendation:** add/restore USAGE tracking or run a short workload to gather stats before changing librarian config.
+[tool:start] file_read {'path': 'app/agents/doctor/HEALTH_SUMMARY.MD'}
 
----
+[tool:done] file_read # Health Summary  Generated: 2026-05-17 22:38:15   **Status:** ISSUES DETECTED (11 issue(s) across 11 agents)   ## builder   - HEALTH.MD: 2 error(s)     - [2026-05-17 16:18] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.     - [2026-05-17 16:18] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.   - CRASH.MD: 2 crash(es)  ## cron   - OK  ## doctor   - HEALTH.MD: 1 warning(s)     - [2026-05-16 03:20] WARNING: HEALTH_CHECK_COMPLETE: issues detected across 9 agents; master and planning each timed out after 300s; builder remains under runaway cost alert. | context: doctor run-health-check   - CRASH.MD: 1 crash(es)  ## evaluator   - OK  ## keeper   - OK  ## librarian   - OK  ## master   - HEALTH.MD: 2 error(s)     - [2026-05-17 12:20] INFO: Health cleaned — historical asyncio NameError entries removed. Fix verified on disk: import asyncio present, asyncio.timeout(60) wrapping aiter_lines loop.[2026-05-17 16:13] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.     - [2026-05-17 16:34] ERROR: DeepSeek API error (400): The supported API model names are deepseek-v4-pro or deepseek-v4-flash, but you passed claude-haiku-4-5-20251001.  ## model_manager   - OK  ## planning   - HEALTH.MD: 1 error(s)     - [2026-05-17 16:21] ERROR: Task timed out after 300s  ## researcher   - OK  ## shared   - OK  ## Runaway Cost Alerts    - **builder**: RUNAWAY_COST: $13.2208 exceeds 5.0x median ($0.3414 median, $1.7069 threshold)   - **master**: RUNAWAY_COST: $23.4892 exceeds 5.0x median ($0.3414 median, $1.7069 threshold)   - **planning**: RUNAWAY_COST: $2.7265 exceeds 5.0x median ($0.3414 median, $1.7069 threshold) 
 
-## Final summary (what we can conclude now)
-| Agent | Current binding | Usage total | Main spend models |
-|---|---|---:|---|
-| master | deepseek-chat | **$15.19** | claude-sonnet-4-6 ($10.50), deepseek-chat ($4.70) |
-| planning | deepseek-v4-pro | **$1.80** | claude-sonnet-4-6 ($1.12), deepseek-v4-pro ($0.68) |
-| builder | deepseek-chat | **$11.47** | claude-sonnet-4-6 ($4.58), claude-opus-4-6 ($3.24), gpt-4o ($2.10) |
-| keeper | deepseek-chat | **$0.18** | deepseek-chat ($0.08), gpt-4.1-nano ($0.05), claude-haiku/haiku-3 ($0.03–0.02) |
-| cron | gpt-4.1-nano | **$0.33** | claude-haiku-4-5-20251001 ($0.32) |
-| doctor | gpt-5.4-mini | **$0.03** | claude-3-haiku-20240307 ($0.03) |
-| model_manager | gpt-5.4-nano | **$0.33** | claude-haiku-4-5-20251001 ($0.33) |
-| librarian | deepseek-chat | N/A | N/A |
+[tool:start] file_read {'path': 'app/config/agent-settings.json'}
 
-### Recommended changes
-- **Do not change cron/doctor/model_manager**: they’re already spending very little and appear to be using cheaper fallbacks.
-- **Target master/planning/builder fallback chains** to reduce reliance on **claude-sonnet-4-6 / claude-opus-4-6**.
-  - Expected savings: **~$9–$10** over the measured period if fallback-triggered spend is reduced by ~50% (scenario estimate).
-
-If you want, I can propose exact `app/config/agent-settings.json` fallback reordering (which models to move earlier/later) and then apply it via `update_agent_config`.
+[tool:done] file_read {   "version": 2,   "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk — keys are always resolved from the environment via app.config.settings at runtime. Per-agent optional fields: temperature, max_tokens, fallbacks, task_timeout (seconds, default 300), idle_timeout (seconds, default 900).",   "default_n_fallbacks_models": 3,   "stale_task_threshold_seconds": 600,   "agents": {     "master": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.3,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash"         }       ]     },     "planning": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.3,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "deepseek",           "model": "deepseek-v4-pro"         },         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "google",           "model": "gemini-2.5-flash"         }       ]     },     "builder": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "codex",           "model": "gpt-5.1-codex"         },         {           "adapter": "openai",           "model": "gpt-5.2"         },         {           "adapter": "google",           "model": "gemini-2.5-pro"         }       ]     },     "keeper": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash-lite"         }       ]     },     "cron": {       "adapter": "openai",       "model": "gpt-4.1-nano",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash-lite"         }       ]     },     "doctor": {       "adapter": "openai",       "model": "gpt-5.4-mini",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "google",           "model": "gemini-2.5-flash"         },         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         }       ]     },     "model_manager": {       "adapter": "openai",       "model": "gpt-5.4-nano",       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "temperature": 0.2,       "max_tokens": 4096,       "fallbacks": [         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash-lite"         },         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         }       ]     },     "librarian": {       "adapter": "deepseek",       "model": "deepseek-chat",       "temperature": 0.1,       "max_tokens": 8096,       "tools": [         "file_read",         "file_write",         "file_edit",         "file_delete",         "file_list"       ],       "delegation_targets": []     },     "evaluator": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "get_recent_signals",         "file_read",         "file_write",         "file_list",         "search_memory",         "memory_append",         "notes_read",         "notes_write",         "notes_append",         "health_log",         "notify_parent",         "shared_knowledge_append"       ],       "temperature": 0.2,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         }       ]     },     "researcher": {       "adapter": "deepseek",       "model": "deepseek-chat",       "tools": [         "web_search",         "fetch_page",         "file_read",         "file_write",         "file_list",         "memory_append",         "notes_read",         "notes_write",         "notes_append",         "search_memory",         "shared_knowledge_append",         "health_log",         "notify_parent",         "spawn_agent",         "wait_for_agent",         "check_task_status"       ],       "temperature": 0.3,       "max_tokens": 8096,       "fallbacks": [         {           "adapter": "anthropic",           "model": "claude-sonnet-4-6"         },         {           "adapter": "openai",           "model": "gpt-5.4-mini"         },         {           "adapter": "google",           "model": "gemini-2.5-flash"         }       ]     }   } } 

@@ -339,8 +339,100 @@ def index_agent_tasks(agent_name: str, agent_dir: Path) -> int:
     return 1
 
 
+_REPORT_HEADER_RE = re.compile(
+    r"^## (\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+—\s+Self-evaluation",
+    re.MULTILINE,
+)
+
+
+def index_agent_report(agent_name: str, agent_dir: Path) -> int:
+    """Index REPORT.MD per round section, deduped by content hash.
+
+    Unlike NOTES.MD/LEARNINGS.MD (which delete-and-reindex on file-hash
+    change), REPORT.MD is an append-only log of rounds. We want to
+    accumulate entries across runs, not replace them. The scheme:
+
+      1. Split REPORT.MD by ``## YYYY-MM-DD HH:MM — Self-evaluation`` headers
+      2. For each section, hash its content (MD5)
+      3. Look up existing memory_entries with source=REPORT.MD for this
+         agent and build the set of hashes already stored
+      4. Embed + insert only sections whose hash isn't in that set
+
+    This lets the evaluator overwrite REPORT.MD freely (keeping only the
+    most recent N rounds for human readability); older rounds remain
+    durably indexed in the vector store and reachable via search_memory.
+    Returns the number of NEW sections indexed.
+    """
+    report_path = agent_dir / "REPORT.MD"
+    if not report_path.exists():
+        return 0
+
+    content = report_path.read_text(encoding="utf-8").strip()
+    if not content:
+        return 0
+
+    matches = list(_REPORT_HEADER_RE.finditer(content))
+    if not matches:
+        return 0
+
+    sections: list[tuple[str, str]] = []  # (timestamp, section_text)
+    for i, m in enumerate(matches):
+        start = m.start()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        section_text = content[start:end].strip()
+        if len(section_text) < _MIN_CONTENT_LEN:
+            continue
+        sections.append((m.group(1), section_text))
+
+    if not sections:
+        return 0
+
+    # Build the set of already-indexed section hashes for this agent
+    from app.utils.db import get_db
+    db = get_db()
+    rows = db.execute(
+        "SELECT content FROM memory_entries WHERE agent = ? AND source = ?",
+        (agent_name, "REPORT.MD"),
+    ).fetchall()
+    seen = {hashlib.md5(r["content"].encode()).hexdigest() for r in rows}
+
+    to_index: list[tuple[str, str]] = []
+    for ts, section_text in sections:
+        h = hashlib.md5(section_text.encode()).hexdigest()
+        if h not in seen:
+            to_index.append((ts, section_text))
+
+    if not to_index:
+        return 0
+
+    try:
+        embeddings = embed_batch([s for _, s in to_index])
+    except Exception as exc:
+        _log.error("Embedding failed for agent {} REPORT.MD: {}", agent_name, exc)
+        return 0
+
+    count = 0
+    for (ts, section_text), emb in zip(to_index, embeddings):
+        try:
+            insert_memory_entry(
+                agent=agent_name,
+                source="REPORT.MD",
+                content=section_text,
+                timestamp=ts,
+                embedding=emb,
+            )
+            count += 1
+        except Exception as exc:
+            _log.warning("Failed to insert REPORT.MD section for {}: {}", agent_name, exc)
+
+    if count:
+        _log.info("Indexed {} new REPORT.MD section(s) for agent '{}'", count, agent_name)
+    return count
+
+
 def run_indexer() -> int:
-    """Index all agents' MEMORY.MD, NOTES.MD, and LEARNINGS.MD files. Returns total entries indexed."""
+    """Index all agents' MEMORY.MD, NOTES.MD, LEARNINGS.MD, TASK.MD, and
+    REPORT.MD files plus shared/KNOWLEDGE.MD. Returns total entries indexed."""
     init_schema()
     total = 0
 
@@ -356,6 +448,7 @@ def run_indexer() -> int:
             total += index_agent_notes(agent_dir.name, agent_dir)
             total += index_agent_learnings(agent_dir.name, agent_dir)
             total += index_agent_tasks(agent_dir.name, agent_dir)
+            total += index_agent_report(agent_dir.name, agent_dir)
         except Exception as exc:
             _log.error("Indexer error for agent '{}': {}", agent_dir.name, exc)
 

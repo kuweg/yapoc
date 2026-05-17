@@ -367,6 +367,20 @@ class AgentRunner:
                 await self._agent.mark_task_consumed()
             # Clear live buffer so UI shows nothing when idle
             self._write_live("")
+        finally:
+            # Stop the heartbeat coroutine so it cannot keep rewriting
+            # STATUS.json (state="running", idle_since=None) after the task
+            # has finished. Without this, the orphaned heartbeat clobbers
+            # the post-task _write_status("idle") every 30s, which keeps
+            # idle_since=None and prevents the idle-timeout branch in run()
+            # from ever firing — agents would stay alive indefinitely.
+            _hb_stop.set()
+            try:
+                await asyncio.wait_for(_hb_task, timeout=2.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                _hb_task.cancel()
+            except Exception:
+                _hb_task.cancel()
 
     async def _check_task(self) -> bool:
         """Check TASK.MD for pending status. Returns True if a task was executed."""
@@ -645,6 +659,9 @@ class AgentRunner:
         # Set up watchdog observer for TASK.MD
         handler = _TaskFileHandler(self._task_path, loop, task_changed)
         observer = Observer()
+        # Daemon so a stuck Observer cannot block process exit if
+        # observer.stop()/join(timeout=5) in the finally block times out.
+        observer.daemon = True
         observer.schedule(handler, str(self._agent_dir), recursive=False)
         observer.start()
 

@@ -1,6 +1,6 @@
 # Model Audit Report
 
-Generated: 2026-05-17 11:02:11
+Generated: 2026-05-17 11:24:44
 
 
 **Agents scanned:** 8 | **Issues:** 1

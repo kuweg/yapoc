@@ -1548,5 +1548,65 @@
     "cost_usd": 0.00208006,
     "timestamp": "2026-05-16T21:04:17Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T09:25:10Z",
+    "description": "Write a tiny test file at projects/zombie_test/test_cleanup.txt with content \"Zombie cleanup test - $(date)\"",
+    "agent_name": "builder",
+    "tokens_in": 7268,
+    "tokens_out": 62,
+    "cost_usd": 0.00203056,
+    "timestamp": "2026-05-17T09:25:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T09:25:12Z",
+    "description": "Write a tiny test file at projects/zombie_test/test_cleanup.txt with content \"Zombie cleanup test - $(date)\"",
+    "agent_name": "builder",
+    "tokens_in": 7352,
+    "tokens_out": 97,
+    "cost_usd": 0.00209174,
+    "timestamp": "2026-05-17T09:25:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T09:25:14Z",
+    "description": "Write a tiny test file at projects/zombie_test/test_cleanup.txt with content \"Zombie cleanup test - $(date)\"",
+    "agent_name": "builder",
+    "tokens_in": 7476,
+    "tokens_out": 60,
+    "cost_usd": 0.00208452,
+    "timestamp": "2026-05-17T09:25:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T09:25:15Z",
+    "description": "Write a tiny test file at projects/zombie_test/test_cleanup.txt with content \"Zombie cleanup test - $(date)\"",
+    "agent_name": "builder",
+    "tokens_in": 7557,
+    "tokens_out": 86,
+    "cost_usd": 0.00213499,
+    "timestamp": "2026-05-17T09:25:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T09:25:17Z",
+    "description": "Write a tiny test file at projects/zombie_test/test_cleanup.txt with content \"Zombie cleanup test - $(date)\"",
+    "agent_name": "builder",
+    "tokens_in": 7694,
+    "tokens_out": 131,
+    "cost_usd": 0.00222148,
+    "timestamp": "2026-05-17T09:25:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T09:25:19Z",
+    "description": "Write a tiny test file at projects/zombie_test/test_cleanup.txt with content \"Zombie cleanup test - $(date)\"",
+    "agent_name": "builder",
+    "tokens_in": 7845,
+    "tokens_out": 39,
+    "cost_usd": 0.00216105,
+    "timestamp": "2026-05-17T09:25:19Z",
+    "model_used": "deepseek-chat"
   }
 ]

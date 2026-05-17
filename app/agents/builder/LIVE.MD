@@ -1,13 +1,21 @@
-Let me verify the file still exists and works correctly, then notify the parent.
-[tool:start] file_read {'path': 'projects/yapoc_demo/hello.py'}
+Let me check if the directory exists first, then create the test file.
+[tool:start] file_list {'path': 'projects/zombie_test'}
 
-[tool:done] file_read from datetime import datetime, timezone  print("YAPOC demo OK") print(datetime.now(timezone.utc).isoformat()) 
+[tool:done] file_list ERROR: Directory not found: projects/zombie_test
+The directory doesn't exist yet. Let me create the file — `file_write` creates parent directories automatically.
+[tool:start] file_write {'path': 'projects/zombie_test/test_cleanup.txt', 'content': 'Zombie cleanup test - $(date)\n'}
 
-[tool:start] shell_exec {'command': 'cd projects/yapoc_demo && python3 hello.py'}
+[tool:done] file_write Written 30 chars to projects/zombie_test/test_cleanup.txt
+Let me verify the file was created correctly.
+[tool:start] file_read {'path': 'projects/zombie_test/test_cleanup.txt'}
 
-[tool:done] shell_exec YAPOC demo OK 2026-05-16T21:04:14.013778+00:00  Exit code: 0
-File exists and runs correctly. Let me notify parent.
-[tool:start] notify_parent {'result': '## Done\nVerified `projects/yapoc_demo/hello.py` exists and runs correctly — prints "YAPOC demo OK" and the current UTC ISO timestamp.\n\n## Changes\n- Created: `projects/yapoc_demo/hello.py` — 4-line script\n\n## Verification\nFile read confirmed content is correct. Shell execution confirmed output: "YAPOC demo OK" followed by "2026-05-16T21:04:14.013778+00:00". Exit code 0.', 'status': 'done'}
+[tool:done] file_read Zombie cleanup test - $(date) 
+File created and verified. Let me log this and notify parent.
+[tool:start] memory_append {'entry': 'Created projects/zombie_test/test_cleanup.txt with content "Zombie cleanup test - $(date)" — test file for zombie process fix verification.'}
+
+[tool:done] memory_append Appended to MEMORY.MD: Created projects/zombie_test/test_cleanup.txt with content "Zombie cleanup test - $(date)" — test file for zombie process fix verification.
+
+[tool:start] notify_parent {'result': '## Done\nCreated test file at projects/zombie_test/test_cleanup.txt for zombie process fix verification.\n\n## Changes\n- Created: projects/zombie_test/test_cleanup.txt — contains "Zombie cleanup test - $(date)"\n\n## Verification\nFile exists and content is correct. Directory projects/zombie_test/ was auto-created.', 'status': 'done'}
 
 [tool:done] notify_parent Parent 'master' notified (done).
-Done. The file `projects/yapoc_demo/hello.py` is verified and running correctly. Parent has been notified.
+Done. The test file has been created at `projects/zombie_test/test_cleanup.txt` with the requested content. The agent should now self-terminate as per the task instructions.

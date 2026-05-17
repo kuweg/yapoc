@@ -51,6 +51,14 @@ def main() -> None:
             traceback_str=tb_str,
         )
         sys.exit(1)
+    else:
+        # Normal completion (idle timeout, temporary task-complete, signal).
+        # Force-exit so any lingering non-daemon threads spun up by third-
+        # party SDKs cannot keep this subprocess alive after its work is
+        # done. STATUS.json was already written to "terminated" inside
+        # AgentRunner.run() and parent notifications already fired in
+        # _shutdown(), so there is no state to flush.
+        os._exit(0)
 
 
 if __name__ == "__main__":

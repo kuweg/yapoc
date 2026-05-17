@@ -4,7 +4,7 @@ import re
 import time as _time
 import traceback
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -196,17 +196,66 @@ class BaseAgent:
             await f.write(content)
 
     async def _prune_memory_if_needed(self, max_lines: int = 200, keep: int = 100) -> None:
-        """Trim MEMORY.MD to the last ``keep`` non-empty lines when it exceeds ``max_lines``."""
+        """Trim MEMORY.MD by both line-count AND age.
+
+        Two-pronged hygiene:
+
+        - **Line cap**: if file exceeds ``max_lines`` non-empty lines, keep
+          only the most recent ``keep``. (Pre-existing behavior.)
+        - **Age cap**: drop entries whose ``[YYYY-MM-DD HH:MM]`` prefix is
+          older than ``settings.memory_max_age_days``. Even talkative agents
+          shouldn't carry month-old prose; the vector indexer already keeps
+          the full history searchable via ``search_memory``.
+
+        Both passes apply on every call; either triggering causes a rewrite.
+        Lines without a parseable timestamp prefix are kept (defensive — we
+        never silently drop unknown content).
+        """
         path = self._dir / "MEMORY.MD"
         if not path.exists():
             return
         async with aiofiles.open(path, encoding="utf-8") as f:
-            lines = await f.readlines()
-        if len(lines) <= max_lines:
-            return
-        kept = [l for l in lines if l.strip()][-keep:]
+            raw = await f.readlines()
+
+        # Age cutoff (UTC-naive — MEMORY.MD timestamps are local-naive too).
+        cutoff: datetime | None = None
+        try:
+            days = int(settings.memory_max_age_days or 0)
+        except (TypeError, ValueError):
+            days = 0
+        if days > 0:
+            cutoff = datetime.now() - timedelta(days=days)
+
+        ts_re = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]")
+        non_empty = [l for l in raw if l.strip()]
+
+        # Age filter
+        age_kept: list[str] = []
+        for ln in non_empty:
+            if cutoff is None:
+                age_kept.append(ln)
+                continue
+            m = ts_re.match(ln)
+            if not m:
+                age_kept.append(ln)  # no timestamp → keep
+                continue
+            try:
+                ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
+            except ValueError:
+                age_kept.append(ln)
+                continue
+            if ts >= cutoff:
+                age_kept.append(ln)
+
+        # Line cap
+        if len(age_kept) > max_lines:
+            age_kept = age_kept[-keep:]
+
+        if len(age_kept) == len(non_empty) and len(age_kept) == sum(1 for l in raw if l.strip()):
+            return  # nothing changed
+
         async with aiofiles.open(path, "w", encoding="utf-8") as f:
-            await f.writelines(kept)
+            await f.writelines(age_kept)
 
     async def _write_result(self, text: str) -> None:
         """Write the full LLM response to RESULT.MD (overwrite each time).
@@ -923,6 +972,17 @@ class BaseAgent:
                                         )
                                         yield TextDelta(text=f"\n\n{_budget_msg}")
                                         _budget_exceeded = True
+                                        # Emit morning report so a human waking up sees the halt
+                                        try:
+                                            from app.backend.morning_report import write_morning_report
+                                            write_morning_report("budget_halt", {
+                                                "agent": self._name,
+                                                "source": self._task_source,
+                                                "spend_usd": f"{_spend:.4f}",
+                                                "cap_usd": f"{settings.daily_autonomous_budget_usd:.2f}",
+                                            })
+                                        except Exception:
+                                            pass
                                 except Exception as _auto_exc:
                                     _log.bind(agent=self._name).warning(
                                         "daily-budget check failed ({}) — continuing without halt", _auto_exc,
@@ -1089,6 +1149,17 @@ class BaseAgent:
                                     f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_stuck_msg}\n",
                                 )
                                 yield TextDelta(text=f"\n\n{_stuck_msg}")
+                                # Emit morning report
+                                try:
+                                    from app.backend.morning_report import write_morning_report
+                                    write_morning_report("stuck", {
+                                        "agent": self._name,
+                                        "tool": _top_sig[0],
+                                        "signature": _top_sig[1],
+                                        "repeat_count": str(_top_count),
+                                    })
+                                except Exception:
+                                    pass
                                 break
 
                     # ── Per-turn tool call limit ──

@@ -1,3 +1,15 @@
+# NOTE: For agents listed in app/config/agent-settings.json, the values
+# below are NOT authoritative at runtime. The runtime config-resolution
+# order is:
+#   1. app/config/agent-settings.json (adapter, model, temperature,
+#      max_tokens, fallbacks, tools — authoritative when present)
+#   2. THIS FILE (CONFIG.yaml) — fallback for fields not in agent-settings.json
+#   3. NOTES.MD [config] block (legacy)
+#   4. app/config/settings.py defaults
+# Sandbox + runner blocks are still read from this file at all times.
+# If you edit adapter/model here expecting it to apply, ALSO update
+# app/config/agent-settings.json.
+
 adapter: openai
 model: gpt-4.1-nano
 temperature: 0.2

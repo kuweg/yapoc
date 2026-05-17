@@ -1,4 +1,4 @@
-import type { AgentStatus, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
+import type { AgentStatus, CommandResponse, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
 
 export async function getAgents(): Promise<AgentStatus[]> {
   const res = await fetch('/api/agents')
@@ -110,4 +110,16 @@ export async function getTTSVoices(): Promise<TTSVoicesResponse> {
   const res = await fetch('/api/tts/voices')
   if (!res.ok) throw new Error(`GET /tts/voices: ${res.status}`)
   return res.json() as Promise<TTSVoicesResponse>
+}
+
+// ── Slash commands ──────────────────────────────────────────────────────────
+
+export async function handleCommand(command: string, args: string = ''): Promise<CommandResponse> {
+  const res = await fetch('/api/commands', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ command, args }),
+  })
+  if (!res.ok) throw new Error(`POST /commands: ${res.status}`)
+  return res.json() as Promise<CommandResponse>
 }

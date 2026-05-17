@@ -721,7 +721,29 @@ class AgentRunner:
                         pass
 
                 if not ran:
-                    ran = await self._check_task()
+                    # Wrap _check_task so any uncaught exception (e.g. a
+                    # compaction failure that escaped the inner try/except)
+                    # cannot leave STATUS.json stuck at state=running.
+                    # We treat the run as "ran" so the idle write below
+                    # fires, then log to HEALTH.MD so the issue is visible.
+                    try:
+                        ran = await self._check_task()
+                    except Exception as _check_exc:
+                        _log.bind(agent=self._name).error(
+                            "_check_task raised — forcing idle write: {}",
+                            _check_exc,
+                        )
+                        try:
+                            health_path = self._agent_dir / "HEALTH.MD"
+                            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+                            with open(health_path, "a", encoding="utf-8") as f:
+                                f.write(
+                                    f"[{stamp}] ERROR: _check_task raised: "
+                                    f"{type(_check_exc).__name__}: {_check_exc}\n"
+                                )
+                        except Exception:
+                            pass
+                        ran = True  # so the idle-write branch below fires
                 if ran and self._temporary:
                     await self._shutdown("task complete")
                     break

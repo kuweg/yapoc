@@ -54,7 +54,7 @@ def _remove_pid() -> None:
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(base_url=settings.base_url, timeout=10)
+    return httpx.Client(base_url=settings.base_url, timeout=30)
 
 
 # ── Command implementations (return strings, not console.print) ──────────────
@@ -121,7 +121,7 @@ def _do_ping() -> str:
         with _client() as client:
             resp = client.get("/health")
             resp.raise_for_status()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException):
         return "Server is not running"
     ms = (time.perf_counter() - t0) * 1000
     return f"pong — {ms:.1f}ms"
@@ -132,7 +132,7 @@ def _do_status() -> str:
         with _client() as client:
             health = client.get("/health").json()
             agents_data = client.get("/agents").json()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException):
         return "Server is not running"
 
     lines = [f"**Server OK** — uptime {health.get('uptime', '?')}s", ""]
@@ -154,7 +154,7 @@ def _do_agents_list() -> str:
     try:
         with _client() as client:
             data = client.get("/agents").json()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException):
         return "Server is not running"
 
     lines = ["| Name | Status | Process | PID | Model | Task |", "|------|--------|---------|-----|-------|------|"]

@@ -19,6 +19,8 @@ import yaml
 from app.backend.services.spawn_registry import SpawnRegistry, registry as default_registry
 from app.backend.services.notification_queue import NotificationQueue, notification_queue as default_queue
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 # Agents whose completions should NOT trigger notifications (they are top-level)
@@ -28,7 +30,7 @@ _TOP_LEVEL_AGENTS = frozenset({"master"})
 _TERMINAL_STATUSES = frozenset({"done", "error"})
 
 # Fix 3.5: persistent dedup set so notifications already enqueued survive restart.
-_NOTIFIED_PATH = Path("data/poller_notified.json")
+_NOTIFIED_PATH = settings.project_root / "data/poller_notified.json"
 _NOTIFIED_MAX_ENTRIES = 2000  # cap to prevent unbounded growth
 
 

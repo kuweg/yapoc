@@ -70,6 +70,7 @@ export default function App() {
           <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5">
             <NavButton id="chat" label="Chat" />
             <NavButton id="agents" label="Agents" />
+            <NavButton id="observability" label="Obs" />
             <NavButton id="graph" label="Memory" />
             <NavButton id="vault" label="Vault" />
             <NavButton id="sessions" label="Sessions" />

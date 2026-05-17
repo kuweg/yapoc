@@ -49,6 +49,39 @@ Polls TASK.MD every `poll_interval` seconds (default 15) up to `timeout` (defaul
 ### `wait_for_agents`
 Polls multiple agents' TASK.MD simultaneously via `asyncio.gather`. Parameters: `agent_names: list[str]`, `timeout: int = 300`, `poll_interval: int = 10`, `fail_fast: bool = True`. Returns a structured per-agent summary (status + result/error). If `fail_fast=true` (default), returns early the moment any agent reports `error`, marking remaining agents as `interrupted`. Temporary agents are auto-cleaned on `done` just like `wait_for_agent`.
 
+### `execute_dag`
+Run a directed acyclic graph of agent tasks in topological order. Independent nodes run in parallel within each batch; downstream nodes wait for their dependencies. Each downstream node automatically receives its upstream nodes' `## Result` content in its `## Context` section — agents don't need to call `read_task_result`.
+
+**Input:**
+```json
+{
+  "nodes": [
+    {"id": "fetch", "agent": "researcher", "task": "...", "depends_on": []},
+    {"id": "transform", "agent": "builder", "task": "...", "depends_on": ["fetch"]},
+    {"id": "save", "agent": "keeper", "task": "...", "depends_on": ["transform"]}
+  ],
+  "timeout": 600,
+  "poll_interval": 3,
+  "fail_fast": true
+}
+```
+
+**Validation** (returned as `ERROR: ...` strings, no exception leak):
+- Empty `nodes` list.
+- Missing/empty `id`, `agent`, or `task` on any node.
+- Duplicate `id`s.
+- Unknown `agent` (no matching directory under `app/agents/`).
+- Unknown `depends_on` reference.
+- Cycle detected.
+
+**Execution:** Kahn's topological sort. Batch `n` is the set of nodes whose deps are all `done`. Within a batch, all nodes spawn first (sequentially to avoid races on the spawn cap), then are polled in parallel via `asyncio.gather`. Per-node duration is measured from spawn → terminal status. `fail_fast=true` (default) aborts the moment any node errors — downstream nodes are marked `interrupted` and the tool returns.
+
+**Output:** JSON-ish string `{summary, nodes: {id: {agent, status, duration_s, result|error}}}`. `result`/`error` are truncated at 500 chars per node — full content remains in each agent's `TASK.MD`.
+
+**When to use:** any time there are real dependencies between sub-agent tasks. Replaces manual `spawn_agent` + `wait_for_agent` chains. For independent fan-out without dependencies, `wait_for_agents` is still fine.
+
+**Authorization:** the DAG tool reuses `SpawnAgentTool` under the hood, so each spawn inside the DAG honors the caller's `delegation_targets`. Master (in `_UNRESTRICTED_SPAWNERS`) can spawn any agent; others must list every spawned agent in their CONFIG.yaml `delegation_targets`.
+
 ### `search_memory`
 Hybrid retrieval over the indexed memory store (`app/utils/db.py` SQLite + FTS5 + per-row 384-dim embedding). Combines FTS5 keyword rank with cosine similarity via Reciprocal Rank Fusion (`K = 60`). Inputs: `query` (natural language, required), `agent` (optional filter), `top_k` (default 8). Returns ranked entries with `agent`, `source`, `timestamp`, `content`, `rrf_score`. Embeddings are never returned.
 

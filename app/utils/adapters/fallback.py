@@ -172,9 +172,16 @@ class FallbackAdapter(BaseLLMAdapter):
         system_prompt: str,
         user_message: str,
         history: list[Message] | None = None,
+        *,
+        response_format: str | None = None,
     ) -> str:
         async def _call(adapter: BaseLLMAdapter, cfg: AgentConfig) -> str:
-            return await adapter.complete(system_prompt, user_message, history)
+            return await adapter.complete(
+                system_prompt,
+                user_message,
+                history,
+                response_format=response_format,
+            )
         return await self._try_each(_call)
 
     async def stream(

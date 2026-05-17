@@ -107,16 +107,24 @@ class AnthropicAdapter(BaseLLMAdapter):
         system_prompt: str,
         user_message: str,
         history: list[Message] | None = None,
+        *,
+        response_format: str | None = None,
     ) -> str:
+        from app.utils.adapters.base import _apply_json_nudge, _resolve_response_format
+
         messages = []
         for msg in (history or []):
             messages.append({"role": msg.role, "content": msg.content})
         messages.append({"role": "user", "content": user_message})
 
+        # Anthropic has no native JSON-mode parameter — always nudge via prompt.
+        effective = _resolve_response_format(response_format, self._config)
+        sp = _apply_json_nudge(system_prompt) if effective == "json" else system_prompt
+
         response = await self._client.messages.create(
             model=self._config.model,
             max_tokens=self._config.max_tokens,
-            system=self._cached_system(system_prompt),
+            system=self._cached_system(sp),
             messages=messages,
             temperature=self._config.temperature,
         )

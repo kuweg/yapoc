@@ -300,6 +300,204 @@ async def get_agent_usage(name: str):
     return _build_agent_usage(name, data)
 
 
+class ObservabilityTotals(BaseModel):
+    total_cost_usd: float
+    total_tasks: int
+    active_agents: int
+    agents_with_errors: int
+    recent_error_count: int
+
+
+class ObservabilityAgent(BaseModel):
+    name: str
+    status: str
+    is_alive: bool
+    cost_usd: float
+    input_tokens: int
+    output_tokens: int
+    task_count: int
+    health_issues: int
+    last_active_at: str | None
+    models: list[str]
+
+
+class ObservabilityError(BaseModel):
+    agent: str
+    timestamp: str
+    level: str
+    message: str
+
+
+class ObservabilityTask(BaseModel):
+    agent: str
+    task_id: str
+    status: str
+    assigned_by: str
+    assigned_at: str
+    completed_at: str
+    duration_s: float | None
+    task_summary: str
+    error_summary: str
+
+
+class ObservabilityDashboard(BaseModel):
+    generated_at: str
+    totals: ObservabilityTotals
+    agents: list[ObservabilityAgent]
+    recent_errors: list[ObservabilityError]
+    recent_tasks: list[ObservabilityTask]
+
+
+# Each line: `[YYYY-MM-DD HH:MM] LEVEL: MESSAGE` (optional ` | context: ...`).
+_HEALTH_LINE_RE = (
+    r"^\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s+"
+    r"(?P<level>[A-Z][A-Z_]*):\s*(?P<msg>.+)$"
+)
+
+
+def _recent_health_lines(agent_dir: Path, max_lines: int = 50) -> list[ObservabilityError]:
+    """Tail HEALTH.MD and parse the most-recent timestamped lines."""
+    import re
+
+    health_path = agent_dir / "HEALTH.MD"
+    if not health_path.exists():
+        return []
+    try:
+        raw = health_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+
+    parsed: list[ObservabilityError] = []
+    pattern = re.compile(_HEALTH_LINE_RE)
+    # Tail to keep parsing cheap on long logs.
+    for line in raw.splitlines()[-max_lines:]:
+        m = pattern.match(line.strip())
+        if not m:
+            continue
+        parsed.append(
+            ObservabilityError(
+                agent=agent_dir.name,
+                timestamp=m.group("ts"),
+                level=m.group("level"),
+                message=m.group("msg"),
+            )
+        )
+    return parsed
+
+
+@router.get("/observability", response_model=ObservabilityDashboard)
+async def get_observability_dashboard():
+    """Unified rollup powering the Observability tab.
+
+    Joins per-agent status (TASK.MD / STATUS.json), per-agent usage
+    (USAGE.json), HEALTH.MD tail, and the SQLite `tasks` table into a single
+    payload. Designed so the frontend can render leaderboard + errors feed
+    + recent-tasks feed from one fetch.
+    """
+    generated_at = (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+
+    agents: list[ObservabilityAgent] = []
+    all_errors: list[ObservabilityError] = []
+    total_cost = 0.0
+    active_count = 0
+    agents_with_errors = 0
+
+    for agent_dir in sorted(AGENTS_DIR.iterdir()):
+        if not agent_dir.is_dir() or agent_dir.name.startswith("_"):
+            continue
+        if agent_dir.name in ("base", "shared"):
+            continue
+
+        usage = _read_usage_json(agent_dir) or {}
+        models = sorted((usage.get("by_model") or {}).keys())
+        cost = float(usage.get("total_cost_usd", 0.0) or 0.0)
+        total_cost += cost
+
+        is_alive = _is_alive(agent_dir)
+        if is_alive:
+            active_count += 1
+
+        health_issues = _count_health_issues(agent_dir)
+        if health_issues:
+            agents_with_errors += 1
+        all_errors.extend(_recent_health_lines(agent_dir))
+
+        agents.append(
+            ObservabilityAgent(
+                name=agent_dir.name,
+                status=_get_current_status(agent_dir),
+                is_alive=is_alive,
+                cost_usd=round(cost, 6),
+                input_tokens=int(usage.get("total_input_tokens", 0) or 0),
+                output_tokens=int(usage.get("total_output_tokens", 0) or 0),
+                task_count=_count_memory_entries(agent_dir),
+                health_issues=health_issues,
+                last_active_at=_last_active_at(agent_dir),
+                models=models,
+            )
+        )
+
+    # Order leaderboard by cost desc; ties broken by task_count desc.
+    agents.sort(key=lambda a: (-a.cost_usd, -a.task_count, a.name))
+
+    all_errors.sort(key=lambda e: e.timestamp, reverse=True)
+    recent_errors = all_errors[:20]
+
+    # Recent tasks from SQLite. The `tasks` table records every completed
+    # task across agents; ordering by id DESC is a cheap "most recent first".
+    db = get_db()
+    rows = db.execute(
+        """SELECT agent, task_id, status, assigned_by, assigned_at,
+                  completed_at, task_summary, error_summary
+           FROM tasks
+           ORDER BY id DESC
+           LIMIT 20"""
+    ).fetchall()
+    recent_tasks: list[ObservabilityTask] = []
+    for r in rows:
+        assigned_at = r["assigned_at"] or ""
+        completed_at = r["completed_at"] or ""
+        duration: float | None = None
+        if assigned_at and completed_at:
+            try:
+                start = datetime.fromisoformat(assigned_at.replace("Z", "+00:00"))
+                end = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+                duration = round(max(0.0, (end - start).total_seconds()), 3)
+            except ValueError:
+                duration = None
+        recent_tasks.append(
+            ObservabilityTask(
+                agent=r["agent"] or "",
+                task_id=r["task_id"] or "",
+                status=r["status"] or "",
+                assigned_by=r["assigned_by"] or "",
+                assigned_at=assigned_at,
+                completed_at=completed_at,
+                duration_s=duration,
+                task_summary=r["task_summary"] or "",
+                error_summary=r["error_summary"] or "",
+            )
+        )
+
+    total_tasks = db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+
+    return ObservabilityDashboard(
+        generated_at=generated_at,
+        totals=ObservabilityTotals(
+            total_cost_usd=round(total_cost, 6),
+            total_tasks=int(total_tasks or 0),
+            active_agents=active_count,
+            agents_with_errors=agents_with_errors,
+            recent_error_count=len(recent_errors),
+        ),
+        agents=agents,
+        recent_errors=recent_errors,
+        recent_tasks=recent_tasks,
+    )
+
+
 @router.get("/hierarchy", response_model=HierarchyMetrics)
 async def get_hierarchy_metrics():
     """Return hierarchy quality metrics from persisted task history."""

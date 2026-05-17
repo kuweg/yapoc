@@ -1,15 +1,19 @@
-"""Memory graph router — PCA + k-means cluster visualization.
+"""Memory graph + search router.
 
-GET /memory/graph?agent=&source=&limit=500
-Returns 2D scatter plot data from stored embeddings.
+- GET /memory/graph?agent=&source=&limit=500
+  PCA + k-means cluster visualization over stored embeddings.
+
+- GET /memory/search?q=&agent=&top_k=10
+  Hybrid (semantic + keyword) ranked retrieval over the same store.
 """
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from typing import Annotated
 
 import numpy as np
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from app.utils.db import get_db
 
@@ -129,3 +133,50 @@ async def get_memory_graph(
     ]
 
     return {"points": points, "clusters": clusters, "total": total}
+
+
+@router.get("/memory/search")
+async def search_memory(
+    q: Annotated[str, Query(min_length=1, max_length=500)],
+    agent: Annotated[str, Query()] = "",
+    top_k: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> dict:
+    """Hybrid (RRF: keyword + cosine) ranked search over indexed memory.
+
+    Mirrors the `search_memory` agent tool so the UI can query the same
+    index the agents use. Returns ranked entries with content + agent +
+    source + timestamp + score. Embeddings are not returned.
+    """
+    from app.utils.db import init_schema, search_hybrid
+    from app.utils.embeddings import embed
+
+    init_schema()
+    db = get_db()
+    total = db.execute("SELECT COUNT(*) FROM memory_entries").fetchone()[0]
+    if total == 0:
+        return {"query": q, "results": [], "total_indexed": 0}
+
+    try:
+        # Embedding model load can be slow on first call; offload to thread.
+        query_vec = await asyncio.to_thread(embed, q)
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Embedding model unavailable: {exc}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Embedding failed: {exc}") from exc
+
+    rows = search_hybrid(q, query_vec, agent=(agent or None), top_k=top_k)
+    results = [
+        {
+            "id": r.get("id"),
+            "agent": r.get("agent", ""),
+            "source": r.get("source", ""),
+            "content": r.get("content", ""),
+            "timestamp": r.get("timestamp", ""),
+            "score": r.get("rrf_score", 0),
+        }
+        for r in rows
+    ]
+    return {"query": q, "results": results, "total_indexed": total}

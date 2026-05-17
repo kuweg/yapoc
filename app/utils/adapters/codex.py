@@ -160,7 +160,17 @@ class CodexAdapter(BaseLLMAdapter):
         system_prompt: str,
         user_message: str,
         history: list[Message] | None = None,
+        *,
+        response_format: str | None = None,
     ) -> str:
+        from app.utils.adapters.base import _apply_json_nudge, _resolve_response_format
+
+        # Codex (OpenAI Responses API) — all current models in the registry
+        # have supports_json_mode=False. Use prompt nudge unconditionally;
+        # revisit if a JSON-capable codex model lands in the registry.
+        effective = _resolve_response_format(response_format, self._config)
+        sp = _apply_json_nudge(system_prompt) if effective == "json" else system_prompt
+
         input_items: list[dict[str, Any]] = []
         for msg in (history or []):
             input_items.append({"role": msg.role, "content": msg.content})
@@ -168,7 +178,7 @@ class CodexAdapter(BaseLLMAdapter):
 
         payload: dict[str, Any] = {
             "model": self._config.model,
-            "instructions": system_prompt,
+            "instructions": sp,
             "input": input_items,
             "max_output_tokens": self._config.max_tokens,
         }

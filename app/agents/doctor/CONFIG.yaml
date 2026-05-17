@@ -16,6 +16,7 @@ tools:
   - heal_agent_settings
   - show_agent_settings
   - shared_knowledge_append
+  - search_memory
   # ── Delegation (Phase 7 — Doctor as actor) ────────────────────
   - spawn_agent
   - kill_agent

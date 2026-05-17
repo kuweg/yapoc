@@ -114,7 +114,24 @@ class GoogleAdapter(BaseLLMAdapter):
         system_prompt: str,
         user_message: str,
         history: list[Message] | None = None,
+        *,
+        response_format: str | None = None,
     ) -> str:
+        from app.utils.adapters.base import (
+            _apply_json_nudge,
+            _resolve_response_format,
+            _supports_native_json,
+        )
+
+        effective = _resolve_response_format(response_format, self._config)
+        sp = system_prompt
+        mime: str | None = None
+        if effective == "json":
+            if _supports_native_json(self._config.model):
+                mime = "application/json"
+            else:
+                sp = _apply_json_nudge(system_prompt)
+
         contents: list[types.Content] = []
         for msg in history or []:
             role = self._role_to_gemini(msg.role)
@@ -126,11 +143,14 @@ class GoogleAdapter(BaseLLMAdapter):
             types.Content(role="user", parts=[types.Part(text=user_message)])
         )
 
-        config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=self._config.temperature,
-            max_output_tokens=self._config.max_tokens,
-        )
+        config_kwargs: dict[str, Any] = {
+            "system_instruction": sp,
+            "temperature": self._config.temperature,
+            "max_output_tokens": self._config.max_tokens,
+        }
+        if mime is not None:
+            config_kwargs["response_mime_type"] = mime
+        config = types.GenerateContentConfig(**config_kwargs)
 
         response = await self._client.aio.models.generate_content(
             model=self._config.model,

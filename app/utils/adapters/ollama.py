@@ -49,12 +49,32 @@ class OllamaAdapter(BaseLLMAdapter):
         system_prompt: str,
         user_message: str,
         history: list[Message] | None = None,
+        *,
+        response_format: str | None = None,
     ) -> str:
+        from app.utils.adapters.base import (
+            _apply_json_nudge,
+            _resolve_response_format,
+            _supports_native_json,
+        )
+
+        effective = _resolve_response_format(response_format, self._config)
+        sp = system_prompt
+        json_param: dict = {}
+        if effective == "json":
+            # Ollama accepts `format: "json"` for any model — registry may
+            # not catch local models, so honor JSON when asked even if the
+            # registry says no. Nudge as belt-and-suspenders.
+            json_param = {"format": "json"}
+            if not _supports_native_json(self._config.model):
+                sp = _apply_json_nudge(system_prompt)
+
         payload = {
             "model": self._config.model,
-            "messages": self._build_messages(system_prompt, user_message, history),
+            "messages": self._build_messages(sp, user_message, history),
             "stream": False,
             "options": {"temperature": self._config.temperature},
+            **json_param,
         }
         async with httpx.AsyncClient() as client:
             response = await client.post(self._chat_url, json=payload, timeout=300)

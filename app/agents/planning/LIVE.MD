@@ -7,10 +7,6 @@
 
 [thinking...]
 
-[tool:start] search_memory {'query': 'researcher agent configuration fixes keeper', 'agent': 'planning', 'top_k': 5}
-
-[tool:done] search_memory Found 5 results for: 'researcher agent configuration fixes keeper'  **1. [planning/TASK.MD] 2026-05-17T10:12:59Z** (score: 0.0164)   Task: [Process incoming notifications from sub-agents] Result: ## Summary The Builder agent successfully completed the two remaining researcher integration fixes. Together with Keeper's earlier fixes, all 6 issues identified in the verification are now resolved. The researcher agent is fully integrated into the YAPOC agent system.  **2. [planning/NOTES.MD] 2026-04-13T11:19:48Z** (score: 0.0161)   ### Sandbox constraint: - Builder CANNOT write to `app/agents/master/` — sandbox policy blocks it - Master must update its own PROMPT.MD with the Ticket Manipulation Tool section  **3. [planning/MEMORY.MD] 2026-04-12 13:08** (score: 0.0159)   Starting task: Update PROMPT.MD files for master, planning, and builder agents to enforce correct delegation workflow. Key changes: Master spawns agents (not planning/builder), Planning tells Master what to spawn, Builder only creates files/dirs never spawns agents.  **4. [planning/NOTES.MD] 2026-04-13T11:19:48Z** (score: 0.0156)   ### Files updated: - app/agents/master/PROMPT.MD - app/agents/planning/PROMPT.MD - app/agents/builder/PROMPT.MD  **5. [planning/MEMORY.MD] 2026-04-18 11:31** (score: 0.0154)   Processing notification from keeper about cron schedule update for stale-task-scan. Keeper successfully added schedule: every 10 minutes, calls doctor agent to scan /stale-tasks endpoint and append warnings to HEALTH_SUMMARY.MD. Configuration complete and verified. 
-
 [thinking...]
 
 [thinking...]
@@ -26,48 +22,85 @@
 [thinking...]
 
 [thinking...]
+## Goal Reasoning
+
+- **Surface Instruction:** Add slash command support to the UI chat (`/<command>` syntax), involving a new backend router, frontend API client changes, and ChatPanel modifications.
+- **Immediate Goal:** Achieve feature parity between CLI slash commands and the web UI — users type `/status`, `/agents`, etc. and get immediate responses without LLM roundtrips.
+- **Underlying Intent:** Make the web UI fully self-sufficient, eliminating the need to switch to CLI for operational commands.
+- **Conflict Detection:** None — surface and intent align cleanly.
+
+## Uncertainty Assessment
+
+| Question | Answer |
+|----------|--------|
+| Understand intent? | Yes |
+| Sufficient context? | **Partial** — I need to see actual CLI helper functions (`_do_start`, `_do_status`, etc.), existing ChatPanel `sendMessage` pattern, and API client conventions |
+| Reversible? | Yes — all changes are additive or isolated |
+
+**Decision:** Proceed, but delegate file inspection first to gather context.
+
+---
+
+## Subtask Decomposition
+
+### Wave 1: Context Gathering (parallel, prerequisite for everything)
+
+| # | Subtask | Why | Success Criteria | Complexity |
+|---|---------|-----|-----------------|------------|
+| 1a | Read `app/cli/main.py` — extract all `_do_*` slash command helpers and `_handle_repl_slash` | We need to reuse this logic in the backend router | Builder reports function signatures, return patterns, and key logic | 4 |
+| 1b | Read `app/frontend/src/components/ChatPanel.tsx` — extract `sendMessage` function pattern | We need to insert slash-command routing into the message flow | Builder reports the sendMessage signature and streaming flow | 3 |
+| 1c | Read `app/frontend/src/api/client.ts` + `app/frontend/src/api/types.ts` — extract existing patterns | We need to add `postCommand` following existing conventions | Builder reports existing function patterns and type exports | 2 |
+| 1d | Read `app/backend/main.py` — see how routers are registered | We need to register the new commands router | Builder reports router registration pattern | 2 |
+
+### Wave 2: Implementation (depends on Wave 1 context)
+
+| # | Subtask | Why | Success Criteria | Complexity |
+|---|---------|-----|-----------------|------------|
+| 2a | Create `app/backend/routers/commands.py` | Core backend endpoint for slash commands | POST /api/commands returns responses for all 13 commands | 6 |
+| 2b | Modify `app/backend/main.py` — register commands router | Wire up the new endpoint | App starts without errors, /api/commands is routable | 2 |
+| 2c | Add types to `app/frontend/src/api/types.ts` | Type safety for command requests/responses | CommandRequest/CommandResponse types exported | 2 |
+| 2d | Add `postCommand` to `app/frontend/src/api/client.ts` | Frontend can call the commands API | Function exists and follows existing patterns | 2 |
+| 2e | Modify `app/frontend/src/components/ChatPanel.tsx` — add slash handling in `sendMessage` | Slash commands routed to API instead of LLM stream | Typing "/status" calls commands API and displays result | 5 |
+
+### Wave 3: Verification
+
+| # | Subtask | Why | Success Criteria | Complexity |
+|---|---------|-----|-----------------|------------|
+| 3 | Read all modified files and verify consistency | Catch integration issues | Builder confirms all files are internally consistent | 3 |
+
+---
+
+Let me start with Wave 1 — reading all relevant files in parallel.
+[tool:start] spawn_agent {'agent_name': 'builder', 'task': 'Read the file `app/cli/main.py` and report back the following:\n\n1. **The `_handle_repl_slash` function** — full implementation, especially how it dispatches commands and what the command-to-function mapping looks like.\n\n2. **Each `_do_*` helper function** — for each of these commands, report the FULL function signature and body:\n   - `_do_help`\n   - `_do_start`\n   - `_do_stop`\n   - `_do_restart`\n   - `_do_status`\n   - `_do_ping`\n   - `_do_agents_list`\n   - `_do_models_info`\n   - `_do_sessions`\n   - `_do_clear`\n   - `_do_cost`\n   - `_do_doctor`\n   - `_do_exit`\n\n3. **Any imports or utility functions** these helpers depend on — especially:\n   - How do they access the backend server?\n   - How do they call the API?\n   - What config/state do they reference?\n\n4. **How `console.print()` is used** — so we know what to replace with return strings.\n\nReport everything verbatim — do NOT summarize or omit code. I need the exact code to reimplement this logic in a FastAPI router.', 'context': 'Part of implementing slash commands for the UI chat area. The CLI has existing slash command handling that we need to reuse/adapt for a new backend API endpoint.'}
+
+[tool:start] spawn_agent {'agent_name': 'builder', 'task': "I need you to read THREE files and report back their full content and structure:\n\n### File 1: `app/frontend/src/components/ChatPanel.tsx`\nFocus on:\n- The `sendMessage` function — FULL implementation including any streaming logic, API calls, and how messages are added to state\n- How it determines whether to stream vs. send a regular message\n- The message state structure (what does a message object look like?)\n- Any imports related to API calls, types, or streaming\n- The component's props interface\n\n### File 2: `app/frontend/src/api/client.ts`\nReport:\n- ALL exported functions and their signatures\n- How the API base URL is configured\n- How fetch/axios calls are structured (headers, error handling patterns)\n- Any existing streaming setup\n- The full file content\n\n### File 3: `app/frontend/src/api/types.ts`\nReport:\n- ALL exported types and interfaces\n- The full file content\n\nReport everything verbatim. Do not summarize.", 'context': 'Part of implementing slash commands for the UI chat area. Need to understand existing patterns before adding new API client function and modifying ChatPanel.'}
+
+[tool:start] spawn_agent {'agent_name': 'builder', 'task': 'Read the file `app/backend/main.py` and report back:\n\n1. The FULL file content (verbatim)\n2. How routers are currently registered (which ones, what pattern is used)\n3. The FastAPI app initialization\n4. Any middleware or CORS configuration\n5. The full import section\n\nI need the exact patterns used so I can register a new commands router.', 'context': 'Part of implementing slash commands for the UI chat area. Need to understand how routers are registered in the FastAPI app.'}
+
+[tool:done] spawn_agent Agent 'builder' spawned (PID 1531104, state: running). Task assigned.
+
+[tool:done] spawn_agent Agent 'builder' spawned (PID 1531106, state: running). Task assigned.
+
+[tool:done] spawn_agent Agent 'builder' spawned (PID 1531108, state: idle). Task assigned.
 
 [thinking...]
 
 [thinking...]
 
 [thinking...]
+All three context-gathering agents spawned. Let me wait for all of them to complete before proceeding to Wave 2.
+[tool:start] wait_for_agents {'agent_names': ['builder', 'builder', 'builder'], 'timeout': 120}
 
-[thinking...]
-
-[thinking...]
-Keeper has completed the researcher agent config fixes. Let me verify its status and then notify master.
-[tool:start] ping_agent {'agent_name': 'keeper'}
-
-[tool:done] ping_agent Agent 'keeper': state=terminated, pid=1298592, alive=False, task='shutdown: idle timeout', updated=2026-05-17T10:08:46Z
-
-[thinking...]
+[tool:error] wait_for_agents Tool error: name '_PER_AGENT_WAIT_SECTION_CAP' is not defined
 
 [thinking...]
 
 [thinking...]
 
 [thinking...]
+The parallel wait had an internal error. Let me wait for each builder individually.
+[tool:start] wait_for_agent {'agent_name': 'builder', 'timeout': 120}
+
+[tool:done] wait_for_agent Agent 'builder' finished but ## Result is empty.
 
 [thinking...]
-Keeper's work is confirmed complete. Let me log and notify master.
-[tool:start] memory_append {'entry': 'Processed notification from keeper: All 4 researcher agent config fixes applied to app/config/agent-settings.json — (1) system_prompt_path: AGENT.md→PROMPT.MD, (2) config_path: CONFIG.md→CONFIG.yaml, (3) adapter/model: deepseek/deepseek-chat→anthropic/claude-sonnet-4-6, (4) delegation_targets: ["builder","keeper"] added. Keeper verified all changes.'}
-
-[tool:done] memory_append Appended to MEMORY.MD: Processed notification from keeper: All 4 researcher agent config fixes applied to app/config/agent-settings.json — (1) system_prompt_path: AGENT.md→PROMPT.MD, (2) config_path: CONFIG.md→CONFIG.yaml, (3) adapter/model: deepseek/deepseek-chat→anthropic/claude-sonnet-4-6, (4) delegation_targets: ["builder","keeper"] added. Keeper verified all changes.
-
-[thinking...]
-
-[tool:start] notify_parent {'result': '## Notification Processed: Keeper ✅\n\nKeeper completed all 4 researcher agent config fixes in `app/config/agent-settings.json`:\n\n| # | Fix | Before → After | Status |\n|---|-----|-----------------|--------|\n| 1 | `system_prompt_path` | `AGENT.md` → `PROMPT.MD` | ✅ |\n| 2 | `config_path` | `CONFIG.md` → `CONFIG.yaml` | ✅ |\n| 3 | `adapter` / `model` | `deepseek` / `deepseek-chat` → `anthropic` / `claude-sonnet-4-6` | ✅ |\n| 4 | `delegation_targets` | missing → `["builder", "keeper"]` | ✅ |\n\nAll changes verified by Keeper. Keeper has since terminated (idle timeout).', 'status': 'done'}
-
-[tool:done] notify_parent Parent 'master' notified (done).
-
-[thinking...]
-## Summary
-
-Processed the keeper notification — all 4 researcher agent config fixes were applied and verified successfully in `app/config/agent-settings.json`. Master has been notified.
-
-## Subtasks
-- **[done]** Keeper: Fix researcher agent config — 4 corrections applied (PROMPT.MD path, CONFIG.yaml path, anthropic adapter with claude-sonnet-4-6 model, delegation_targets added). All verified.
-
-## Issues
-None.

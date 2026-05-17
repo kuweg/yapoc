@@ -1,0 +1,1 @@
+[2026-05-18 00:31] task: --- status: running task_id: 01003e48-9c3f-4c12-98d1-f0b42f10a685 session_id: 63859764-7222-4d36-a253-b153a3069737 assigned_by: master | result: {"decision": "deny", "reason": "System-destruction: writing to /tmp/ is outside project_root, violating sandbox boundary."} | outcome: success

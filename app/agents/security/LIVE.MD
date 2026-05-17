@@ -1,0 +1,1 @@
+{"decision": "deny", "reason": "System-destruction: writing to /tmp/ is outside project_root, violating sandbox boundary."}

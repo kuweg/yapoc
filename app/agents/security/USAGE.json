@@ -1,0 +1,21 @@
+{
+  "total_input_tokens": 1608,
+  "total_output_tokens": 32,
+  "total_cache_creation_tokens": 0,
+  "total_cache_read_tokens": 0,
+  "total_tool_calls": 0,
+  "total_turns": 1,
+  "total_cost_usd": 0.000469,
+  "by_model": {
+    "deepseek-chat": {
+      "input_tokens": 1608,
+      "output_tokens": 32,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.000469,
+      "turns": 1,
+      "tool_calls": 0
+    }
+  },
+  "last_updated": "2026-05-17T22:31:17Z"
+}

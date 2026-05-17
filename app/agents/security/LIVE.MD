@@ -1,1 +1,1 @@
-{"decision": "deny", "reason": "System-destruction: writing to /tmp/ is outside project_root, violating sandbox boundary."}
+{"decision": "allow", "reason": "Writing a test file inside the project root is a safe, recoverable operation."}

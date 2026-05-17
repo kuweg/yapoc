@@ -3,6 +3,7 @@ import type { GraphPoint, GraphResponse } from '../types'
 import { ClusterLegend } from './ClusterLegend'
 import { EntryModal } from './EntryModal'
 import { ScatterPlot } from './ScatterPlot'
+import { SearchPanel } from './SearchPanel'
 
 async function fetchGraph(agent: string, source: string): Promise<GraphResponse> {
   const params = new URLSearchParams()
@@ -21,6 +22,7 @@ export function MemoryGraphTab() {
   const [agent, setAgent] = useState('')
   const [source, setSource] = useState('')
   const [selected, setSelected] = useState<GraphPoint | null>(null)
+  const [searchMode, setSearchMode] = useState(false)
 
   const load = (ag: string, src: string) => {
     setLoading(true)
@@ -36,6 +38,32 @@ export function MemoryGraphTab() {
   const knownAgents = data
     ? [...new Set(data.points.map((p) => p.agent))].sort()
     : []
+
+  if (searchMode) {
+    return (
+      <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
+        <SearchPanel
+          agent={agent}
+          onClose={() => setSearchMode(false)}
+          onSelect={(hit) =>
+            setSelected({
+              id: hit.id,
+              agent: hit.agent,
+              source: hit.source,
+              content: hit.content,
+              timestamp: hit.timestamp,
+              x: 0,
+              y: 0,
+              cluster: -1,
+            })
+          }
+        />
+        {selected && (
+          <EntryModal entry={selected} onClose={() => setSelected(null)} />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
@@ -63,6 +91,14 @@ export function MemoryGraphTab() {
           <option value="MEMORY.MD">MEMORY.MD</option>
           <option value="NOTES.MD">NOTES.MD</option>
         </select>
+
+        <button
+          onClick={() => setSearchMode(true)}
+          className="px-2 py-1 text-[11px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633]"
+          title="Semantic search over indexed memory"
+        >
+          ⌕ Search
+        </button>
 
         {data && (
           <span className="text-xs text-zinc-500 ml-auto">

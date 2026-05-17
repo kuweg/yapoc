@@ -16,6 +16,59 @@ class AgentConfig:
     model: str
     temperature: float = 0.7
     max_tokens: int = 8096
+    # Default output format for the agent. ``None`` or ``"text"`` is plain
+    # text (current behavior). ``"json"`` requests a JSON object — adapters
+    # pass the provider-native parameter when supported, otherwise fall
+    # back to a system-prompt nudge. Per-call overrides take precedence
+    # over this default. See `_resolve_response_format`.
+    response_format: str | None = None
+
+
+# ── JSON-mode helpers ────────────────────────────────────────────────────────
+
+
+_JSON_NUDGE = (
+    "\n\nIMPORTANT: Respond with a single valid JSON object. "
+    "No prose before or after. No markdown code fences. "
+    "Just raw JSON."
+)
+
+
+def _resolve_response_format(
+    per_call: str | None, config: AgentConfig
+) -> str | None:
+    """Combine the per-call override and the agent-level default.
+
+    Per-call wins. Returns lower-cased ``"json"`` / ``"text"`` / ``None``.
+    """
+    if per_call is not None:
+        return per_call.lower() or None
+    if config.response_format is None:
+        return None
+    return config.response_format.lower() or None
+
+
+def _supports_native_json(model_id: str) -> bool:
+    """Look up the model in the registry and return its JSON-mode flag.
+
+    Returns False for unknown models — safer to nudge than to send a
+    parameter the provider rejects.
+    """
+    try:
+        from app.utils.adapters.models import MODEL_REGISTRY
+    except ImportError:
+        return False
+    info = MODEL_REGISTRY.get(model_id)
+    return bool(getattr(info, "supports_json_mode", False))
+
+
+def _apply_json_nudge(system_prompt: str) -> str:
+    """Append the JSON-only instruction to the system prompt.
+
+    Used by adapters whose models lack native JSON mode (Anthropic, Codex,
+    or any model whose ``supports_json_mode`` is False in the registry).
+    """
+    return (system_prompt or "") + _JSON_NUDGE
 
 
 # ── Tool-use data model ──────────────────────────────────────────────────────
@@ -114,6 +167,8 @@ class BaseLLMAdapter(ABC):
         system_prompt: str,
         user_message: str,
         history: list[Message] | None = None,
+        *,
+        response_format: str | None = None,
     ) -> str: ...
 
     @abstractmethod

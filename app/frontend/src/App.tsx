@@ -7,6 +7,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
 import { SessionsPanel } from './components/SessionsPanel'
+import { ObservabilityTab } from './components/ObservabilityTab'
 import { useWebSocket } from './hooks/useWebSocket'
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
         <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5">
           <NavButton id="chat" label="Chat" />
           <NavButton id="agents" label="Agents" />
+          <NavButton id="observability" label="Obs" />
           <NavButton id="graph" label="Memory" />
           <NavButton id="vault" label="Vault" />
           <NavButton id="sessions" label="Sessions" />
@@ -131,6 +133,14 @@ export default function App() {
         style={{ display: tab === 'sessions' ? 'flex' : 'none', minHeight: 0 }}
       >
         <SessionsPanel />
+      </div>
+
+      {/* ── Observability tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'observability' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <ObservabilityTab />
       </div>
 
     </div>

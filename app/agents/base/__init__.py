@@ -133,8 +133,10 @@ class BaseAgent:
         self._last_config: AgentConfig | None = None
         self._usage = UsageTracker(agent_dir)
         self._session_id: str | None = None  # set by dispatcher or caller
+        self._task_source: str | None = None  # autonomy gate: "user" | "goal" | "cron" | "doctor" | "webhook" | "notification"
         self._recent_tools: deque[str] = deque(maxlen=15)  # for loop detection
         self._loop_reflected: bool = False  # set after loop reflection injected
+        self._no_tool_turns: int = 0  # stuck detector: consecutive no-tool turns
 
     # ── Session event emission ──────────────────────────────────────────────
 
@@ -894,6 +896,37 @@ class BaseAgent:
                                     await self._append_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
                                     yield TextDelta(text=f"\n\n{_budget_msg}")
                                     _budget_exceeded = True
+                            # Daily autonomous budget (only for non-user-initiated runs).
+                            # The dispatcher already gates new task spawns against this cap,
+                            # but in-flight long-running tasks could overshoot. This halt
+                            # ensures overnight runs cannot exceed daily_autonomous_budget_usd.
+                            if (
+                                not _budget_exceeded
+                                and self._task_source
+                                and self._task_source.lower() in {"goal", "cron", "doctor", "webhook"}
+                            ):
+                                try:
+                                    from app.utils.cost_governor import (
+                                        is_autonomous_budget_exhausted as _is_auto_exh,
+                                        get_autonomous_spend_today as _get_auto_spend,
+                                    )
+                                    if _is_auto_exh():
+                                        _spend = _get_auto_spend()
+                                        _budget_msg = (
+                                            f"[AUTONOMOUS BUDGET EXHAUSTED] Daily autonomous spend "
+                                            f"${_spend:.4f} >= cap ${settings.daily_autonomous_budget_usd:.4f}. "
+                                            f"Halting {self._task_source!r} task; resumes after midnight UTC."
+                                        )
+                                        await self._append_file(
+                                            "HEALTH.MD",
+                                            f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n",
+                                        )
+                                        yield TextDelta(text=f"\n\n{_budget_msg}")
+                                        _budget_exceeded = True
+                                except Exception as _auto_exc:
+                                    _log.bind(agent=self._name).warning(
+                                        "daily-budget check failed ({}) — continuing without halt", _auto_exc,
+                                    )
                             _cost = _calc_turn_cost(
                                 config.model, event.input_tokens, event.output_tokens,
                                 event.cache_creation_tokens, event.cache_read_tokens,
@@ -981,24 +1014,41 @@ class BaseAgent:
                     messages.append({"role": "user", "content": tool_results})
 
                     # ── Loop detection ──
-                    for tool_result_item, tool_done_item in results:
-                        self._recent_tools.append(tool_done_item.name)
-                    # Check if the last 10 calls are the same tool
+                    # Record both the tool name AND a signature of its input so the
+                    # detector catches cases where the same (tool, params) pair gets
+                    # called repeatedly with no progress — not just the trivial
+                    # "10x same tool" case.
+                    import hashlib as _hashlib
+                    import json as _json
+                    for (tool_result_item, tool_done_item), _tc in zip(
+                        results, turn_complete.tool_calls,
+                    ):
+                        try:
+                            _sig_src = _json.dumps(
+                                getattr(_tc, "input", None) or {},
+                                sort_keys=True, default=str,
+                            )
+                        except Exception:
+                            _sig_src = repr(tool_done_item.name)
+                        _sig = _hashlib.sha256(_sig_src.encode("utf-8")).hexdigest()[:8]
+                        self._recent_tools.append((tool_done_item.name, _sig))
+                    # Check if the last 10 calls are the same tool (existing detector)
                     if len(self._recent_tools) >= 10:
                         last_10 = list(self._recent_tools)[-10:]
-                        if len(set(last_10)) == 1:
+                        last_10_names = [item[0] if isinstance(item, tuple) else item for item in last_10]
+                        if len(set(last_10_names)) == 1:
                             if self._loop_reflected:
                                 # Already reflected once — force-stop
                                 _log.bind(agent=self._name).warning(
                                     "Loop detected: {} called 10+ times after reflection. Force-stopping.",
-                                    last_10[0],
+                                    last_10_names[0],
                                 )
                                 break
                             else:
                                 # Inject reflection message
                                 self._loop_reflected = True
                                 reflection = (
-                                    f"[SYSTEM] You have called {last_10[0]} {len(last_10)} times consecutively. "
+                                    f"[SYSTEM] You have called {last_10_names[0]} {len(last_10_names)} times consecutively. "
                                     f"This suggests a loop. Stop and assess:\n"
                                     f"1. What are you trying to achieve?\n"
                                     f"2. Why isn't it working?\n"
@@ -1007,10 +1057,39 @@ class BaseAgent:
                                 )
                                 messages.append({"role": "user", "content": reflection})
                                 _log.bind(agent=self._name).warning(
-                                    "Loop detected: {} called 10+ times. Injecting reflection.", last_10[0],
+                                    "Loop detected: {} called 10+ times. Injecting reflection.", last_10_names[0],
                                 )
                         else:
                             self._loop_reflected = False  # reset when pattern breaks
+
+                        # ── Stuck detector (signature-level) ──
+                        # If the SAME (tool, params) signature appears 4+ times in the
+                        # last 10 calls, the agent isn't making progress — it's
+                        # repeating identical work. Force-stop and surface a stuck
+                        # message so the parent (or user) sees what happened. Fires
+                        # alongside the same-tool detector above; either is sufficient.
+                        last_10_sigs = [item for item in last_10 if isinstance(item, tuple)]
+                        if last_10_sigs:
+                            from collections import Counter as _Counter
+                            _sig_counts = _Counter(last_10_sigs)
+                            _top_sig, _top_count = _sig_counts.most_common(1)[0]
+                            if _top_count >= 4:
+                                _stuck_msg = (
+                                    f"[STUCK] Tool '{_top_sig[0]}' called with identical "
+                                    f"parameters {_top_count} times in the last "
+                                    f"{len(last_10_sigs)} calls (sig={_top_sig[1]}). "
+                                    f"No progress detected. Force-stopping."
+                                )
+                                _log.bind(agent=self._name).warning(
+                                    "Stuck detected: {} (sig={}) repeated {}x — force-stop.",
+                                    _top_sig[0], _top_sig[1], _top_count,
+                                )
+                                await self._append_file(
+                                    "HEALTH.MD",
+                                    f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_stuck_msg}\n",
+                                )
+                                yield TextDelta(text=f"\n\n{_stuck_msg}")
+                                break
 
                     # ── Per-turn tool call limit ──
                     _turn_tool_count = sum(1 for _ in results)

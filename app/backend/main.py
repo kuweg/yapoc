@@ -25,37 +25,89 @@ def _pid_alive_local(pid: int) -> bool:
 
 
 def _cleanup_stale_agent_statuses() -> None:
-    """On server start, mark dead sub-agents as terminated and clear stale TASK.MD files."""
+    """On server start, reset every non-master agent to a clean baseline.
+
+    Subprocess agents use ``start_new_session=True`` so they survive their
+    parent uvicorn dying. When the new backend boots, those orphan processes
+    still own a STATUS.json saying ``idle``/``running``/``spawning`` — the
+    new backend has no relationship to them. SpawnAgentTool then refuses to
+    spawn ("agent already processing") and master must do a manual STATUS.json
+    reset to recover (observed live during self-eval test, 6 wasted turns).
+
+    Policy: every non-master agent dir on disk gets its STATUS.json reset to
+    ``terminated`` and stale TASK.MD cleared. Any still-alive orphan PID is
+    SIGTERM'd best-effort, so the next spawn lands a fresh subprocess.
+
+    Logs a count of cleaned/killed agents at INFO so long-running ops can
+    see what got cleaned up at boot.
+    """
+    cleaned = 0
+    orphans_killed = 0
     for agent_dir in settings.agents_dir.iterdir():
         if not agent_dir.is_dir() or agent_dir.name in ("base", "master", "shared"):
             continue
         status_path = agent_dir / "STATUS.json"
+        task_path = agent_dir / "TASK.MD"
+
         if not status_path.exists():
             # No STATUS.json but TASK.MD may be stale — clear it
-            task_path = agent_dir / "TASK.MD"
             if task_path.exists():
                 content = task_path.read_text(encoding="utf-8", errors="ignore")
                 if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
                     task_path.write_text("")
             continue
+
         try:
             status = json.loads(status_path.read_text())
-            state = status.get("state", "")
-            pid = status.get("pid")
-            if state in ("idle", "running", "spawning"):
-                alive = bool(pid and _pid_alive_local(pid))
-                if not alive:
-                    status["state"] = "terminated"
-                    status["task_summary"] = "shutdown: server restart"
-                    status_path.write_text(json.dumps(status, indent=2))
-                    # Clear stale TASK.MD so sidebar doesn't show "busy"
-                    task_path = agent_dir / "TASK.MD"
-                    if task_path.exists():
-                        content = task_path.read_text(encoding="utf-8", errors="ignore")
-                        if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
-                            task_path.write_text("")
+        except Exception:
+            continue
+
+        state = status.get("state", "")
+        pid = status.get("pid")
+        if state not in ("idle", "running", "spawning"):
+            continue  # already terminated; nothing to do
+
+        # Orphan: PID alive but parent backend is us (a new process). Disown.
+        alive = bool(pid and _pid_alive_local(pid))
+        if alive:
+            try:
+                import os as _os
+                import signal as _signal
+                _os.kill(pid, _signal.SIGTERM)
+                orphans_killed += 1
+                logger.info(
+                    "cleanup: SIGTERM'd orphan subprocess for {} (PID {})",
+                    agent_dir.name, pid,
+                )
+            except (ProcessLookupError, PermissionError) as _kill_exc:
+                logger.debug(
+                    "cleanup: could not SIGTERM PID {} for {} ({})",
+                    pid, agent_dir.name, _kill_exc,
+                )
+
+        status["state"] = "terminated"
+        status["task_summary"] = "shutdown: server restart"
+        try:
+            status_path.write_text(json.dumps(status, indent=2))
         except Exception:
             pass
+
+        # Clear stale TASK.MD frontmatter so the next spawn writes fresh content
+        # and the sidebar doesn't show a busy state.
+        if task_path.exists():
+            try:
+                content = task_path.read_text(encoding="utf-8", errors="ignore")
+                if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
+                    task_path.write_text("")
+            except Exception:
+                pass
+        cleaned += 1
+
+    if cleaned or orphans_killed:
+        logger.info(
+            "cleanup: {} agent STATUS.json reset, {} orphan subprocesses SIGTERM'd",
+            cleaned, orphans_killed,
+        )
 
 
 async def _doctor_tick() -> None:

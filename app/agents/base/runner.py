@@ -19,6 +19,34 @@ from app.agents.base.context import _parse_runner_config
 from app.utils.adapters import TextDelta, ThinkingDelta, ToolStart, ToolDone, UsageStats
 
 
+# Stale task_result messages claimed from a Redis consumer group's pending
+# list can replay multi-hour-old completions and overwrite a freshly-spawned
+# agent's RESULT.MD with content from an obsolete session. When a claimed
+# task_result's stream-ID timestamp is older than this threshold, the runner
+# ACKs and skips it instead of writing a "process incoming result" trigger.
+# Follow-up to docs/master-audit.md / claude-solution-design.md (option 1 —
+# freshness gate). See the planning cross-up investigation for the failure
+# mode this prevents.
+_STALE_TASK_RESULT_THRESHOLD_S = 600  # 10 minutes
+
+
+def _redis_msg_age_seconds(msg_id: str) -> float | None:
+    """Parse a Redis Stream ID (``"<ms-timestamp>-<seq>"``) and return age in seconds.
+
+    Returns None when the ID can't be parsed — caller should treat that as
+    "unknown age" and proceed (fail-open) rather than dropping the message.
+    """
+    if not msg_id or "-" not in msg_id:
+        return None
+    try:
+        ms_str = msg_id.split("-", 1)[0]
+        ms = int(ms_str)
+        now_ms = int(time.time() * 1000)
+        return max(0.0, (now_ms - ms) / 1000.0)
+    except (ValueError, OverflowError):
+        return None
+
+
 class _TaskFileHandler(FileSystemEventHandler):
     """Watchdog handler that sets an asyncio event when TASK.MD changes."""
 
@@ -453,6 +481,26 @@ class AgentRunner:
             return False
 
         elif msg_type == "task_result":
+            # Freshness gate: discard task_result messages older than the
+            # threshold. These can arrive in the claimed-pending batch when a
+            # previous incarnation of this agent died without ACKing — replaying
+            # them now writes a stale trigger TASK.MD that ends up running
+            # AFTER the agent's current task and clobbers its RESULT.MD.
+            # See the planning cross-up note in claude-solution-design.md.
+            _age = _redis_msg_age_seconds(msg_id)
+            if _age is not None and _age > _STALE_TASK_RESULT_THRESHOLD_S:
+                _log.bind(agent=self._name).warning(
+                    "Discarding stale task_result from Redis (age={:.0f}s > {}s threshold): "
+                    "child={} status={} msg_id={}",
+                    _age,
+                    _STALE_TASK_RESULT_THRESHOLD_S,
+                    str(data.get("child_agent", "unknown")),
+                    str(data.get("status", "done")),
+                    msg_id,
+                )
+                await self._ack_inbox(msg_id)
+                return False
+
             # Child agent completed — write a trigger TASK.MD so the next
             # iteration picks it up and processes it via the normal notification pipeline.
             child = str(data.get("child_agent", "unknown"))

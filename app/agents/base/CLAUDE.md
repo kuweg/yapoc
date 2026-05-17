@@ -32,7 +32,7 @@ All agents inherit from this. Key methods:
 When an agent processes incoming results from child agents:
 1. Detect it: task body starts with `"[Process incoming"`
 2. Pass `blocked_tools={"server_restart", "process_restart", "spawn_agent", "kill_agent"}`
-3. Notification tasks are capped at `settings.notification_max_turns` (3)
+3. Notification-processing tasks share the same turn budget as regular tasks. Cost protection lives in `budget_per_task_usd` / `budget_per_agent_usd`, not in a turn cap.
 4. After processing, call `notification_queue.drain()` for the session
 
 ### Config loading

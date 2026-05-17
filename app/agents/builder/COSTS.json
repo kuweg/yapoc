@@ -1338,5 +1338,215 @@
     "cost_usd": 0.01363968,
     "timestamp": "2026-05-16T01:16:50Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:57:49Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 6791,
+    "tokens_out": 67,
+    "cost_usd": 0.00190727,
+    "timestamp": "2026-05-16T20:57:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:57:53Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 20422,
+    "tokens_out": 472,
+    "cost_usd": 0.00603314,
+    "timestamp": "2026-05-16T20:57:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:57:55Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 20917,
+    "tokens_out": 354,
+    "cost_usd": 0.00603699,
+    "timestamp": "2026-05-16T20:57:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:57:56Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 21294,
+    "tokens_out": 53,
+    "cost_usd": 0.00580768,
+    "timestamp": "2026-05-16T20:57:56Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:57:59Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 35080,
+    "tokens_out": 162,
+    "cost_usd": 0.0096498,
+    "timestamp": "2026-05-16T20:57:59Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:58:02Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 35370,
+    "tokens_out": 277,
+    "cost_usd": 0.0098546,
+    "timestamp": "2026-05-16T20:58:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T20:58:04Z",
+    "description": "Add a `--hard-fix` flag to the existing `doctor run` CLI command in `app/cli/main.py`.",
+    "agent_name": "builder",
+    "tokens_in": 35667,
+    "tokens_out": 123,
+    "cost_usd": 0.00976539,
+    "timestamp": "2026-05-16T20:58:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:03:56Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 6757,
+    "tokens_out": 57,
+    "cost_usd": 0.00188709,
+    "timestamp": "2026-05-16T21:03:56Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:03:57Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 6837,
+    "tokens_out": 117,
+    "cost_usd": 0.00197469,
+    "timestamp": "2026-05-16T21:03:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:03:59Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 6980,
+    "tokens_out": 107,
+    "cost_usd": 0.0020023,
+    "timestamp": "2026-05-16T21:03:59Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:01Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7167,
+    "tokens_out": 52,
+    "cost_usd": 0.00199229,
+    "timestamp": "2026-05-16T21:04:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:03Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7262,
+    "tokens_out": 235,
+    "cost_usd": 0.00221924,
+    "timestamp": "2026-05-16T21:04:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:05Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7567,
+    "tokens_out": 39,
+    "cost_usd": 0.00208599,
+    "timestamp": "2026-05-16T21:04:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:06Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7100,
+    "tokens_out": 65,
+    "cost_usd": 0.0019885,
+    "timestamp": "2026-05-16T21:04:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:07Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7206,
+    "tokens_out": 53,
+    "cost_usd": 0.00200392,
+    "timestamp": "2026-05-16T21:04:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:09Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7302,
+    "tokens_out": 145,
+    "cost_usd": 0.00213104,
+    "timestamp": "2026-05-16T21:04:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:11Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7467,
+    "tokens_out": 29,
+    "cost_usd": 0.00204799,
+    "timestamp": "2026-05-16T21:04:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:12Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7197,
+    "tokens_out": 67,
+    "cost_usd": 0.00201689,
+    "timestamp": "2026-05-16T21:04:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:13Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7305,
+    "tokens_out": 54,
+    "cost_usd": 0.00203175,
+    "timestamp": "2026-05-16T21:04:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:16Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7402,
+    "tokens_out": 176,
+    "cost_usd": 0.00219214,
+    "timestamp": "2026-05-16T21:04:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-16T21:04:17Z",
+    "description": "Write projects/yapoc_demo/hello.py (8 lines max) that prints YAPOC demo OK and the current ISO timestamp from datetime.now(timezone.utc). Then call notify_parent.",
+    "agent_name": "builder",
+    "tokens_in": 7598,
+    "tokens_out": 26,
+    "cost_usd": 0.00208006,
+    "timestamp": "2026-05-16T21:04:17Z",
+    "model_used": "deepseek-chat"
   }
 ]

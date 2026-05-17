@@ -2588,5 +2588,45 @@
     "cost_usd": 0.016094,
     "timestamp": "2026-05-16T01:19:15Z",
     "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T21:04:19Z",
+    "description": "Sketch a 3-bullet feature outline for a hypothetical 'pocket-sized TODO app' that has voice input. Outline only, no implementation. Then call notify_parent.",
+    "agent_name": "planning",
+    "tokens_in": 5956,
+    "tokens_out": 636,
+    "cost_usd": 0.017,
+    "timestamp": "2026-05-16T21:04:19Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T21:04:22Z",
+    "description": "Sketch a 3-bullet feature outline for a hypothetical 'pocket-sized TODO app' that has voice input. Outline only, no implementation. Then call notify_parent.",
+    "agent_name": "planning",
+    "tokens_in": 6612,
+    "tokens_out": 85,
+    "cost_usd": 0.013904,
+    "timestamp": "2026-05-16T21:04:22Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T21:04:49Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 6157,
+    "tokens_out": 703,
+    "cost_usd": 0.017938,
+    "timestamp": "2026-05-16T21:04:49Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-16T21:04:51Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 6880,
+    "tokens_out": 36,
+    "cost_usd": 0.014048,
+    "timestamp": "2026-05-16T21:04:51Z",
+    "model_used": "deepseek-v4-pro"
   }
 ]

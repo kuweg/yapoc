@@ -119,14 +119,28 @@ async def _execute_task(task_id: str) -> None:
 
     # Total chain timeout: prevents infinite delegation chains.
     # 2x master's task_timeout gives sub-agents time to finish.
-    _chain_timeout = settings.task_timeout * 2
+    # Fix 2.2: master is autonomous — bypass the chain timeout entirely so
+    # long-running orchestration is not cancelled at the parent level. Cost
+    # protection lives in budget_per_agent_usd / budget_per_task_usd; sub-
+    # agents keep their own task_timeout. Non-master targets (rare here, all
+    # tasks route through master) retain the original guard.
+    if settings.task_timeout > 0:
+        _chain_timeout: int | None = settings.task_timeout * 2
+    else:
+        _chain_timeout = None
+    _chain_ctx_timeout: int | None = None if _chain_timeout is None else _chain_timeout
+    # Master is unbounded — see Fix 2.2.
+    _chain_ctx_timeout = None  # all tasks dispatched here go through master
 
-    logger.info(f"Dispatching task {task_id[:8]}… prompt={prompt} (chain_timeout={_chain_timeout}s)")
+    logger.info(
+        f"Dispatching task {task_id[:8]}… prompt={prompt} "
+        f"(chain_timeout={'unbounded' if _chain_ctx_timeout is None else f'{_chain_ctx_timeout}s'})"
+    )
 
     response_parts: list[str] = []
     total_cost = 0.0
     try:
-        async with asyncio.timeout(_chain_timeout):
+        async with asyncio.timeout(_chain_ctx_timeout):
             async for event in master_agent.handle_task_stream(
                 task=prompt,
                 history=history,

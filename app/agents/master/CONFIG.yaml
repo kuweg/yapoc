@@ -39,7 +39,11 @@ sandbox:
     - app/config/settings.py
     - pyproject.toml
 runner:
-  task_timeout: 300
+  # task_timeout: 0 means unbounded — master is the autonomous orchestrator
+  # and must not be killed by an externally-imposed per-task duration.
+  # Sub-agents keep their own task_timeout. Cost control lives in
+  # budget_per_agent_usd / budget_per_task_usd (see settings.py).
+  task_timeout: 0
   poll_interval: 30
   retry_attempts: 3
   context_memory_limit: 10

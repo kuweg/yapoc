@@ -19,3 +19,20 @@
 [2026-05-16 03:19] health_check: ISSUES DETECTED — 5 issue(s)
 [2026-05-16 03:20] [2026-05-16 03:19] health_check: ISSUES DETECTED — 5 issue(s). master and planning each logged a 300s timeout error; builder had no current HEALTH.MD errors but remains under runaway cost alert. No corrective action taken this run.
 [2026-05-16 03:20] task: --- status: running task_id: 27dc9549-4a0f-4c3c-9cd2-a796eebc7c2c session_id: assigned_by: master | result: Health check complete. Summary: - 5 issues detected across 9 agents - master: 1 timeout error in HEALTH.MD - planning: 1 timeout error in HEALTH.MD | outcome: success
+[2026-05-16 22:52] health_check: ISSUES DETECTED — 5 issue(s)
+[2026-05-16 22:54] [2026-05-16 22:52] health_check: planning agent terminated after server restart; stale timeout error remains in planning/HEALTH.MD from 2026-05-16 03:18. CRASH.MD absent, OUTPUT.MD shows clean exit after timeout. Task status is done; no restart or cleanup action taken.
+[2026-05-16 22:54] task: --- status: running task_id: c4621d34-f779-4a4e-9424-fffa7e0b4f86 session_id: 06bbf180-9ae5-4f15-9dba-3c8b9cb132bc assigned_by: master | result: Planning agent looks healthy enough to leave alone. What I found: - `planning/HEALTH.MD` has a stale timeout error from `2026-05-16 03:18` - `planning/CRASH.MD` does not exist - `planning/OUTPUT.MD` shows the timeout happened during a long delegation/polling sequence, then the agent exited cleanly | outcome: success
+[2026-05-16 22:55] [2026-05-16 22:54] cleanup_task: removed stale HEALTH.MD entries from planning, master, and builder. planning had a 2026-05-16 timeout traceback; master and builder HEALTH.MD were empty after read and were left clean.
+[2026-05-16 22:55] task: --- status: running task_id: c2b98d58-b3a1-4633-8546-ff636a331329 session_id: 06bbf180-9ae5-4f15-9dba-3c8b9cb132bc assigned_by: master | result: Done. - Removed the stale timeout traceback from `app/agents/planning/HEALTH.MD` - Confirmed `app/agents/master/HEALTH.MD` was empty and left it clean - Confirmed `app/agents/builder/HEALTH.MD` was empty and left it clean Logged the cleanup in `MEMORY.MD`. | outcome: success
+[2026-05-16 22:57] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 22:58] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 23:02] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 23:03] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 23:04] task: --- status: running task_id: a503a041-c2e8-41c6-bd70-5569bff8178a session_id: 06bbf180-9ae5-4f15-9dba-3c8b9cb132bc assigned_by: master | result: 0 | outcome: success
+[2026-05-16 23:07] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 23:08] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 23:12] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-16 23:13] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-17 11:02] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-17 11:06] health_check: ISSUES DETECTED — 3 issue(s)
+[2026-05-17 11:11] health_check: ISSUES DETECTED — 3 issue(s)

@@ -358,5 +358,175 @@
     "cost_usd": 0.0,
     "timestamp": "2026-05-16T01:20:44Z",
     "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:54:06Z",
+    "description": "Investigate and fix the planning agent. Current state: terminated (was shutdown due to server restart). HEALTH.MD has a stale timeout error from 2026-05-16 03:18 (Task timed out after 300s). Check if the planning agent needs to be reset, its TASK.MD cleaned up, and its HEALTH.MD cleared. If the agent is healthy but just has stale logs, clean them up. If it needs a restart, handle that too.",
+    "agent_name": "doctor",
+    "tokens_in": 3317,
+    "tokens_out": 118,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:54:06Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:54:10Z",
+    "description": "Investigate and fix the planning agent. Current state: terminated (was shutdown due to server restart). HEALTH.MD has a stale timeout error from 2026-05-16 03:18 (Task timed out after 300s). Check if the planning agent needs to be reset, its TASK.MD cleaned up, and its HEALTH.MD cleared. If the agent is healthy but just has stale logs, clean them up. If it needs a restart, handle that too.",
+    "agent_name": "doctor",
+    "tokens_in": 10418,
+    "tokens_out": 378,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:54:10Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:54:13Z",
+    "description": "Investigate and fix the planning agent. Current state: terminated (was shutdown due to server restart). HEALTH.MD has a stale timeout error from 2026-05-16 03:18 (Task timed out after 300s). Check if the planning agent needs to be reset, its TASK.MD cleaned up, and its HEALTH.MD cleared. If the agent is healthy but just has stale logs, clean them up. If it needs a restart, handle that too.",
+    "agent_name": "doctor",
+    "tokens_in": 10945,
+    "tokens_out": 126,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:54:13Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:14Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 3599,
+    "tokens_out": 76,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:14Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:15Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 3730,
+    "tokens_out": 21,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:15Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:18Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 12235,
+    "tokens_out": 87,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:18Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:21Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 12696,
+    "tokens_out": 391,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:21Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:21Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 13114,
+    "tokens_out": 29,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:21Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:22Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 13168,
+    "tokens_out": 30,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:22Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:23Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 13224,
+    "tokens_out": 73,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:23Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T20:55:24Z",
+    "description": "CLEANUP TASK: Remove stale HEALTH.MD entries across agents. Actually edit the files — do not just inspect.",
+    "agent_name": "doctor",
+    "tokens_in": 13372,
+    "tokens_out": 77,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T20:55:24Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T21:04:06Z",
+    "description": "Read app/agents/master/HEALTH.MD and count lines that start with [. Report just the count. Then call notify_parent.",
+    "agent_name": "doctor",
+    "tokens_in": 3630,
+    "tokens_out": 25,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T21:04:06Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T21:04:07Z",
+    "description": "Read app/agents/master/HEALTH.MD and count lines that start with [. Report just the count. Then call notify_parent.",
+    "agent_name": "doctor",
+    "tokens_in": 3666,
+    "tokens_out": 24,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T21:04:07Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T21:04:08Z",
+    "description": "Read app/agents/master/HEALTH.MD and count lines that start with [. Report just the count. Then call notify_parent.",
+    "agent_name": "doctor",
+    "tokens_in": 3824,
+    "tokens_out": 25,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T21:04:08Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T21:04:10Z",
+    "description": "Read app/agents/master/HEALTH.MD and count lines that start with [. Report just the count. Then call notify_parent.",
+    "agent_name": "doctor",
+    "tokens_in": 3860,
+    "tokens_out": 24,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T21:04:10Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T21:04:11Z",
+    "description": "Read app/agents/master/HEALTH.MD and count lines that start with [. Report just the count. Then call notify_parent.",
+    "agent_name": "doctor",
+    "tokens_in": 3895,
+    "tokens_out": 23,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T21:04:11Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-16T21:04:12Z",
+    "description": "Read app/agents/master/HEALTH.MD and count lines that start with [. Report just the count. Then call notify_parent.",
+    "agent_name": "doctor",
+    "tokens_in": 4086,
+    "tokens_out": 4,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-16T21:04:12Z",
+    "model_used": "gpt-5.4-mini"
   }
 ]

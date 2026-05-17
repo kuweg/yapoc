@@ -408,5 +408,55 @@
     "cost_usd": 0.00423466,
     "timestamp": "2026-05-16T01:11:56Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T21:00:30Z",
+    "description": "Read the file at app/agents/master/MEMORY.MD and produce a comprehensive summary of what the master agent has been working on recently. Focus on: key tasks completed, recurring themes, agent health issues, and any patterns in the work. Output the summary directly in your result.",
+    "agent_name": "librarian",
+    "tokens_in": 4108,
+    "tokens_out": 68,
+    "cost_usd": 0.00118396,
+    "timestamp": "2026-05-16T21:00:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T21:00:44Z",
+    "description": "Read the file at app/agents/master/MEMORY.MD and produce a comprehensive summary of what the master agent has been working on recently. Focus on: key tasks completed, recurring themes, agent health issues, and any patterns in the work. Output the summary directly in your result.",
+    "agent_name": "librarian",
+    "tokens_in": 10417,
+    "tokens_out": 1453,
+    "cost_usd": 0.00441089,
+    "timestamp": "2026-05-16T21:00:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T21:04:07Z",
+    "description": "List *.md files directly under docs/ (one level deep). Report the count and first 5 filenames. Then call notify_parent.",
+    "agent_name": "librarian",
+    "tokens_in": 4230,
+    "tokens_out": 56,
+    "cost_usd": 0.0012037,
+    "timestamp": "2026-05-16T21:04:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T21:04:10Z",
+    "description": "List *.md files directly under docs/ (one level deep). Report the count and first 5 filenames. Then call notify_parent.",
+    "agent_name": "librarian",
+    "tokens_in": 4316,
+    "tokens_out": 248,
+    "cost_usd": 0.00143812,
+    "timestamp": "2026-05-16T21:04:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "librarian:2026-05-16T21:04:11Z",
+    "description": "List *.md files directly under docs/ (one level deep). Report the count and first 5 filenames. Then call notify_parent.",
+    "agent_name": "librarian",
+    "tokens_in": 4659,
+    "tokens_out": 13,
+    "cost_usd": 0.00127223,
+    "timestamp": "2026-05-16T21:04:11Z",
+    "model_used": "deepseek-chat"
   }
 ]

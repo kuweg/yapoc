@@ -618,5 +618,35 @@
     "cost_usd": 0.0,
     "timestamp": "2026-05-17T10:20:18Z",
     "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T15:10:56Z",
+    "description": "Investigate and clean up stale error markers across all agents.",
+    "agent_name": "doctor",
+    "tokens_in": 3696,
+    "tokens_out": 318,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T15:10:56Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T15:11:01Z",
+    "description": "Investigate and clean up stale error markers across all agents.",
+    "agent_name": "doctor",
+    "tokens_in": 7628,
+    "tokens_out": 352,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T15:11:01Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T15:11:02Z",
+    "description": "Investigate and clean up stale error markers across all agents.",
+    "agent_name": "doctor",
+    "tokens_in": 4214,
+    "tokens_out": 230,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T15:11:02Z",
+    "model_used": "gpt-5.4-mini"
   }
 ]

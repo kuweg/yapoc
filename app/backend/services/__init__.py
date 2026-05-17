@@ -257,12 +257,22 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
     if not task_summary and task and task.error_text:
         task_summary = f"[error] {task.error_text}"
 
-    # Legacy status field — combines process state + task state
+    # Legacy status field — combines process state + task state.
+    # NOTE: historical HEALTH.MD entries are intentionally NOT considered
+    # here. Health entries (especially "shutdown: signal" / "idle timeout"
+    # left over from past server restarts) accumulate in HEALTH.MD and used
+    # to permanently flag agents as "error" in the sidebar even though they
+    # were idle and healthy. The Observability tab + /health endpoint
+    # surface the historical health log separately — the sidebar badge is
+    # for CURRENT state only.
     if state == "running":
         legacy_status = "running"
     elif task_is_active:
         legacy_status = "busy"
-    elif health_errors > 0:
+    elif task and (task.status or "").lower() == "error":
+        # The most recent task itself ended in error. Surface as "error"
+        # until the agent runs another task successfully (which overwrites
+        # TASK.MD to status: done).
         legacy_status = "error"
     else:
         legacy_status = "idle"

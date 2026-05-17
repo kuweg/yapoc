@@ -1,0 +1,502 @@
+[
+  {
+    "task_id": "evaluator:2026-05-17T16:10:40Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 3525,
+    "tokens_out": 60,
+    "cost_usd": 0.00101775,
+    "timestamp": "2026-05-17T16:10:40Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:10:42Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 13857,
+    "tokens_out": 73,
+    "cost_usd": 0.00382169,
+    "timestamp": "2026-05-17T16:10:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:10:45Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 14056,
+    "tokens_out": 161,
+    "cost_usd": 0.00397222,
+    "timestamp": "2026-05-17T16:10:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:10:46Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 15236,
+    "tokens_out": 81,
+    "cost_usd": 0.00420282,
+    "timestamp": "2026-05-17T16:10:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:10:49Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 17114,
+    "tokens_out": 172,
+    "cost_usd": 0.00480998,
+    "timestamp": "2026-05-17T16:10:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:11:58Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 17307,
+    "tokens_out": 71,
+    "cost_usd": 0.00475099,
+    "timestamp": "2026-05-17T16:11:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:02Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 17866,
+    "tokens_out": 293,
+    "cost_usd": 0.00514612,
+    "timestamp": "2026-05-17T16:12:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:04Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 18195,
+    "tokens_out": 49,
+    "cost_usd": 0.00496655,
+    "timestamp": "2026-05-17T16:12:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:06Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 25950,
+    "tokens_out": 76,
+    "cost_usd": 0.0070901,
+    "timestamp": "2026-05-17T16:12:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:08Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 26112,
+    "tokens_out": 64,
+    "cost_usd": 0.00712064,
+    "timestamp": "2026-05-17T16:12:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:10Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 26246,
+    "tokens_out": 51,
+    "cost_usd": 0.00714252,
+    "timestamp": "2026-05-17T16:12:10Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:13Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 28869,
+    "tokens_out": 85,
+    "cost_usd": 0.00788813,
+    "timestamp": "2026-05-17T16:12:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:15Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 29429,
+    "tokens_out": 72,
+    "cost_usd": 0.00802503,
+    "timestamp": "2026-05-17T16:12:15Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:16Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 33272,
+    "tokens_out": 75,
+    "cost_usd": 0.00906594,
+    "timestamp": "2026-05-17T16:12:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:19Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 37747,
+    "tokens_out": 182,
+    "cost_usd": 0.01039189,
+    "timestamp": "2026-05-17T16:12:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:21Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 37952,
+    "tokens_out": 72,
+    "cost_usd": 0.01032624,
+    "timestamp": "2026-05-17T16:12:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:22Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 38044,
+    "tokens_out": 62,
+    "cost_usd": 0.01034008,
+    "timestamp": "2026-05-17T16:12:22Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:25Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 39008,
+    "tokens_out": 103,
+    "cost_usd": 0.01064546,
+    "timestamp": "2026-05-17T16:12:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:27Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 39301,
+    "tokens_out": 128,
+    "cost_usd": 0.01075207,
+    "timestamp": "2026-05-17T16:12:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:35Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 40504,
+    "tokens_out": 800,
+    "cost_usd": 0.01181608,
+    "timestamp": "2026-05-17T16:12:35Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:37Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 41333,
+    "tokens_out": 48,
+    "cost_usd": 0.01121271,
+    "timestamp": "2026-05-17T16:12:37Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:38Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 41467,
+    "tokens_out": 51,
+    "cost_usd": 0.01125219,
+    "timestamp": "2026-05-17T16:12:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:40Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 41690,
+    "tokens_out": 70,
+    "cost_usd": 0.0113333,
+    "timestamp": "2026-05-17T16:12:40Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:42Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 41844,
+    "tokens_out": 52,
+    "cost_usd": 0.01135508,
+    "timestamp": "2026-05-17T16:12:42Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:12:50Z",
+    "description": "Run a self-evaluation of YAPOC. Follow these steps in order:",
+    "agent_name": "evaluator",
+    "tokens_in": 43180,
+    "tokens_out": 801,
+    "cost_usd": 0.0125397,
+    "timestamp": "2026-05-17T16:12:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:14:49Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 3849,
+    "tokens_out": 105,
+    "cost_usd": 0.00115473,
+    "timestamp": "2026-05-17T16:14:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:14:51Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 3849,
+    "tokens_out": 107,
+    "cost_usd": 0.00115693,
+    "timestamp": "2026-05-17T16:14:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:14:52Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 14299,
+    "tokens_out": 285,
+    "cost_usd": 0.00417423,
+    "timestamp": "2026-05-17T16:14:52Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:14:54Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 14301,
+    "tokens_out": 257,
+    "cost_usd": 0.00414397,
+    "timestamp": "2026-05-17T16:14:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:14:57Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 17019,
+    "tokens_out": 117,
+    "cost_usd": 0.00472383,
+    "timestamp": "2026-05-17T16:14:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:15:19Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 17396,
+    "tokens_out": 2281,
+    "cost_usd": 0.00720602,
+    "timestamp": "2026-05-17T16:15:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:15:21Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 17491,
+    "tokens_out": 2363,
+    "cost_usd": 0.00732187,
+    "timestamp": "2026-05-17T16:15:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:15:21Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 19706,
+    "tokens_out": 130,
+    "cost_usd": 0.00546362,
+    "timestamp": "2026-05-17T16:15:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:15:23Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 19856,
+    "tokens_out": 62,
+    "cost_usd": 0.00542932,
+    "timestamp": "2026-05-17T16:15:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:15:23Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 19883,
+    "tokens_out": 127,
+    "cost_usd": 0.00550811,
+    "timestamp": "2026-05-17T16:15:23Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:15:25Z",
+    "description": "Run a self-evaluation. Pull signals once, identify top 3 issues, propose changes, then file_write REPORT.MD and notify_parent — in that exact order. NO MORE THAN 4 ADDITIONAL FILE READS. Stop gathering at turn 7.",
+    "agent_name": "evaluator",
+    "tokens_in": 20030,
+    "tokens_out": 68,
+    "cost_usd": 0.0054829,
+    "timestamp": "2026-05-17T16:15:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:28:06Z",
+    "description": "Round 2 self-evaluation. Five bugs were fixed since round 1 (DeepSeek adapter mismatch in _compact_messages, runner idle-write on exception, planning model swap, CONFIG.yaml drift header, DAG context reference-data banner). Pull fresh signals once, then identify whether any HIGH or MEDIUM issues remain. If signals look clean, write a short round-2 entry saying so. STOP gathering at turn 7 — do not investigate beyond what get_recent_signals + a quick read of REPORT.MD show. Then file_write REPORT.MD with round 2 ABOVE round 1 (preserve round 1 verbatim). Then notify_parent with 3-line summary.",
+    "agent_name": "evaluator",
+    "tokens_in": 4389,
+    "tokens_out": 104,
+    "cost_usd": 0.00129943,
+    "timestamp": "2026-05-17T16:28:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:28:16Z",
+    "description": "Round 2 self-evaluation. Five bugs were fixed since round 1 (DeepSeek adapter mismatch in _compact_messages, runner idle-write on exception, planning model swap, CONFIG.yaml drift header, DAG context reference-data banner). Pull fresh signals once, then identify whether any HIGH or MEDIUM issues remain. If signals look clean, write a short round-2 entry saying so. STOP gathering at turn 7 — do not investigate beyond what get_recent_signals + a quick read of REPORT.MD show. Then file_write REPORT.MD with round 2 ABOVE round 1 (preserve round 1 verbatim). Then notify_parent with 3-line summary.",
+    "agent_name": "evaluator",
+    "tokens_in": 16856,
+    "tokens_out": 735,
+    "cost_usd": 0.00535962,
+    "timestamp": "2026-05-17T16:28:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:28:24Z",
+    "description": "Round 2 self-evaluation. Five bugs were fixed since round 1 (DeepSeek adapter mismatch in _compact_messages, runner idle-write on exception, planning model swap, CONFIG.yaml drift header, DAG context reference-data banner). Pull fresh signals once, then identify whether any HIGH or MEDIUM issues remain. If signals look clean, write a short round-2 entry saying so. STOP gathering at turn 7 — do not investigate beyond what get_recent_signals + a quick read of REPORT.MD show. Then file_write REPORT.MD with round 2 ABOVE round 1 (preserve round 1 verbatim). Then notify_parent with 3-line summary.",
+    "agent_name": "evaluator",
+    "tokens_in": 19493,
+    "tokens_out": 800,
+    "cost_usd": 0.00614311,
+    "timestamp": "2026-05-17T16:28:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:28:27Z",
+    "description": "Round 2 self-evaluation. Five bugs were fixed since round 1 (DeepSeek adapter mismatch in _compact_messages, runner idle-write on exception, planning model swap, CONFIG.yaml drift header, DAG context reference-data banner). Pull fresh signals once, then identify whether any HIGH or MEDIUM issues remain. If signals look clean, write a short round-2 entry saying so. STOP gathering at turn 7 — do not investigate beyond what get_recent_signals + a quick read of REPORT.MD show. Then file_write REPORT.MD with round 2 ABOVE round 1 (preserve round 1 verbatim). Then notify_parent with 3-line summary.",
+    "agent_name": "evaluator",
+    "tokens_in": 20322,
+    "tokens_out": 126,
+    "cost_usd": 0.00562554,
+    "timestamp": "2026-05-17T16:28:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:28:28Z",
+    "description": "Round 2 self-evaluation. Five bugs were fixed since round 1 (DeepSeek adapter mismatch in _compact_messages, runner idle-write on exception, planning model swap, CONFIG.yaml drift header, DAG context reference-data banner). Pull fresh signals once, then identify whether any HIGH or MEDIUM issues remain. If signals look clean, write a short round-2 entry saying so. STOP gathering at turn 7 — do not investigate beyond what get_recent_signals + a quick read of REPORT.MD show. Then file_write REPORT.MD with round 2 ABOVE round 1 (preserve round 1 verbatim). Then notify_parent with 3-line summary.",
+    "agent_name": "evaluator",
+    "tokens_in": 20468,
+    "tokens_out": 67,
+    "cost_usd": 0.00560006,
+    "timestamp": "2026-05-17T16:28:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:38:49Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 4514,
+    "tokens_out": 103,
+    "cost_usd": 0.00133208,
+    "timestamp": "2026-05-17T16:38:49Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:38:58Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 15809,
+    "tokens_out": 1088,
+    "cost_usd": 0.00546523,
+    "timestamp": "2026-05-17T16:38:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:00Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 16926,
+    "tokens_out": 104,
+    "cost_usd": 0.00468442,
+    "timestamp": "2026-05-17T16:39:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:01Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 17050,
+    "tokens_out": 45,
+    "cost_usd": 0.004653,
+    "timestamp": "2026-05-17T16:39:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:03Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 4801,
+    "tokens_out": 102,
+    "cost_usd": 0.00140847,
+    "timestamp": "2026-05-17T16:39:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:05Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 16400,
+    "tokens_out": 83,
+    "cost_usd": 0.0045193,
+    "timestamp": "2026-05-17T16:39:05Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:14Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 17480,
+    "tokens_out": 1276,
+    "cost_usd": 0.0061232,
+    "timestamp": "2026-05-17T16:39:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:16Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 18785,
+    "tokens_out": 99,
+    "cost_usd": 0.00518085,
+    "timestamp": "2026-05-17T16:39:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "evaluator:2026-05-17T16:39:18Z",
+    "description": "Trivial sanity round. Call get_recent_signals once, write a 5-line entry to REPORT.MD noting that you confirm the system is still clean post-restart, notify_parent with a 2-line summary. Stop at turn 4 max.",
+    "agent_name": "evaluator",
+    "tokens_in": 18904,
+    "tokens_out": 40,
+    "cost_usd": 0.00514808,
+    "timestamp": "2026-05-17T16:39:18Z",
+    "model_used": "deepseek-chat"
+  }
+]

@@ -38,7 +38,14 @@ function MessageBubbleImpl({ role, content, agentName }: MessageBubbleProps) {
   if (role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-2 text-white text-sm whitespace-pre-wrap" style={{ backgroundColor: '#00b8c7' }}>
+        <div
+          className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-2 text-sm whitespace-pre-wrap"
+          style={{
+            backgroundColor: 'var(--color-bg-raised)',
+            color: 'var(--color-text-primary)',
+            border: '1px solid var(--color-border)',
+          }}
+        >
           {content}
         </div>
       </div>

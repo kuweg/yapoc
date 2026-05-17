@@ -4,7 +4,7 @@ import { useSessionStore } from '../store/session'
 import { useWsStore } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
-import { synthesizeSpeech } from '../api/client'
+import { handleCommand, synthesizeSpeech } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -320,6 +320,41 @@ export function ChatPanel() {
     const text = rawText.trim()
     if (!text || isStreaming) return
 
+    // ── Slash command interception ──────────────────────────────────────
+    if (text.startsWith('/')) {
+      const parts = text.split(/\s+/)
+      const cmd = parts[0].toLowerCase()
+      const args = parts.slice(1).join(' ')
+
+      // Client-side commands (no API call needed)
+      if (cmd === '/help') {
+        appendMessage('user', text)
+        appendMessage('assistant', _helpText())
+        return
+      }
+      if (cmd === '/clear') {
+        appendMessage('user', text)
+        useSessionStore.getState().newSession()
+        return
+      }
+      if (cmd === '/exit' || cmd === '/quit') {
+        appendMessage('user', text)
+        appendMessage('assistant', 'Exit is a no-op in the web UI. Close the tab or navigate away.')
+        return
+      }
+
+      // Server-side commands (call backend)
+      appendMessage('user', text)
+      try {
+        const { response } = await handleCommand(cmd, args)
+        appendMessage('assistant', response)
+      } catch (e) {
+        appendMessage('assistant', `_Error handling command: ${(e as Error).message}_`)
+      }
+      return
+    }
+    // ── End slash command interception ──────────────────────────────────
+
     // Cancel any in-progress background notification polling
     stopPolling()
 
@@ -588,6 +623,30 @@ export function ChatPanel() {
         )}
       </div>
     </div>
+  )
+}
+
+function _helpText(): string {
+  return (
+    '**Available commands:**\n\n' +
+    '| Command | Description |\n' +
+    '|---------|-------------|\n' +
+    '| `/help` | Show this help message |\n' +
+    '| `/clear` | Clear conversation and start a new session |\n' +
+    '| `/ping` | Ping the server and show response time |\n' +
+    '| `/status` | Show server & agent status |\n' +
+    '| `/agents` | List all agents |\n' +
+    '| `/model` | Show current adapter/model |\n' +
+    '| `/cost` | Show session cost breakdown |\n' +
+    '| `/sessions` | List recent sessions |\n' +
+    '| `/continue` | Resume the latest session |\n' +
+    '| `/resume <id>` | Resume a specific session |\n' +
+    '| `/export <filename>` | Export conversation to file |\n' +
+    '| `/doctor` | Run doctor health check |\n' +
+    '| `/start` | Start the backend server |\n' +
+    '| `/stop` | Stop the backend server |\n' +
+    '| `/restart` | Restart the backend server |\n' +
+    '| `/exit` | No-op in web UI |'
   )
 }
 

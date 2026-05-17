@@ -1,0 +1,24 @@
+- generic [ref=e3]:
+  - banner [ref=e1901]:
+    - generic [ref=e1902]: "> YAPOC"
+    - generic [ref=e1903]:
+      - button "Chat" [ref=e1904]
+      - button "Agents" [ref=e1905]
+      - button "Obs" [ref=e1906]
+      - button "Memory" [ref=e1907]
+      - button "Vault" [ref=e1908]
+      - button "Sessions" [ref=e1909]
+    - button "Switch to light theme" [ref=e1910]: "[LITE]"
+  - generic [ref=e1911]:
+    - generic [ref=e1912]:
+      - heading "Sessions (1)" [level=2] [ref=e1913]
+      - button "Select all" [ref=e1914]
+    - list [ref=e1915]:
+      - listitem [ref=e1916]:
+        - checkbox "Select session \"Session 17/05/2026, 17:06:55\"" [ref=e1917] [cursor=pointer]
+        - generic [ref=e1918]:
+          - generic [ref=e1919]: Session 17/05/2026, 17:06:55
+          - generic [ref=e1920]: 2 msgs · 17/05/2026, 17:06:55
+        - button "Open" [ref=e1921]
+        - button "Summarize" [ref=e1922]
+        - button "Delete" [ref=e1923]

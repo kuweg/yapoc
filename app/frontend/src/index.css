@@ -7,92 +7,93 @@
    Applied via data-theme attribute on <html>.
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* ── Dark theme — Amber Phosphor Terminal ────────────────────────────────────── */
+/* ── Dark theme — Claude Code (Anthropic Orange) ─────────────────────────────── */
 :root,
 [data-theme="dark"] {
-  /* Terminal palette */
-  --color-bg-primary:   #0a0a0a;
-  --color-bg-secondary: #111111;
-  --color-bg-tertiary:  #161616;
-  --color-bg-panel:     #0f0f0f;
+  /* Backgrounds — neutral near-black with very faint warm undertone */
+  --color-bg-primary:   #1a1a1a;
+  --color-bg-secondary: #1f1f1f;
+  --color-bg-tertiary:  #262626;
+  --color-bg-panel:     #1e1e1e;
 
-  /* Legacy aliases (used by components via hardcoded hex overrides) */
-  --color-bg-base:       #0a0a0a;
-  --color-bg-overlay:    #111111;
-  --color-bg-raised:     #161616;
-  --color-bg-subtle:     #1a1a0f;
-  --color-bg-muted:      #111111;
+  /* Legacy aliases */
+  --color-bg-base:       #1a1a1a;
+  --color-bg-overlay:    #1f1f1f;
+  --color-bg-raised:     #262626;
+  --color-bg-subtle:     #2a2a2a;
+  --color-bg-muted:      #1f1f1f;
 
-  /* Borders */
-  --color-border:         #2a2a1a;
-  --color-border-accent:  #FFB633;
-  --color-border-default: #2a2a1a;
-  --color-border-muted:   #1a1a0f;
-  --color-border-subtle:  #3a3a2a;
+  /* Borders — subtle warm grey */
+  --color-border:         #303030;
+  --color-border-accent:  #d97757;
+  --color-border-default: #303030;
+  --color-border-muted:   #262626;
+  --color-border-subtle:  #3a3a3a;
 
-  /* Text */
-  --color-text-primary:   #e8e8d8;
-  --color-text-secondary: #a0a090;
-  --color-text-muted:     #606050;
-  --color-text-disabled:  #3a3a2a;
+  /* Text — warm cream */
+  --color-text-primary:   #e8e6e3;
+  --color-text-secondary: #a8a39a;
+  --color-text-muted:     #6e6862;
+  --color-text-disabled:  #3a3633;
 
-  /* Accent — amber phosphor */
-  --color-accent:         #FFB633;
-  --color-accent-dim:     #8a6010;
-  --color-accent-glow:    rgba(255, 182, 51, 0.15);
+  /* Accent — Anthropic orange (claude.ai brand) */
+  --color-accent:         #d97757;
+  --color-accent-dim:     #a04a2a;
+  --color-accent-glow:    rgba(217, 119, 87, 0.18);
 
-  /* Legacy accent aliases */
-  --color-accent-blue:    #FFB633;
-  --color-accent-green:   #33ff66;
-  --color-accent-yellow:  #FFB633;
-  --color-accent-red:     #ff3333;
-  --color-accent-purple:  #cc88ff;
-  --color-accent-orange:  #ff8833;
+  /* Legacy accent aliases — keep semantic colors but softer */
+  --color-accent-blue:    #d97757;
+  --color-accent-green:   #7fb886;
+  --color-accent-yellow:  #d4a017;
+  --color-accent-red:     #c45a4a;
+  --color-accent-purple:  #a78bfa;
+  --color-accent-orange:  #d97757;
 
   /* Status */
-  --color-success: #33ff66;
-  --color-warning: #FFB633;
-  --color-error:   #ff3333;
-  --color-info:    #33aaff;
+  --color-success: #7fb886;
+  --color-warning: #d4a017;
+  --color-error:   #c45a4a;
+  --color-info:    #6ea8d4;
 
-  /* Status badge backgrounds — retro terminal style */
-  --color-status-running-bg:     #1a1500;
-  --color-status-running-border: #FFB633;
-  --color-status-error-bg:       #1a0000;
-  --color-status-error-border:   #ff3333;
-  --color-status-done-bg:        #001a08;
-  --color-status-done-border:    #33ff66;
-  --color-status-idle-bg:        #111111;
-  --color-status-idle-border:    #2a2a1a;
+  /* Status badge backgrounds — restrained warm */
+  --color-status-running-bg:     #2a1e16;
+  --color-status-running-border: #d97757;
+  --color-status-error-bg:       #2a1614;
+  --color-status-error-border:   #c45a4a;
+  --color-status-done-bg:        #1a2a1c;
+  --color-status-done-border:    #7fb886;
+  --color-status-idle-bg:        #1f1f1f;
+  --color-status-idle-border:    #303030;
 
-  /* Zinc-scale aliases (for chat/sidebar components) */
-  --color-zinc-950: #050505;
-  --color-zinc-900: #0a0a0a;
-  --color-zinc-800: #111111;
-  --color-zinc-700: #1a1a0f;
-  --color-zinc-600: #2a2a1a;
-  --color-zinc-500: #606050;
-  --color-zinc-400: #a0a090;
-  --color-zinc-300: #c8c8b8;
-  --color-zinc-200: #e0e0d0;
-  --color-zinc-100: #e8e8d8;
+  /* Zinc-scale aliases (used by sidebar/chat components) */
+  --color-zinc-950: #161616;
+  --color-zinc-900: #1a1a1a;
+  --color-zinc-800: #1f1f1f;
+  --color-zinc-700: #262626;
+  --color-zinc-600: #303030;
+  --color-zinc-500: #6e6862;
+  --color-zinc-400: #a8a39a;
+  --color-zinc-300: #c8c4be;
+  --color-zinc-200: #d8d4ce;
+  --color-zinc-100: #e8e6e3;
 
-  /* Shadows */
-  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.8);
-  --shadow-card:  0 2px 8px rgba(0, 0, 0, 0.6);
+  /* Shadows — softer */
+  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-card:  0 2px 8px rgba(0, 0, 0, 0.35);
 
   /* SVG / chart text */
-  --color-chart-text:     #606050;
-  --color-chart-grid:     #1a1a0f;
-  --color-tooltip-bg:     #111111;
-  --color-tooltip-border: #2a2a1a;
-  --color-tooltip-text:   #e8e8d8;
+  --color-chart-text:     #6e6862;
+  --color-chart-grid:     #262626;
+  --color-tooltip-bg:     #1f1f1f;
+  --color-tooltip-border: #303030;
+  --color-tooltip-text:   #e8e6e3;
 
-  /* Terminal specifics */
+  /* Typography */
   --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
   --border-terminal:  1px solid var(--color-border);
   --border-accent:    1px solid var(--color-border-accent);
-  --scanline-opacity: 0.03;
+  /* No CRT scanlines in Claude Code style */
+  --scanline-opacity: 0;
 }
 
 /* ── Light theme — Paper Terminal ────────────────────────────────────────────── */
@@ -351,15 +352,15 @@ button, .btn {
   font-family: var(--font-mono);
 }
 
-/* ── Status badges — retro style ─────────────────────────────────────────────── */
+/* ── Status badges — clean Claude-Code style ────────────────────────────────── */
 .status-badge {
   font-family: var(--font-mono);
-  font-size: 13px;
-  border-radius: 0;
+  font-size: 12px;
+  border-radius: 3px;
   border: 1px solid currentColor;
   padding: 2px 8px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 }
 
 /* ── Terminal prompt headings ────────────────────────────────────────────────── */
@@ -430,18 +431,15 @@ tr:hover td {
   margin-left: 2px;
 }
 
-/* ── Amber glow for status states ────────────────────────────────────────────── */
+/* ── Status states — solid color, no neon glow ──────────────────────────────── */
 .status-running, .status-active {
   color: var(--color-accent);
-  text-shadow: 0 0 8px var(--color-accent);
 }
 .status-error {
   color: var(--color-error);
-  text-shadow: 0 0 8px rgba(255, 51, 51, 0.4);
 }
 .status-done, .status-success {
   color: var(--color-success);
-  text-shadow: 0 0 6px rgba(51, 255, 102, 0.3);
 }
 
 /* ── Navigation/sidebar ──────────────────────────────────────────────────────── */
@@ -470,13 +468,13 @@ nav a.active, .nav-link.active {
   padding: 0 !important;
 }
 .hljs-keyword, .hljs-selector-tag, .hljs-tag,
-.hljs-operator, .hljs-punctuation                 { color: #FFB633 !important; }
-.hljs-string, .hljs-attr, .hljs-template-literal  { color: #33ff66 !important; }
-.hljs-comment, .hljs-quote                         { color: #606050 !important; font-style: italic; }
-.hljs-number, .hljs-literal, .hljs-boolean         { color: #ff8833 !important; }
-.hljs-variable, .hljs-name                         { color: #cc88ff !important; }
-.hljs-title, .hljs-title.class_, .hljs-type        { color: #33aaff !important; }
-.hljs-built_in, .hljs-function                     { color: #FFB633cc !important; }
+.hljs-operator, .hljs-punctuation                 { color: var(--color-accent) !important; }
+.hljs-string, .hljs-attr, .hljs-template-literal  { color: var(--color-success) !important; }
+.hljs-comment, .hljs-quote                         { color: var(--color-text-muted) !important; font-style: italic; }
+.hljs-number, .hljs-literal, .hljs-boolean         { color: var(--color-accent-orange) !important; }
+.hljs-variable, .hljs-name                         { color: var(--color-accent-purple) !important; }
+.hljs-title, .hljs-title.class_, .hljs-type        { color: var(--color-info) !important; }
+.hljs-built_in, .hljs-function                     { color: var(--color-accent) !important; }
 .hljs-meta, .hljs-doctag                           { color: #a0a090 !important; }
 .hljs-deletion                                     { background: rgba(255,51,51,0.2) !important; }
 .hljs-addition                                     { background: rgba(51,255,102,0.15) !important; }
@@ -502,18 +500,18 @@ nav a.active, .nav-link.active {
 /* Vault markdown prose styles */
 .vault-markdown { color: var(--color-text-primary); }
 .vault-markdown h1, .vault-markdown h2, .vault-markdown h3,
-.vault-markdown h4, .vault-markdown h5, .vault-markdown h6  { color: #FFB633; margin: 1.2em 0 0.5em; }
+.vault-markdown h4, .vault-markdown h5, .vault-markdown h6  { color: var(--color-accent); margin: 1.2em 0 0.5em; }
 .vault-markdown p        { margin: 0.6em 0; }
-.vault-markdown a        { color: #33aaff; text-decoration: underline; }
-.vault-markdown code     { background: var(--color-bg-raised); color: #33ff66; padding: 1px 4px; font-size: 11px; }
+.vault-markdown a        { color: var(--color-info); text-decoration: underline; }
+.vault-markdown code     { background: var(--color-bg-raised); color: var(--color-success); padding: 1px 4px; font-size: 11px; }
 .vault-markdown pre      { background: var(--color-bg-raised); padding: 12px; overflow-x: auto; margin: 0.8em 0; }
 .vault-markdown pre code { background: none; padding: 0; color: var(--color-text-primary); }
-.vault-markdown blockquote { border-left: 2px solid #FFB633; margin: 0; padding-left: 12px; color: var(--color-text-secondary); }
+.vault-markdown blockquote { border-left: 2px solid var(--color-accent); margin: 0; padding-left: 12px; color: var(--color-text-secondary); }
 .vault-markdown ul, .vault-markdown ol { padding-left: 1.5em; }
 .vault-markdown li       { margin: 0.2em 0; }
 .vault-markdown hr       { border: none; border-top: 1px solid var(--color-border); margin: 1em 0; }
 .vault-markdown table    { width: 100%; border-collapse: collapse; font-size: 12px; }
-.vault-markdown th       { color: #FFB633; border-bottom: 1px solid var(--color-border-accent); padding: 4px 8px; text-align: left; }
+.vault-markdown th       { color: var(--color-accent); border-bottom: 1px solid var(--color-border-accent); padding: 4px 8px; text-align: left; }
 .vault-markdown td       { border-bottom: 1px solid var(--color-border); padding: 4px 8px; }
 .vault-markdown img      { max-width: 100%; }
 
@@ -896,11 +894,16 @@ select {
   --tw-ring-color: var(--color-accent-blue) !important;
 }
 
-/* ── Retro border-radius overrides — boxy terminal look ──────────────────────── */
-/* Override Tailwind rounded classes to enforce the boxy terminal aesthetic */
-.rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl, .rounded-full {
-  border-radius: 0 !important;
-}
+/* ── Subtle border-radius — Claude Code is sharp-but-not-pixel-perfect ─────── */
+/* Let Tailwind's rounded classes keep their natural radii (light rounding).
+   The previous "boxy terminal" override forced everything to radius:0; we
+   relax that so cards/buttons/inputs get a hint of softness. */
+.rounded     { border-radius: 3px !important; }
+.rounded-md  { border-radius: 4px !important; }
+.rounded-lg  { border-radius: 6px !important; }
+.rounded-xl  { border-radius: 8px !important; }
+.rounded-2xl { border-radius: 10px !important; }
+.rounded-full { border-radius: 9999px !important; }
 
 /* ── Retro font enforcement ───────────────────────────────────────────────────── */
 /* Ensure monospace font propagates to all text elements */
@@ -921,12 +924,10 @@ img {
   image-rendering: crisp-edges;
 }
 
-/* ── SVG icons — crisp vector rendering ──────────────────────────────────────── */
+/* ── SVG icons — smooth modern rendering (Claude Code is not pixel-art) ─────── */
 svg {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  shape-rendering: crispEdges;
+  image-rendering: auto;
+  shape-rendering: geometricPrecision;
 }
 
 /* ── Canvas elements — pixel-perfect ─────────────────────────────────────────── */
@@ -974,8 +975,8 @@ canvas {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(255, 182, 51, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 182, 51, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(217, 119, 87, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(217, 119, 87, 0.03) 1px, transparent 1px);
   background-size: 4px 4px;
   z-index: 1;
 }

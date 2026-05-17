@@ -147,6 +147,7 @@ from .web import FetchPageTool, WebSearchTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
     CheckTaskStatusTool,
+    ExecuteDagTool,
     KillAgentTool,
     NotifyParentTool,
     PingAgentTool,
@@ -160,6 +161,7 @@ from .agent_settings_tool import HealAgentSettingsTool, ShowAgentSettingsTool
 from .config_update import UpdateConfigTool
 from .model_manager import CheckModelAvailabilityTool, ListModelsTool, UpdateAgentConfigTool
 from .search import SearchMemoryTool
+from .evaluator_signals import GetRecentSignalsTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
@@ -186,6 +188,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "read_task_result": ReadTaskResultTool,
     "wait_for_agent": WaitForAgentTool,
     "wait_for_agents": WaitForAgentsTool,
+    "execute_dag": ExecuteDagTool,
     "notify_parent": NotifyParentTool,
     "read_agent_logs": ReadAgentLogsTool,
     "create_agent": CreateAgentTool,
@@ -197,6 +200,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "heal_agent_settings": HealAgentSettingsTool,
     "show_agent_settings": ShowAgentSettingsTool,
     "search_memory": SearchMemoryTool,
+    "get_recent_signals": GetRecentSignalsTool,
     "shared_knowledge_append": SharedKnowledgeAppendTool,
     "image_read": ImageReadTool,
     "parse_csv": ParseCsvTool,
@@ -212,6 +216,7 @@ _AGENT_DIR_TOOLS = {
     "learnings_append",
     "update_config",
     "spawn_agent",
+    "execute_dag",
     "notify_parent",
     "shared_knowledge_append",
     "server_restart",
@@ -244,7 +249,7 @@ def build_tools(
         kwargs: dict[str, Any] = {}
         if name in _AGENT_DIR_TOOLS:
             kwargs["agent_dir"] = agent_dir
-            if name == "spawn_agent":
+            if name in ("spawn_agent", "execute_dag"):
                 kwargs["session_id"] = session_id
         if name in _SANDBOX_TOOLS:
             kwargs["sandbox"] = policy

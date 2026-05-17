@@ -26,10 +26,12 @@ from pathlib import Path
 from threading import Lock
 from typing import TypedDict
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
-_QUEUE_PATH = Path("data/notification_queue.json")
-_TRACE_PATH = Path("data/notification_trace.jsonl")
+_QUEUE_PATH = settings.project_root / "data/notification_queue.json"
+_TRACE_PATH = settings.project_root / "data/notification_trace.jsonl"
 _TRACE_MAX_BYTES = 2_000_000  # ~2MB before rotation
 
 

@@ -568,5 +568,575 @@
     "cost_usd": 0.01297194,
     "timestamp": "2026-05-17T11:04:30Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:03Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 4402,
+    "tokens_out": 225,
+    "cost_usd": 0.00143604,
+    "timestamp": "2026-05-17T15:15:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:07Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 5968,
+    "tokens_out": 262,
+    "cost_usd": 0.00189956,
+    "timestamp": "2026-05-17T15:15:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:11Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 6365,
+    "tokens_out": 242,
+    "cost_usd": 0.00198475,
+    "timestamp": "2026-05-17T15:15:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:13Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 6742,
+    "tokens_out": 205,
+    "cost_usd": 0.00204584,
+    "timestamp": "2026-05-17T15:15:13Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:17Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 8220,
+    "tokens_out": 223,
+    "cost_usd": 0.0024647,
+    "timestamp": "2026-05-17T15:15:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:21Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 8601,
+    "tokens_out": 151,
+    "cost_usd": 0.00248837,
+    "timestamp": "2026-05-17T15:15:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:25Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 9178,
+    "tokens_out": 251,
+    "cost_usd": 0.00275416,
+    "timestamp": "2026-05-17T15:15:25Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:27Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 9581,
+    "tokens_out": 186,
+    "cost_usd": 0.00279147,
+    "timestamp": "2026-05-17T15:15:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:31Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 9873,
+    "tokens_out": 231,
+    "cost_usd": 0.00291981,
+    "timestamp": "2026-05-17T15:15:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:34Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 10728,
+    "tokens_out": 241,
+    "cost_usd": 0.00316166,
+    "timestamp": "2026-05-17T15:15:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:37Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 11111,
+    "tokens_out": 152,
+    "cost_usd": 0.00316717,
+    "timestamp": "2026-05-17T15:15:37Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:41Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 12101,
+    "tokens_out": 257,
+    "cost_usd": 0.00354997,
+    "timestamp": "2026-05-17T15:15:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:44Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 12516,
+    "tokens_out": 152,
+    "cost_usd": 0.00354652,
+    "timestamp": "2026-05-17T15:15:44Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:47Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 13710,
+    "tokens_out": 138,
+    "cost_usd": 0.0038535,
+    "timestamp": "2026-05-17T15:15:47Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:53Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 17140,
+    "tokens_out": 178,
+    "cost_usd": 0.0048236,
+    "timestamp": "2026-05-17T15:15:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:55Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 17427,
+    "tokens_out": 150,
+    "cost_usd": 0.00487029,
+    "timestamp": "2026-05-17T15:15:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:15:58Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 17634,
+    "tokens_out": 131,
+    "cost_usd": 0.00490528,
+    "timestamp": "2026-05-17T15:15:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:02Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 18379,
+    "tokens_out": 226,
+    "cost_usd": 0.00521093,
+    "timestamp": "2026-05-17T15:16:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:04Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 18732,
+    "tokens_out": 134,
+    "cost_usd": 0.00520504,
+    "timestamp": "2026-05-17T15:16:04Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:08Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 19357,
+    "tokens_out": 164,
+    "cost_usd": 0.00540679,
+    "timestamp": "2026-05-17T15:16:08Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:11Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 19616,
+    "tokens_out": 171,
+    "cost_usd": 0.00548442,
+    "timestamp": "2026-05-17T15:16:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:14Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 20020,
+    "tokens_out": 160,
+    "cost_usd": 0.0055814,
+    "timestamp": "2026-05-17T15:16:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:16Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 20271,
+    "tokens_out": 151,
+    "cost_usd": 0.00563927,
+    "timestamp": "2026-05-17T15:16:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:19Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 20486,
+    "tokens_out": 155,
+    "cost_usd": 0.00570172,
+    "timestamp": "2026-05-17T15:16:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:21Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 20721,
+    "tokens_out": 143,
+    "cost_usd": 0.00575197,
+    "timestamp": "2026-05-17T15:16:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:24Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 20932,
+    "tokens_out": 128,
+    "cost_usd": 0.00579244,
+    "timestamp": "2026-05-17T15:16:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:27Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 21849,
+    "tokens_out": 169,
+    "cost_usd": 0.00608513,
+    "timestamp": "2026-05-17T15:16:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:30Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 22109,
+    "tokens_out": 147,
+    "cost_usd": 0.00613113,
+    "timestamp": "2026-05-17T15:16:30Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:34Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 22688,
+    "tokens_out": 143,
+    "cost_usd": 0.00628306,
+    "timestamp": "2026-05-17T15:16:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:37Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 23095,
+    "tokens_out": 160,
+    "cost_usd": 0.00641165,
+    "timestamp": "2026-05-17T15:16:37Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:39Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 23346,
+    "tokens_out": 133,
+    "cost_usd": 0.00644972,
+    "timestamp": "2026-05-17T15:16:39Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:43Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 23780,
+    "tokens_out": 134,
+    "cost_usd": 0.006568,
+    "timestamp": "2026-05-17T15:16:43Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:45Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 24375,
+    "tokens_out": 140,
+    "cost_usd": 0.00673525,
+    "timestamp": "2026-05-17T15:16:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:47Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 24580,
+    "tokens_out": 73,
+    "cost_usd": 0.0067169,
+    "timestamp": "2026-05-17T15:16:47Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:51Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 25076,
+    "tokens_out": 160,
+    "cost_usd": 0.00694652,
+    "timestamp": "2026-05-17T15:16:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:54Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 25327,
+    "tokens_out": 156,
+    "cost_usd": 0.00700989,
+    "timestamp": "2026-05-17T15:16:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:16:57Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 25551,
+    "tokens_out": 71,
+    "cost_usd": 0.00697687,
+    "timestamp": "2026-05-17T15:16:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:00Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 26023,
+    "tokens_out": 158,
+    "cost_usd": 0.00720001,
+    "timestamp": "2026-05-17T15:17:00Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:03Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 26270,
+    "tokens_out": 142,
+    "cost_usd": 0.0072491,
+    "timestamp": "2026-05-17T15:17:03Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:06Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 26558,
+    "tokens_out": 154,
+    "cost_usd": 0.00734006,
+    "timestamp": "2026-05-17T15:17:06Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:09Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 4838,
+    "tokens_out": 223,
+    "cost_usd": 0.00155156,
+    "timestamp": "2026-05-17T15:17:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:14Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 6075,
+    "tokens_out": 254,
+    "cost_usd": 0.00191965,
+    "timestamp": "2026-05-17T15:17:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:17Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 9572,
+    "tokens_out": 234,
+    "cost_usd": 0.00284184,
+    "timestamp": "2026-05-17T15:17:17Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:21Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 10612,
+    "tokens_out": 159,
+    "cost_usd": 0.00304014,
+    "timestamp": "2026-05-17T15:17:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:24Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 10858,
+    "tokens_out": 138,
+    "cost_usd": 0.00308346,
+    "timestamp": "2026-05-17T15:17:24Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:28Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 11881,
+    "tokens_out": 226,
+    "cost_usd": 0.00345647,
+    "timestamp": "2026-05-17T15:17:28Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:31Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 12208,
+    "tokens_out": 204,
+    "cost_usd": 0.00352056,
+    "timestamp": "2026-05-17T15:17:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:34Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 12646,
+    "tokens_out": 147,
+    "cost_usd": 0.00357612,
+    "timestamp": "2026-05-17T15:17:34Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:38Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 13212,
+    "tokens_out": 148,
+    "cost_usd": 0.00373004,
+    "timestamp": "2026-05-17T15:17:38Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:41Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 14701,
+    "tokens_out": 145,
+    "cost_usd": 0.00412877,
+    "timestamp": "2026-05-17T15:17:41Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:43Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 15016,
+    "tokens_out": 143,
+    "cost_usd": 0.00421162,
+    "timestamp": "2026-05-17T15:17:43Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:46Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 21350,
+    "tokens_out": 157,
+    "cost_usd": 0.0059372,
+    "timestamp": "2026-05-17T15:17:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:50Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 21998,
+    "tokens_out": 168,
+    "cost_usd": 0.00612426,
+    "timestamp": "2026-05-17T15:17:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:53Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 22262,
+    "tokens_out": 136,
+    "cost_usd": 0.00616034,
+    "timestamp": "2026-05-17T15:17:53Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:17:56Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 22874,
+    "tokens_out": 152,
+    "cost_usd": 0.00634318,
+    "timestamp": "2026-05-17T15:17:56Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:18:01Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 25305,
+    "tokens_out": 141,
+    "cost_usd": 0.00698745,
+    "timestamp": "2026-05-17T15:18:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-17T15:18:25Z",
+    "description": "Search the web for 3 recent (2025) blog posts comparing Pydantic v2 to attrs and msgspec. Keep your findings concise — under 1000 words. Focus on: performance benchmarks, API ergonomics, validation features, serialization speed, and ecosystem fit. Return the findings as a structured summary with citations.",
+    "agent_name": "researcher",
+    "tokens_in": 25550,
+    "tokens_out": 2054,
+    "cost_usd": 0.0091579,
+    "timestamp": "2026-05-17T15:18:25Z",
+    "model_used": "deepseek-chat"
   }
 ]

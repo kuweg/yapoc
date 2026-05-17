@@ -1,0 +1,25 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]: "> YAPOC"
+    - generic [ref=e6]:
+      - button "Chat" [ref=e7]
+      - button "Agents" [ref=e8]
+      - button "Memory" [ref=e9]
+      - button "Vault" [ref=e10]
+      - button "Sessions" [ref=e11]
+    - button "+ NEW" [ref=e13]
+    - button "Switch to light theme" [ref=e14]: "[LITE]"
+  - generic [ref=e15]:
+    - complementary [ref=e16]:
+      - heading "Agents" [level=2] [ref=e18]
+      - paragraph [ref=e20]: No agents found
+      - generic [ref=e21]:
+        - button "Spawn" [disabled] [ref=e22]
+        - button "Kill" [disabled] [ref=e23]
+    - main [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e27]: Send a message to get started
+        - generic [ref=e29]:
+          - textbox "Message YAPOC… (Enter to send, Shift+Enter for newline)" [ref=e31]
+          - button "⚙ Voice" [ref=e32]
+          - button "Send ↵" [ref=e33]

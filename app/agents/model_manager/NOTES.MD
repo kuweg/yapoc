@@ -1,9 +1,9 @@
 # Model Audit Report
 
-Generated: 2026-05-17 15:56:59
+Generated: 2026-05-17 18:38:37
 
 
-**Agents scanned:** 9 | **Issues:** 1
+**Agents scanned:** 10 | **Issues:** 1
 
 
 ## builder
@@ -17,6 +17,10 @@ Generated: 2026-05-17 15:56:59
 ## doctor
 - adapter: `openai`, model: `gpt-4.1-nano`
 - Status: OK | $0.2/$0.8 per MTok
+
+## evaluator
+- adapter: `deepseek`, model: `deepseek-chat`
+- Status: OK | $0.27/$1.1 per MTok
 
 ## keeper
 - adapter: `openai`, model: `gpt-4.1-nano`

@@ -1,0 +1,19 @@
+- generic [ref=e3]:
+  - banner [ref=e538]:
+    - generic [ref=e539]: "> YAPOC"
+    - generic [ref=e540]:
+      - button "Chat" [ref=e541]
+      - button "Agents" [ref=e542]
+      - button "Obs" [ref=e543]
+      - button "Memory" [ref=e544]
+      - button "Vault" [ref=e545]
+      - button "Sessions" [ref=e546]
+    - button "Switch to light theme" [ref=e547]: "[LITE]"
+  - generic [ref=e1098]:
+    - generic [ref=e1099]:
+      - heading "Semantic Search" [level=2] [ref=e1100]
+      - generic [ref=e1101]:
+        - textbox "Search all agent memory… (natural language)" [active] [ref=e1102]
+        - button "Search" [disabled] [ref=e1103]
+      - button "Close" [ref=e1104]
+    - generic [ref=e1106]: Try a natural-language query like "what was decided about authentication" or "recent errors in builder". Hybrid keyword + semantic ranking.

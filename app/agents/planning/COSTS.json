@@ -2708,5 +2708,175 @@
     "cost_usd": 0.023248,
     "timestamp": "2026-05-17T14:19:02Z",
     "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:19:15Z",
+    "description": "Implement slash commands in the UI chat area, accessible via \"/<command>\" syntax.",
+    "agent_name": "planning",
+    "tokens_in": 10902,
+    "tokens_out": 340,
+    "cost_usd": 0.024524,
+    "timestamp": "2026-05-17T14:19:15Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:19:30Z",
+    "description": "Implement slash commands in the UI chat area, accessible via \"/<command>\" syntax.",
+    "agent_name": "planning",
+    "tokens_in": 11303,
+    "tokens_out": 389,
+    "cost_usd": 0.025718,
+    "timestamp": "2026-05-17T14:19:30Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:19:37Z",
+    "description": "Implement slash commands in the UI chat area, accessible via \"/<command>\" syntax.",
+    "agent_name": "planning",
+    "tokens_in": 11714,
+    "tokens_out": 179,
+    "cost_usd": 0.02486,
+    "timestamp": "2026-05-17T14:19:37Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:19:57Z",
+    "description": "Implement slash commands in the UI chat area, accessible via \"/<command>\" syntax.",
+    "agent_name": "planning",
+    "tokens_in": 11919,
+    "tokens_out": 521,
+    "cost_usd": 0.028006,
+    "timestamp": "2026-05-17T14:19:57Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:20:02Z",
+    "description": "Implement slash commands in the UI chat area, accessible via \"/<command>\" syntax.",
+    "agent_name": "planning",
+    "tokens_in": 12470,
+    "tokens_out": 80,
+    "cost_usd": 0.02558,
+    "timestamp": "2026-05-17T14:20:02Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:21:58Z",
+    "description": "[Process incoming result from builder (error)]",
+    "agent_name": "planning",
+    "tokens_in": 6978,
+    "tokens_out": 383,
+    "cost_usd": 0.01702,
+    "timestamp": "2026-05-17T14:21:58Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:22:02Z",
+    "description": "[Process incoming result from builder (error)]",
+    "agent_name": "planning",
+    "tokens_in": 7381,
+    "tokens_out": 86,
+    "cost_usd": 0.01545,
+    "timestamp": "2026-05-17T14:22:02Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:23:36Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 6650,
+    "tokens_out": 576,
+    "cost_usd": 0.017908,
+    "timestamp": "2026-05-17T14:23:36Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:24:03Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 7981,
+    "tokens_out": 480,
+    "cost_usd": 0.019802,
+    "timestamp": "2026-05-17T14:24:03Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:24:12Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8653,
+    "tokens_out": 221,
+    "cost_usd": 0.019074,
+    "timestamp": "2026-05-17T14:24:12Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:24:45Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 13990,
+    "tokens_out": 926,
+    "cost_usd": 0.035388,
+    "timestamp": "2026-05-17T14:24:45Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:24:57Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 15114,
+    "tokens_out": 272,
+    "cost_usd": 0.032404,
+    "timestamp": "2026-05-17T14:24:57Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:25:06Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 7489,
+    "tokens_out": 236,
+    "cost_usd": 0.016866,
+    "timestamp": "2026-05-17T14:25:06Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:25:37Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 12653,
+    "tokens_out": 825,
+    "cost_usd": 0.031906,
+    "timestamp": "2026-05-17T14:25:37Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:25:41Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 13688,
+    "tokens_out": 62,
+    "cost_usd": 0.027872,
+    "timestamp": "2026-05-17T14:25:41Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:26:11Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 7550,
+    "tokens_out": 802,
+    "cost_usd": 0.021516,
+    "timestamp": "2026-05-17T14:26:11Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T14:26:15Z",
+    "description": "[Process incoming result from builder (done)]",
+    "agent_name": "planning",
+    "tokens_in": 8459,
+    "tokens_out": 66,
+    "cost_usd": 0.017446,
+    "timestamp": "2026-05-17T14:26:15Z",
+    "model_used": "deepseek-v4-pro"
   }
 ]

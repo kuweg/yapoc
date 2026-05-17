@@ -6,12 +6,13 @@ import { AgentDashboard } from './agent-status'
 import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
+import { SessionsPanel } from './components/SessionsPanel'
 import { useWebSocket } from './hooks/useWebSocket'
 
 export default function App() {
   // Establish persistent WebSocket connection for real-time events
   useWebSocket()
-  const { sessions, activeId, newSession, loadSession } = useSessionStore()
+  const newSession = useSessionStore((s) => s.newSession)
   const tab = useAppStore((s) => s.activeTab)
   const setTab = useAppStore((s) => s.setActiveTab)
 
@@ -42,6 +43,7 @@ export default function App() {
           <NavButton id="agents" label="Agents" />
           <NavButton id="graph" label="Memory" />
           <NavButton id="vault" label="Vault" />
+          <NavButton id="sessions" label="Sessions" />
         </div>
         <div className="flex-1" />
         <ThemeToggle />
@@ -68,23 +70,10 @@ export default function App() {
             <NavButton id="agents" label="Agents" />
             <NavButton id="graph" label="Memory" />
             <NavButton id="vault" label="Vault" />
+            <NavButton id="sessions" label="Sessions" />
           </div>
 
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            {sessions.length > 0 && (
-              <select
-                value={activeId ?? ''}
-                onChange={(e) => loadSession(e.target.value)}
-                className="bg-zinc-800 text-zinc-200 text-xs px-2 py-1 border border-zinc-700 focus:outline-none max-w-[240px] min-w-0 truncate font-mono"
-              >
-                {sessions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
             <button
               onClick={newSession}
               className="px-3 py-1 bg-zinc-700 text-zinc-200 text-xs hover:bg-zinc-600 border border-zinc-600 font-mono tracking-wider"
@@ -134,6 +123,14 @@ export default function App() {
         style={{ display: tab === 'vault' ? 'flex' : 'none', minHeight: 0 }}
       >
         <VaultTab />
+      </div>
+
+      {/* ── Sessions tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'sessions' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <SessionsPanel />
       </div>
 
     </div>

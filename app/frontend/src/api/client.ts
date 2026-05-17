@@ -96,6 +96,16 @@ export async function transcribeSpeech(
   return res.json() as Promise<STTResponse>
 }
 
+export async function summarizeSession(messages: Message[]): Promise<{ summary: string }> {
+  const res = await fetch('/api/sessions/summarize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages }),
+  })
+  if (!res.ok) throw new Error(`POST /sessions/summarize: ${res.status}`)
+  return res.json() as Promise<{ summary: string }>
+}
+
 export async function getTTSVoices(): Promise<TTSVoicesResponse> {
   const res = await fetch('/api/tts/voices')
   if (!res.ok) throw new Error(`GET /tts/voices: ${res.status}`)

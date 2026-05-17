@@ -535,3 +535,4 @@
 {"ts": "2026-05-17T09:26:14.011868+00:00", "event": "drained", "parent_agent": "master", "child_agent": "builder", "status": "done", "session_id": "ea70b550-eae5-4422-a96a-be868c949abc", "completed_at": "2026-05-17T09:25:17.647613+00:00"}
 {"ts": "2026-05-17T09:26:14.011954+00:00", "event": "drained", "parent_agent": "master", "child_agent": "builder", "status": "done", "session_id": "ea70b550-eae5-4422-a96a-be868c949abc", "completed_at": "2026-05-17T09:25:19.176799+00:00"}
 {"ts": "2026-05-17T09:26:14.015569+00:00", "event": "drained", "parent_agent": "master", "child_agent": "builder", "status": "error", "session_id": "ea70b550-eae5-4422-a96a-be868c949abc", "completed_at": "2026-05-17T09:25:19.180181+00:00"}
+{"ts": "2026-05-17T09:44:25.892676+00:00", "event": "reconciled_consumed", "parent_agent": "master", "child_agent": "builder", "session_id": "06bbf180-9ae5-4f15-9dba-3c8b9cb132bc", "count": 2}

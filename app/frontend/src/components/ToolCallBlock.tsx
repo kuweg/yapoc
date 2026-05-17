@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 
 interface ToolCallBlockProps {
   id: string
@@ -9,7 +9,7 @@ interface ToolCallBlockProps {
   done: boolean
 }
 
-export function ToolCallBlock({ id: _id, name, input, result, isError, done }: ToolCallBlockProps) {
+function ToolCallBlockImpl({ id: _id, name, input, result, isError, done }: ToolCallBlockProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -56,3 +56,8 @@ export function ToolCallBlock({ id: _id, name, input, result, isError, done }: T
     </div>
   )
 }
+
+// Memoize: input is a fresh object each delta but stable once tool completes;
+// memo with default shallow equality avoids re-rendering finished tool calls
+// on every parent re-render.
+export const ToolCallBlock = memo(ToolCallBlockImpl)

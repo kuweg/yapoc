@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -33,7 +34,7 @@ function AgentLabel({ name }: { name: string }) {
   )
 }
 
-export function MessageBubble({ role, content, agentName }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, agentName }: MessageBubbleProps) {
   if (role === 'user') {
     return (
       <div className="flex justify-end">
@@ -97,3 +98,8 @@ export function MessageBubble({ role, content, agentName }: MessageBubbleProps) 
     </div>
   )
 }
+
+// Memoize so re-renders of the parent (e.g. keystrokes, streaming) don't
+// re-parse markdown for every prior message. Default shallow equality on
+// role/content/agentName is correct — finished messages are immutable.
+export const MessageBubble = memo(MessageBubbleImpl)

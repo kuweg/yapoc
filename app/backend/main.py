@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, models_router, notification_trace_router, stale_tasks_router, tasks_router, test_endpoint_router, vault_router, voice_router, webhook_router
+from app.backend.routers import agents_router, costs_router, files_router, health_router, memory_graph_router, metrics_router, models_router, notification_trace_router, sessions_router, stale_tasks_router, tasks_router, test_endpoint_router, vault_router, voice_router, webhook_router
 from app.backend.websocket import websocket_endpoint
 from app.backend.message_bus import bus
 from app.config import settings
@@ -786,3 +786,4 @@ app.include_router(models_router)
 app.include_router(stale_tasks_router)
 app.include_router(notification_trace_router)
 app.include_router(voice_router)
+app.include_router(sessions_router)

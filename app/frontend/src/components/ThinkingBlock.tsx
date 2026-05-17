@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 
 interface ThinkingBlockProps {
   text: string
   done: boolean
 }
 
-export function ThinkingBlock({ text, done }: ThinkingBlockProps) {
+function ThinkingBlockImpl({ text, done }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -30,3 +30,5 @@ export function ThinkingBlock({ text, done }: ThinkingBlockProps) {
     </div>
   )
 }
+
+export const ThinkingBlock = memo(ThinkingBlockImpl)

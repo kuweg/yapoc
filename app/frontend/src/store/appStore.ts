@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type AppTab = 'chat' | 'agents' | 'graph' | 'vault'
+export type AppTab = 'chat' | 'agents' | 'graph' | 'vault' | 'sessions'
 export type VoiceTTSMode = 'browser' | 'backend'
 export type VoiceBackendEngine = 'offline' | 'openai' | 'google'
 

@@ -528,5 +528,95 @@
     "cost_usd": 0.0,
     "timestamp": "2026-05-16T21:04:12Z",
     "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:19:57Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 3604,
+    "tokens_out": 64,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:19:57Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:00Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 8059,
+    "tokens_out": 375,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:00Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:11Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 8460,
+    "tokens_out": 3052,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:11Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:12Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 11539,
+    "tokens_out": 70,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:12Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:13Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 11681,
+    "tokens_out": 104,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:13Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:14Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 3858,
+    "tokens_out": 112,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:14Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:16Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 9835,
+    "tokens_out": 164,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:16Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:17Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 10027,
+    "tokens_out": 67,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:17Z",
+    "model_used": "gpt-5.4-mini"
+  },
+  {
+    "task_id": "doctor:2026-05-17T10:20:18Z",
+    "description": "Clean up health logs for master and planning agents. These are HISTORICAL errors from before the DeepSeek streaming fix was properly applied — the fix is already on disk and verified.",
+    "agent_name": "doctor",
+    "tokens_in": 10163,
+    "tokens_out": 82,
+    "cost_usd": 0.0,
+    "timestamp": "2026-05-17T10:20:18Z",
+    "model_used": "gpt-5.4-mini"
   }
 ]

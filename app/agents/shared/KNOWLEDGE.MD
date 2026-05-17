@@ -35,3 +35,8 @@
 - **Source:** master
 - **Time:** 2026-04-13 21:31
 - **Content:** Cron agent's delegation_targets now includes: builder, keeper, doctor, and master. Updated 2026-04-13.
+
+## Entry: discovery
+- **Source:** researcher
+- **Time:** 2026-05-17 13:04
+- **Content:** LiveBench research report saved at app/projects/research/livebench_report.md. LiveBench is a contamination-limited LLM benchmark with 7 categories, 23 tasks, monthly-updated questions, objective scoring (no LLM judge), accepted as ICLR 2025 Spotlight. Top model: o4 Mini High at 87.3%. Team of 18 from Abacus.AI, NYU, NVIDIA, UMD, USC.

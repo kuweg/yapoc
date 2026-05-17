@@ -5,6 +5,7 @@ so this adapter reuses the same logic as OpenAIAdapter with a
 different base URL and API key.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -399,7 +400,13 @@ class DeepSeekAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(60):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])

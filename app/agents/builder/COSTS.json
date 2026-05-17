@@ -1608,5 +1608,75 @@
     "cost_usd": 0.00216105,
     "timestamp": "2026-05-17T09:25:19Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:46Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 7856,
+    "tokens_out": 64,
+    "cost_usd": 0.00219152,
+    "timestamp": "2026-05-17T10:16:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:48Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 12141,
+    "tokens_out": 197,
+    "cost_usd": 0.00349477,
+    "timestamp": "2026-05-17T10:16:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:50Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 12365,
+    "tokens_out": 199,
+    "cost_usd": 0.00355745,
+    "timestamp": "2026-05-17T10:16:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:51Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 12591,
+    "tokens_out": 63,
+    "cost_usd": 0.00346887,
+    "timestamp": "2026-05-17T10:16:51Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:54Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 16921,
+    "tokens_out": 242,
+    "cost_usd": 0.00483487,
+    "timestamp": "2026-05-17T10:16:54Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:57Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 17269,
+    "tokens_out": 272,
+    "cost_usd": 0.00496183,
+    "timestamp": "2026-05-17T10:16:57Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T10:16:59Z",
+    "description": "Fix the DeepSeek adapter streaming hang in `app/utils/adapters/deepseek.py`. Two changes needed:",
+    "agent_name": "builder",
+    "tokens_in": 17561,
+    "tokens_out": 133,
+    "cost_usd": 0.00488777,
+    "timestamp": "2026-05-17T10:16:59Z",
+    "model_used": "deepseek-chat"
   }
 ]

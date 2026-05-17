@@ -2628,5 +2628,55 @@
     "cost_usd": 0.014048,
     "timestamp": "2026-05-16T21:04:51Z",
     "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T10:16:44Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 6513,
+    "tokens_out": 313,
+    "cost_usd": 0.01553,
+    "timestamp": "2026-05-17T10:16:44Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T10:17:12Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 7285,
+    "tokens_out": 766,
+    "cost_usd": 0.020698,
+    "timestamp": "2026-05-17T10:17:12Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T10:17:28Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8104,
+    "tokens_out": 416,
+    "cost_usd": 0.019536,
+    "timestamp": "2026-05-17T10:17:28Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T10:17:38Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8640,
+    "tokens_out": 250,
+    "cost_usd": 0.01928,
+    "timestamp": "2026-05-17T10:17:38Z",
+    "model_used": "deepseek-v4-pro"
+  },
+  {
+    "task_id": "planning:2026-05-17T10:17:44Z",
+    "description": "[Process incoming notifications from sub-agents]",
+    "agent_name": "planning",
+    "tokens_in": 8910,
+    "tokens_out": 120,
+    "cost_usd": 0.01878,
+    "timestamp": "2026-05-17T10:17:44Z",
+    "model_used": "deepseek-v4-pro"
   }
 ]

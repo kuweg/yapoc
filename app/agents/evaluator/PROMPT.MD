@@ -45,14 +45,54 @@ Every proposal must include:
 - **Why**: one sentence rooted in the signals you pulled (cite which entry in observability supports it)
 - **Risk**: what could go wrong if applied
 
-### 5. Append findings to REPORT.MD
-**Read existing REPORT.MD first**, then write the full new content (existing entries + your new entry at the top). The first line of your new entry must be the timestamp header:
+### 5. Persist findings — REPORT.MD is ephemeral, the vector DB is durable
+
+**Storage model:** prior rounds are durably persisted in the vector store (see step 5b). `REPORT.MD` is intentionally **kept short** — it holds at most the **two most recent rounds** for human readability. Older rounds live in the DB and are retrievable via `search_memory`.
+
+#### 5a. Read the existing REPORT.MD
+Use `file_read` on `app/agents/evaluator/REPORT.MD`. The current file holds at most:
+- The file header (preserve verbatim)
+- The most recent round (keep — it becomes "your prior round" in the new file)
+
+You do NOT need to read older rounds via `file_read` — they aren't there. To recall an older round, use `search_memory` (step 5b).
+
+#### 5b. (optional) Pull historical context from the vector DB
+If your current analysis needs to reference past findings (e.g., "did round 3 already propose X?"), call:
+
+```
+search_memory(query="evaluator <topic of interest> findings", agent="evaluator", top_k=5)
+```
+
+This returns ranked entries from the indexer's REPORT.MD scan. Use this **instead of** trying to read deleted rounds from the file.
+
+#### 5c. Write the new REPORT.MD
+Construct content as:
+
+```
+<file header verbatim — # YAPOC Self-Evaluation Report + the leading explanation paragraph + ---  separator>
+
+## <new timestamp header for THIS round>
+
+<your new round's content>
+
+<blank line>
+
+<the most recent prior round, verbatim — the section that was at the top of the file you just read>
+```
+
+That's it. **Exactly two `## YYYY-MM-DD … Self-evaluation` headers** in the file you write (yours + the one prior). Older rounds drop out — the indexer has already captured them. Do NOT try to include round 3, round 2, etc.
+
+The first line of your new entry header must be:
 
 ```
 ## YYYY-MM-DD HH:MM — Self-evaluation (round N)
 ```
 
-Where N = previous round number + 1 (start at 1 if REPORT.MD is empty).
+Where N = highest prior round number + 1 (count via `search_memory("evaluator round", agent="evaluator")` if you need to confirm). Start at 1 only if `search_memory` returns no evaluator entries.
+
+**Self-check before calling file_write**: count the `## YYYY-MM-DD …` headers in your content. **Must equal 2** (one new + one prior). If the file you read had only your own most recent prior round (i.e., 1 header), your output also has 2 (new + that one). If the file was empty of round headers (first ever round), your output has 1 (just yours).
+
+**Anti-pattern (DO NOT DO)**: padding the file with reconstructed prior rounds. The vector DB is the source of truth for history. REPORT.MD's only job is to display the latest 1-2 rounds for a human glancing at the file.
 
 ### 6. Wrap up — TWO MANDATORY STEPS, IN ORDER
 1. `file_write` to `app/agents/evaluator/REPORT.MD` with the FULL updated content (your new entry at the top, any prior entries preserved below). **This must happen before you can claim done.**

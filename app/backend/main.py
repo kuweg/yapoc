@@ -665,6 +665,18 @@ async def lifespan(app: FastAPI):
     # Connect to Redis message bus (non-fatal: agents fall back to outbox if down)
     await bus.connect()
 
+    # Bug 54 defense: prune Redis consumer registrations whose owning PID is
+    # dead before we register our own. Covers the SIGKILL case where the
+    # previous backend's shutdown cleanup didn't run. Without this, every
+    # ungraceful exit leaks a consumer in master_group.
+    if bus.connected:
+        try:
+            await bus.stream_prune_dead_consumers(
+                "agent:master:inbox", "master_group"
+            )
+        except Exception as _prune_exc:
+            logger.warning("Startup consumer prune failed: {}", _prune_exc)
+
     _cleanup_stale_agent_statuses()
 
     # Initialize SQLite schema
@@ -758,6 +770,27 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
         poller.stop()
         await message_bus_relay.stop()
+        # Bug 54: remove our master consumer registrations from Redis before
+        # disconnecting so they don't linger in master_group across restarts.
+        # Without this, every `yapoc restart` left a `master_<old_pid>` and
+        # `master_resume_<old_pid>` behind. After 5 restarts we saw 93
+        # zombie consumers all receiving the same events.
+        try:
+            inbox = "agent:master:inbox"
+            group = "master_group"
+            our_pid = os.getpid()
+            if bus.connected:
+                await bus.stream_delete_consumer(
+                    inbox, group, f"master_{our_pid}"
+                )
+                await bus.stream_delete_consumer(
+                    inbox, group, f"master_resume_{our_pid}"
+                )
+        except Exception as _consumer_cleanup_exc:
+            logger.warning(
+                "Shutdown: master consumer cleanup failed: {}",
+                _consumer_cleanup_exc,
+            )
         await bus.disconnect()
 
 

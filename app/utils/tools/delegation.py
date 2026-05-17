@@ -204,6 +204,50 @@ def _parse_delegation_targets(agent_name: str) -> list[str]:
 _UNRESTRICTED_SPAWNERS = {"master"}
 
 
+async def _resolve_checkpoint(agent_name: str, status: str, summary: str) -> str:
+    """Verify+commit (status=done) or rollback (status=error/done-broken) the
+    checkpoint stored at spawn time. Returns a banner string to prepend to the
+    result, or "" if no banner needed.
+
+    Always clears CHECKPOINT.json afterwards so a stale handle can't be
+    picked up by a future run of the same agent.
+    """
+    try:
+        from app.backend import git_safety as _git_safety
+    except Exception:
+        return ""
+
+    handle = _git_safety.read_checkpoint(agent_name)
+    if not handle or not handle.enabled or not handle.sha:
+        # nothing to resolve (checkpoint disabled or missing)
+        if handle is not None:
+            _git_safety.clear_checkpoint(agent_name)
+        return ""
+
+    banner = ""
+    try:
+        if status == "done":
+            ok, reason = await _git_safety.verify_no_corruption(handle)
+            if ok:
+                new_sha = await _git_safety.commit_checkpoint(handle, summary=summary)
+                if new_sha:
+                    banner = f"[CHECKPOINT COMMITTED — {new_sha[:12]}]\n\n"
+                # else: nothing changed; silently skip commit
+            else:
+                await _git_safety.rollback_to(handle, reason=reason)
+                banner = f"[ROLLED BACK — verification failed: {reason}]\n\n"
+        elif status == "error":
+            await _git_safety.rollback_to(handle, reason="agent reported error")
+            banner = "[ROLLED BACK — agent reported error]\n\n"
+    except Exception as exc:
+        from loguru import logger as _ck_log
+        _ck_log.warning("checkpoint resolution for {} failed: {}", agent_name, exc)
+    finally:
+        _git_safety.clear_checkpoint(agent_name)
+
+    return banner
+
+
 class SpawnAgentTool(BaseTool):
     name = "spawn_agent"
     description = (
@@ -324,6 +368,18 @@ class SpawnAgentTool(BaseTool):
         )
         async with aiofiles.open(_task_path(agent_name), "w", encoding="utf-8") as f:
             await f.write(task_content)
+
+        # Capture a git checkpoint BEFORE the agent starts working. Verify+commit/rollback
+        # happens in WaitForAgentTool/WaitForAgentsTool when the agent reaches a terminal
+        # status. No-op when settings.git_autocheckpoint_enabled is False.
+        try:
+            from app.backend import git_safety as _git_safety
+            _label = f"{self._caller}->{agent_name}:{task[:60].replace(chr(10), ' ')}"
+            _handle = await _git_safety.snapshot_state(label=_label, agent=agent_name)
+            _git_safety.write_checkpoint(agent_name, _handle)
+        except Exception as _ck_exc:
+            from loguru import logger as _ck_log
+            _ck_log.warning("git_safety snapshot failed for {} (continuing without checkpoint): {}", agent_name, _ck_exc)
 
         # Register spawn relationship for notification delivery
         try:
@@ -574,6 +630,11 @@ class WaitForAgentTool(BaseTool):
                     rm = re.search(r"## Result\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                     result = rm.group(1).strip() if rm else ""
                     msg = result if result else f"Agent '{agent_name}' finished but ## Result is empty."
+                    # Resolve git checkpoint: verify → commit on pass, rollback on fail.
+                    # Banner is prepended so master sees the outcome in its tool result.
+                    banner = await _resolve_checkpoint(agent_name, "done", summary=msg)
+                    if banner:
+                        msg = banner + msg
                     if _is_temporary_agent(agent_name):
                         msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
                     return truncate_tool_output(
@@ -587,6 +648,10 @@ class WaitForAgentTool(BaseTool):
                     em = re.search(r"## Error\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                     error = em.group(1).strip() if em else ""
                     msg = f"Agent '{agent_name}' failed:\n{error}" if error else f"Agent '{agent_name}' status is 'error' but ## Error is empty."
+                    # Unconditional rollback for errored agents.
+                    banner = await _resolve_checkpoint(agent_name, "error", summary=error[:60])
+                    if banner:
+                        msg = banner + msg
                     if _is_temporary_agent(agent_name):
                         msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
                     return truncate_tool_output(
@@ -727,6 +792,14 @@ class WaitForAgentsTool(BaseTool):
             for agent_name, status, result, error in poll_results:
                 if status in ("done", "error"):
                     done.add(agent_name)
+                    # Resolve git checkpoint for this agent (per-sub-agent-task granularity).
+                    _summary = (result or error)[:60]
+                    _banner = await _resolve_checkpoint(agent_name, status, summary=_summary)
+                    if _banner:
+                        if status == "done":
+                            result = _banner + result
+                        else:
+                            error = _banner + error
                     results[agent_name] = {"status": status, "result": result, "error": error}
                     if status == "done" and _is_temporary_agent(agent_name):
                         cleanup_msg = _cleanup_temporary_agent(agent_name)
@@ -1094,16 +1167,20 @@ class ExecuteDagTool(BaseTool):
                     list(pending_in_batch), poll_outcomes
                 ):
                     if status == "done":
+                        _agent_n = by_id[nid]["agent"]
+                        _banner = await _resolve_checkpoint(_agent_n, "done", summary=result[:60])
                         results[nid]["status"] = "done"
-                        results[nid]["result"] = result
+                        results[nid]["result"] = (_banner + result) if _banner else result
                         results[nid]["finished_at"] = time.monotonic()
                         results[nid]["duration_s"] = round(
                             results[nid]["finished_at"] - results[nid]["started_at"], 2
                         )
                         pending_in_batch.discard(nid)
                     elif status == "error":
+                        _agent_n = by_id[nid]["agent"]
+                        _banner = await _resolve_checkpoint(_agent_n, "error", summary=error[:60])
                         results[nid]["status"] = "error"
-                        results[nid]["error"] = error
+                        results[nid]["error"] = (_banner + error) if _banner else error
                         results[nid]["finished_at"] = time.monotonic()
                         results[nid]["duration_s"] = round(
                             results[nid]["finished_at"] - results[nid]["started_at"], 2

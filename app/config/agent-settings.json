@@ -233,6 +233,23 @@
         }
       ]
     },
+    "security": {
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
+      "tools": [],
+      "temperature": 0.0,
+      "max_tokens": 256,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-haiku-4-5-20251001"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-5.4-mini"
+        }
+      ]
+    },
     "researcher": {
       "adapter": "deepseek",
       "model": "deepseek-chat",

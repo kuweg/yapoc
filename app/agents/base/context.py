@@ -58,6 +58,41 @@ def _tail_lines(text: str, n: int, *, max_line_chars: int = 0) -> str:
     return "\n".join(tail)
 
 
+# Matches a MEMORY.MD entry of the form:
+#   [YYYY-MM-DD HH:MM] task: ... | result: ... | outcome: success
+# The `| result: <...>` segment embeds the model's prior response text, which
+# the model will imitate as a prose pattern if replayed verbatim. We strip
+# the result payload before injection — keep the task descriptor + outcome
+# so the model still knows what happened, just not WHAT prose to imitate.
+_MEM_ENTRY_RE = re.compile(
+    r"^(\[[^\]]+\]\s*task:\s*.+?)\s*\|\s*result:\s*.+?(\|\s*outcome:\s*\w+\s*)?$"
+)
+
+
+def _sanitize_memory_for_context(memory_block: str) -> str:
+    """Strip ``| result: <prose>`` payloads from memory entries before injection.
+
+    The model would otherwise imitate prior prose-narrated tool-result patterns
+    in its next response, fabricating tool outputs as plain text without ever
+    invoking a real tool. See the call-site comment in build_system_context.
+
+    Plain log lines (no `task: ... | result: ...` shape) are passed through.
+    """
+    out: list[str] = []
+    for line in memory_block.splitlines():
+        m = _MEM_ENTRY_RE.match(line)
+        if not m:
+            out.append(line)
+            continue
+        task_part = m.group(1).rstrip()
+        outcome_part = (m.group(2) or "").strip()
+        if outcome_part:
+            out.append(f"{task_part}  →  {outcome_part}")
+        else:
+            out.append(f"{task_part}  →  [completed; result omitted]")
+    return "\n".join(out)
+
+
 async def build_system_context(agent_dir: Path, config_text: str | None = None) -> str:
     """Assemble system prompt from agent's markdown files.
 
@@ -98,10 +133,23 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
     if prompt.strip():
         sections.append(prompt.strip())
 
-    # MEMORY.MD — last N lines
+    # MEMORY.MD — last N lines, SANITIZED.
+    #
+    # MEMORY.MD entries embed the model's prior response text under
+    # `| result: ...`. When the whole line is replayed as context, the model
+    # imitates that prose pattern — narrating intent ("Let me check ...") and
+    # then writing fabricated tool outputs as plain text, WITHOUT actually
+    # invoking any tool. Observed live on master/deepseek-chat: 3/3 spawn
+    # requests produced 1-turn, 0-tool-call responses with hallucinated PIDs
+    # and result strings.
+    #
+    # Sanitize by stripping the `result:` payload before injection — keep the
+    # task descriptor + outcome marker, drop the narrative the model would
+    # otherwise imitate.
     if memory.strip():
         tail = _tail_lines(memory, memory_limit)
         if tail:
+            tail = _sanitize_memory_for_context(tail)
             sections.append(f"## Recent Memory\n{tail}")
 
     # NOTES.MD — capped to prevent unbounded context growth

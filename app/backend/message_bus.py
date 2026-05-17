@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -173,6 +174,79 @@ class RedisBus:
         except Exception as exc:
             logger.warning("RedisBus stream_ack({}) failed: {}", stream, exc)
             return 0
+
+    async def stream_delete_consumer(
+        self, stream: str, group: str, consumer: str
+    ) -> int:
+        """XGROUP DELCONSUMER — remove a consumer's registration.
+
+        Used at graceful shutdown so the consumer name doesn't linger in
+        Redis. Without this, each ``yapoc restart`` leaks a consumer
+        registration; over many restarts these accumulate and amplify
+        message-bus event delivery to dead consumers. Returns the number
+        of pending messages the removed consumer had.
+        """
+        if not await self._ensure_connected():
+            return 0
+        try:
+            return await self._redis.xgroup_delconsumer(stream, group, consumer)
+        except Exception as exc:
+            logger.warning(
+                "RedisBus stream_delete_consumer({}/{}/{}) failed: {}",
+                stream, group, consumer, exc,
+            )
+            return 0
+
+    async def stream_prune_dead_consumers(
+        self, stream: str, group: str
+    ) -> int:
+        """Remove every consumer in ``group`` whose name ends with a PID
+        that no longer exists on this host.
+
+        Defense in depth for the SIGKILL case (graceful-shutdown cleanup
+        never ran). Called at startup before any consumer reads its own
+        messages. Consumer naming convention assumed: ``<anything>_<pid>``.
+        Returns the number of consumers pruned.
+        """
+        if not await self._ensure_connected():
+            return 0
+        try:
+            consumers = await self._redis.xinfo_consumers(stream, group)
+        except Exception as exc:
+            logger.warning(
+                "RedisBus stream_prune_dead_consumers({}/{}) — xinfo failed: {}",
+                stream, group, exc,
+            )
+            return 0
+
+        pruned = 0
+        for c in consumers:
+            name = c.get("name") if isinstance(c, dict) else None
+            if not name:
+                continue
+            parts = name.rsplit("_", 1)
+            if len(parts) != 2 or not parts[1].isdigit():
+                continue
+            pid = int(parts[1])
+            try:
+                os.kill(pid, 0)
+                # process alive — keep the consumer
+            except (ProcessLookupError, PermissionError):
+                # process is gone — remove the registration
+                try:
+                    await self._redis.xgroup_delconsumer(stream, group, name)
+                    pruned += 1
+                except Exception as exc:
+                    logger.warning(
+                        "stream_prune_dead_consumers: delconsumer({}) failed: {}",
+                        name, exc,
+                    )
+        if pruned:
+            logger.info(
+                "RedisBus: pruned {} stale consumer(s) from {}/{}",
+                pruned, stream, group,
+            )
+        return pruned
 
     async def stream_claim_pending(
         self,

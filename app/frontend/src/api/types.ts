@@ -96,3 +96,8 @@ export interface STTResponse {
   engine: string
   duration_ms: number
 }
+
+// Slash command response
+export interface CommandResponse {
+  response: string
+}

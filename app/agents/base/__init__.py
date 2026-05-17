@@ -372,17 +372,28 @@ class BaseAgent:
             updates["completed_at"] = now
         content = self._update_frontmatter(content, **updates)
 
+        # Pass replacement as a callable so re.sub treats `result`/`error`
+        # as LITERAL text, not a substitution template. With an f-string
+        # template, any `\u…`, `\g`, or backreference-looking sequence in
+        # the user content gets interpreted by the regex engine and raises
+        # `re.error: bad escape \u at position N` mid-write — which leaves
+        # TASK.MD status stuck at "running" and the runner unable to
+        # complete its post-task path (set_task_status -> _notify_parent_via_bus
+        # -> _write_status("idle")). Classic root cause of the "agent
+        # finished but master keeps waiting" failure mode.
         if result:
+            _result = result  # capture for closure
             content = re.sub(
                 r"(## Result\n).*?(?=\n## |\Z)",
-                rf"\g<1>{result}\n",
+                lambda m: m.group(1) + _result + "\n",
                 content,
                 flags=re.DOTALL,
             )
         if error:
+            _error = error
             content = re.sub(
                 r"(## Error\n).*?(?=\n## |\Z)",
-                rf"\g<1>{error}\n",
+                lambda m: m.group(1) + _error + "\n",
                 content,
                 flags=re.DOTALL,
             )
@@ -604,8 +615,23 @@ class BaseAgent:
         config: AgentConfig,
         focus: str = "",
     ) -> list[dict[str, Any]]:
-        """Compress messages into a single summary message via LLM."""
-        compact_model = settings.context_compact_model or config.model
+        """Compress messages into a single summary message via LLM.
+
+        Bugfix: previously this always used `settings.context_compact_model`
+        (defaults to `claude-haiku-4-5-20251001`) regardless of which adapter
+        the agent itself was using. Agents on the DeepSeek adapter would hit
+        a `DeepSeek API error (400): supported model names are deepseek-...`
+        crash mid-compaction, leaving the runner stuck at state=running
+        (downstream Bug 3 in `docs/test-findings.md`).
+
+        Use the compact-model override ONLY when the agent's adapter
+        natively supports that model. Otherwise compact with the agent's
+        own model — slightly more expensive but doesn't fail.
+        """
+        if config.adapter == "anthropic" and settings.context_compact_model:
+            compact_model = settings.context_compact_model
+        else:
+            compact_model = config.model
         compact_config = AgentConfig(
             adapter=config.adapter,
             model=compact_model,

@@ -10,6 +10,7 @@ import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
+import { ChatInput, type ChatInputHandle } from './ChatInput'
 import type { UsageEvent } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
@@ -26,12 +27,64 @@ type ToolCallPart = {
 }
 type Part = TextPart | ThinkingPart | ToolCallPart
 
+// Buffered stream events, flushed once per animation frame to cap streaming-
+// induced re-renders at ~60Hz regardless of delta rate.
+type PendingStreamEvent =
+  | { kind: 'thinking_delta'; text: string }
+  | { kind: 'text_delta'; text: string }
+  | { kind: 'tool_start'; id: string; name: string; input: Record<string, unknown> }
+  | { kind: 'tool_done'; name: string; result: string; isError: boolean }
+
+function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] {
+  let parts = prev
+  for (const event of events) {
+    if (event.kind === 'thinking_delta') {
+      const last = parts[parts.length - 1]
+      if (last && last.kind === 'thinking' && !last.done) {
+        parts = [...parts.slice(0, -1), { ...last, text: last.text + event.text }]
+      } else {
+        parts = [
+          ...parts,
+          { kind: 'thinking', id: crypto.randomUUID(), text: event.text, done: false },
+        ]
+      }
+    } else if (event.kind === 'text_delta') {
+      const last = parts[parts.length - 1]
+      if (last && last.kind === 'text') {
+        parts = [...parts.slice(0, -1), { kind: 'text', text: last.text + event.text }]
+      } else {
+        parts = [...parts, { kind: 'text', text: event.text }]
+      }
+    } else if (event.kind === 'tool_start') {
+      parts = [
+        ...parts,
+        { kind: 'tool', id: event.id, name: event.name, input: event.input, done: false },
+      ]
+    } else if (event.kind === 'tool_done') {
+      const target = parts
+        .map((p, i) => ({ p, i }))
+        .reverse()
+        .find(({ p }) => p.kind === 'tool' && !(p as ToolCallPart).done && p.name === event.name)
+      if (target) {
+        const updated = [...parts]
+        updated[target.i] = {
+          ...(updated[target.i] as ToolCallPart),
+          result: event.result,
+          isError: event.isError,
+          done: true,
+        }
+        parts = updated
+      }
+    }
+  }
+  return parts
+}
+
 // Default model for cost estimation — update when backend exposes model in usage events
 const DEFAULT_MODEL = 'claude-sonnet-4-6'
 
 export function ChatPanel() {
   const { activeId, history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
-  const [input, setInput] = useState('')
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [usage, setUsage] = useState<UsageEvent | null>(null)
@@ -46,7 +99,29 @@ export function ChatPanel() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const chatInputRef = useRef<ChatInputHandle>(null)
+  // Stream-event coalescing — one setState per animation frame regardless of
+  // how many SSE deltas arrive in that frame.
+  const pendingEventsRef = useRef<PendingStreamEvent[]>([])
+  const rafHandleRef = useRef<number | null>(null)
+
+  const flushPendingEvents = useCallback(() => {
+    rafHandleRef.current = null
+    const events = pendingEventsRef.current
+    if (events.length === 0) return
+    pendingEventsRef.current = []
+    setStreamingParts((prev) => applyPendingEvents(prev, events))
+  }, [])
+
+  const enqueueStreamEvent = useCallback(
+    (event: PendingStreamEvent) => {
+      pendingEventsRef.current.push(event)
+      if (rafHandleRef.current == null) {
+        rafHandleRef.current = requestAnimationFrame(flushPendingEvents)
+      }
+    },
+    [flushPendingEvents],
+  )
 
   const {
     voiceEnabled,
@@ -70,7 +145,7 @@ export function ChatPanel() {
   const { isListening: sttListening, start: sttStart, stop: sttStop, supported: sttSupported } =
     useSpeechRecognition({
       onResult: (transcript) => {
-        setInput(transcript)
+        chatInputRef.current?.setText(transcript)
       },
       onEnd: () => {},
       onError: () => {},
@@ -224,6 +299,10 @@ export function ChatPanel() {
     return () => {
       stopPolling()
       stopSpeaking()
+      if (rafHandleRef.current != null) {
+        cancelAnimationFrame(rafHandleRef.current)
+        rafHandleRef.current = null
+      }
     }
   }, [stopPolling, stopSpeaking])
 
@@ -237,8 +316,8 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatInput])
 
-  const sendMessage = useCallback(async (overrideText?: string) => {
-    const text = (overrideText != null ? overrideText : input).trim()
+  const sendMessage = useCallback(async (rawText: string) => {
+    const text = rawText.trim()
     if (!text || isStreaming) return
 
     // Cancel any in-progress background notification polling
@@ -249,7 +328,6 @@ export function ChatPanel() {
 
     appendMessage('user', text)
     const sessionId = useSessionStore.getState().activeId
-    if (overrideText == null) setInput('')
     setStreamingParts([])
     setIsStreaming(true)
     setBackgroundActivity('')
@@ -265,54 +343,37 @@ export function ChatPanel() {
     try {
       for await (const event of streamTask(text, apiHistory, controller.signal, sessionId)) {
         if (event.type === 'thinking') {
-          const chunk = event.text
-          setStreamingParts((prev) => {
-            const last = prev[prev.length - 1]
-            if (last && last.kind === 'thinking' && !last.done) {
-              return [...prev.slice(0, -1), { ...last, text: last.text + chunk }]
-            }
-            return [...prev, { kind: 'thinking', id: crypto.randomUUID(), text: chunk, done: false }]
-          })
+          enqueueStreamEvent({ kind: 'thinking_delta', text: event.text })
         } else if (event.type === 'text') {
           assembledText += event.text
-          const chunk = event.text
-          setStreamingParts((prev) => {
-            const last = prev[prev.length - 1]
-            if (last && last.kind === 'text') {
-              return [...prev.slice(0, -1), { kind: 'text', text: last.text + chunk }]
-            }
-            return [...prev, { kind: 'text', text: chunk }]
-          })
+          enqueueStreamEvent({ kind: 'text_delta', text: event.text })
         } else if (event.type === 'tool_start') {
           if (event.name === 'spawn_agent') hadSpawnAgent = true
-          setStreamingParts((prev) => [
-            ...prev,
-            {
-              kind: 'tool',
-              id: crypto.randomUUID(),
-              name: event.name,
-              input: event.input,
-              done: false,
-            },
-          ])
+          enqueueStreamEvent({
+            kind: 'tool_start',
+            id: crypto.randomUUID(),
+            name: event.name,
+            input: event.input,
+          })
         } else if (event.type === 'tool_done') {
-          const toolName = event.name
-          const result = event.result
-          const isError = event.is_error
-          setStreamingParts((prev) => {
-            const idx = prev
-              .map((p, i) => ({ p, i }))
-              .reverse()
-              .find(({ p }) => p.kind === 'tool' && !(p as ToolCallPart).done && p.name === toolName)
-            if (!idx) return prev
-            const updated = [...prev]
-            updated[idx.i] = { ...(updated[idx.i] as ToolCallPart), result, isError, done: true }
-            return updated
+          enqueueStreamEvent({
+            kind: 'tool_done',
+            name: event.name,
+            result: event.result,
+            isError: event.is_error,
           })
         } else if (event.type === 'usage_stats') {
           setUsage(event)
         }
       }
+
+      // Drain any events still buffered before marking thinking-parts done,
+      // so the close-out write doesn't get clobbered by a later RAF flush.
+      if (rafHandleRef.current != null) {
+        cancelAnimationFrame(rafHandleRef.current)
+        rafHandleRef.current = null
+      }
+      flushPendingEvents()
 
       // Mark any open thinking parts as done
       setStreamingParts((prev) =>
@@ -340,19 +401,19 @@ export function ChatPanel() {
         if (full) appendMessage('assistant', full)
       }
     } finally {
+      // Drop any pending buffered events and cancel the scheduled flush —
+      // the streaming UI is about to be reset.
+      if (rafHandleRef.current != null) {
+        cancelAnimationFrame(rafHandleRef.current)
+        rafHandleRef.current = null
+      }
+      pendingEventsRef.current = []
       setIsStreaming(false)
       setStreamingParts([])
       abortRef.current = null
-      textareaRef.current?.focus()
+      chatInputRef.current?.focus()
     }
-  }, [input, isStreaming, appendMessage, speakText, stopPolling])
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }
+  }, [isStreaming, appendMessage, speakText, stopPolling, enqueueStreamEvent, flushPendingEvents])
 
   function handleStop() {
     abortRef.current?.abort()
@@ -463,15 +524,10 @@ export function ChatPanel() {
           <div className="mb-2 text-xs text-red-400">{voiceError}</div>
         )}
         <div className="flex flex-wrap gap-2 items-end">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Message YAPOC… (Enter to send, Shift+Enter for newline)"
+          <ChatInput
+            ref={chatInputRef}
+            onSubmit={sendMessage}
             disabled={isStreaming}
-            rows={3}
-            className="flex-1 min-w-[12rem] resize-none rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
           />
           {isStreaming ? (
             <button
@@ -513,8 +569,7 @@ export function ChatPanel() {
                 ⚙ Voice
               </button>
               <button
-                onClick={() => sendMessage()}
-                disabled={!input.trim()}
+                onClick={() => chatInputRef.current?.submit()}
                 className="px-4 py-2 rounded-lg bg-[#FFB633] text-[#0a0a0a] text-sm font-semibold hover:bg-[#ffc84d] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
               >
                 Send ↵

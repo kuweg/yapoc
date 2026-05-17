@@ -121,6 +121,9 @@ class MasterAgent(BaseAgent):
             )
 
             self._write_status("running", task_summary=task)
+            # Thread task source through so run_stream_with_tools can gate
+            # autonomous-source runs on the daily budget + stuck detector.
+            self._task_source = source
             try:
                 await self.set_task(task)
                 # Block destructive tools during notification processing
@@ -136,6 +139,7 @@ class MasterAgent(BaseAgent):
                 ):
                     yield event
             finally:
+                self._task_source = None
                 self._session_id = previous_session_id
                 self._write_status("idle")
 

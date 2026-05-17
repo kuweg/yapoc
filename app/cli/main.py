@@ -1584,6 +1584,37 @@ def doctor_run(
     asyncio.run(_run())
 
 
+@app.command("evaluator-tick")
+def evaluator_tick_cmd():
+    """Queue a one-shot scheduled-style self-evaluation. Fires the same code path
+    APScheduler would on its 6h tick. Useful for testing or on-demand evals."""
+    async def _run() -> None:
+        from app.backend.main import _evaluator_tick
+        await _evaluator_tick()
+        console.print("[green]Queued scheduled self-evaluation. Watch dispatcher logs.[/green]")
+    asyncio.run(_run())
+
+
+@app.command("report")
+def report_cmd(
+    refresh: bool = typer.Option(False, "--refresh", "-r", help="Rewrite MORNING_REPORT.md before reading"),
+):
+    """Show the latest morning report. --refresh recomputes from current state."""
+    from app.backend.morning_report import REPORT_PATH, write_morning_report
+    if refresh:
+        write_morning_report("manual", {"refreshed_from": "CLI"})
+    if not REPORT_PATH.exists():
+        console.print("[yellow]No morning report yet.[/yellow] Run with --refresh to create one.")
+        raise typer.Exit()
+    try:
+        content = REPORT_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        console.print(f"[red]Read failed:[/red] {exc}")
+        raise typer.Exit(code=1)
+    from rich.markdown import Markdown
+    console.print(Markdown(content))
+
+
 @git_app.command("checkpoints")
 def git_checkpoints(
     limit: int = typer.Option(50, "--limit", "-n", help="Max checkpoints to show"),

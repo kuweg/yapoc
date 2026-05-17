@@ -187,6 +187,19 @@ async def _execute_task(task_id: str) -> None:
             pass
         logger.info(f"Task {task_id[:8]}… completed ({len(result_text)} chars)")
 
+        # Morning report — emit on autonomous task completion so an overnight
+        # operator sees the result without scraping logs.
+        if (source or "").lower() in ("cron", "goal", "doctor", "webhook"):
+            try:
+                from app.backend.morning_report import write_morning_report
+                write_morning_report("goal_completed", {
+                    "task_id": task_id[:8],
+                    "source": source or "",
+                    "result_preview": result_text[:180] if result_text else "",
+                })
+            except Exception:
+                pass
+
         # Webhook callback delivery
         await _deliver_webhook_callback(task_id, result_text)
 

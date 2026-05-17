@@ -3,6 +3,7 @@ import json
 import os
 import re
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -118,6 +119,54 @@ async def _doctor_tick() -> None:
         await doctor_agent.run_health_check()
     except Exception:
         pass  # Doctor logs its own errors
+
+
+async def _evaluator_tick() -> None:
+    """Queue a scheduled self-evaluation task for master to dispatch.
+
+    Runs every ``settings.evaluator_interval_hours``. Skips when the daily
+    autonomous budget is exhausted, when an evaluation is already in flight,
+    or when no master sessions/agents exist yet. The task is enqueued with
+    source="cron" so it counts against ``daily_autonomous_budget_usd`` and
+    triggers a morning_report on completion via the dispatcher hook.
+    """
+    from app.utils.cost_governor import is_autonomous_budget_exhausted
+    from app.utils.db import create_queued_task, get_tasks_by_status
+
+    try:
+        if is_autonomous_budget_exhausted():
+            logger.debug("evaluator_tick: skipped — daily budget exhausted")
+            return
+
+        # Don't pile on if an autonomous evaluation is already queued/running.
+        for status in ("pending", "running"):
+            for t in get_tasks_by_status(status) or []:
+                src = (t.get("source") or "").lower()
+                prompt = (t.get("prompt") or "")[:100]
+                if src in ("cron", "goal") and "evaluator" in prompt and "self-eval" in prompt.lower():
+                    logger.debug("evaluator_tick: skipped — eval already {}", status)
+                    return
+
+        import uuid
+        task_id = str(uuid.uuid4())
+        prompt = (
+            "Scheduled self-evaluation. spawn_agent('evaluator', "
+            "task='Pull get_recent_signals once. Identify top 3 issues. "
+            "Write the new round entry to REPORT.MD keeping only new + 1 "
+            "prior round. notify_parent with 3-line summary. Stop gathering "
+            "at turn 7 max.', context='Scheduled tick — keep it tight.'). "
+            "wait_for_agent('evaluator', timeout=240). Surface the 3-line summary "
+            "to the morning report."
+        )
+        create_queued_task(
+            id=task_id,
+            prompt=prompt,
+            source="cron",
+            session_id=None,
+        )
+        logger.info("evaluator_tick: queued scheduled self-evaluation ({})", task_id[:8])
+    except Exception as exc:
+        logger.warning("evaluator_tick failed: {}", exc)
 
 
 async def _model_manager_tick() -> None:
@@ -731,6 +780,16 @@ async def lifespan(app: FastAPI):
 
     _cleanup_stale_agent_statuses()
 
+    # If the cleanup signaled crash-recovery (orphan SIGTERMs or stale tasks),
+    # rewrite MORNING_REPORT.md so a human waking up sees what happened.
+    try:
+        from app.backend.morning_report import write_morning_report
+        write_morning_report("crash_recovery", {
+            "boot_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        })
+    except Exception as _mr_exc:
+        logger.warning("Startup morning_report write failed: {}", _mr_exc)
+
     # Initialize SQLite schema
     from app.utils.db import init_schema, get_tasks_by_status, update_queued_task
     init_schema()
@@ -806,6 +865,12 @@ async def lifespan(app: FastAPI):
         "interval",
         minutes=settings.embedding_index_interval_minutes,
         id="indexer",
+    )
+    scheduler.add_job(
+        _evaluator_tick,
+        "interval",
+        hours=settings.evaluator_interval_hours,
+        id="evaluator_scheduled",
     )
     scheduler.start()
     # Run initial checks shortly after startup

@@ -137,6 +137,8 @@ class Settings(BaseSettings):
     cron_interval_minutes: int = 10  # Cron agent trigger frequency
     health_log_retention_days: int = 7  # HEALTH.MD entries older than this are pruned
     model_manager_interval_hours: int = 24  # Model Manager audit frequency
+    evaluator_interval_hours: int = 6  # Scheduled self-evaluation cadence
+    memory_max_age_days: int = 7  # Drop MEMORY.MD entries older than this on prune
 
     # ── Embedding / indexer ───────────────────────────────────────────────
     embedding_model: str = "all-MiniLM-L6-v2"

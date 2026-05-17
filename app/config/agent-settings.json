@@ -202,6 +202,44 @@
         "file_list"
       ],
       "delegation_targets": []
+    },
+    "researcher": {
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
+      "tools": [
+        "web_search",
+        "fetch_page",
+        "file_read",
+        "file_write",
+        "file_list",
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "notes_append",
+        "search_memory",
+        "shared_knowledge_append",
+        "health_log",
+        "notify_parent",
+        "spawn_agent",
+        "wait_for_agent",
+        "check_task_status"
+      ],
+      "temperature": 0.3,
+      "max_tokens": 8096,
+      "fallbacks": [
+        {
+          "adapter": "anthropic",
+          "model": "claude-sonnet-4-6"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-5.4-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash"
+        }
+      ]
     }
   }
 }

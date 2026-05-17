@@ -143,7 +143,7 @@ from .file import FileDeleteTool, FileEditTool, FileListTool, FileReadTool, File
 from .memory import AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, MemoryAppendTool, NotesAppendTool, NotesReadTool, NotesWriteTool, SharedKnowledgeAppendTool
 from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
-from .web import WebSearchTool
+from .web import FetchPageTool, WebSearchTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
     CheckTaskStatusTool,
@@ -178,6 +178,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "learnings_append": LearningsAppendTool,
     "agent_amnesia": AgentAmnesiaTool,
     "web_search": WebSearchTool,
+    "fetch_page": FetchPageTool,
     "spawn_agent": SpawnAgentTool,
     "ping_agent": PingAgentTool,
     "kill_agent": KillAgentTool,

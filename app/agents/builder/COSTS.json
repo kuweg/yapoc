@@ -3248,5 +3248,165 @@
     "cost_usd": 0.00269738,
     "timestamp": "2026-05-17T15:53:09Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:00:45Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 6983,
+    "tokens_out": 67,
+    "cost_usd": 0.00195911,
+    "timestamp": "2026-05-17T22:00:45Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:00:46Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 8814,
+    "tokens_out": 94,
+    "cost_usd": 0.00248318,
+    "timestamp": "2026-05-17T22:00:46Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:00:48Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 8957,
+    "tokens_out": 97,
+    "cost_usd": 0.00252509,
+    "timestamp": "2026-05-17T22:00:48Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:00:50Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 9111,
+    "tokens_out": 109,
+    "cost_usd": 0.00257987,
+    "timestamp": "2026-05-17T22:00:50Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:00:55Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 9696,
+    "tokens_out": 113,
+    "cost_usd": 0.00274222,
+    "timestamp": "2026-05-17T22:00:55Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:00:58Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 9886,
+    "tokens_out": 356,
+    "cost_usd": 0.00306082,
+    "timestamp": "2026-05-17T22:00:58Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:01Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 10262,
+    "tokens_out": 182,
+    "cost_usd": 0.00297094,
+    "timestamp": "2026-05-17T22:01:01Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:02Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 7241,
+    "tokens_out": 97,
+    "cost_usd": 0.00206177,
+    "timestamp": "2026-05-17T22:01:02Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:07Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 7813,
+    "tokens_out": 113,
+    "cost_usd": 0.00223381,
+    "timestamp": "2026-05-17T22:01:07Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:09Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 8003,
+    "tokens_out": 279,
+    "cost_usd": 0.00246771,
+    "timestamp": "2026-05-17T22:01:09Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:11Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 8302,
+    "tokens_out": 203,
+    "cost_usd": 0.00246484,
+    "timestamp": "2026-05-17T22:01:11Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:12Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 7205,
+    "tokens_out": 89,
+    "cost_usd": 0.00204325,
+    "timestamp": "2026-05-17T22:01:12Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:14Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 7342,
+    "tokens_out": 101,
+    "cost_usd": 0.00209344,
+    "timestamp": "2026-05-17T22:01:14Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:19Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 7919,
+    "tokens_out": 113,
+    "cost_usd": 0.00226243,
+    "timestamp": "2026-05-17T22:01:19Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:21Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 8109,
+    "tokens_out": 193,
+    "cost_usd": 0.00240173,
+    "timestamp": "2026-05-17T22:01:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-17T22:01:23Z",
+    "description": "Run the doctor proactive tests: `cd /app && poetry run pytest tests/test_doctor_proactive.py -v 2>&1`. Report the full output including which tests passed/failed and any errors.",
+    "agent_name": "builder",
+    "tokens_in": 8322,
+    "tokens_out": 173,
+    "cost_usd": 0.00243724,
+    "timestamp": "2026-05-17T22:01:23Z",
+    "model_used": "deepseek-chat"
   }
 ]

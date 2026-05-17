@@ -139,19 +139,24 @@ class MasterAgent(BaseAgent):
                 ):
                     yield event
             finally:
-                # Belt-and-suspenders morning report. The dispatcher hook is
-                # the primary trigger for autonomous-source task completion,
-                # but timing/exception edge cases can let it slip — this
-                # finally always fires regardless of how the stream ends.
+                # Belt-and-suspenders morning report — the system:tasks Redis
+                # subscriber (app/backend/morning_report_listener.py) is the
+                # primary trigger; this fallback always fires. Wrap in
+                # asyncio.to_thread + create_task so the report writer's
+                # synchronous I/O can't starve the event loop or delay the
+                # finally block from completing.
                 _src_lower = (source or "").lower()
                 if _src_lower in ("cron", "goal", "doctor", "webhook"):
                     try:
+                        import asyncio as _asyncio
                         from app.backend.morning_report import write_morning_report
-                        write_morning_report("goal_completed", {
-                            "source": _src_lower,
-                            "task_preview": (task or "")[:160],
-                            "via": "master.handle_task_stream",
-                        })
+                        _asyncio.create_task(_asyncio.to_thread(
+                            write_morning_report, "goal_completed", {
+                                "source": _src_lower,
+                                "task_preview": (task or "")[:160],
+                                "via": "master.handle_task_stream",
+                            },
+                        ))
                     except Exception:
                         pass  # never let report writes break the task path
                 self._task_source = None

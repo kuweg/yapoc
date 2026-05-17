@@ -19,6 +19,7 @@ from loguru import logger
 
 from app.config import settings
 from app.utils.db import (
+    create_queued_task,
     get_queued_task,
     get_tasks_by_status,
     update_queued_task,
@@ -379,12 +380,27 @@ async def _check_goals() -> None:
         return
 
     top_goal = unchecked[0].strip()
+
+    # Duplicate guard: if a pending/running task already represents this goal
+    # (e.g. resumed from a prior backend crash), don't dispatch a second one.
+    # The dispatcher will pick the existing pending task on its next iteration.
+    from app.utils.db import get_tasks_by_status
+    goal_prompt = f"[Goal] {top_goal}"
+    for status in ("pending", "running"):
+        for t in get_tasks_by_status(status) or []:
+            if (t.get("source") or "").lower() == "goal" and (t.get("prompt") or "") == goal_prompt:
+                logger.debug(
+                    "Goal-driven dispatch: skipped — task already {} ({})",
+                    status, t["id"][:8],
+                )
+                return
+
     logger.info(f"Goal-driven dispatch: '{top_goal}'")
 
     import uuid
     task_id = str(uuid.uuid4())
     create_queued_task(
         id=task_id,
-        prompt=f"[Goal] {top_goal}",
+        prompt=goal_prompt,
         source="goal",
     )

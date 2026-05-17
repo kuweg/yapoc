@@ -1584,6 +1584,64 @@ def doctor_run(
     asyncio.run(_run())
 
 
+@app.command("apply-proposals")
+def apply_proposals_cmd(
+    list_only: bool = typer.Option(False, "--list", "-l", help="Just list pending proposals; don't apply"),
+    pick: int = typer.Option(0, "--pick", "-p", help="Apply the Nth pending proposal (1-indexed). 0 = ask interactively."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation when picking explicitly"),
+):
+    """List and (manually) apply evaluator proposals from REPORT.MD."""
+    from app.backend.auto_applier import list_pending, apply_proposal
+
+    pending = list_pending(limit=20)
+    if not pending:
+        console.print("[yellow]No pending proposals.[/yellow] Either REPORT.MD is empty or all were applied.")
+        raise typer.Exit()
+
+    from rich.table import Table
+    table = Table(title=f"Pending proposals ({len(pending)})")
+    table.add_column("#", style="cyan", no_wrap=True)
+    table.add_column("ID", style="dim", no_wrap=True)
+    table.add_column("Target")
+    table.add_column("Why", overflow="fold")
+    for i, p in enumerate(pending, 1):
+        table.add_row(str(i), p.id, p.target[:60], p.why[:90])
+    console.print(table)
+
+    if list_only:
+        raise typer.Exit()
+
+    # Decide which one to apply
+    if pick <= 0:
+        ans = questionary.text(
+            f"Apply which proposal? Enter number 1-{len(pending)} (or empty to cancel):"
+        ).ask()
+        if not ans or not ans.strip().isdigit():
+            console.print("[yellow]Aborted.[/yellow]")
+            raise typer.Exit()
+        pick = int(ans.strip())
+    if pick < 1 or pick > len(pending):
+        console.print(f"[red]Invalid pick {pick} (range 1-{len(pending)}).[/red]")
+        raise typer.Exit(code=1)
+
+    chosen = pending[pick - 1]
+    console.print(f"\n[bold]Will apply:[/bold] {chosen.target}\n[dim]{chosen.change[:300]}[/dim]")
+
+    if not yes:
+        ok = questionary.confirm("Proceed (will spawn keeper, snapshot git, verify, commit-or-rollback)?",
+                                 default=False).ask()
+        if not ok:
+            console.print("[yellow]Aborted.[/yellow]")
+            raise typer.Exit()
+
+    async def _run() -> None:
+        result = await apply_proposal(chosen)
+        console.print(f"\nResult: [bold]{result.status}[/bold]")
+        if result.detail:
+            console.print(f"Detail: {result.detail}")
+    asyncio.run(_run())
+
+
 @app.command("evaluator-tick")
 def evaluator_tick_cmd():
     """Queue a one-shot scheduled-style self-evaluation. Fires the same code path

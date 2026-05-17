@@ -139,6 +139,21 @@ class MasterAgent(BaseAgent):
                 ):
                     yield event
             finally:
+                # Belt-and-suspenders morning report. The dispatcher hook is
+                # the primary trigger for autonomous-source task completion,
+                # but timing/exception edge cases can let it slip — this
+                # finally always fires regardless of how the stream ends.
+                _src_lower = (source or "").lower()
+                if _src_lower in ("cron", "goal", "doctor", "webhook"):
+                    try:
+                        from app.backend.morning_report import write_morning_report
+                        write_morning_report("goal_completed", {
+                            "source": _src_lower,
+                            "task_preview": (task or "")[:160],
+                            "via": "master.handle_task_stream",
+                        })
+                    except Exception:
+                        pass  # never let report writes break the task path
                 self._task_source = None
                 self._session_id = previous_session_id
                 self._write_status("idle")

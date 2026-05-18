@@ -130,23 +130,26 @@ def _detect_stuck_loop(tail: str) -> str | None:
     """Detect 3+ consecutive copies of a short substring at the end of ``tail``.
 
     Returns the repeating unit if found, else None. The check walks unit
-    lengths from 10 to 60 chars and compares the last three slices; if all
+    lengths from 10 to 200 chars and compares the last three slices; if all
     three match, the model is almost certainly stuck (no normal prose
     repeats a 10+ char block three times back-to-back).
 
-    Cheap: O(60 * tail_len) per call, called every ~200 streamed chars.
+    The upper bound (200) is wider than it looks necessary because observed
+    loops include full sentences — the live failure was a 73-char unit
+    ("Let me also check the existing metrics router to understand the
+    patterns.") that the previous 60-char ceiling silently skipped past.
+
+    Cheap: O(unit_max * tail_len) per call, called every ~200 streamed chars.
     False-positive-safe: legitimate JSON output, repeated keywords, and
     even structured tables don't hit this — they repeat tokens but not
-    contiguous multi-word units. Tuned against the live "Let me check the
-    full main.py:Let me check the full main.py:..." failure observed in
-    a 2026-05-19 master session.
+    contiguous multi-word units.
     """
     if not tail or len(tail) < 30:
         return None
     n = len(tail)
     # Walk longer-first so we report the more-meaningful repeated chunk,
     # not a sub-fragment of it.
-    for unit_len in range(60, 9, -1):
+    for unit_len in range(200, 9, -1):
         if n < unit_len * 3:
             continue
         end = tail[n - unit_len:n]
@@ -872,6 +875,13 @@ class BaseAgent:
                 _stuck_check_buf: list[str] = []
                 _stuck_check_acc_chars: int = 0
                 _stuck_loop_aborted: bool = False
+                # Self-unstack tracking: when a stuck loop fires, we don't kill
+                # the task — we discard the spammed text, inject a corrective
+                # user message, and let the agent try again. Two consecutive
+                # stuck-loops in one task means the recovery isn't working;
+                # give up cleanly instead of looping forever.
+                _stuck_loop_count: int = 0
+                _STUCK_LOOP_GIVEUP: int = 2
                 max_turns = _runner.get("max_turns", settings.max_turns)
                 threshold_tokens = int(
                     adapter.context_window_size() * settings.context_compact_threshold
@@ -944,25 +954,34 @@ class BaseAgent:
                             _stuck_check_acc_chars += len(event.text)
                             if _stuck_check_acc_chars >= 200:
                                 _stuck_check_acc_chars = 0
-                                _tail = "".join(full_text_parts)[-600:]
+                                # 800-char tail comfortably fits 3 copies of
+                                # a 200-char unit (the detector's max).
+                                _tail = "".join(full_text_parts)[-800:]
                                 _loop_unit = _detect_stuck_loop(_tail)
                                 if _loop_unit is not None:
                                     _stuck_loop_aborted = True
+                                    _stuck_loop_count += 1
                                     _short = _loop_unit if len(_loop_unit) < 60 else _loop_unit[:57] + "..."
+                                    _give_up = _stuck_loop_count >= _STUCK_LOOP_GIVEUP
+                                    _verb = "giving up" if _give_up else "retrying"
                                     _msg = (
-                                        f"[STUCK LOOP] aborting turn {_turn} — "
+                                        f"[STUCK LOOP #{_stuck_loop_count}] turn {_turn} {_verb} — "
                                         f"detected repeated substring {_short!r}"
                                     )
                                     _log.bind(
                                         agent=self._name, event="stuck_loop", turn=_turn,
                                         model=config.model, unit_len=len(_loop_unit),
+                                        count=_stuck_loop_count, give_up=_give_up,
                                     ).warning(_msg)
                                     await self._append_file(
                                         "HEALTH.MD",
                                         f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_msg}\n",
                                     )
-                                    yield TextDelta(text=f"\n\n[stuck-loop abort] {_short!r} repeated; turn cancelled.")
-                                    break  # exit the inner async-for; outer turn loop also breaks below
+                                    if _give_up:
+                                        yield TextDelta(text=f"\n\n[stuck-loop give-up] {_short!r} repeated across {_stuck_loop_count} recovery attempts; task cancelled.")
+                                    else:
+                                        yield TextDelta(text=f"\n\n[stuck-loop recovered] {_short!r} was repeating; trying again with a corrective hint.")
+                                    break  # exit the inner async-for; handled in the outer recovery block
                         elif isinstance(event, ToolStart):
                             _tool_start_times[event.name] = _time.monotonic()
                             _input_repr = repr(event.input)
@@ -1098,8 +1117,35 @@ class BaseAgent:
                     )
 
                     if _stuck_loop_aborted:
-                        _log.bind(agent=self._name, turn=_turn).info("loop break: stuck-loop detected")
-                        break
+                        _give_up = _stuck_loop_count >= _STUCK_LOOP_GIVEUP
+                        _log.bind(
+                            agent=self._name, turn=_turn, count=_stuck_loop_count, give_up=_give_up,
+                        ).info("stuck-loop handler: {}", "give-up" if _give_up else "self-unstack")
+                        if _give_up:
+                            # Two consecutive stuck-loops — recovery hint
+                            # isn't landing. Bail before we waste more tokens.
+                            break
+                        # Self-unstack: discard whatever got spammed this turn,
+                        # append a corrective user message, reset the abort
+                        # flag, and let the outer loop iterate. The model sees
+                        # the correction at the top of its next-turn context.
+                        full_text_parts.clear()
+                        _stuck_check_buf.clear()
+                        _stuck_check_acc_chars = 0
+                        _stuck_loop_aborted = False
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                "[SYSTEM CORRECTION] Your previous response was "
+                                "cancelled — you repeated the phrase "
+                                f"{_short!r} multiple times without making a "
+                                "tool call. Either: (a) make the actual tool "
+                                "call you were announcing, or (b) give a direct "
+                                "answer that doesn't reference uninvoked tools. "
+                                "Do NOT repeat the announcement again."
+                            ),
+                        })
+                        continue
 
                     if turn_complete is None:
                         _log.bind(agent=self._name, turn=_turn).info("loop break: tc_none")

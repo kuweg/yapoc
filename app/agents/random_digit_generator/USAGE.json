@@ -1,0 +1,21 @@
+{
+  "total_input_tokens": 4,
+  "total_output_tokens": 502,
+  "total_cache_creation_tokens": 2705,
+  "total_cache_read_tokens": 4587,
+  "total_tool_calls": 6,
+  "total_turns": 3,
+  "total_cost_usd": 0.01905,
+  "by_model": {
+    "claude-sonnet-4-6": {
+      "input_tokens": 4,
+      "output_tokens": 502,
+      "cache_creation_tokens": 2705,
+      "cache_read_tokens": 4587,
+      "cost_usd": 0.01905,
+      "turns": 3,
+      "tool_calls": 6
+    }
+  },
+  "last_updated": "2026-05-18T18:07:19Z"
+}

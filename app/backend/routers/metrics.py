@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import psutil
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.backend.services import _pid_alive, _read_status_json, _parse_health_log, _parse_task
@@ -635,4 +635,76 @@ async def get_hierarchy_metrics():
         total_task_records=len(records),
         delegated_by_parent=dict(delegated_by_parent),
         average_completion_seconds_by_parent=avg_completion_by_parent,
+    )
+
+
+# ── Live trace stream (SSE) ─────────────────────────────────────────────────
+
+import asyncio
+
+
+@router.get("/trace-stream")
+async def trace_stream(request: Request, agent: str = ""):
+    """SSE endpoint that streams LIVE.MD updates for one or all agents.
+
+    Polls LIVE.MD files every 2 seconds and pushes any changes as SSE events.
+    Optional ``agent`` query param filters to a single agent.
+    """
+    from fastapi.responses import StreamingResponse
+
+    async def event_generator():
+        last_contents: dict[str, str] = {}
+
+        while True:
+            try:
+                targets: list[Path] = []
+                if agent:
+                    agent_path = AGENTS_DIR / agent
+                    if agent_path.is_dir():
+                        targets.append(agent_path / "LIVE.MD")
+                else:
+                    for ad in sorted(AGENTS_DIR.iterdir()):
+                        if not ad.is_dir() or ad.name.startswith("_"):
+                            continue
+                        if ad.name in ("base", "shared"):
+                            continue
+                        live_path = ad / "LIVE.MD"
+                        if live_path.exists():
+                            targets.append(live_path)
+
+                for live_path in targets:
+                    try:
+                        content = live_path.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        continue
+
+                    agent_name = live_path.parent.name
+                    prev = last_contents.get(agent_name, "")
+                    if content != prev:
+                        last_contents[agent_name] = content
+                        # SSE format: data: <json>\n\n
+                        import json as _json
+                        payload = _json.dumps({
+                            "agent": agent_name,
+                            "content": content,
+                            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        })
+                        yield f"data: {payload}\n\n"
+
+            except Exception:
+                pass
+
+            await asyncio.sleep(2)
+
+        # Note: this generator runs until the client disconnects.
+        # FastAPI's StreamingResponse handles client disconnect cleanup.
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

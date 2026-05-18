@@ -1,0 +1,20 @@
+adapter: anthropic
+model: claude-sonnet-4-6
+temperature: 0.3
+tools:
+  - file_read
+  - file_write
+  - shell_exec
+  - memory_append
+  - notes_read
+  - notes_write
+  - notify_parent
+runner:
+  max_turns: 20
+  task_timeout: 300
+  poll_interval: 30
+  retry_attempts: 3
+  context_memory_limit: 50
+  context_health_limit: 10
+lifecycle:
+  temporary: true

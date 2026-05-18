@@ -1138,5 +1138,25 @@
     "cost_usd": 0.0091579,
     "timestamp": "2026-05-17T15:18:25Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-18T07:16:32Z",
+    "description": "reply with the literal token SIGNAL-DELTA-OK and call notify_parent(status=done, result=SIGNAL-DELTA-OK)",
+    "agent_name": "researcher",
+    "tokens_in": 4537,
+    "tokens_out": 76,
+    "cost_usd": 0.00130859,
+    "timestamp": "2026-05-18T07:16:32Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-18T07:16:33Z",
+    "description": "reply with the literal token SIGNAL-DELTA-OK and call notify_parent(status=done, result=SIGNAL-DELTA-OK)",
+    "agent_name": "researcher",
+    "tokens_in": 4632,
+    "tokens_out": 2,
+    "cost_usd": 0.00125284,
+    "timestamp": "2026-05-18T07:16:33Z",
+    "model_used": "deepseek-chat"
   }
 ]

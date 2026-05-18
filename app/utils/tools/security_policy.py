@@ -308,6 +308,22 @@ HARDCODED_ALLOW: tuple[AllowRule, ...] = (
         matcher=lambda caller, p: caller == "keeper" and _is_agent_settings_json(str(p.get("path", ""))),
         reason="keeper has write authority over agent-settings.json",
     ),
+    AllowRule(
+        tool="file_edit",
+        matcher=lambda caller, p: caller == "keeper" and (
+            str(p.get("path", "")).replace("\\", "/").endswith("app/config/settings.py") or
+            str(p.get("path", "")).replace("\\", "/").endswith(".env")
+        ),
+        reason="keeper has edit authority over settings.py and .env",
+    ),
+    AllowRule(
+        tool="file_write",
+        matcher=lambda caller, p: caller == "keeper" and (
+            str(p.get("path", "")).replace("\\", "/").endswith("app/config/settings.py") or
+            str(p.get("path", "")).replace("\\", "/").endswith(".env")
+        ),
+        reason="keeper has write authority over settings.py and .env",
+    ),
 )
 
 

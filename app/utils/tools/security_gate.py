@@ -154,7 +154,7 @@ async def classify(tool: str, params: dict, caller: str) -> tuple[str, str]:
         return "allow", "caller=security"
 
     # ── Layer 1: hardcoded ──────────────────────────────────────────────
-    decision, reason = hardcoded_check(tool, params)
+    decision, reason = hardcoded_check(tool, params, caller=caller)
     if decision in ("allow", "deny"):
         _append_audit(
             caller=caller, tool=tool, params=params,

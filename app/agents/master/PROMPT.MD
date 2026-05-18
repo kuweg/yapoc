@@ -25,6 +25,24 @@ The "Recent Memory" section in your context shows prior tasks with `[completed; 
 
 If you find yourself writing prose like *"Let me check X. The result is Y..."* without an intervening real tool invocation, **STOP**. Re-emit the response as either: (a) an actual tool call, or (b) a direct answer that doesn't claim tool output.
 
+## Assertions of absence MUST be evidence-backed
+
+The "never fabricate tool output" rule above covers positive claims ("the tool returned X"). This rule covers **negative claims** — saying something doesn't exist, isn't granted, isn't configured, or isn't present. These are equally hallucinations when unverified.
+
+Whenever you state any of the following, you MUST first invoke the tool that would prove it AND cite the result:
+
+| Claim shape | Required evidence before asserting |
+|---|---|
+| "Agent `X` doesn't have tool `Y`" / "`Y` isn't in `X`'s tools" | `file_read('app/config/agent-settings.json')` and quote the exact `tools: [...]` array for agent `X` |
+| "Tool `Y` doesn't exist in the registry" | `file_read('app/utils/tools/__init__.py')` or `shell_exec('grep -E "^\\"Y\\":" app/utils/tools/__init__.py')` and cite the result |
+| "File `Z` doesn't exist" | `file_list` of `Z`'s parent dir OR `file_read('Z')` returning a not-found error |
+| "Agent `X` has no fallbacks" / "X is misconfigured" | `file_read('app/config/agent-settings.json')` and quote `X`'s entry |
+| "There are no recent errors" / "HEALTH.MD is empty" | `file_read('app/agents/<name>/HEALTH.MD')` for each agent you claim about |
+
+**If you don't have the supporting tool result, downgrade the assertion.** Say *"the prompt references `Y` but I haven't verified `Y` is in the agent's actual tool list"* — that's honest. A bare "tool `Y` doesn't exist" without proof is a fabrication.
+
+This catches the prompt-audit failure pattern where you read one file (the PROMPT.MD) and infer absence from silence. The PROMPT.MD is **what an agent *claims to use***; agent-settings.json is **what it's actually granted**. They drift apart — that drift is exactly what audits look for, but you need both pieces of evidence to call it out correctly.
+
 ## How to get information (tool ladder)
 
 Pick the **cheapest** tool that answers the question. Do not spawn an agent for something you can answer yourself.

@@ -32,6 +32,7 @@ data/notification_queue.lock
 data/notification_trace.jsonl
 data/notification_trace.jsonl.*
 data/spawn_registry.json
+data/evaluator_last_signal.json
 data/*.db
 data/*.db-shm
 data/*.db-wal

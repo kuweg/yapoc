@@ -121,14 +121,127 @@ async def _doctor_tick() -> None:
         pass  # Doctor logs its own errors
 
 
+_EVAL_SIG_PATH = Path("data/evaluator_last_signal.json")
+
+
+def _compute_evaluator_signal_signature() -> str:
+    """Hash NON-EVALUATOR observability signals — what get_recent_signals
+    would summarize, MINUS the evaluator's own self-induced churn.
+
+    Critical: the signature must reflect external system activity, not the
+    eval's own run. If we count cron-source tasks (the eval's own task) or
+    evaluator/master HEALTH.MD entries (which the eval writes to), every
+    eval invalidates the signature and the gate never fires.
+
+    Components:
+      - task_queue: count + max(updated_at) of done/error tasks **whose
+        source is NOT in ('cron')** — user/goal/notification etc.
+      - HEALTH.MD: total non-empty lines across agents, EXCLUDING evaluator,
+        master, and security (those churn during/after every eval).
+
+    Returns a 16-char hex digest. Robust against transient DB errors
+    (returns a sentinel that forces a run rather than blocking forever).
+
+    Known limitation: pure UI chat (master answers directly, doesn't queue
+    a task or write to a non-excluded agent's HEALTH.MD) is invisible to
+    this signature. That's intentional — the gate's job is to prevent
+    back-to-back autonomous evals on a quiet system. Users who want a
+    fresh eval after chatting can call ``yapoc evaluator-tick`` and the
+    "already running" gate is the only filter; or clear the signature file.
+    """
+    import hashlib
+    try:
+        from app.utils.db import get_db
+        db = get_db()
+        row = db.execute(
+            """SELECT COUNT(*) AS n,
+                      COALESCE(MAX(updated_at), '') AS latest
+               FROM task_queue
+               WHERE status IN ('done', 'error', 'timeout')
+                 AND COALESCE(source, '') NOT IN ('cron')"""
+        ).fetchone()
+        n = int(row["n"]) if row else 0
+        latest = (row["latest"] if row else "") or ""
+    except Exception as _db_exc:
+        logger.debug("eval-signal: DB read failed ({}); using ts-only signature", _db_exc)
+        n, latest = -1, datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Exclude agents whose state churns as a side-effect of every eval.
+    # (evaluator: writes REPORT.MD; master: runs to spawn evaluator; security:
+    # gates every tool call, writes AUDIT.MD.)
+    _CHURN_EXCLUDED = {"base", "shared", "evaluator", "master", "security"}
+    health_total = 0
+    tokens_total = 0  # successful sub-agent activity → bumps total tokens even when no errors
+    try:
+        for agent_dir in settings.agents_dir.iterdir():
+            if not agent_dir.is_dir() or agent_dir.name in _CHURN_EXCLUDED:
+                continue
+            hp = agent_dir / "HEALTH.MD"
+            if hp.exists():
+                try:
+                    health_total += sum(
+                        1 for ln in hp.read_text(encoding="utf-8", errors="ignore").splitlines()
+                        if ln.strip()
+                    )
+                except OSError:
+                    pass
+            up = agent_dir / "USAGE.json"
+            if up.exists():
+                try:
+                    usage = json.loads(up.read_text(encoding="utf-8"))
+                    tokens_total += int(usage.get("total_input_tokens", 0))
+                    tokens_total += int(usage.get("total_output_tokens", 0))
+                except (OSError, ValueError, KeyError):
+                    pass
+    except OSError:
+        pass
+
+    sig_input = f"tasks={n}|latest={latest}|health={health_total}|tokens={tokens_total}"
+    return hashlib.sha256(sig_input.encode("utf-8")).hexdigest()[:16]
+
+
+def _read_last_eval_signature() -> str | None:
+    path = settings.project_root / _EVAL_SIG_PATH
+    if not path.exists():
+        return None
+    try:
+        return str(json.loads(path.read_text(encoding="utf-8")).get("signature") or "") or None
+    except Exception:
+        return None
+
+
+def _write_last_eval_signature(sig: str) -> None:
+    path = settings.project_root / _EVAL_SIG_PATH
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({
+                "signature": sig,
+                "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("eval-signal: failed to write signature file ({})", exc)
+
+
 async def _evaluator_tick() -> None:
     """Queue a scheduled self-evaluation task for master to dispatch.
 
-    Runs every ``settings.evaluator_interval_hours``. Skips when the daily
-    autonomous budget is exhausted, when an evaluation is already in flight,
-    or when no master sessions/agents exist yet. The task is enqueued with
-    source="cron" so it counts against ``daily_autonomous_budget_usd`` and
-    triggers a morning_report on completion via the dispatcher hook.
+    Runs every ``settings.evaluator_interval_hours``. Three gates, in order:
+
+    1. Daily autonomous budget exhausted → skip.
+    2. Evaluator already pending/running for an autonomous source → skip.
+    3. **Skip-if-unchanged**: the observability signature hasn't changed
+       since the last queued evaluation → skip. This eliminates "evaluator
+       reports the same thing again" noise that was driving master into the
+       stuck-loop detector via repeat read_task_result calls. The signature
+       captures (task_queue done/error count + latest updated_at + total
+       HEALTH.MD lines), which is exactly what the evaluator's
+       get_recent_signals summarizes.
+
+    The signature file is updated BEFORE queueing so two concurrent ticks
+    can't both pass the gate.
     """
     from app.utils.cost_governor import is_autonomous_budget_exhausted
     from app.utils.db import create_queued_task, get_tasks_by_status
@@ -147,6 +260,18 @@ async def _evaluator_tick() -> None:
                     logger.debug("evaluator_tick: skipped — eval already {}", status)
                     return
 
+        current_sig = _compute_evaluator_signal_signature()
+        last_sig = _read_last_eval_signature()
+        if last_sig and current_sig == last_sig:
+            logger.info(
+                "evaluator_tick: skipped — signals unchanged since last run (sig={})",
+                current_sig,
+            )
+            return
+        # Persist before queueing so a concurrent tick observing the same
+        # signature doesn't double-queue.
+        _write_last_eval_signature(current_sig)
+
         import uuid
         task_id = str(uuid.uuid4())
         prompt = (
@@ -164,7 +289,10 @@ async def _evaluator_tick() -> None:
             source="cron",
             session_id=None,
         )
-        logger.info("evaluator_tick: queued scheduled self-evaluation ({})", task_id[:8])
+        logger.info(
+            "evaluator_tick: queued scheduled self-evaluation ({}) sig={}",
+            task_id[:8], current_sig,
+        )
     except Exception as exc:
         logger.warning("evaluator_tick failed: {}", exc)
 

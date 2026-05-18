@@ -980,6 +980,13 @@ async def lifespan(app: FastAPI):
         asyncio.ensure_future(_master_redis_watcher())
     asyncio.ensure_future(_master_notification_watcher())
 
+    # Start Telegram bot if configured
+    if settings.telegram_enabled:
+        from app.backend.telegram_bot import TelegramBot
+        telegram_bot = TelegramBot(token=settings.telegram_bot_token)
+        asyncio.ensure_future(telegram_bot.start())
+        logger.info("Telegram bot started (polling mode)")
+
     # Morning report subscriber — the primary, reliable trigger for autonomous
     # task_complete events. Inline hooks in dispatcher.py + master/agent.py
     # are kept as belt-and-suspenders but were observed to silently miss for

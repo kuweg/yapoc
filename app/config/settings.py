@@ -64,11 +64,11 @@ class Settings(BaseSettings):
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
 
     # ── Voice / TTS ─────────────────────────────────────────────────────────
-    voice_enabled: bool = True
+    voice_enabled: bool = False
     voice_auto_speak: bool = False
 
     # TTS engine selection: offline | openai | google
-    tts_engine: str = "offline"
+    tts_engine: str = "openai"
     tts_voice: str = ""
     tts_speed: float = 1.0
 
@@ -100,6 +100,7 @@ class Settings(BaseSettings):
     # (prompt injection / model confusion can otherwise spawn many at once).
     # Counts STATUS.json entries in state=idle|running|spawning.
     max_concurrent_agents: int = 10
+    stuck_signature_threshold: int = 10  # identical tool calls in a row before marking as stuck
 
     # ── Context management ─────────────────────────────────────────────
     context_compact_threshold: float = (

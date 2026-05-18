@@ -25,6 +25,9 @@ _PROTECTED_AGENT_FILES = {
     "CONFIG.yaml",
 }
 
+_MAX_READ_BYTES = 50 * 1024  # 50 KB — files larger than this are read in batches
+_BATCH_SIZE = 40 * 1024      # 40 KB per batch
+
 
 def _sandbox(path_str: str) -> Path:
     """Resolve path relative to project root, rejecting escapes."""
@@ -68,11 +71,37 @@ class FileReadTool(BaseTool):
         if not resolved.is_file():
             return f"ERROR: Not a file: {params['path']}"
 
-        try:
-            async with aiofiles.open(resolved, encoding="utf-8") as f:
-                content = await f.read()
-        except Exception as exc:
-            return f"ERROR: {exc}"
+        file_size = resolved.stat().st_size
+
+        if file_size <= _MAX_READ_BYTES:
+            # Small file — read entirely
+            try:
+                async with aiofiles.open(resolved, encoding="utf-8") as f:
+                    content = await f.read()
+            except Exception as exc:
+                return f"ERROR: {exc}"
+        else:
+            # Large file — read in batches
+            try:
+                async with aiofiles.open(resolved, encoding="utf-8") as f:
+                    chunks = []
+                    total_read = 0
+                    while total_read < _BATCH_SIZE:
+                        chunk = await f.read(_BATCH_SIZE)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                        total_read += len(chunk.encode("utf-8"))
+                    content = "".join(chunks)
+            except Exception as exc:
+                return f"ERROR: {exc}"
+
+            # Show a header with file info
+            content = (
+                f"[File is {file_size:,} bytes — showing first ~{_BATCH_SIZE:,} bytes. "
+                f"Use tail_lines=N to read the last N lines.]\n"
+                f"{content}"
+            )
 
         tail_lines = params.get("tail_lines", 0)
         if tail_lines and tail_lines > 0:

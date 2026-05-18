@@ -3408,5 +3408,75 @@
     "cost_usd": 0.00243724,
     "timestamp": "2026-05-17T22:01:23Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:21Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 7244,
+    "tokens_out": 105,
+    "cost_usd": 0.00207138,
+    "timestamp": "2026-05-18T17:34:21Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:27Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 7441,
+    "tokens_out": 942,
+    "cost_usd": 0.00304527,
+    "timestamp": "2026-05-18T17:34:27Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:29Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 8759,
+    "tokens_out": 60,
+    "cost_usd": 0.00243093,
+    "timestamp": "2026-05-18T17:34:29Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:31Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 8891,
+    "tokens_out": 181,
+    "cost_usd": 0.00259967,
+    "timestamp": "2026-05-18T17:34:31Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:33Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 9313,
+    "tokens_out": 136,
+    "cost_usd": 0.00266411,
+    "timestamp": "2026-05-18T17:34:33Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:36Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 9552,
+    "tokens_out": 343,
+    "cost_usd": 0.00295634,
+    "timestamp": "2026-05-18T17:34:36Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "builder:2026-05-18T17:34:39Z",
+    "description": "Create a temporary agent called \"weather_test\" at app/agents/weather_test/. Create these files:",
+    "agent_name": "builder",
+    "tokens_in": 9915,
+    "tokens_out": 184,
+    "cost_usd": 0.00287945,
+    "timestamp": "2026-05-18T17:34:39Z",
+    "model_used": "deepseek-chat"
   }
 ]

@@ -37,7 +37,7 @@ export const useAppStore = create<AppStore>()(
       setVoiceSpeed: (v) => set({ voiceSpeed: v }),
       voiceTtsMode: 'browser',
       setVoiceTtsMode: (mode) => set({ voiceTtsMode: mode }),
-      voiceBackendEngine: 'offline',
+      voiceBackendEngine: 'openai',
       setVoiceBackendEngine: (engine) => set({ voiceBackendEngine: engine }),
     }),
     {

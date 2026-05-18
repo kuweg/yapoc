@@ -70,6 +70,95 @@ class MasterAgent(BaseAgent):
             # Best-effort — don't crash the server if STATUS.json can't be written
             pass
 
+    # ── Proactive delegation polling ─────────────────────────────────────
+
+    def _outstanding_delegations(self, max_entries: int = 6) -> list[dict]:
+        """Scan agents/* for tasks master spawned that are still in flight.
+
+        Returns a list of dicts: {agent, state, task_summary, status, age_s}.
+        Bounded by `max_entries` so context doesn't bloat when many agents
+        are running. Pure file I/O — no network, no Redis. Tolerates
+        missing/malformed STATUS.json + TASK.MD silently (best-effort).
+
+        Used by handle_task_stream to surface in-flight work to master at
+        the start of each turn — closes the "blind between notifications"
+        gap without changing the async delivery model.
+        """
+        out: list[dict] = []
+        agents_root = self._dir.parent
+        if not agents_root.exists():
+            return out
+        now = datetime.now(timezone.utc)
+        for agent_dir in sorted(agents_root.iterdir()):
+            if not agent_dir.is_dir() or agent_dir.name in {"base", "master", "shared", "security"}:
+                continue
+            status_path = agent_dir / "STATUS.json"
+            task_path = agent_dir / "TASK.MD"
+            if not status_path.exists() or not task_path.exists():
+                continue
+            try:
+                status = json.loads(status_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            state = status.get("state", "")
+            if state not in {"running", "spawning"}:
+                continue
+            try:
+                task_body = task_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            # Frontmatter scan — cheap, no YAML lib needed
+            assigned_by = ""
+            task_status = ""
+            if task_body.startswith("---"):
+                end = task_body.find("---", 3)
+                if end > 0:
+                    header = task_body[3:end]
+                    for line in header.splitlines():
+                        if ":" not in line:
+                            continue
+                        k, v = line.split(":", 1)
+                        k = k.strip()
+                        v = v.strip()
+                        if k == "assigned_by":
+                            assigned_by = v
+                        elif k == "status":
+                            task_status = v
+            if assigned_by != "master":
+                continue
+            # Compute age from STATUS.json updated_at if present
+            age_s: float | None = None
+            updated = status.get("updated_at") or status.get("started_at")
+            if updated:
+                try:
+                    started = datetime.strptime(updated, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                    age_s = (now - started).total_seconds()
+                except ValueError:
+                    age_s = None
+            out.append({
+                "agent": agent_dir.name,
+                "state": state,
+                "status": task_status or state,
+                "task_summary": status.get("task_summary", "") or "",
+                "age_s": age_s,
+            })
+            if len(out) >= max_entries:
+                break
+        return out
+
+    @staticmethod
+    def _format_outstanding(entries: list[dict]) -> str:
+        if not entries:
+            return ""
+        lines = ["[OUTSTANDING DELEGATIONS — sub-agents you spawned that are still running]"]
+        for e in entries:
+            age = f"{int(e['age_s'])}s ago" if e.get("age_s") is not None else "unknown age"
+            summary = (e.get("task_summary") or "").strip().splitlines()
+            summary_line = summary[0][:120] if summary else "(no summary)"
+            lines.append(f"- {e['agent']}: state={e['state']} status={e['status']} ({age}) — {summary_line}")
+        lines.append("(These have NOT completed yet. Use `check_task_status` or `wait_for_agent` if you need their result now.)")
+        return "\n".join(lines)
+
     # ── Task handling ────────────────────────────────────────────────────
 
     async def handle_task(
@@ -116,8 +205,14 @@ class MasterAgent(BaseAgent):
 
             # Inject user source so the LLM knows where the message came from
             source_line = f"[User source: {source}]" if source else ""
+            # Proactive polling: list any sub-agents master spawned that are
+            # still in flight. Without this, master sits blind between
+            # notifications — it knows what completed but not what's still
+            # working. Surfacing this each turn lets master decide whether
+            # to wait, ping, or move on. Pure file I/O — no LLM call.
+            outstanding_context = self._format_outstanding(self._outstanding_delegations())
             combined_context = "\n\n".join(
-                filter(None, [source_line, notifications_context])
+                filter(None, [source_line, notifications_context, outstanding_context])
             )
 
             self._write_status("running", task_summary=task)

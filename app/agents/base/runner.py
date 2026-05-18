@@ -477,6 +477,16 @@ class AgentRunner:
             )
             await self._ack_inbox(msg_id)
             await self._run_task(task_text)
+            # Drop STATUS.json back to idle. _run_task wrote "running" at
+            # entry, but only the polling-driven path (run() main loop)
+            # writes "idle" after — the Redis path was leaving STATUS stuck
+            # at "running" with the just-completed task_summary frozen.
+            # Symptom: keeper showed state=running indefinitely after a
+            # successful Redis-driven task, blocking subsequent spawn_agent
+            # calls that check status before reassigning. Temporary agents
+            # bypass this — they self-shutdown inside _run_task.
+            if not self._temporary:
+                self._write_status("idle")
             return True
 
         elif msg_type == "kill":

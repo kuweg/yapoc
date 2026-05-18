@@ -1,4 +1,4 @@
-# Python
+# ── Python ───────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -13,12 +13,12 @@ build/
 venv/
 env/
 
-# Environment
+# ── Environment ──────────────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
 
-# IDE / OS
+# ── IDE / OS ─────────────────────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp
@@ -26,19 +26,22 @@ env/
 .DS_Store
 Thumbs.db
 
-# Runtime data
-data/notification_queue.json
-data/notification_queue.lock
-data/notification_trace.jsonl
-data/notification_trace.jsonl.*
-data/spawn_registry.json
-data/evaluator_last_signal.json
-data/*.db
-data/*.db-shm
-data/*.db-wal
-data/sessions/
+# ── Runtime data ─────────────────────────────────────────────────────────
+data/
+!data/.gitkeep
 
-# Agent runtime state (ephemeral — not needed in repo)
+# Redis snapshot (if running redis-server in repo dir)
+dump.rdb
+*.rdb
+
+# ── Frontend ─────────────────────────────────────────────────────────────
+app/frontend/node_modules/
+app/frontend/dist/
+app/frontend/.vite/
+node_modules/
+
+# ── Agent runtime state (ephemeral — not needed in repo) ─────────────────
+# Per-agent telemetry / append-only logs / live status:
 app/agents/*/TASK.MD
 app/agents/*/STATUS.json
 app/agents/*/RESULT.MD
@@ -49,33 +52,50 @@ app/agents/*/HEALTH.MD
 app/agents/*/HEALTH_SUMMARY.MD
 app/agents/*/SERVER_CRASH.MD
 app/agents/*/SERVER_OUTPUT.MD
+app/agents/*/SERVER_RESTART.MD
+app/agents/*/MEMORY.MD
+app/agents/*/NOTES.MD
+app/agents/*/LIVE.MD
+app/agents/*/LEARNINGS.MD
+app/agents/*/GOALS.MD
+app/agents/*/RESUME.MD
+app/agents/*/MORNING_REPORT.md
+app/agents/*/MORNING_REPORT.MD
+app/agents/*/USAGE.json
+app/agents/*/COSTS.json
 app/agents/*/COSTS.lock
 app/agents/*/CHECKPOINT.json
 app/agents/security/AUDIT.MD
+app/agents/*/sessions/
 
-# Builder output workspace
+# Builder output workspace (agent-generated scratch)
 projects/
+app/projects/
 
-# Personal notes
+# ── Personal notes ──────────────────────────────────────────────────────
 personal_notes_do_not_read.md
 
-# Test artifacts
+# ── Test artifacts ──────────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/
 .coverage
+artifacts/
 
-# Runtime
+# Debug / one-off test scripts at repo root
+test.py
+test_*.py
+app/test_*.py
+app/test_*.txt
+app/test_*.mp3
+app/test_*.wav
+
+# ── Runtime ─────────────────────────────────────────────────────────────
 .yapoc.pid
 
-# Agent session logs (may contain secrets)
-app/agents/*/sessions/
-
-# Claude Code local settings
+# ── Editor / agent local state ──────────────────────────────────────────
 .claude/
-
-# Codex CLI local state
 .codex
 .codex/
 
-# Playwright MCP snapshots/logs (debug output, can be large + noisy)
+# ── Playwright MCP snapshots / logs ─────────────────────────────────────
 .playwright-mcp/

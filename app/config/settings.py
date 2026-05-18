@@ -80,7 +80,7 @@ class Settings(BaseSettings):
 
     # Cloud TTS/STT (optional, requires API keys)
     openai_tts_model: str = "tts-1"
-    openai_tts_voice: str = "alloy"
+    openai_tts_voice: str = "onyx"
     google_tts_voice: str = "en-US-Wavenet-D"
 
     # ── Safety ────────────────────────────────────────────────────────────

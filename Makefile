@@ -1,7 +1,16 @@
-.PHONY: start stop start-ui start-backend start-redis stop-ui stop-backend stop-redis
+.PHONY: setup doctor start stop start-ui start-backend start-redis stop-ui stop-backend stop-redis
 
 FRONTEND_DIR = app/frontend
 REDIS_PIDFILE = /tmp/yapoc-redis.pid
+
+# ── Setup ─────────────────────────────────────────────────────────────
+# Local alias for `poetry run yapoc init`. Use this for re-running the
+# wizard inside an existing checkout; new users curl|bash install.sh.
+setup:
+	@poetry run yapoc init
+
+doctor:
+	@poetry run yapoc doctor
 
 # ── Combined ──────────────────────────────────────────────────────────
 start: start-redis start-backend start-ui

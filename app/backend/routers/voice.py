@@ -12,7 +12,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api", tags=["voice"])
+router = APIRouter(tags=["voice"])
 
 
 @router.get("/tts/voices", response_model=TTSVoicesResponse)

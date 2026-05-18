@@ -42,13 +42,14 @@ class Authenticator:
     Bot restarts = re-auth required.
     """
 
-    def __init__(self, pin: str) -> None:
+    def __init__(self, pin: str, whitelist: list[int] | None = None) -> None:
         self._pin = pin
+        self._whitelist: set[int] = set(whitelist or [])
         self._authorized_chats: set[int] = set()
 
     def is_authorized(self, chat_id: int) -> bool:
-        """Check if a chat is already authenticated."""
-        return chat_id in self._authorized_chats
+        """Check if a chat is already authenticated (whitelisted or previously authed)."""
+        return chat_id in self._authorized_chats or chat_id in self._whitelist
 
     def authenticate(self, chat_id: int, provided_pin: str) -> bool:
         """Attempt to authenticate a chat. Returns True on success."""
@@ -59,7 +60,7 @@ class Authenticator:
 
     @property
     def enabled(self) -> bool:
-        return bool(self._pin)
+        return bool(self._pin) or bool(self._whitelist)
 
 
 class RateLimiter:
@@ -100,7 +101,7 @@ class TelegramBot:
         self._offset: int = 0  # getUpdates offset for acknowledging messages
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(30.0))
         self._rate_limiter = RateLimiter()
-        self._auth = Authenticator(settings.telegram_auth_pin)
+        self._auth = Authenticator(settings.telegram_auth_pin, settings.telegram_whitelist)
         self._running = False
 
     # ── Public API ──────────────────────────────────────────────────────────

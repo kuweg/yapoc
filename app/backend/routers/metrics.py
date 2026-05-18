@@ -1,7 +1,7 @@
 import json
 import os
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -496,6 +496,102 @@ async def get_observability_dashboard():
         recent_errors=recent_errors,
         recent_tasks=recent_tasks,
     )
+
+
+# ── Cost history ────────────────────────────────────────────────────────────
+
+class CostDataPoint(BaseModel):
+    timestamp: str  # ISO-8601 hour bucket
+    cost_usd: float
+    agent: str
+    model: str
+    tokens_in: int
+    tokens_out: int
+
+
+class CostHistoryResponse(BaseModel):
+    points: list[CostDataPoint]
+    bucket: str  # "hour" or "day"
+
+
+@router.get("/cost-history", response_model=CostHistoryResponse)
+async def get_cost_history(bucket: str = "hour", hours: int = 168):
+    """Return cost time-series data bucketed by hour or day.
+
+    Reads COSTS.json from every agent directory and aggregates into
+    time buckets. Default: hourly buckets for the last 7 days (168 hours).
+    """
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=hours)
+
+    # Bucket key function
+    if bucket == "day":
+        def bucket_key(ts: str) -> str:
+            try:
+                d = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                return d.strftime("%Y-%m-%d")
+            except ValueError:
+                return ts[:10]
+    else:
+        def bucket_key(ts: str) -> str:
+            try:
+                d = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                return d.strftime("%Y-%m-%dT%H:00:00Z")
+            except ValueError:
+                return ts[:13] + ":00:00Z"
+
+    buckets: dict[str, dict[str, float | int]] = defaultdict(
+        lambda: {"cost_usd": 0.0, "tokens_in": 0, "tokens_out": 0}
+    )
+    agent_model: dict[str, str] = {}
+
+    for agent_dir in sorted(AGENTS_DIR.iterdir()):
+        if not agent_dir.is_dir() or agent_dir.name.startswith("_"):
+            continue
+        if agent_dir.name in ("base", "shared"):
+            continue
+
+        costs_path = agent_dir / "COSTS.json"
+        if not costs_path.exists():
+            continue
+
+        try:
+            records = json.loads(costs_path.read_text(encoding="utf-8", errors="ignore"))
+            if not isinstance(records, list):
+                continue
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        for rec in records:
+            ts = rec.get("timestamp", "")
+            if not ts or ts < cutoff.isoformat()[:19]:
+                continue
+
+            bk = bucket_key(ts)
+            agent = rec.get("agent_name", agent_dir.name)
+            model = rec.get("model_used", "unknown")
+            agent_model[agent] = model
+
+            key = f"{agent}::{bk}"
+            buckets[key]["cost_usd"] += float(rec.get("cost_usd", 0.0))
+            buckets[key]["tokens_in"] += int(rec.get("tokens_in", 0))
+            buckets[key]["tokens_out"] += int(rec.get("tokens_out", 0))
+
+    points: list[CostDataPoint] = []
+    for key, vals in buckets.items():
+        agent, _, bk = key.partition("::")
+        points.append(CostDataPoint(
+            timestamp=bk,
+            cost_usd=round(float(vals["cost_usd"]), 8),
+            agent=agent,
+            model=agent_model.get(agent, "unknown"),
+            tokens_in=int(vals["tokens_in"]),
+            tokens_out=int(vals["tokens_out"]),
+        ))
+
+    points.sort(key=lambda p: (p.timestamp, p.agent))
+
+    return CostHistoryResponse(points=points, bucket=bucket)
 
 
 @router.get("/hierarchy", response_model=HierarchyMetrics)

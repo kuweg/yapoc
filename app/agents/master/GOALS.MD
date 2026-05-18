@@ -1,7 +1,0 @@
-# GOALS
-
-## Active
-
-## Backlog
-
-## Done

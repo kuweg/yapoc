@@ -9,19 +9,33 @@ Currently 11 agents (master, planning, builder, keeper, doctor, model_manager, c
 ## Quick start
 
 ```bash
-# Prereqs: Python 3.12, Poetry, Node 20+ with pnpm, Redis running on :6379
+# One-line installer. Detects your OS, checks Python 3.12 + git, installs Poetry
+# (via pipx) and Redis (via brew/apt — prompted), clones the repo, runs
+# `poetry install`, and drops into an interactive setup wizard.
+curl -fsSL https://raw.githubusercontent.com/kuweg/yapoc/main/scripts/install.sh | bash
 
-# 1. Backend
+# Then:
+cd ~/yapoc
+poetry run yapoc start   # backend daemon
+poetry run yapoc         # interactive REPL
+```
+
+The installer never runs as root, never edits your shell rc files, and prompts
+before invoking `sudo` (only ever for an explicitly-named package). Pass
+`-s -- --yes` to the curl pipe to auto-confirm all prompts.
+
+### Manual install
+
+```bash
+# Prereqs: Python 3.12, Poetry, Redis running on :6379. Node 20+ + pnpm if you
+# want the web UI.
+
 poetry install
-cp .env.example .env                     # then fill in at least one API key
-poetry run yapoc start                   # uvicorn on :8000
-
-# 2. Frontend (optional — there's also a CLI REPL)
-cd app/frontend && pnpm install && pnpm dev   # vite on :5173
-
-# 3. Talk to the master agent
-poetry run yapoc                         # interactive REPL
-# or open http://localhost:5173
+poetry run yapoc init    # interactive wizard: pick provider, validate key,
+                         # write .env and rewrite agent-settings.json
+poetry run yapoc doctor  # preflight check
+poetry run yapoc start   # backend daemon
+poetry run yapoc         # interactive REPL — or open http://localhost:5173
 ```
 
 The CLI REPL supports tab-completion, `@file` mentions, `!bash` mode, `/diff`, `/copy`, `/export`, and live cost tracking. Run `/help` inside the REPL to see the full set.

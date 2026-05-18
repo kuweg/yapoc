@@ -318,6 +318,20 @@ async def _indexer_tick() -> None:
         pass  # indexer logs its own errors
 
 
+async def _session_digester_tick() -> None:
+    """Run the session digester (called by APScheduler).
+
+    Each tick digests at most one session — the oldest candidate without
+    a fresh digest. Cycles through long sessions over a few ticks instead
+    of bursting LLM calls when many candidates exist simultaneously.
+    """
+    try:
+        from app.backend.session_digester import session_digester_tick
+        await session_digester_tick()
+    except Exception:
+        pass  # digester logs its own errors
+
+
 async def _master_notification_watcher() -> None:
     """Background task: watch master's TASK.MD for notification triggers written by
     notify_parent tool and auto-invoke master_agent to process the queue.
@@ -1030,6 +1044,12 @@ async def lifespan(app: FastAPI):
         hours=settings.evaluator_interval_hours,
         id="evaluator_scheduled",
     )
+    scheduler.add_job(
+        _session_digester_tick,
+        "interval",
+        minutes=settings.session_digest_interval_minutes,
+        id="session_digester",
+    )
     scheduler.start()
     # Run initial checks shortly after startup
     loop = asyncio.get_event_loop()
@@ -1037,6 +1057,8 @@ async def lifespan(app: FastAPI):
     loop.call_later(10, lambda: asyncio.ensure_future(_cron_tick()))
     loop.call_later(15, lambda: asyncio.ensure_future(_model_manager_tick()))
     loop.call_later(20, lambda: asyncio.ensure_future(_indexer_tick()))
+    # Run session digester after the indexer so the first pass has fresh data.
+    loop.call_later(45, lambda: asyncio.ensure_future(_session_digester_tick()))
     try:
         yield
     finally:

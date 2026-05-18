@@ -35,9 +35,127 @@ from app.utils.usage_tracker import UsageTracker
 from app.agents.base.context import build_system_context, _parse_runner_config
 
 
-def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
-    """Rough token estimate: ~4 chars per token."""
-    return len(json.dumps(messages, default=str)) // 4
+def _estimate_tokens(
+    messages: list[dict[str, Any]],
+    system_prompt: str = "",
+    tools: list[dict[str, Any]] | None = None,
+) -> int:
+    """Rough token estimate: ~4 chars per token.
+
+    Counts the messages array AND, when provided, the system prompt and
+    tool-definition blob. The system prompt is rebuilt every turn from
+    PROMPT.MD + MEMORY/NOTES/LEARNINGS/KNOWLEDGE/HEALTH/GOALS injection
+    (`build_system_context`); without including it, the auto-compact
+    threshold fires too late — real usage was over budget before the
+    messages-only estimate even hit 85%.
+    """
+    total = len(json.dumps(messages, default=str))
+    if system_prompt:
+        total += len(system_prompt)
+    if tools:
+        total += len(json.dumps(tools, default=str))
+    return total // 4
+
+
+# ── Smart-compact fact extraction (deterministic, no LLM call) ───────────
+# Patterns are conservative on purpose: false-positive fact entries are
+# cheap (a noisy URL in the JSON is fine); false-negative ones (a missed
+# file path or tool decision) is what hurts after lossy summarization.
+
+_FACT_PATH_RE = re.compile(
+    r"(?<![\w/.])([\w][\w./-]*?\.(?:py|ts|tsx|md|MD|json|yaml|yml|toml|sh|html|css|js|jsx|env|rdb|cfg|ini))(?![\w])"
+)
+_FACT_URL_RE = re.compile(r"https?://[^\s'\"<>)]+")
+_FACT_NUMERIC_RE = re.compile(r"\b([a-zA-Z][a-zA-Z0-9_]{2,30})\s*[:=]\s*(\d+(?:\.\d+)?)\b")
+_FACT_AGENT_NAMES = frozenset({
+    "master", "planning", "builder", "keeper", "cron", "doctor",
+    "model_manager", "evaluator", "librarian", "researcher", "security",
+})
+_FACT_STRING_CAP = 200
+
+
+def _extract_facts_deterministic(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Pull structured facts from a slice of messages without an LLM call.
+
+    Walks each message's content (string or anthropic-style block list) and
+    pulls:
+    - files_touched: paths matching known extensions
+    - urls: http(s) URLs
+    - tool_calls: tool_use blocks with truncated inputs, paired with the
+      next tool_result block when present
+    - numerics: ``name=value`` / ``name: value`` numeric pairs (config-like)
+    - agents_mentioned: subset of known agent names that appear in text
+
+    All strings are scrubbed for secrets and capped at 200 chars. Output
+    is a dict ready to be JSON-serialized into a compacted message.
+    """
+    files: set[str] = set()
+    urls: set[str] = set()
+    tools_seen: list[dict[str, Any]] = []
+    numerics: dict[str, str] = {}
+    agents: set[str] = set()
+
+    def _walk_content(content: Any):
+        if isinstance(content, str):
+            yield content
+            return
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    btype = block.get("type")
+                    if btype == "tool_use":
+                        tools_seen.append({
+                            "tool": str(block.get("name", ""))[:60],
+                            "input": _scrub_secrets(str(block.get("input", "")))[:_FACT_STRING_CAP],
+                        })
+                    elif btype == "tool_result":
+                        out = block.get("content", "")
+                        if isinstance(out, list):
+                            out = "\n".join(
+                                str(x.get("text", x)) if isinstance(x, dict) else str(x)
+                                for x in out
+                            )
+                        out_text = _scrub_secrets(str(out))[:_FACT_STRING_CAP]
+                        if tools_seen and "result" not in tools_seen[-1]:
+                            tools_seen[-1]["result"] = out_text
+                        yield out_text
+                    elif btype == "text":
+                        yield block.get("text", "") or ""
+                    else:
+                        yield str(block.get("text", block.get("content", ""))) or ""
+                else:
+                    yield str(block)
+
+    for msg in messages:
+        for chunk in _walk_content(msg.get("content", "")):
+            if not chunk:
+                continue
+            for m in _FACT_PATH_RE.finditer(chunk):
+                # Skip URL-like or trivial matches
+                tok = m.group(1)
+                if len(tok) > 4 and "/" not in tok and "." in tok and not tok.endswith("."):
+                    files.add(tok)
+                elif "/" in tok:
+                    files.add(tok)
+            for m in _FACT_URL_RE.finditer(chunk):
+                urls.add(m.group(0).rstrip(".,);"))
+            for m in _FACT_NUMERIC_RE.finditer(chunk):
+                k, v = m.group(1), m.group(2)
+                numerics.setdefault(k, v)
+            for name in _FACT_AGENT_NAMES:
+                # Word-boundary + case-insensitive so "Researcher" / "RESEARCHER"
+                # both match. Capital-cased agent names appear often in master's
+                # narrative ("Builder completed", "Keeper rejected").
+                if re.search(rf"\b{name}\b", chunk, flags=re.IGNORECASE):
+                    agents.add(name)
+
+    return {
+        "files_touched": sorted(files)[:30],
+        "urls": sorted(urls)[:10],
+        "tool_calls": tools_seen[:20],
+        "numerics": dict(list(numerics.items())[:30]),
+        "agents_mentioned": sorted(agents),
+    }
 
 
 def _calc_turn_cost(
@@ -726,19 +844,57 @@ class BaseAgent:
         config: AgentConfig,
         focus: str = "",
     ) -> list[dict[str, Any]]:
-        """Compress messages into a single summary message via LLM.
+        """Compress messages while preserving anchor + tail + structured facts.
 
-        Bugfix: previously this always used `settings.context_compact_model`
-        (defaults to `claude-haiku-4-5-20251001`) regardless of which adapter
-        the agent itself was using. Agents on the DeepSeek adapter would hit
-        a `DeepSeek API error (400): supported model names are deepseek-...`
-        crash mid-compaction, leaving the runner stuck at state=running
-        (downstream Bug 3 in `docs/test-findings.md`).
+        Strategy (smart compact, replaces the prior full-collapse approach):
+          1. Anchor — the first user message is kept VERBATIM so the agent
+             never loses sight of the original task / user intent.
+          2. Tail — the last ``settings.compact_preserve_tail_n`` messages
+             (default 8) are kept VERBATIM so recent tool sequences and
+             active decisions survive without paraphrase drift.
+          3. Middle — everything between. Run a cheap deterministic fact
+             extractor (file paths, tool calls + truncated results, URLs,
+             numerics, agent mentions) AND an LLM narrative summary, then
+             merge into a single synthetic user message between anchor and
+             tail. The facts go in verbatim JSON so numeric values, paths,
+             and tool outcomes never get LLM-paraphrased.
 
-        Use the compact-model override ONLY when the agent's adapter
-        natively supports that model. Otherwise compact with the agent's
-        own model — slightly more expensive but doesn't fail.
+        Adapter / model selection: same as before — use
+        ``settings.context_compact_model`` only when the agent's adapter is
+        anthropic (so we don't blow up DeepSeek/OpenAI agents with a model
+        their provider doesn't recognize); otherwise compact with the
+        agent's own model.
+
+        Returns ``messages`` unchanged when there isn't enough to compact
+        (fewer than anchor + tail).
         """
+        tail_n = max(0, getattr(settings, "compact_preserve_tail_n", 8))
+        # Need at least anchor + tail + 1 middle message before compacting
+        # is meaningful. Otherwise just return as-is.
+        if len(messages) <= 1 + tail_n:
+            return messages
+
+        # Find the first user message (the anchor). If there isn't one for
+        # some reason, fall back to messages[0] so we still preserve the
+        # original prefix.
+        anchor_idx = 0
+        for i, m in enumerate(messages):
+            if m.get("role") == "user":
+                anchor_idx = i
+                break
+        anchor = messages[anchor_idx]
+
+        # Tail: last K messages, verbatim.
+        tail = messages[-tail_n:] if tail_n else []
+        # Middle: between anchor and tail, no overlap.
+        middle_start = anchor_idx + 1
+        middle_end = len(messages) - tail_n if tail_n else len(messages)
+        middle = messages[middle_start:middle_end]
+        if not middle:
+            return messages
+
+        # Adapter selection (unchanged from the pre-rewrite logic — keeps
+        # DeepSeek / OpenAI agents from hitting a model-name 400 on compact).
         if config.adapter == "anthropic" and settings.context_compact_model:
             compact_model = settings.context_compact_model
         else:
@@ -750,13 +906,23 @@ class BaseAgent:
         )
         adapter = get_adapter(compact_config)
 
-        # Build the conversation text for summarization
+        # 1) Deterministic fact extraction — free, structured, secret-scrubbed.
+        facts: dict[str, Any] = {}
+        if getattr(settings, "compact_extract_facts", True):
+            try:
+                facts = _extract_facts_deterministic(middle)
+            except Exception as exc:
+                _log.bind(agent=self._name).warning(
+                    "compact: fact extraction failed ({}) — proceeding without facts", exc,
+                )
+                facts = {}
+
+        # 2) Build middle text for LLM summarization.
         convo_parts: list[str] = []
-        for msg in messages:
+        for msg in middle:
             role = msg.get("role", "?")
             content = msg.get("content", "")
             if isinstance(content, list):
-                # Tool results or multi-part content
                 text_parts = []
                 for block in content:
                     if isinstance(block, dict):
@@ -767,28 +933,69 @@ class BaseAgent:
                         text_parts.append(str(block))
                 content = "\n".join(text_parts)
             convo_parts.append(f"[{role}]: {content}")
-
         convo_text = "\n\n".join(convo_parts)
 
-        prompt = _COMPACT_SYSTEM_PROMPT
+        # 3) LLM summary call. Inject the extracted facts as "preserve verbatim"
+        # so the LLM doesn't paraphrase numeric values, file paths, or tool
+        # outcomes that we've already captured deterministically.
+        facts_json = json.dumps(facts, default=str)[:2000] if facts else ""
+        summarize_prompt = _COMPACT_SYSTEM_PROMPT
+        if facts_json:
+            summarize_prompt += (
+                "\n\nThe following structured facts have been pre-extracted "
+                "from this conversation. Preserve every entry from this JSON "
+                "exactly as-is in your output (do not paraphrase numeric "
+                "values, file paths, or tool names):\n"
+                f"{facts_json}"
+            )
         if focus:
-            prompt += f"\n\nFocus especially on: {focus}"
+            summarize_prompt += f"\n\nFocus especially on: {focus}"
 
-        summary = await adapter.complete(
-            system_prompt=prompt,
-            user_message=convo_text,
+        try:
+            summary = await adapter.complete(
+                system_prompt=summarize_prompt,
+                user_message=convo_text,
+            )
+        except Exception as exc:
+            _log.bind(agent=self._name).warning(
+                "compact: summarize call failed ({}) — keeping facts-only synth msg", exc,
+            )
+            summary = "[summarize call failed — only structured facts preserved]"
+
+        # 4) Reconstruct: anchor + (facts + summary) + tail.
+        synth_content = (
+            "[Compacted conversation — first user message preserved above, "
+            f"last {tail_n} messages preserved below.]\n\n"
+            "## Structured facts (preserve verbatim — extracted before LLM summarization)\n"
+            f"```json\n{facts_json or '{}'}\n```\n\n"
+            "## Narrative summary of intermediate turns\n"
+            f"{summary}"
         )
+        synth_msg = {"role": "user", "content": synth_content}
 
-        # Return a single user message with the compacted summary
-        return [
-            {
-                "role": "user",
-                "content": (
-                    f"[Compacted conversation summary]\n{summary}\n\n"
-                    "[System prompt preserved separately — see PROMPT.MD and Notes]"
+        # 5) Persist the checkpoint so a restart / resume can reuse it
+        # instead of re-compacting from scratch. Best-effort: any write
+        # failure is logged and swallowed — losing the sidecar is OK.
+        if self._session_id:
+            try:
+                from app.cli.sessions import write_summary
+                write_summary(
+                    self._session_id,
+                    anchor=anchor,
+                    synth=synth_msg,
+                    msg_count_at_compact=len(messages),
+                    model_used=compact_model,
                 )
-            }
-        ]
+                _log.bind(agent=self._name, session=self._session_id).info(
+                    "compact: SUMMARY.json checkpoint written ({} msgs → 2+{} tail)",
+                    len(messages), tail_n,
+                )
+            except Exception as exc:
+                _log.bind(agent=self._name).warning(
+                    "compact: write_summary failed ({}) — non-fatal", exc,
+                )
+
+        return [anchor, synth_msg, *tail]
 
     # ── Run with tools (multi-turn) ──────────────────────────────────────
 
@@ -883,22 +1090,35 @@ class BaseAgent:
                 _stuck_loop_count: int = 0
                 _STUCK_LOOP_GIVEUP: int = 2
                 max_turns = _runner.get("max_turns", settings.max_turns)
-                threshold_tokens = int(
-                    adapter.context_window_size() * settings.context_compact_threshold
+                _ctx_window = adapter.context_window_size()
+                threshold_tokens = int(_ctx_window * settings.context_compact_threshold)
+                threshold_tokens_preemptive = int(
+                    _ctx_window * getattr(settings, "context_compact_threshold_preemptive", 0.70)
                 )
+                # Pre-emptive fact-snapshot tracking: skip if we've already
+                # snapshotted at the current message-list size, so we don't
+                # repeatedly write the same facts every turn after crossing
+                # the soft threshold.
+                _preemptive_snapshot_msg_count: int = -1
                 _tool_start_times: dict[str, float] = {}
                 _task_cost_usd: float = 0.0  # accumulator for per-task budget
                 _budget_exceeded = False
 
                 for _turn in range(max_turns):
-                    # Auto-compact if approaching context limit
-                    estimated = _estimate_tokens(messages)
+                    # Auto-compact if approaching context limit. The estimate
+                    # now includes system_prompt + tool defs, so it reflects
+                    # *real* token usage rather than the messages array alone
+                    # (which silently undercounted by 10–30k tokens).
+                    estimated = _estimate_tokens(messages, system_prompt=system_prompt, tools=tool_defs)
                     if estimated >= threshold_tokens:
                         tokens_before = estimated
                         messages = await self._compact_messages(
                             messages, system_prompt, config
                         )
-                        tokens_after = _estimate_tokens(messages)
+                        tokens_after = _estimate_tokens(messages, system_prompt=system_prompt, tools=tool_defs)
+                        # Re-arm the pre-emptive snapshot so the next growth
+                        # cycle gets its own fact write.
+                        _preemptive_snapshot_msg_count = -1
                         yield CompactEvent(
                             reason="auto",
                             tokens_before=tokens_before,
@@ -909,6 +1129,33 @@ class BaseAgent:
                             agent=self._name, event="compact", turn=_turn,
                             tokens_before=tokens_before, tokens_after=tokens_after,
                         ).info("Compact auto | tokens {}→{} (saved {}%)", tokens_before, tokens_after, _pct)
+                    elif (
+                        estimated >= threshold_tokens_preemptive
+                        and getattr(settings, "compact_extract_facts", True)
+                        and len(messages) != _preemptive_snapshot_msg_count
+                    ):
+                        # Pre-emptive: between 70% and 85% of context, snapshot
+                        # the structured facts to MEMORY.MD so they survive a
+                        # later full compact even if the LLM summary paraphrases.
+                        # No LLM call — pure deterministic extraction.
+                        _preemptive_snapshot_msg_count = len(messages)
+                        try:
+                            _facts = _extract_facts_deterministic(messages)
+                            if any(_facts.values()):
+                                _ts = _time.strftime("%Y-%m-%d %H:%M", _time.localtime())
+                                _facts_line = json.dumps(_facts, default=str)[:1800]
+                                await self._append_file(
+                                    "MEMORY.MD",
+                                    f"[{_ts}] [compaction:facts:preemptive] {_facts_line}\n",
+                                )
+                                _log.bind(
+                                    agent=self._name, event="compact_preemptive", turn=_turn,
+                                    tokens=estimated, msgs=len(messages),
+                                ).info("Compact preemptive | facts snapshotted | tokens={}", estimated)
+                        except Exception as exc:
+                            _log.bind(agent=self._name).warning(
+                                "compact_preemptive: extraction failed ({}) — skipping", exc,
+                            )
 
                     _log.bind(
                         agent=self._name, event="turn_start", turn=_turn,

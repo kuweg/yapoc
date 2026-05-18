@@ -203,6 +203,63 @@ class MasterAgent(BaseAgent):
                     lines.append(f"\n### Agent: {n['child_agent']} — {label}\n{content}")
                 notifications_context = "\n".join(lines)
 
+            # Hydrate history from a persisted compaction checkpoint when
+            # the session was previously compacted. Re-doing the compact on
+            # every resume is wasteful — the SUMMARY.json sidecar already
+            # holds the anchor + facts + narrative summary from the last
+            # auto-compact. We splice: [anchor, synth, ...recent tail] so
+            # master immediately sees the prior state without an LLM call.
+            #
+            # Match criterion: incoming history's first user message must
+            # equal the persisted anchor. If they diverge (new session that
+            # happens to reuse an id), we skip hydration rather than mix
+            # unrelated conversations.
+            if history and self._session_id:
+                try:
+                    from app.cli.sessions import read_summary as _read_summary
+                    _summary_data = _read_summary(self._session_id)
+                except Exception:
+                    _summary_data = None
+                if _summary_data:
+                    _anchor = _summary_data.get("anchor") or {}
+                    _synth = _summary_data.get("synth") or {}
+                    _anchor_content = str(_anchor.get("content", ""))
+                    # Find first user message in incoming history
+                    _first_user_idx = next(
+                        (i for i, m in enumerate(history) if m.role == "user"),
+                        -1,
+                    )
+                    if (
+                        _first_user_idx >= 0
+                        and _anchor_content
+                        and history[_first_user_idx].content == _anchor_content
+                    ):
+                        # How many recent messages to keep verbatim during
+                        # hydration. Use the same tail size as the compact —
+                        # if user has added new turns since the checkpoint,
+                        # those are all preserved (we only ever drop the
+                        # already-compacted middle).
+                        from app.config import settings as _s
+                        _tail_n = getattr(_s, "compact_preserve_tail_n", 8)
+                        _saved_count = int(_summary_data.get("msg_count_at_compact", 0))
+                        # Anything past the saved compact-point is new and
+                        # must be preserved verbatim. Anything before is
+                        # already in the synth msg, so drop it.
+                        if _saved_count > 0 and len(history) > _saved_count:
+                            new_since_compact = history[_saved_count:]
+                        else:
+                            # No new turns since compact — preserve at most
+                            # the last K to seed continuity.
+                            new_since_compact = history[-_tail_n:] if len(history) > _tail_n else history[1:]
+                        # Build hydrated history: anchor + synth + new tail.
+                        from app.utils.adapters import Message as _Message
+                        hydrated: list[_Message] = [
+                            _Message(role="user", content=_anchor_content),
+                            _Message(role=_synth.get("role", "user"), content=str(_synth.get("content", ""))),
+                        ]
+                        hydrated.extend(new_since_compact)
+                        history = hydrated
+
             # Inject user source so the LLM knows where the message came from
             source_line = f"[User source: {source}]" if source else ""
             # Proactive polling: list any sub-agents master spawned that are

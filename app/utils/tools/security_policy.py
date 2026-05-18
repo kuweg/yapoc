@@ -121,17 +121,39 @@ _ABS_PATH_TOKEN_RE = re.compile(
     r"(?:^|(?<=[\s|&;<>(\"']))(~|/)[^\s'\";|&<>()]+"
 )
 
+# Safe absolute paths that legitimate shell commands routinely reference,
+# even though they're outside project_root. Without this whitelist, every
+# `curl -o /dev/null`, `>/dev/stderr`, `read < /dev/tty`, etc. would trip
+# system-destruction — observed live blocking builder's localhost curl
+# tests during the OpenAI voiceover end-to-end test.
+_SAFE_ABS_PATH_PREFIXES: tuple[str, ...] = (
+    "/dev/null",
+    "/dev/stdout",
+    "/dev/stderr",
+    "/dev/tty",
+    "/dev/zero",
+    "/dev/random",
+    "/dev/urandom",
+)
+
 
 def _shell_escapes_project(command: str) -> bool:
     """Heuristic: command operates on an absolute path NOT under project_root.
 
     Matches TOKEN-START absolute paths only (so `app/agents` won't trigger on
-    its embedded `/agents` substring). False positives still possible — that's
-    fine: the LLM Layer-2 isn't invoked when this fires, but a human-CLI
-    bypass still respects hardcoded rules. Tune up if it bites.
+    its embedded `/agents` substring). Common safe paths (``/dev/null``, etc.)
+    are explicitly whitelisted — without that, ``curl -o /dev/null`` and
+    similar harmless redirections trip the rule, blocking routine ops like
+    smoke-testing an HTTP endpoint.
+
+    False positives still possible — that's fine: the LLM Layer-2 isn't
+    invoked when this fires, but a human-CLI bypass still respects hardcoded
+    rules. Tune up if it bites.
     """
     for match in _ABS_PATH_TOKEN_RE.finditer(command):
         token = match.group(0)
+        if any(token == p or token.startswith(p + "/") for p in _SAFE_ABS_PATH_PREFIXES):
+            continue
         if not _path_in_project(token):
             return True
     return False

@@ -1009,10 +1009,32 @@ class BaseAgent:
                         elif isinstance(event, TurnComplete):
                             turn_complete = event
 
+                    # ── Diagnostic: per-turn loop control state ──
+                    # Helps trace the "parallel tools → Turn 1 silent" failure
+                    # mode. One line, structured, easy to grep.
+                    _log.bind(
+                        agent=self._name, event="turn_decision", turn=_turn,
+                        model=config.model,
+                        tc_is_none=turn_complete is None,
+                        stop_reason=getattr(turn_complete, "stop_reason", "?"),
+                        n_tool_calls=len(getattr(turn_complete, "tool_calls", []) or []),
+                        n_content_blocks=len(getattr(turn_complete, "assistant_content", []) or []),
+                        budget_exceeded=_budget_exceeded,
+                    ).info(
+                        "turn_decision | tc_none={} stop={} tools={} content={} budget_exc={}",
+                        turn_complete is None,
+                        getattr(turn_complete, "stop_reason", "?"),
+                        len(getattr(turn_complete, "tool_calls", []) or []),
+                        len(getattr(turn_complete, "assistant_content", []) or []),
+                        _budget_exceeded,
+                    )
+
                     if turn_complete is None:
+                        _log.bind(agent=self._name, turn=_turn).info("loop break: tc_none")
                         break
 
                     if _budget_exceeded:
+                        _log.bind(agent=self._name, turn=_turn).info("loop break: budget")
                         break
 
                     # Append assistant message to conversation
@@ -1029,6 +1051,15 @@ class BaseAgent:
                         turn_complete.stop_reason != "tool_use"
                         or not turn_complete.tool_calls
                     ):
+                        _log.bind(
+                            agent=self._name, turn=_turn,
+                            stop=turn_complete.stop_reason,
+                            tools=len(turn_complete.tool_calls or []),
+                        ).info(
+                            "loop break: no-tool-use (stop={}, tools={})",
+                            turn_complete.stop_reason,
+                            len(turn_complete.tool_calls or []),
+                        )
                         break
 
                     coros = [
@@ -1133,7 +1164,7 @@ class BaseAgent:
                             from collections import Counter as _Counter
                             _sig_counts = _Counter(last_10_sigs)
                             _top_sig, _top_count = _sig_counts.most_common(1)[0]
-                            if _top_count >= 4:
+                            if _top_count >= settings.stuck_signature_threshold:
                                 _stuck_msg = (
                                     f"[STUCK] Tool '{_top_sig[0]}' called with identical "
                                     f"parameters {_top_count} times in the last "

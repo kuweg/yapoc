@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 import httpx
 from loguru import logger
 
+from app.config import settings
 from app.utils.db import create_queued_task, get_queued_task
 
 # ── Constants ──────────────────────────────────────────────────────────────
@@ -31,6 +32,34 @@ TASK_TIMEOUT = 300  # max seconds to wait for task completion
 RATE_LIMIT_PER_CHAT = 1.0  # minimum seconds between messages to the same chat
 MAX_RETRIES = 3  # max retries for Telegram API calls before giving up
 RETRY_DELAY = 5  # seconds to wait before retrying after API error
+
+
+class Authenticator:
+    """Simple PIN-based authentication for Telegram users.
+
+    Users must send /auth <PIN> before the bot accepts their messages.
+    Once authenticated, their chat_id is cached in memory for the session.
+    Bot restarts = re-auth required.
+    """
+
+    def __init__(self, pin: str) -> None:
+        self._pin = pin
+        self._authorized_chats: set[int] = set()
+
+    def is_authorized(self, chat_id: int) -> bool:
+        """Check if a chat is already authenticated."""
+        return chat_id in self._authorized_chats
+
+    def authenticate(self, chat_id: int, provided_pin: str) -> bool:
+        """Attempt to authenticate a chat. Returns True on success."""
+        if provided_pin == self._pin:
+            self._authorized_chats.add(chat_id)
+            return True
+        return False
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self._pin)
 
 
 class RateLimiter:
@@ -71,6 +100,7 @@ class TelegramBot:
         self._offset: int = 0  # getUpdates offset for acknowledging messages
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(30.0))
         self._rate_limiter = RateLimiter()
+        self._auth = Authenticator(settings.telegram_auth_pin)
         self._running = False
 
     # ── Public API ──────────────────────────────────────────────────────────
@@ -239,6 +269,20 @@ class TelegramBot:
         if not chat_id or not text:
             return
 
+        # Authentication check
+        if self._auth.enabled and not self._auth.is_authorized(chat_id):
+            # Only allow /auth command
+            if text.startswith("/auth"):
+                await self._handle_auth(chat_id, text)
+            else:
+                await self._send_message(
+                    chat_id,
+                    "🔒 <b>Authentication required.</b>\n\n"
+                    "Send <code>/auth &lt;PIN&gt;</code> to authenticate.\n\n"
+                    "Don't have the PIN? Contact the bot owner.",
+                )
+            return
+
         # Determine if we should respond
         if chat_type == "private":
             # Always respond in private chats
@@ -270,7 +314,8 @@ class TelegramBot:
                 "Send me any message and I'll forward it to the Master agent for processing.\n\n"
                 "<b>Commands:</b>\n"
                 "/start — Show this welcome message\n"
-                "/help — Show available commands\n\n"
+                "/help — Show available commands\n"
+                "/auth &lt;PIN&gt; — Authenticate with the bot\n\n"
                 "<b>How it works:</b>\n"
                 "1. You send a message\n"
                 "2. It's queued for the Master agent\n"
@@ -283,6 +328,34 @@ class TelegramBot:
                 chat_id,
                 f"Unknown command: {command}\n\nSend /help to see available commands.",
             )
+
+    async def _handle_auth(self, chat_id: int, text: str) -> None:
+        """Handle /auth command — authenticate a user."""
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await self._send_message(
+                chat_id,
+                "🔒 Usage: <code>/auth &lt;PIN&gt;</code>\n\n"
+                "Example: <code>/auth 1234</code>",
+            )
+            return
+
+        provided_pin = parts[1].strip()
+        if self._auth.authenticate(chat_id, provided_pin):
+            await self._send_message(
+                chat_id,
+                "✅ <b>Authentication successful!</b>\n\n"
+                "You can now send messages to the bot.\n\n"
+                "Send /help to see available commands.",
+            )
+            logger.info("Telegram bot: chat {} authenticated successfully", chat_id)
+        else:
+            await self._send_message(
+                chat_id,
+                "❌ <b>Invalid PIN.</b> Please try again.\n\n"
+                "Usage: <code>/auth &lt;PIN&gt;</code>",
+            )
+            logger.warning("Telegram bot: failed auth attempt from chat {}", chat_id)
 
     async def _handle_user_message(self, chat_id: int, text: str) -> None:
         """Forward a user message to Master via task_queue and wait for result."""

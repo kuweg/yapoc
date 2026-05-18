@@ -1158,5 +1158,25 @@
     "cost_usd": 0.00125284,
     "timestamp": "2026-05-18T07:16:33Z",
     "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-18T07:20:16Z",
+    "description": "just reply SIGNAL-BUMP-OK and call notify_parent(status=done, result=SIGNAL-BUMP-OK)",
+    "agent_name": "researcher",
+    "tokens_in": 4620,
+    "tokens_out": 76,
+    "cost_usd": 0.001331,
+    "timestamp": "2026-05-18T07:20:16Z",
+    "model_used": "deepseek-chat"
+  },
+  {
+    "task_id": "researcher:2026-05-18T07:20:17Z",
+    "description": "just reply SIGNAL-BUMP-OK and call notify_parent(status=done, result=SIGNAL-BUMP-OK)",
+    "agent_name": "researcher",
+    "tokens_in": 4715,
+    "tokens_out": 2,
+    "cost_usd": 0.00127525,
+    "timestamp": "2026-05-18T07:20:17Z",
+    "model_used": "deepseek-chat"
   }
 ]

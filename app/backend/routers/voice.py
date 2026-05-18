@@ -34,11 +34,16 @@ async def synthesize_speech(req: TTSRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is empty")
 
+    # Resolve engine: explicit request → settings.tts_engine → "offline" fallback.
+    # The TTSRequest model now defaults to None so this indirection works
+    # without two sources of truth.
+    resolved_engine = req.engine or settings.tts_engine or "offline"
+
     try:
         engine = get_tts_engine()
         audio_bytes = engine.synthesize(
             text=req.text,
-            engine=req.engine,
+            engine=resolved_engine,
             voice=req.voice,
             speed=req.speed,
             fmt=req.fmt,
@@ -59,7 +64,7 @@ async def synthesize_speech(req: TTSRequest):
 @router.post("/stt", response_model=STTResponse)
 async def transcribe_speech(
     audio: UploadFile = File(...),
-    engine: str = Form(default="offline"),
+    engine: str = Form(default=""),
     language: str = Form(default="en-US"),
 ):
     """Transcribe uploaded audio to text."""
@@ -69,12 +74,15 @@ async def transcribe_speech(
     if not audio.filename:
         raise HTTPException(status_code=400, detail="No audio file provided")
 
+    # Empty/missing engine → defer to settings.stt_engine (matches TTS handler).
+    resolved_engine = engine or settings.stt_engine or "offline"
+
     try:
         audio_bytes = await audio.read()
         stt_engine = get_stt_engine()
         result = stt_engine.transcribe(
             audio_bytes=audio_bytes,
-            engine=engine,
+            engine=resolved_engine,
             language=language,
         )
         return STTResponse(

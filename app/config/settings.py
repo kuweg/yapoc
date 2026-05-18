@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
 
     # ── Voice / TTS ─────────────────────────────────────────────────────────
-    voice_enabled: bool = False
+    voice_enabled: bool = True
     voice_auto_speak: bool = False
 
     # TTS engine selection: offline | openai | google

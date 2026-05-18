@@ -113,11 +113,31 @@ class Settings(BaseSettings):
 
     # ── Context management ─────────────────────────────────────────────
     context_compact_threshold: float = (
-        0.85  # fraction of context window before auto-compact
+        0.85  # fraction of context window before full auto-compact fires
+    )
+    context_compact_threshold_preemptive: float = (
+        0.70  # earlier threshold: extract facts only (no lossy summarize)
     )
     context_compact_model: str = (
         "claude-haiku-4-5-20251001"  # cheap model for compaction
     )
+    # Smart-compact tunables. The compact preserves the first user message
+    # (the anchor / original task) and the last N messages verbatim, then
+    # summarizes everything in between. Setting N too low loses recent
+    # context; too high leaves little room for the summary to land.
+    compact_preserve_tail_n: int = 8
+    compact_extract_facts: bool = True
+    # Hard cap on per-session SUMMARY.json size to keep a runaway compact
+    # loop from filling disk. Each compact write rotates the prior file to
+    # `<sid>.summary.prev.json.bak` so the last good version survives.
+    session_summary_max_chars: int = 32000
+    # Periodic librarian-driven session digest: walks long session JSONLs
+    # and produces a structured markdown digest (executive summary +
+    # topics + open threads + facts JSON) at app/agents/master/sessions/
+    # <sid>.digest.md. Used by the UI's session-list "📋 Digest" panel.
+    session_digest_interval_minutes: int = 60
+    session_digest_min_lines: int = 200  # don't bother digesting short sessions
+    session_digest_refresh_hours: int = 6  # re-digest if older than this
     # Caps for file content injected into the system prompt each turn.
     # Prevents unbounded context growth when agents accumulate notes/learnings.
     context_notes_chars: int = 4000

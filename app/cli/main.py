@@ -39,7 +39,10 @@ app = typer.Typer(help="YAPOC \u2014 Yet Another Python OpenClaw CLI", no_args_i
 agents_app = typer.Typer(help="Agent management commands", no_args_is_help=True)
 models_app = typer.Typer(help="Model configuration commands", no_args_is_help=True)
 cron_app = typer.Typer(help="Cron task commands (not yet implemented)", no_args_is_help=True)
-doctor_app = typer.Typer(help="Doctor agent commands")
+doctor_app = typer.Typer(
+    help="Health checks. Bare `yapoc doctor` runs preflight; `yapoc doctor run` spawns the doctor agent.",
+    invoke_without_command=True,
+)
 git_app = typer.Typer(help="Git autocheckpoint commands", no_args_is_help=True)
 
 app.add_typer(agents_app, name="agents")
@@ -1161,6 +1164,13 @@ async def _oneshot(message: str) -> None:
 # -- CLI subcommands -----------------------------------------------------------
 
 @app.command()
+def init():
+    """Interactive first-run wizard: pick provider, validate key, write .env."""
+    from app.cli.init_wizard import run_wizard
+    raise typer.Exit(code=run_wizard())
+
+
+@app.command()
 def start(
     host: str = typer.Option(settings.host, help="Host to bind"),
     port: int = typer.Option(settings.port, help="Port to listen on"),
@@ -1272,6 +1282,60 @@ def run(
         asyncio.run(_repl(resume=True))
     else:
         asyncio.run(_repl())
+
+
+@app.command("librarian-tick")
+def librarian_tick(
+    session_id: str = typer.Option("", "--session", "-s", help="Force-digest a specific session id (skip candidate scan)"),
+):
+    """Manually run the session digester.
+
+    With no args, picks the oldest long-session candidate that needs
+    (re-)digesting and writes ``<sid>.digest.md``. With ``--session`` it
+    bypasses the candidate filter and digests that session unconditionally.
+    """
+    async def _run():
+        from app.backend.session_digester import (
+            _candidates_for_digest,
+            digest_one,
+        )
+
+        if session_id:
+            target = settings.agents_dir / "master" / "sessions" / f"{session_id}.jsonl"
+            if not target.exists():
+                typer.secho(f"No session JSONL at {target}", fg="red")
+                raise typer.Exit(code=1)
+            typer.secho(f"Digesting session: {session_id}", fg="cyan")
+            written = await digest_one(target)
+            if written:
+                typer.secho(f"  wrote {written}", fg="green")
+            else:
+                typer.secho("  digest failed (see logs)", fg="red")
+            return
+
+        candidates = _candidates_for_digest()
+        if not candidates:
+            typer.secho("No session needs digesting right now.", fg="yellow")
+            return
+        candidates.sort(
+            key=lambda p: (
+                p.with_suffix(".digest.md").stat().st_mtime
+                if p.with_suffix(".digest.md").exists()
+                else 0
+            )
+        )
+        target = candidates[0]
+        typer.secho(
+            f"{len(candidates)} candidate(s); digesting oldest: {target.stem}",
+            fg="cyan",
+        )
+        written = await digest_one(target)
+        if written:
+            typer.secho(f"  wrote {written}", fg="green")
+        else:
+            typer.secho("  digest failed (see logs)", fg="red")
+
+    asyncio.run(_run())
 
 
 @app.command("deep-amnesia")
@@ -1559,6 +1623,14 @@ def cron_status():
         console.print(result)
 
     asyncio.run(_run())
+
+
+@doctor_app.callback()
+def doctor_callback(ctx: typer.Context):
+    """Bare `yapoc doctor` -> non-interactive preflight checklist (exit 0 if green)."""
+    if ctx.invoked_subcommand is None:
+        from app.cli.doctor import run_preflight
+        raise typer.Exit(code=run_preflight())
 
 
 @doctor_app.command("run")

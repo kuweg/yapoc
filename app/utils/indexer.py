@@ -7,6 +7,7 @@ Each agent's MEMORY.MD is tracked via a checkpoint (last indexed line number).
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -430,9 +431,98 @@ def index_agent_report(agent_name: str, agent_dir: Path) -> int:
     return count
 
 
+def index_session_jsonl(session_path: Path) -> int:
+    """Index new lines from a session JSONL into ``memory_entries``.
+
+    Sessions reuse the existing ``memory_entries`` table with a pseudo-agent
+    name ``_session`` and ``source="<session_id>.jsonl"``. This way:
+      - No schema migration needed.
+      - The same FTS5 + embedding RRF (`search_hybrid`) works as-is.
+      - The same checkpoint table tracks per-session indexing progress.
+
+    Why this exists: long chat sessions resend the full history every turn.
+    Once indexed, master can ``search_memory(scope="sessions")`` to recall
+    a past turn instead of dragging all of them forward through compact.
+
+    Returns count of new entries indexed.
+    """
+    if not session_path.exists() or not session_path.is_file():
+        return 0
+    sid = session_path.stem  # e.g. "20260518-220245-abc123"
+    src = f"{sid}.jsonl"
+    try:
+        raw_lines = session_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return 0
+
+    checkpoint = get_checkpoint("_session", src)
+    new_lines = raw_lines[checkpoint:]
+    if not new_lines:
+        return 0
+
+    # Each session line is a JSON object {"role": ..., "content": ...}.
+    # Drop short/empty content; flatten list-content (anthropic-style blocks)
+    # to a single text blob so the embedder gets natural prose.
+    entries: list[tuple[str, str]] = []  # (timestamp, content)
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for ln in new_lines:
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            obj = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        role = str(obj.get("role", "")) or "?"
+        content = obj.get("content", "")
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict):
+                    parts.append(str(block.get("text", block.get("content", ""))))
+                else:
+                    parts.append(str(block))
+            content = "\n".join(parts)
+        text = f"[{role}] {str(content).strip()}"
+        if len(text) < _MIN_CONTENT_LEN:
+            continue
+        entries.append((now_iso, text))
+
+    if not entries:
+        # Still advance the checkpoint so we don't re-scan these lines next tick.
+        set_checkpoint("_session", src, len(raw_lines))
+        return 0
+
+    try:
+        embeddings = embed_batch([t for _, t in entries])
+    except Exception as exc:
+        _log.error("Embedding failed for session {}: {}", sid, exc)
+        return 0
+
+    count = 0
+    for (ts, text), emb in zip(entries, embeddings):
+        try:
+            insert_memory_entry(
+                agent="_session",
+                source=src,
+                content=text,
+                timestamp=ts,
+                embedding=emb,
+            )
+            count += 1
+        except Exception as exc:
+            _log.warning("Failed to insert session entry for {}: {}", sid, exc)
+
+    set_checkpoint("_session", src, len(raw_lines))
+    if count:
+        _log.info("Indexed {} new session lines for {}", count, sid)
+    return count
+
+
 def run_indexer() -> int:
     """Index all agents' MEMORY.MD, NOTES.MD, LEARNINGS.MD, TASK.MD, and
-    REPORT.MD files plus shared/KNOWLEDGE.MD. Returns total entries indexed."""
+    REPORT.MD files plus shared/KNOWLEDGE.MD and chat session JSONLs.
+    Returns total entries indexed."""
     init_schema()
     total = 0
 
@@ -457,5 +547,14 @@ def run_indexer() -> int:
         total += index_shared_knowledge()
     except Exception as exc:
         _log.error("Indexer error for shared knowledge: {}", exc)
+
+    # Index chat session JSONLs (per-session checkpoint, reuses memory_entries).
+    sessions_dir = settings.agents_dir / "master" / "sessions"
+    if sessions_dir.exists():
+        for session_file in sorted(sessions_dir.glob("*.jsonl")):
+            try:
+                total += index_session_jsonl(session_file)
+            except Exception as exc:
+                _log.error("Session indexer error for '{}': {}", session_file.name, exc)
 
     return total

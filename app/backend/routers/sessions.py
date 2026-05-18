@@ -46,6 +46,45 @@ def _render_transcript(messages: list[_IncomingMessage]) -> str:
     return "\n\n".join(lines)
 
 
+class SessionDigestResponse(BaseModel):
+    """Server-side compaction checkpoint for a session. ``available=False``
+    when the session has never been compacted (no sidecar on disk)."""
+    session_id: str
+    available: bool = False
+    anchor: dict | None = None
+    synth: dict | None = None
+    compacted_at: str = ""
+    model_used: str = ""
+    msg_count_at_compact: int = 0
+    schema_version: int = 0
+
+
+@router.get("/{session_id}/digest", response_model=SessionDigestResponse)
+async def get_session_digest(session_id: str) -> SessionDigestResponse:
+    """Return the per-session compaction checkpoint, if any.
+
+    Written by ``BaseAgent._compact_messages`` once a session crosses the
+    auto-compact threshold. UI can surface it as a "session digest" panel
+    so the user can see what's been compressed without re-running the LLM.
+    """
+    # Local import keeps the CLI module out of import-time cycles.
+    from app.cli.sessions import read_summary
+
+    data = read_summary(session_id)
+    if not data:
+        return SessionDigestResponse(session_id=session_id, available=False)
+    return SessionDigestResponse(
+        session_id=session_id,
+        available=True,
+        anchor=data.get("anchor"),
+        synth=data.get("synth"),
+        compacted_at=str(data.get("compacted_at", "")),
+        model_used=str(data.get("model_used", "")),
+        msg_count_at_compact=int(data.get("msg_count_at_compact", 0)),
+        schema_version=int(data.get("schema_version", 0)),
+    )
+
+
 @router.post("/summarize", response_model=SummarizeResponse)
 async def summarize(req: SummarizeRequest) -> SummarizeResponse:
     if not req.messages:

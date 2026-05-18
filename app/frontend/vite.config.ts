@@ -11,6 +11,10 @@ export default defineConfig({
       '/api': {
         target: `http://127.0.0.1:${backendPort}`,
         changeOrigin: true,
+        // Strip /api so frontend `/api/foo` hits the backend's `/foo` route.
+        // All FastAPI routers (tasks, agents, voice, etc.) are mounted at
+        // root; this rewrite keeps the frontend's `/api/*` convention without
+        // requiring every backend router to add an explicit prefix.
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       // WebSocket proxy. Without this, useWebSocket connects to

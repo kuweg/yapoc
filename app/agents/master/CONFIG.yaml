@@ -31,6 +31,9 @@ tools:
   - check_task_status
   - read_task_result
   - read_agent_logs
+  # ── Agent management ────────────────────────────────────────────────
+  - create_agent
+  - delete_agent
   # ── Self ────────────────────────────────────────────────────────────
   - server_restart
   - process_restart

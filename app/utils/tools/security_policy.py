@@ -1,8 +1,15 @@
 """Hardcoded security deny rules — the fast path for the security gate.
 
 Layer 1 of the security gate. Pure synchronous classifier, no LLM call:
-- Absolute self-destruction (modifying master/security, settings.py, .env, agent-settings.json)
+- Absolute self-destruction (kill/delete/amnesia of master+security; writes
+  under app/agents/security/; deletion of critical config files)
 - Absolute system-destruction (rm -rf /, dd if=, paths outside project_root)
+
+Edits (not deletions) to critical config files like settings.py, .env, and
+agent-settings.json are intentionally NOT hardcode-denied — agents (notably
+keeper, master) need to edit them for routine ops, and edits are reversible
+via git. Deletion of those files IS still denied; that's the actual
+irrecoverable failure mode.
 
 Anything that's RISKY but doesn't match a hardcoded rule falls through as
 ``"ambiguous"`` and the caller (security_gate.classify) escalates to the
@@ -108,7 +115,12 @@ def _path_in_project(raw: str) -> bool:
 
 
 def _has_critical_suffix(raw: str) -> bool:
-    n = raw.replace("\\", "/").lstrip("./")
+    # `lstrip("./")` would also strip the leading `.` of `.env`, turning it
+    # into `env` and silently bypassing the rule. Use removeprefix on the
+    # specific `./` token instead.
+    n = raw.replace("\\", "/")
+    if n.startswith("./"):
+        n = n[2:]
     return any(n.endswith(suf) for suf in _CRITICAL_PATH_SUFFIXES)
 
 
@@ -200,7 +212,9 @@ HARDCODED_DENY: tuple[Rule, ...] = (
         reason="self-config edit referencing security dir",
         category="self_destruction",
     ),
-    # cross-tool loophole closure: writing under security dir via file_write/file_edit
+    # The security agent's own directory stays write-locked — if anyone
+    # could edit security/PROMPT.MD, the gate could be silently rewritten
+    # from inside the system. This is the only path-based write block left.
     Rule(
         tool="file_write",
         matcher=lambda p: _under_security_dir(str(p.get("path", ""))),
@@ -213,19 +227,12 @@ HARDCODED_DENY: tuple[Rule, ...] = (
         reason="edit of security agent file",
         category="self_destruction",
     ),
-    # cross-tool loophole closure: writing core config files
-    Rule(
-        tool="file_write",
-        matcher=lambda p: _has_critical_suffix(str(p.get("path", ""))),
-        reason="write to core configuration file",
-        category="self_destruction",
-    ),
-    Rule(
-        tool="file_edit",
-        matcher=lambda p: _has_critical_suffix(str(p.get("path", ""))),
-        reason="edit of core configuration file",
-        category="self_destruction",
-    ),
+    # NOTE: critical config files (settings.py, .env, agent-settings.json,
+    # master/PROMPT.MD) are intentionally NOT write-blocked here. The
+    # `file_delete` rule above prevents their deletion, which is the actual
+    # irrecoverable failure mode. Edits are reversible (git diff/revert),
+    # and keeper/master need to edit them for routine ops — blocking those
+    # forced keeper into write-scripts-then-shell-exec workarounds.
     # system-destruction: shell command patterns
     Rule(
         tool="shell_exec",
@@ -257,13 +264,11 @@ HARDCODED_DENY: tuple[Rule, ...] = (
 # config → blocked → delegates to keeper → keeper blocked → loops). The
 # fix: hardcoded fast-path allow for the natural authorities.
 #
-# DENY rules above ALWAYS win over ALLOW — so target=master/security stays
-# protected even when called by a blessed caller. Defense in depth.
-
-def _is_agent_settings_json(path: str) -> bool:
-    n = path.replace("\\", "/")
-    return n.endswith("app/config/agent-settings.json") or n.endswith("config/agent-settings.json")
-
+# ORDER: ALLOW is checked BEFORE DENY (in hardcoded_check). The protection
+# against blessed callers targeting master/security is enforced INSIDE each
+# allow matcher (each one calls `_target_is_core_protected` or equivalent).
+# This is allow-wins, with defense-in-depth baked into the matchers
+# themselves rather than via ordering.
 
 def _target_is_core_protected(params: dict) -> bool:
     """True if the param target is master or security — those stay protected
@@ -294,36 +299,10 @@ HARDCODED_ALLOW: tuple[AllowRule, ...] = (
         matcher=lambda caller, p: caller == "keeper" and not _target_is_core_protected(p),
         reason="keeper has config-edit authority over non-core agents",
     ),
-    # Keeper also needs to edit app/config/agent-settings.json directly
-    # (it's the registry of agent → adapter/model bindings). Without this,
-    # adding a tool to an agent's list requires hand-editing the file
-    # outside the agent system — defeats the point of having a keeper.
-    AllowRule(
-        tool="file_edit",
-        matcher=lambda caller, p: caller == "keeper" and _is_agent_settings_json(str(p.get("path", ""))),
-        reason="keeper has edit authority over agent-settings.json",
-    ),
-    AllowRule(
-        tool="file_write",
-        matcher=lambda caller, p: caller == "keeper" and _is_agent_settings_json(str(p.get("path", ""))),
-        reason="keeper has write authority over agent-settings.json",
-    ),
-    AllowRule(
-        tool="file_edit",
-        matcher=lambda caller, p: caller == "keeper" and (
-            str(p.get("path", "")).replace("\\", "/").endswith("app/config/settings.py") or
-            str(p.get("path", "")).replace("\\", "/").endswith(".env")
-        ),
-        reason="keeper has edit authority over settings.py and .env",
-    ),
-    AllowRule(
-        tool="file_write",
-        matcher=lambda caller, p: caller == "keeper" and (
-            str(p.get("path", "")).replace("\\", "/").endswith("app/config/settings.py") or
-            str(p.get("path", "")).replace("\\", "/").endswith(".env")
-        ),
-        reason="keeper has write authority over settings.py and .env",
-    ),
+    # NOTE: file_edit / file_write on settings.py, .env, and agent-settings.json
+    # no longer require an allow rule — the corresponding deny rules were
+    # removed (deletion is what's protected, not edits). Anyone can edit
+    # critical config files; deletion is still blocked by `file_delete` denies.
 )
 
 

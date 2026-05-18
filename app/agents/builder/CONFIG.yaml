@@ -42,6 +42,40 @@ tools:
 delegation_targets:
   - keeper
 sandbox:
+  shell_allowlist:
+    - poetry
+    - pip
+    - python
+    - python3
+    - git
+    - curl
+    - wget
+    - ls
+    - cat
+    - grep
+    - find
+    - mkdir
+    - cp
+    - mv
+    - rm
+    - chmod
+    - echo
+    - cat
+    - head
+    - tail
+    - sort
+    - wc
+    - uname
+    - which
+    - npm
+    - npx
+    - node
+    - cargo
+    - make
+    - cmake
+    - docker
+    - go
+    - rustc
   forbidden:
     - app/agents/master/
     - app/agents/planning/

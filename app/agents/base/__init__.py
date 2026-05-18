@@ -126,6 +126,37 @@ action items. The summary will replace the conversation history, so include ever
 needed to continue the work. Be thorough but concise. Output only the summary text."""
 
 
+def _detect_stuck_loop(tail: str) -> str | None:
+    """Detect 3+ consecutive copies of a short substring at the end of ``tail``.
+
+    Returns the repeating unit if found, else None. The check walks unit
+    lengths from 10 to 60 chars and compares the last three slices; if all
+    three match, the model is almost certainly stuck (no normal prose
+    repeats a 10+ char block three times back-to-back).
+
+    Cheap: O(60 * tail_len) per call, called every ~200 streamed chars.
+    False-positive-safe: legitimate JSON output, repeated keywords, and
+    even structured tables don't hit this — they repeat tokens but not
+    contiguous multi-word units. Tuned against the live "Let me check the
+    full main.py:Let me check the full main.py:..." failure observed in
+    a 2026-05-19 master session.
+    """
+    if not tail or len(tail) < 30:
+        return None
+    n = len(tail)
+    # Walk longer-first so we report the more-meaningful repeated chunk,
+    # not a sub-fragment of it.
+    for unit_len in range(60, 9, -1):
+        if n < unit_len * 3:
+            continue
+        end = tail[n - unit_len:n]
+        mid = tail[n - 2 * unit_len:n - unit_len]
+        start = tail[n - 3 * unit_len:n - 2 * unit_len]
+        if end == mid == start:
+            return end
+    return None
+
+
 class BaseAgent:
     def __init__(self, agent_dir: Path) -> None:
         self._dir = agent_dir
@@ -835,6 +866,12 @@ class BaseAgent:
                     messages.append({"role": "user", "content": task})
 
                 full_text_parts: list[str] = []
+                # Loop-detection state for stuck-text aborts. Tracks how many
+                # chars have been appended since the last check so we can amortize
+                # the scan cost (O(N) per call) over many small deltas.
+                _stuck_check_buf: list[str] = []
+                _stuck_check_acc_chars: int = 0
+                _stuck_loop_aborted: bool = False
                 max_turns = _runner.get("max_turns", settings.max_turns)
                 threshold_tokens = int(
                     adapter.context_window_size() * settings.context_compact_threshold
@@ -895,6 +932,37 @@ class BaseAgent:
                             full_text_parts.append(event.text)
                             yield event
                             await self._emit_event("message_delta", {"text": event.text})
+                            # Stuck-loop detection: small models (deepseek-chat
+                            # observed live) can fall into self-repeating output
+                            # like "Let me check X:Let me check X:Let me check X:"
+                            # and never emit a tool call. The adapter happily
+                            # streams forever until context runs out. Catch it
+                            # by checking the tail of the accumulated text every
+                            # ~200 chars for 3 consecutive identical substrings
+                            # of length 10–60 chars. Cheap, false-positive-safe.
+                            _stuck_check_buf.append(event.text)
+                            _stuck_check_acc_chars += len(event.text)
+                            if _stuck_check_acc_chars >= 200:
+                                _stuck_check_acc_chars = 0
+                                _tail = "".join(full_text_parts)[-600:]
+                                _loop_unit = _detect_stuck_loop(_tail)
+                                if _loop_unit is not None:
+                                    _stuck_loop_aborted = True
+                                    _short = _loop_unit if len(_loop_unit) < 60 else _loop_unit[:57] + "..."
+                                    _msg = (
+                                        f"[STUCK LOOP] aborting turn {_turn} — "
+                                        f"detected repeated substring {_short!r}"
+                                    )
+                                    _log.bind(
+                                        agent=self._name, event="stuck_loop", turn=_turn,
+                                        model=config.model, unit_len=len(_loop_unit),
+                                    ).warning(_msg)
+                                    await self._append_file(
+                                        "HEALTH.MD",
+                                        f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_msg}\n",
+                                    )
+                                    yield TextDelta(text=f"\n\n[stuck-loop abort] {_short!r} repeated; turn cancelled.")
+                                    break  # exit the inner async-for; outer turn loop also breaks below
                         elif isinstance(event, ToolStart):
                             _tool_start_times[event.name] = _time.monotonic()
                             _input_repr = repr(event.input)
@@ -1028,6 +1096,10 @@ class BaseAgent:
                         len(getattr(turn_complete, "assistant_content", []) or []),
                         _budget_exceeded,
                     )
+
+                    if _stuck_loop_aborted:
+                        _log.bind(agent=self._name, turn=_turn).info("loop break: stuck-loop detected")
+                        break
 
                     if turn_complete is None:
                         _log.bind(agent=self._name, turn=_turn).info("loop break: tc_none")

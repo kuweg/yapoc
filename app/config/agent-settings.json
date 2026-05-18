@@ -68,7 +68,8 @@
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "file_list",
+        "shell_exec"
       ],
       "temperature": 0.2,
       "max_tokens": 8096,

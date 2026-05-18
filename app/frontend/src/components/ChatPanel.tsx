@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { streamTask } from '../hooks/useStream'
+import { streamTask, ServerRestartError } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
 import { useWsStore } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
@@ -430,7 +430,13 @@ export function ChatPanel() {
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        const errText = `\n\n_Error: ${(e as Error).message}_`
+        // ServerRestartError → backend bounced mid-stream and is already back
+        // up (useStream waited for /health). Show a recovery hint, not a raw
+        // network error. Any partial assistant text is preserved before the
+        // hint so the user can still see what arrived before the restart.
+        const errText = e instanceof ServerRestartError
+          ? `\n\n_Server restarted — connection lost. Reconnected; please retry your message._`
+          : `\n\n_Error: ${(e as Error).message}_`
         setStreamingParts((prev) => [...prev, { kind: 'text', text: errText }])
         const full = (assembledText + errText).trim()
         if (full) appendMessage('assistant', full)

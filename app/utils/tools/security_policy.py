@@ -259,6 +259,11 @@ HARDCODED_ALLOW: tuple[AllowRule, ...] = (
         matcher=lambda caller, p: caller == "master" and not _target_is_core_protected(p),
         reason="master has kill authority over non-core agents",
     ),
+    AllowRule(
+        tool="delete_agent",
+        matcher=lambda caller, p: caller == "master" and str(p.get("name", "")) not in _CORE_AGENTS,
+        reason="master has delete-agent authority over non-core agents",
+    ),
     # Keeper IS the config manager. It needs to edit agent configs without
     # an LLM round-trip per call. Hardcoded-deny for target=master/security
     # still wins.

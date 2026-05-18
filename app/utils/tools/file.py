@@ -38,7 +38,8 @@ def _sandbox(path_str: str) -> Path:
 class FileReadTool(BaseTool):
     name = "file_read"
     description = (
-        "Read a file relative to the project root. Returns full file content."
+        "Read a file relative to the project root. Use tail_lines=N to read only "
+        "the last N lines (useful for large files)."
     )
     input_schema: dict[str, Any] = {
         "type": "object",
@@ -46,6 +47,11 @@ class FileReadTool(BaseTool):
             "path": {
                 "type": "string",
                 "description": "File path relative to project root",
+            },
+            "tail_lines": {
+                "type": "integer",
+                "description": "Only return the last N lines (default: 0 = all lines)",
+                "default": 0,
             },
         },
         "required": ["path"],
@@ -67,6 +73,14 @@ class FileReadTool(BaseTool):
                 content = await f.read()
         except Exception as exc:
             return f"ERROR: {exc}"
+
+        tail_lines = params.get("tail_lines", 0)
+        if tail_lines and tail_lines > 0:
+            lines = content.splitlines()
+            total = len(lines)
+            if total > tail_lines:
+                lines = lines[-tail_lines:]
+                content = f"[showing last {tail_lines} of {total} lines]\n" + "\n".join(lines)
 
         return content
 

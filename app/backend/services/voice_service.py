@@ -90,6 +90,8 @@ class TTSEngine:
 
     def _synthesize_openai(self, text: str, voice: str, speed: float, fmt: str) -> bytes:
         api_key = settings.openai_api_key
+        logger.debug(f"_synthesize_openai called: text_len={len(text)}, voice={voice}, speed={speed}, fmt={fmt}")
+        logger.debug(f"openai_api_key present: {bool(api_key)}, key_len={len(api_key) if api_key else 0}")
         if not api_key:
             raise RuntimeError("OpenAI API key not configured")
 
@@ -98,23 +100,28 @@ class TTSEngine:
         model = getattr(settings, 'openai_tts_model', 'tts-1')
         tts_voice = voice or getattr(settings, 'openai_tts_voice', 'alloy')
 
-        response = httpx.post(
-            "https://api.openai.com/v1/audio/speech",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "voice": tts_voice,
-                "input": text,
-                "speed": speed,
-                "response_format": fmt,
-            },
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        return response.content
+        try:
+            response = httpx.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "voice": tts_voice,
+                    "input": text,
+                    "speed": speed,
+                    "response_format": fmt,
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            logger.debug(f"OpenAI TTS success: status={response.status_code}, content_type={response.headers.get('content-type')}, size={len(response.content)}")
+            return response.content
+        except Exception as e:
+            logger.error(f"OpenAI TTS failed: {type(e).__name__}: {e}")
+            raise
 
     def _synthesize_google(self, text: str, voice: str, speed: float, fmt: str) -> bytes:
         try:

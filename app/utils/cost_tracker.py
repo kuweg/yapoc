@@ -27,7 +27,6 @@ is unavailable (e.g. Windows).
 from __future__ import annotations
 
 import json
-import logging
 import os
 import re
 from contextlib import contextmanager
@@ -35,7 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger(__name__)
+from loguru import logger as _log
 
 COSTS_FILE = "COSTS.json"
 
@@ -115,7 +114,7 @@ def _load_costs_raw(path: Path) -> list[dict]:
             return data
         return []
     except (json.JSONDecodeError, OSError) as exc:
-        log.warning("cost_tracker: unreadable %s (%s), starting fresh", path, exc)
+        _log.warning("cost_tracker: unreadable {} ({}), starting fresh", path, exc)
         return []
 
 
@@ -128,7 +127,7 @@ def _save_costs_raw(path: Path, records: list[dict]) -> None:
         )
         os.replace(tmp, path)
     except OSError as exc:
-        log.warning("cost_tracker: write failed for %s: %s", path, exc)
+        _log.warning("cost_tracker: write failed for {}: {}", path, exc)
         if tmp.exists():
             try:
                 tmp.unlink()
@@ -211,7 +210,7 @@ def record_cost(
             records.append(record)
 
     except Exception as exc:
-        log.warning("cost_tracker.record_cost failed for %s: %s", agent_name, exc)
+        _log.warning("cost_tracker.record_cost failed for {}: {}", agent_name, exc)
 
 
 def load_costs(agent_dir: Path) -> list[dict]:
@@ -233,7 +232,7 @@ def load_all_costs(agents_dir: Path) -> list[dict]:
             records = load_costs(agent_dir)
             all_records.extend(records)
     except Exception as exc:
-        log.warning("cost_tracker.load_all_costs failed: %s", exc)
+        _log.warning("cost_tracker.load_all_costs failed: {}", exc)
 
     all_records.sort(key=lambda r: r.get("timestamp", ""), reverse=True)
     return all_records

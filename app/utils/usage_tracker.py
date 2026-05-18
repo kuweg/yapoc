@@ -37,15 +37,14 @@ Schema of ``USAGE.json``:
 from __future__ import annotations
 
 import json
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from loguru import logger as _log
+
 from app.utils.adapters.models import ALL_PRICING
 from app.utils.cost_tracker import record_cost as _record_cost
-
-log = logging.getLogger(__name__)
 
 USAGE_FILE = "USAGE.json"
 
@@ -123,7 +122,7 @@ class UsageTracker:
                 data.setdefault(k, v)
             return data
         except (json.JSONDecodeError, OSError) as exc:
-            log.warning("usage_tracker: unreadable %s (%s), resetting", self._path, exc)
+            _log.warning("usage_tracker: unreadable {} ({}), resetting", self._path, exc)
             return _empty_usage()
 
     def _write(self, data: dict[str, Any]) -> None:
@@ -135,7 +134,7 @@ class UsageTracker:
                 f.write("\n")
             tmp.replace(self._path)
         except OSError as exc:
-            log.warning("usage_tracker: write failed for %s: %s", self._path, exc)
+            _log.warning("usage_tracker: write failed for {}: {}", self._path, exc)
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -200,10 +199,10 @@ class UsageTracker:
                     task_content=task_content,
                 )
             except Exception as _cost_exc:
-                log.warning("usage_tracker: cost_tracker hook failed: %s", _cost_exc)
+                _log.warning("usage_tracker: cost_tracker hook failed: {}", _cost_exc)
 
         except Exception as exc:  # never let tracking break the run loop
-            log.warning("usage_tracker.record_turn failed: %s", exc)
+            _log.warning("usage_tracker.record_turn failed: {}", exc)
 
     def record_tool_call(self, model: str, count: int = 1) -> None:
         """Increment the per-model and global tool-call counters.
@@ -225,7 +224,7 @@ class UsageTracker:
             )
             self._write(data)
         except Exception as exc:
-            log.warning("usage_tracker.record_tool_call failed: %s", exc)
+            _log.warning("usage_tracker.record_tool_call failed: {}", exc)
 
     def snapshot(self) -> dict[str, Any]:
         """Return the current accumulated usage (fresh read, no side effects)."""
@@ -237,4 +236,4 @@ class UsageTracker:
         try:
             self._write(_empty_usage())
         except Exception as exc:
-            log.warning("usage_tracker.reset failed: %s", exc)
+            _log.warning("usage_tracker.reset failed: {}", exc)

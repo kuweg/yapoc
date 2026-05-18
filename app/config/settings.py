@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     # ── Telegram bot ─────────────────────────────────────────────────────
     telegram_bot_token: str = ""  # Bot token from @BotFather; empty = bot disabled
     telegram_auth_pin: str = ""  # PIN for Telegram bot auth; empty = no auth required
+    telegram_whitelist: list[int] = []  # Chat IDs that bypass PIN auth; e.g. [123456789]
 
     @property
     def telegram_enabled(self) -> bool:

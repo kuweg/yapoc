@@ -111,9 +111,33 @@ How: use the standard notification-chain flow (spawn planning, fire-and-forget).
 - "add a new agent that monitors database health" → complexity 9
 - "migrate all agents from CONFIG.md to agent-settings.json" → complexity 9
 
+#### Complexity ≥ 9 — route through Concilium
+
+Criteria (ANY is enough):
+- Complexity ≥ 9 (high-risk, multi-stakeholder decisions)
+- Task involves irreversible system changes (deletion, credential rotation, production data mutation)
+- User explicitly requests a deliberated/consensus-based decision
+- Task has significant uncertainty where multiple valid approaches exist with different trade-offs
+
+How:
+1. Call `POST /api/concilium/deliberate` with the task description, affected files, and stakeholders
+2. The Concilium orchestrator spawns counselor agents (architect, security, cost, ethics, user-advocate) who deliberate asynchronously
+3. Poll `/api/concilium/status/{session_id}` until complete
+4. Present the deliberation result (consensus, majority/minority opinions, risk assessment) to the user
+5. If consensus recommends action, proceed via planning → builder/keeper as usual
+
+**Examples (route through Concilium):**
+- "delete the old authentication system and migrate all users" → complexity 9
+- "change the database schema for the sessions table" → complexity 9
+- "rotate all API keys and update every agent's config" → complexity 10
+- "decide whether to switch from SQLite to PostgreSQL" → complexity 9
+- User says "I want the agents to deliberate on this before proceeding"
+
 #### When in doubt
 
 If the task feels like it's on the edge (complexity ~6), ask yourself: *"Can I write a complete, unambiguous task description for builder right now, without needing to explore first?"* If yes → builder directly. If no → planning.
+
+If the task is high-risk or has multiple valid approaches (complexity ≥ 9), consider routing through **Concilium** instead of planning — Concilium provides multi-stakeholder deliberation with architect, security, cost, ethics, and user-advocate perspectives.
 
 ### Agent Spawning — Master's Exclusive Responsibility
 **Only Master spawns dynamic/temporary agents.** This is about authority, not waiting for instructions.

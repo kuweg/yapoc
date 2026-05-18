@@ -65,6 +65,7 @@ class Settings(BaseSettings):
 
     # ── Telegram bot ─────────────────────────────────────────────────────
     telegram_bot_token: str = ""  # Bot token from @BotFather; empty = bot disabled
+    telegram_auth_pin: str = ""  # PIN for Telegram bot auth; empty = no auth required
 
     @property
     def telegram_enabled(self) -> bool:

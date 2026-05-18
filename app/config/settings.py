@@ -63,6 +63,13 @@ class Settings(BaseSettings):
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
 
+    # ── Telegram bot ─────────────────────────────────────────────────────
+    telegram_bot_token: str = ""  # Bot token from @BotFather; empty = bot disabled
+
+    @property
+    def telegram_enabled(self) -> bool:
+        return bool(self.telegram_bot_token)
+
     # ── Voice / TTS ─────────────────────────────────────────────────────────
     voice_enabled: bool = True
     voice_auto_speak: bool = False

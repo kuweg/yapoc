@@ -48,6 +48,7 @@ tools:
   - learnings_append
   - shared_knowledge_append
   - image_read
+  - send_telegram_message
 sandbox:
   # Master can read anything but writes must go through a sub-agent.
   forbidden:

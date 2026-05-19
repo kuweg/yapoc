@@ -144,6 +144,7 @@ from .memory import AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, Memory
 from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
 from .web import FetchPageTool, WebSearchTool
+from .telegram import SendTelegramMessageTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
     CheckTaskStatusTool,
@@ -204,6 +205,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "shared_knowledge_append": SharedKnowledgeAppendTool,
     "image_read": ImageReadTool,
     "parse_csv": ParseCsvTool,
+    "send_telegram_message": SendTelegramMessageTool,
 }
 
 # Tools that need agent_dir injected

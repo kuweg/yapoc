@@ -1015,8 +1015,9 @@ async def lifespan(app: FastAPI):
 
     # Start Telegram bot if configured
     if settings.telegram_enabled:
-        from app.backend.telegram_bot import TelegramBot
+        from app.backend.telegram_bot import TelegramBot, set_telegram_bot_instance
         telegram_bot = TelegramBot(token=settings.telegram_bot_token)
+        set_telegram_bot_instance(telegram_bot)
         asyncio.ensure_future(telegram_bot.start())
         logger.info("Telegram bot started (polling mode)")
 

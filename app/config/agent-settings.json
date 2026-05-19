@@ -14,7 +14,8 @@
         "file_delete",
         "file_list",
         "create_agent",
-        "delete_agent"
+        "delete_agent",
+        "send_telegram_message"
       ],
       "temperature": 0.3,
       "max_tokens": 8096,

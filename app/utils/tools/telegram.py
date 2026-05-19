@@ -36,12 +36,15 @@ class SendTelegramMessageTool(BaseTool):
                 return "ERROR: Telegram bot is not configured or not running"
 
             # Find an authorized chat to send to
+            # Check both authenticated chats AND whitelisted chats
             authorized_chats = bot._auth._authorized_chats
-            if not authorized_chats:
+            whitelist = bot._auth._whitelist
+            all_authorized = authorized_chats | whitelist
+            if not all_authorized:
                 return "ERROR: No authorized Telegram chats found — user has not authenticated"
 
-            # Send to the first authorized chat
-            chat_id = next(iter(authorized_chats))
+            # Send to the first authorized chat (prefer authenticated over whitelisted)
+            chat_id = next(iter(all_authorized))
             msg_id = await bot._send_message(chat_id, message)
             if msg_id is not None:
                 return f"✅ Telegram message sent to chat {chat_id} (message_id: {msg_id})"

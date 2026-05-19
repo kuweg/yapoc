@@ -3,6 +3,8 @@ import logging
 import time
 from typing import Any, AsyncIterator
 
+from loguru import logger as _log
+
 import httpx
 
 from app.config import settings
@@ -275,8 +277,24 @@ class OpenAIAdapter(BaseLLMAdapter):
             arguments_str = "".join(acc["arguments_parts"])
             try:
                 arguments = json.loads(arguments_str)
-            except json.JSONDecodeError:
-                arguments = {}
+            except json.JSONDecodeError as exc:
+                # Don't silently fall back to {} — that masquerades as
+                # "model called the tool with no args" and produces
+                # misleading downstream errors (e.g. execute_dag's
+                # "nodes list is empty"). Surface the parse failure as a
+                # sentinel-tagged dict so the tool can return an
+                # actionable error pointing at the real issue.
+                _log.bind(
+                    tool=acc.get("name"), adapter="openai",
+                    parts=len(acc["arguments_parts"]),
+                ).warning(
+                    "Tool-call args failed to parse ({}): {!r}",
+                    exc, arguments_str[:400],
+                )
+                arguments = {
+                    "__adapter_parse_error__": str(exc)[:120],
+                    "__raw_args__": arguments_str[:400],
+                }
 
             tc = ToolCall(id=acc["id"], name=acc["name"], input=arguments)
             tool_calls.append(tc)

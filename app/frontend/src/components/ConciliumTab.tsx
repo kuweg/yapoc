@@ -150,6 +150,7 @@ function NewDeliberationForm({
           onChange={(e) => setPlanText(e.target.value)}
           placeholder="Paste the plan text here..."
           rows={8}
+          data-testid="concilium-plan"
           className="w-full bg-zinc-950 border border-zinc-700 text-zinc-200 text-xs font-mono px-3 py-2 focus:outline-none focus:border-[#FFB633] resize-y"
         />
       </div>
@@ -167,6 +168,8 @@ function NewDeliberationForm({
                 key={role.key}
                 onClick={() => toggleRole(role.key)}
                 title={role.focus}
+                data-testid={`concilium-role-${role.key}`}
+                data-active={active}
                 className={`px-2 py-1 text-[10px] font-mono border ${
                   active
                     ? 'border-[#FFB633] text-[#FFB633] bg-[#FFB633]/10'
@@ -188,6 +191,7 @@ function NewDeliberationForm({
         <select
           value={maxRounds}
           onChange={(e) => setMaxRounds(Number(e.target.value))}
+          data-testid="concilium-max-rounds"
           className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] font-mono px-2 py-1"
         >
           {[1, 2, 3, 5].map((n) => (
@@ -200,6 +204,7 @@ function NewDeliberationForm({
       <button
         onClick={handleSubmit}
         disabled={loading || !planText.trim() || selectedRoles.length === 0}
+        data-testid="concilium-submit"
         className="px-4 py-2 text-[11px] font-mono uppercase tracking-wider border border-[#FFB633] text-[#FFB633] hover:bg-[#FFB633]/10 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {loading ? 'Deliberating...' : 'Start Deliberation'}
@@ -250,6 +255,7 @@ function SessionList({
               return (
                 <li
                   key={s.session_id}
+                  data-testid={`concilium-session-${s.session_id}`}
                   className={`px-3 py-2 cursor-pointer text-xs font-mono ${
                     isSelected ? 'bg-zinc-800/60' : 'hover:bg-zinc-900/60'
                   }`}
@@ -347,15 +353,20 @@ export function ConciliumTab() {
     }
   }, [])
 
-  // Load session status
-  const loadStatus = useCallback(async (sessionId: string) => {
+  // Load persisted result for a past session. Old sessions (pre-result.json)
+  // 404 — that's fine, we just leave the Result panel empty.
+  const loadResult = useCallback(async (sessionId: string) => {
     try {
-      const res = await fetch(`/api/concilium/status/${sessionId}`)
+      const res = await fetch(`/api/concilium/result/${sessionId}`)
+      if (res.status === 404) {
+        setResult(null)
+        return
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const body = await res.json()
-      return body
+      const body = await res.json() as DeliberationResult
+      setResult(body)
     } catch {
-      return null
+      setResult(null)
     }
   }, [])
 
@@ -364,15 +375,17 @@ export function ConciliumTab() {
     loadSessions()
   }, [loadSessions])
 
-  // Load logs when session changes
+  // When the selected session changes, fetch logs + the persisted result.
+  // The /result endpoint returns the full DeliberationResult shape so the
+  // Result panel can render duration and rounds; /status alone is a summary
+  // payload that would otherwise produce "NaNmNaNs" — the bug fixed by this
+  // pair of endpoints.
   useEffect(() => {
     if (selectedSession) {
       loadLogs(selectedSession)
-      loadStatus(selectedSession).then((s) => {
-        if (s) setResult(s as unknown as DeliberationResult)
-      })
+      loadResult(selectedSession)
     }
-  }, [selectedSession, loadLogs, loadStatus])
+  }, [selectedSession, loadLogs, loadResult])
 
   // Start deliberation
   const handleStart = async (planText: string, roles: string[], maxRounds: number) => {
@@ -453,13 +466,15 @@ export function ConciliumTab() {
 
         {/* Deliberation result */}
         {result && (
-          <div className="border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+          <div data-testid="concilium-result" className="border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
             <div className="flex items-center gap-3">
               <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono">
                 Result
               </h3>
-              <StatusBadge status={result.status} />
-              <span className="text-[10px] text-zinc-500 font-mono">
+              <span data-testid="concilium-result-status">
+                <StatusBadge status={result.status} />
+              </span>
+              <span data-testid="concilium-result-meta" className="text-[10px] text-zinc-500 font-mono">
                 {result.rounds_completed} round(s) · {fmtDuration(result.duration_s)}
               </span>
             </div>

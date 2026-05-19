@@ -926,6 +926,21 @@ def _spawn_response_indicates_failure(msg: str) -> bool:
     )
 
 
+# Concrete payload example shown both in the tool description (so the
+# model has a template at tool-discovery time) and in the error response
+# when the tool is called with bad/empty input. Without this, smaller
+# models that don't form the nested array-of-objects correctly get a
+# generic "nodes list is empty" message and have nothing to imitate on
+# the retry — observed live in a master session that called execute_dag
+# with no input at all.
+_DAG_EXAMPLE_PAYLOAD = (
+    '{"nodes": ['
+    '{"id": "fetch", "agent": "researcher", "task": "...", "depends_on": []},'
+    '{"id": "build", "agent": "builder", "task": "...", "depends_on": ["fetch"]}'
+    ']}'
+)
+
+
 class ExecuteDagTool(BaseTool):
     name = "execute_dag"
     description = (
@@ -936,7 +951,8 @@ class ExecuteDagTool(BaseTool):
         "don't need to call read_task_result manually. Returns a structured "
         "JSON-ish summary of each node's status and result/error. Use this "
         "instead of manual spawn_agent + wait_for_agent loops whenever there "
-        "are real dependencies between sub-tasks."
+        "are real dependencies between sub-tasks.\n\n"
+        "Example input (minimal): " + _DAG_EXAMPLE_PAYLOAD
     )
     input_schema: dict[str, Any] = {
         "type": "object",
@@ -995,13 +1011,29 @@ class ExecuteDagTool(BaseTool):
         self._session_id = session_id
 
     async def execute(self, **params: Any) -> str:
+        # Adapter parse-failure sentinel: OpenAI/DeepSeek adapters tag
+        # their fallback dict with __adapter_parse_error__ when the
+        # streamed tool-call JSON didn't parse. Surface the real cause
+        # to the model instead of pretending it called with no nodes.
+        if params.get("__adapter_parse_error__"):
+            raw = str(params.get("__raw_args__", ""))[:200]
+            return (
+                "ERROR: execute_dag — your tool call's JSON arguments failed "
+                f"to parse upstream ({params['__adapter_parse_error__']}). "
+                f"The streaming adapter received: {raw!r}. Re-emit the call "
+                "with valid JSON. Example input: " + _DAG_EXAMPLE_PAYLOAD
+            )
+
         nodes: list[dict] = params.get("nodes") or []
         timeout: int = int(params.get("timeout", 600))
         poll_interval: int = int(params.get("poll_interval", 3))
         fail_fast: bool = bool(params.get("fail_fast", True))
 
         if not nodes:
-            return "ERROR: execute_dag — nodes list is empty"
+            return (
+                "ERROR: execute_dag — `nodes` is required and must be a "
+                "non-empty list. Example input: " + _DAG_EXAMPLE_PAYLOAD
+            )
 
         # ── Validation ───────────────────────────────────────────────────
         ids = [n.get("id", "") for n in nodes]

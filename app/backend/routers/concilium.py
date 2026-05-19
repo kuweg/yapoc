@@ -24,7 +24,7 @@ from app.utils.concilium import (
     COUNSELOR_ROLES,
 )
 
-router = APIRouter(prefix="/concilium", tags=["concilium"])
+concilium_router = APIRouter(prefix="/concilium", tags=["concilium"])
 
 
 # ── Request/Response models (inline dicts, no pydantic dep) ──────────────────
@@ -79,7 +79,7 @@ def _infer_status(events: list[dict]) -> str:
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 
-@router.post("/deliberate")
+@concilium_router.post("/deliberate")
 async def start_deliberation(body: dict) -> dict:
     """Start a new deliberation on a plan.
 
@@ -105,8 +105,8 @@ async def start_deliberation(body: dict) -> dict:
         counselor_roles=roles,
     )
 
-    # Run deliberation (non-blocking in production, but for now synchronous)
-    result = orchestrator.deliberate(plan_text)
+    # Run deliberation
+    result = await orchestrator.deliberate(plan_text)
 
     return {
         "session_id": orchestrator.session_id,
@@ -118,7 +118,7 @@ async def start_deliberation(body: dict) -> dict:
     }
 
 
-@router.get("/status/{session_id}")
+@concilium_router.get("/status/{session_id}")
 async def get_status(session_id: str) -> dict:
     """Get the current status of a deliberation session."""
     session_dir = CONCILIUM_DIR / session_id
@@ -132,7 +132,33 @@ async def get_status(session_id: str) -> dict:
     return info
 
 
-@router.get("/logs/{session_id}")
+@concilium_router.get("/result/{session_id}")
+async def get_result(session_id: str) -> dict:
+    """Return the full DeliberationResult-shaped payload for a past session.
+
+    Reads ``result.json`` written by the orchestrator at deliberation exit.
+    The fields match what ``POST /concilium/deliberate`` returns so the UI
+    can re-populate its Result panel without special-casing.
+    """
+    session_dir = CONCILIUM_DIR / session_id
+    if not session_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    result_path = session_dir / "result.json"
+    if not result_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"No persisted result for session {session_id} (likely an old session predating result.json)",
+        )
+    try:
+        return json.loads(result_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"result.json for {session_id} is corrupt: {exc}",
+        )
+
+
+@concilium_router.get("/logs/{session_id}")
 async def get_logs(
     session_id: str,
     limit: int = Query(200, ge=1, le=2000),
@@ -168,7 +194,7 @@ async def get_logs(
     return {"events": events, "count": len(events)}
 
 
-@router.get("/sessions")
+@concilium_router.get("/sessions")
 async def list_sessions(
     limit: int = Query(20, ge=1, le=100),
 ) -> dict:
@@ -191,7 +217,7 @@ async def list_sessions(
     return {"sessions": sessions, "count": len(sessions)}
 
 
-@router.get("/trace-stream")
+@concilium_router.get("/trace-stream")
 async def trace_stream(
     session_id: str = Query("", description="Filter to a specific session"),
 ) -> StreamingResponse:

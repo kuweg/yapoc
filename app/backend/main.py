@@ -1013,12 +1013,21 @@ async def lifespan(app: FastAPI):
         asyncio.ensure_future(_master_redis_watcher())
     asyncio.ensure_future(_master_notification_watcher())
 
-    # Start Telegram bot if configured
+    # Start Telegram bot if configured.
+    # KEEP A HANDLE: previously this was a fire-and-forget asyncio.ensure_future
+    # with no reference saved, so the shutdown block below couldn't stop it.
+    # On SIGTERM the lifespan would tear down the rest of the app while the
+    # bot kept long-polling Telegram in the background, blocking uvicorn from
+    # exiting cleanly. Meanwhile process_restart / yapoc restart had already
+    # spawned the *new* uvicorn — both bots ended up polling the same token
+    # and the user saw 2x / 3x message processing.
+    telegram_bot = None
+    telegram_task = None
     if settings.telegram_enabled:
         from app.backend.telegram_bot import TelegramBot, set_telegram_bot_instance
         telegram_bot = TelegramBot(token=settings.telegram_bot_token)
         set_telegram_bot_instance(telegram_bot)
-        asyncio.ensure_future(telegram_bot.start())
+        telegram_task = asyncio.create_task(telegram_bot.start())
         logger.info("Telegram bot started (polling mode)")
 
     # Morning report subscriber — the primary, reliable trigger for autonomous
@@ -1087,6 +1096,22 @@ async def lifespan(app: FastAPI):
         scheduler.shutdown(wait=False)
         poller.stop()
         await message_bus_relay.stop()
+
+        # Shut the Telegram bot down BEFORE anything else awaitable so the
+        # 30s long-poll doesn't keep uvicorn alive past the restart window.
+        # bot.stop() force-closes the httpx client which aborts the in-flight
+        # getUpdates immediately and the polling loop exits within ~5s.
+        if telegram_bot is not None:
+            try:
+                await telegram_bot.stop()
+            except Exception as _tg_stop_exc:
+                logger.warning("Telegram bot stop() failed: {}", _tg_stop_exc)
+        if telegram_task is not None:
+            telegram_task.cancel()
+            try:
+                await telegram_task
+            except (asyncio.CancelledError, Exception):
+                pass
         # Bug 54: remove our master consumer registrations from Redis before
         # disconnecting so they don't linger in master_group across restarts.
         # Without this, every `yapoc restart` left a `master_<old_pid>` and

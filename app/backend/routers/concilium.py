@@ -79,18 +79,59 @@ def _infer_status(events: list[dict]) -> str:
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 
-@concilium_router.post("/deliberate")
+async def _run_deliberation_background(
+    orchestrator: ConciliumOrchestrator,
+    plan_text: str,
+) -> None:
+    """Background task wrapper around `orchestrator.deliberate`.
+
+    Catches all exceptions and writes them to STATUS.json so a failure
+    doesn't leave the session stuck in `running` forever. We can't `await`
+    the result here because the POST handler has already returned —
+    everything has to flow through the on-disk state files (STATUS.json,
+    events.jsonl, result.json) and master's notification queue.
+    """
+    from app.utils.concilium import _write_status  # local import: avoid cycles
+
+    try:
+        await orchestrator.deliberate(plan_text)
+    except Exception as exc:
+        logger.exception("Concilium deliberation crashed for session {}", orchestrator.session_id)
+        try:
+            _write_status(
+                orchestrator.session_id, "error",
+                current_round=len(orchestrator.rounds),
+                max_rounds=orchestrator.max_rounds,
+                active_roles=orchestrator.active_roles,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        except Exception:
+            pass
+
+
+@concilium_router.post("/deliberate", status_code=202)
 async def start_deliberation(body: dict) -> dict:
-    """Start a new deliberation on a plan.
+    """Kick off a new deliberation on a plan.
+
+    Returns immediately with the session id and ``status="running"`` —
+    deliberation continues in the background. The client polls
+    ``GET /concilium/status/{session_id}`` for progress and
+    ``GET /concilium/result/{session_id}`` once the status is terminal.
+    Live events are also streamed via ``GET /concilium/trace-stream``.
+
+    Previous behavior was fully synchronous: the POST blocked for the
+    entire deliberation (~90s for 3 rounds), so the UI saw nothing
+    in-flight. That broke the "running" indicator and made it look like
+    the system hung.
 
     Request body:
+    ```
     {
         "plan_text": "...",
         "roles": ["architect", "critic", ...],  # optional, defaults to all
-        "max_rounds": 3  # optional
+        "max_rounds": 3                          # optional
     }
-
-    Returns session_id for polling.
+    ```
     """
     plan_text = body.get("plan_text", "").strip()
     if not plan_text:
@@ -105,30 +146,56 @@ async def start_deliberation(body: dict) -> dict:
         counselor_roles=roles,
     )
 
-    # Run deliberation
-    result = await orchestrator.deliberate(plan_text)
+    # Seed STATUS.json *before* spawning so the very first poll from the
+    # UI sees `state="spawning"` rather than a 404 race window.
+    from app.utils.concilium import _write_status as _seed_status
+    _seed_status(
+        orchestrator.session_id, "spawning",
+        current_round=0, max_rounds=max_rounds,
+        active_roles=orchestrator.active_roles,
+    )
+
+    # Fire-and-forget background task. The orchestrator writes everything
+    # the client needs (STATUS.json, events.jsonl, result.json) and pushes
+    # the terminal outcome into master's notification queue.
+    asyncio.create_task(_run_deliberation_background(orchestrator, plan_text))
 
     return {
         "session_id": orchestrator.session_id,
-        "status": result.status.value,
-        "rounds_completed": len(result.rounds),
-        "duration_s": result.duration_s,
-        "approved_plan": result.approved_plan if result.status == DeliberationStatus.APPROVED else None,
-        "escalation_summary": result.escalation_summary if result.status == DeliberationStatus.ESCALATED else None,
+        "status": "running",
+        "max_rounds": max_rounds,
+        "active_roles": orchestrator.active_roles,
+        "started_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @concilium_router.get("/status/{session_id}")
 async def get_status(session_id: str) -> dict:
-    """Get the current status of a deliberation session."""
+    """Get the current status of a deliberation session.
+
+    Prefers the orchestrator-written STATUS.json (authoritative,
+    captures the spawning→running→terminal lifecycle including the
+    current round). Falls back to inferring status from events.jsonl
+    for legacy sessions written before STATUS.json was introduced.
+    """
     session_dir = CONCILIUM_DIR / session_id
     if not session_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
+    # Preferred: authoritative STATUS.json (includes current_round + state).
+    status_path = session_dir / "STATUS.json"
+    if status_path.exists():
+        try:
+            return json.loads(status_path.read_text())
+        except json.JSONDecodeError:
+            # Corrupt STATUS.json — fall through to event inference rather
+            # than 500'ing the client.
+            pass
+
+    # Fallback: scan events.jsonl. Works for pre-STATUS.json sessions.
     info = _session_info(session_dir)
     if not info:
         raise HTTPException(status_code=404, detail=f"No events for session {session_id}")
-
     return info
 
 

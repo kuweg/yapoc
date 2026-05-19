@@ -182,11 +182,18 @@ class GoogleAdapter(BaseLLMAdapter):
             max_output_tokens=self._config.max_tokens,
         )
 
-        async for chunk in self._client.aio.models.generate_content_stream(
+        # google-genai 2.x: `generate_content_stream` is an `async def` that
+        # returns an AsyncIterator. We must `await` the call to get the
+        # iterator before driving it with `async for`. Direct
+        # `async for x in client.aio.models.generate_content_stream(...)`
+        # raises TypeError: 'async for' requires an object with __aiter__,
+        # got coroutine.
+        stream = await self._client.aio.models.generate_content_stream(
             model=self._config.model,
             contents=contents,
             config=config,
-        ):
+        )
+        async for chunk in stream:
             if chunk.text:
                 yield chunk.text
 
@@ -230,11 +237,14 @@ class GoogleAdapter(BaseLLMAdapter):
         tool_calls: list[ToolCall] = []
         assistant_text_parts: list[str] = []
 
-        async for chunk in self._client.aio.models.generate_content_stream(
+        # See identical fix in `stream()` above — `generate_content_stream`
+        # is a coroutine in google-genai 2.x; await it before iterating.
+        stream = await self._client.aio.models.generate_content_stream(
             model=self._config.model,
             contents=gemini_contents,
             config=config,
-        ):
+        )
+        async for chunk in stream:
             if chunk.text:
                 assistant_text_parts.append(chunk.text)
                 yield TextDelta(chunk.text)

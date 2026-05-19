@@ -48,8 +48,14 @@ const STATUS_COLORS: Record<string, string> = {
   approved: 'text-green-400 border-green-700/40 bg-green-900/40',
   rejected: 'text-red-400 border-red-700/40 bg-red-900/40',
   escalated: 'text-yellow-400 border-yellow-700/40 bg-yellow-900/40',
+  // POST returns "running" immediately (was "in_progress" only after the
+  // first round_started event); both render the same blue chip so the
+  // user sees in-flight status no matter which API path produces it.
+  running: 'text-blue-400 border-blue-700/40 bg-blue-900/40 animate-pulse',
+  spawning: 'text-blue-300 border-blue-700/40 bg-blue-900/30 animate-pulse',
   in_progress: 'text-blue-400 border-blue-700/40 bg-blue-900/40',
   pending: 'text-zinc-400 border-zinc-700 bg-zinc-800',
+  error: 'text-red-300 border-red-700/40 bg-red-900/40',
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -388,6 +394,11 @@ export function ConciliumTab() {
   }, [selectedSession, loadLogs, loadResult])
 
   // Start deliberation
+  //
+  // POST /concilium/deliberate now returns 202 immediately with
+  // {session_id, status: "running"} — the orchestrator runs in the
+  // background and writes STATUS.json + result.json as it progresses.
+  // We poll /status/{sid} every 2s until terminal, then fetch /result.
   const handleStart = async (planText: string, roles: string[], maxRounds: number) => {
     setDeliberating(true)
     setError(null)
@@ -403,14 +414,70 @@ export function ConciliumTab() {
         }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const body = await res.json() as DeliberationResult
-      setResult(body)
-      setSelectedSession(body.session_id)
+      const startBody = await res.json() as { session_id: string; status: string }
+      const sid = startBody.session_id
+      setSelectedSession(sid)
       setShowNewForm(false)
-      // Refresh sessions
       loadSessions()
-      // Load logs
-      loadLogs(body.session_id)
+      loadLogs(sid)
+
+      // Show a "running" placeholder so the UI clearly indicates work in
+      // flight (instead of looking idle until the result arrives).
+      setResult({
+        session_id: sid,
+        status: 'running',
+        rounds_completed: 0,
+        duration_s: 0,
+        approved_plan: null,
+        escalation_summary: null,
+      })
+
+      // Poll /status until terminal. Refresh logs every poll so the
+      // Live trace panel keeps growing as events.jsonl appends.
+      // 5 minute ceiling — well past the typical 90-120s deliberation
+      // and matches the orchestrator's own per-round timeouts.
+      const POLL_INTERVAL_MS = 2000
+      const POLL_MAX_MS = 5 * 60 * 1000
+      const deadline = Date.now() + POLL_MAX_MS
+      const TERMINAL = new Set(['approved', 'rejected', 'escalated', 'error'])
+      let terminal = false
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+        try {
+          const statusRes = await fetch(`/api/concilium/status/${sid}`)
+          if (statusRes.ok) {
+            const statusBody = await statusRes.json() as { state?: string; status?: string; current_round?: number }
+            // STATUS.json uses `state`; the events-inferred fallback uses `status`.
+            const currentState = statusBody.state || statusBody.status || ''
+            // Update the placeholder so badge + round counter tick live.
+            setResult((prev) => prev ? {
+              ...prev,
+              status: currentState || prev.status,
+              rounds_completed: statusBody.current_round ?? prev.rounds_completed,
+            } : prev)
+            loadLogs(sid)
+            if (TERMINAL.has(currentState)) {
+              terminal = true
+              break
+            }
+          }
+        } catch {
+          // transient — keep polling
+        }
+      }
+
+      if (!terminal) {
+        // Hit the 5-min ceiling without a terminal status. Surface as an
+        // error but don't blow away the partial Result panel.
+        setError('Deliberation timed out client-side (5 min). Check the session manually.')
+      }
+
+      // Always pull the persisted result — it has the full critique
+      // text + escalation summary the Result panel renders. If the
+      // deliberation crashed mid-flight, result.json may be absent; that
+      // path naturally falls through to a null result + visible error.
+      await loadResult(sid)
+      loadSessions()
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc))
     } finally {

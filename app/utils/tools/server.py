@@ -42,19 +42,81 @@ def _schedule_deferred_restart(old_pid: int, cmd: list[str], delay: float = 3.0)
     cmd_json = json.dumps(cmd)
     pid_file = str(_PID_FILE)
     server_output = str(_SERVER_OUTPUT)
+    port = settings.port
 
+    # The old helper slept a flat 1.5s after SIGTERM, then spawned the new
+    # uvicorn unconditionally. If the old process's lifespan shutdown took
+    # longer than 1.5s (real for any non-trivial dep tree, especially the
+    # Telegram bot's 30s long-poll), the new uvicorn launched while the
+    # old one was still on :8000. Result: two uvicorns alive, two Telegram
+    # bots polling, user sees duplicate replies.
+    #
+    # The new helper waits for the port to actually free (up to 25s) before
+    # spawning. If SIGTERM didn't take, escalates to SIGKILL.
     script = textwrap.dedent(f"""\
-        import json, os, signal, subprocess, sys, time
+        import json, os, signal, socket, subprocess, sys, time
+
+        OLD_PID = {old_pid}
+        PORT = {port}
+        CMD = json.loads({cmd_json!r})
+        PID_FILE = {pid_file!r}
+        SERVER_OUTPUT = {server_output!r}
+
+        def _alive(p):
+            try:
+                os.kill(p, 0)
+                return True
+            except (ProcessLookupError, PermissionError):
+                return False
+
+        def _port_held():
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.2)
+            try:
+                s.connect(("127.0.0.1", PORT))
+                return True
+            except OSError:
+                return False
+            finally:
+                try: s.close()
+                except OSError: pass
+
         time.sleep({delay})
+
+        # 1. Graceful SIGTERM.
         try:
-            os.kill({old_pid}, signal.SIGTERM)
+            os.kill(OLD_PID, signal.SIGTERM)
         except ProcessLookupError:
             pass
-        time.sleep(1.5)
-        cmd = json.loads({cmd_json!r})
-        log = open({server_output!r}, "a")
-        p = subprocess.Popen(cmd, stdout=log, stderr=log)
-        open({pid_file!r}, "w").write(str(p.pid))
+
+        # 2. Wait up to 10s for clean exit.
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            if not _alive(OLD_PID) and not _port_held():
+                break
+            time.sleep(0.3)
+
+        # 3. Force-kill if it ignored SIGTERM (Telegram bot can pin the loop).
+        if _alive(OLD_PID):
+            try:
+                os.kill(OLD_PID, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                if not _alive(OLD_PID):
+                    break
+                time.sleep(0.2)
+
+        # 4. Wait for the port to actually free (TCP TIME_WAIT + slow close).
+        deadline = time.monotonic() + 10.0
+        while _port_held() and time.monotonic() < deadline:
+            time.sleep(0.3)
+
+        # 5. Spawn the new uvicorn.
+        log = open(SERVER_OUTPUT, "a")
+        p = subprocess.Popen(CMD, stdout=log, stderr=log)
+        open(PID_FILE, "w").write(str(p.pid))
     """)
     subprocess.Popen(
         [sys.executable, "-c", script],
@@ -200,7 +262,10 @@ class ServerRestartTool(BaseTool):
                 f"Sub-agents notified. New backend will be at http://{settings.host}:{settings.port}."
             )
 
-        # Normal restart (CLI-initiated)
+        # Normal restart (CLI-initiated). Wait for the old uvicorn to fully
+        # exit AND release the port before spawning a replacement, so we don't
+        # accumulate orphaned instances (each of which would run its own
+        # Telegram bot and cause duplicate message processing).
         if old_pid is not None:
             try:
                 os.kill(old_pid, signal.SIGTERM)
@@ -208,7 +273,34 @@ class ServerRestartTool(BaseTool):
                 pass
             _PID_FILE.unlink(missing_ok=True)
 
-        await asyncio.sleep(1)
+            deadline = asyncio.get_event_loop().time() + 10.0
+            while asyncio.get_event_loop().time() < deadline:
+                try:
+                    os.kill(old_pid, 0)
+                except ProcessLookupError:
+                    break
+                await asyncio.sleep(0.3)
+            else:
+                # Escalate to SIGKILL if still alive.
+                try:
+                    os.kill(old_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+        # Wait for port to actually free before spawning replacement.
+        import socket as _socket
+        port_deadline = asyncio.get_event_loop().time() + 5.0
+        while asyncio.get_event_loop().time() < port_deadline:
+            s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+            s.settimeout(0.2)
+            try:
+                s.connect(("127.0.0.1", settings.port))
+                s.close()
+                await asyncio.sleep(0.3)
+            except OSError:
+                s.close()
+                break
+
         proc = _spawn_server(cmd)
         return f"Server restarted. Old PID: {old_pid or 'none'}, New PID: {proc.pid}"
 

@@ -34,7 +34,14 @@ from app.utils.adapters import AgentConfig, get_adapter
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-CONCILIUM_DIR = Path("app/agents/concilium")
+# Anchor to the project root via settings so the orchestrator always
+# writes to the same place regardless of the backend's CWD. Relative
+# `Path("app/agents/concilium")` previously dropped sessions into
+# whatever directory uvicorn happened to launch from (e.g. it picked up
+# `app/frontend/app/agents/concilium/` after a frontend toolchain ran in
+# that dir), breaking the router's session list and the UI's history.
+from app.config import settings as _concilium_settings
+CONCILIUM_DIR = _concilium_settings.agents_dir / "concilium"
 MAX_ROUNDS = 3
 CONSENSUS_THRESHOLD = 0.8  # 80% weighted score required
 
@@ -209,6 +216,84 @@ def _write_live_md(session_id: str, phase: str, detail: str) -> None:
     )
 
 
+# Terminal deliberation states — used by both the orchestrator (to know
+# when to mark STATUS.json as completed) and the router/UI (to know when
+# polling can stop). Centralized here so updates land in one place.
+_CONCILIUM_TERMINAL_STATES: frozenset[str] = frozenset({
+    "approved", "rejected", "escalated", "error",
+})
+
+
+def _write_status(
+    session_id: str,
+    state: str,
+    *,
+    current_round: int = 0,
+    max_rounds: int = 0,
+    active_roles: list[str] | None = None,
+    error: str = "",
+    extra: dict | None = None,
+) -> None:
+    """Atomically write STATUS.json for a Concilium session.
+
+    Replaces the prior "infer status from events.jsonl" pattern in the
+    router (`_infer_status`) — that worked, but only when polled, and
+    couldn't represent the gap between deliberation-kicked-off and
+    first-round-event. With this file:
+
+      - `state` is one of: ``spawning``, ``running``,
+        ``approved``, ``rejected``, ``escalated``, ``error``.
+      - `current_round` ticks as the orchestrator advances.
+      - `started_at` is preserved across writes; `updated_at` always
+        refreshes.
+      - Terminal states stamp `completed_at`.
+
+    Best-effort: write failures are swallowed so a flaky disk can't
+    crash the orchestrator loop. The UI already has fallback paths
+    (events.jsonl scan) for the rare case STATUS.json goes missing.
+    """
+    log_dir = CONCILIUM_DIR / session_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+    status_path = log_dir / "STATUS.json"
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Preserve started_at across writes if a prior STATUS.json exists.
+    started_at = now
+    if status_path.exists():
+        try:
+            prior = json.loads(status_path.read_text())
+            started_at = prior.get("started_at", now)
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    payload: dict = {
+        "session_id": session_id,
+        "state": state,
+        "started_at": started_at,
+        "updated_at": now,
+        "current_round": current_round,
+        "max_rounds": max_rounds,
+        "active_roles": active_roles or [],
+    }
+    if state in _CONCILIUM_TERMINAL_STATES:
+        payload["completed_at"] = now
+    if error:
+        payload["error"] = error[:500]
+    if extra:
+        payload.update(extra)
+
+    try:
+        # Atomic write via tmp + rename.
+        tmp = status_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, indent=2))
+        tmp.replace(status_path)
+    except OSError:
+        # Best-effort — don't ever crash deliberation because of a disk
+        # write failure here. The UI's event-inference fallback survives.
+        return
+
+
 def _persist_result(session_id: str, result: "DeliberationResult", plan_text: str) -> None:
     """Snapshot the final DeliberationResult to result.json so the UI can re-load it later."""
     log_dir = CONCILIUM_DIR / session_id
@@ -244,6 +329,76 @@ def _persist_result(session_id: str, result: "DeliberationResult", plan_text: st
         "persisted_at": datetime.now(timezone.utc).isoformat(),
     }
     (log_dir / "result.json").write_text(json.dumps(payload, indent=2))
+
+
+def _notify_master(
+    session_id: str,
+    result: "DeliberationResult",
+    plan_text: str,
+) -> None:
+    """Push a deliberation outcome into master's notification queue.
+
+    Without this, the orchestrator finishes silently — master never sees
+    that a concilium session it (or the UI) requested has produced a
+    result. The notification surfaces on master's next ``handle_task_stream``
+    turn as ``[SYSTEM NOTIFICATION — sub-agent results]`` so master can
+    apply an approved plan, surface an escalation to the user, or
+    learn from a rejection.
+
+    The body is a compact, human-readable summary — anything master needs
+    more detail on it can pull from ``result.json`` directly.
+
+    Best-effort: import + call is wrapped so a backend that doesn't have
+    the notification_queue available (e.g. a unit test) doesn't break the
+    orchestrator's return path.
+    """
+    try:
+        from app.backend.services.notification_queue import notification_queue
+    except Exception:
+        return
+
+    status = result.status.value
+    duration = result.duration_s
+    rounds = len(result.rounds)
+
+    # Compose a one-page summary master can scan in a single turn.
+    lines: list[str] = [
+        f"Concilium session {session_id} — {status.upper()}",
+        f"Rounds: {rounds} | Duration: {duration:.1f}s",
+    ]
+    plan_preview = (plan_text or "").strip().splitlines()
+    if plan_preview:
+        lines.append(f"Plan: {plan_preview[0][:160]}")
+    if result.status == DeliberationStatus.APPROVED and result.approved_plan:
+        approved_preview = result.approved_plan.strip().splitlines()
+        if approved_preview:
+            lines.append(f"Approved plan first line: {approved_preview[0][:160]}")
+        lines.append(f"Next step: implement the approved plan (see app/agents/concilium/{session_id}/result.json for full text).")
+    elif result.escalation_summary:
+        rec = result.escalation_summary.get("recommendation", "")
+        if rec:
+            # Truncate so master's context doesn't bloat — the full JSON is
+            # one file_read away.
+            lines.append("")
+            lines.append(rec[:1200])
+        lines.append("")
+        lines.append(f"Full report: app/agents/concilium/{session_id}/result.json")
+
+    summary = "\n".join(lines)
+
+    try:
+        notification_queue.enqueue(
+            parent_agent="master",
+            child_agent="concilium",
+            status="done" if result.status == DeliberationStatus.APPROVED else "error",
+            result=summary if result.status == DeliberationStatus.APPROVED else "",
+            error=summary if result.status != DeliberationStatus.APPROVED else "",
+            session_id=session_id,
+        )
+    except Exception:
+        # Don't ever let a notification-queue failure derail the
+        # orchestrator's return.
+        return
 
 
 # ── Orchestrator ─────────────────────────────────────────────────────────────
@@ -284,11 +439,23 @@ class ConciliumOrchestrator:
             "max_rounds": self.max_rounds,
         })
         _write_live_md(self.session_id, "START", f"Deliberation started with {len(self.active_roles)} counselors")
+        # First STATUS.json write — the UI now has something to poll
+        # before the first round even starts.
+        _write_status(
+            self.session_id, "running",
+            current_round=0, max_rounds=self.max_rounds,
+            active_roles=self.active_roles,
+        )
 
         current_plan = plan_text
 
         for round_num in range(1, self.max_rounds + 1):
             _write_live_md(self.session_id, f"ROUND_{round_num}", "Starting round")
+            _write_status(
+                self.session_id, "running",
+                current_round=round_num, max_rounds=self.max_rounds,
+                active_roles=self.active_roles,
+            )
 
             round_result = await self._run_round(round_num, current_plan)
             self.rounds.append(round_result)
@@ -317,6 +484,14 @@ class ConciliumOrchestrator:
                         total_cost_usd=self.total_cost,
                     )
                     _persist_result(self.session_id, result, plan_text)
+                    _write_status(
+                        self.session_id, "approved",
+                        current_round=round_num, max_rounds=self.max_rounds,
+                        active_roles=self.active_roles,
+                        extra={"score": round_result.weighted_score,
+                               "duration_s": duration},
+                    )
+                    _notify_master(self.session_id, result, plan_text)
                     return result
 
             # If rejected by any counselor, escalate
@@ -341,6 +516,14 @@ class ConciliumOrchestrator:
                     escalation_summary=self._build_escalation_summary(),
                 )
                 _persist_result(self.session_id, result, plan_text)
+                _write_status(
+                    self.session_id, "rejected",
+                    current_round=round_num, max_rounds=self.max_rounds,
+                    active_roles=self.active_roles,
+                    extra={"rejected_by": [r.role for r in rejections],
+                           "duration_s": duration},
+                )
+                _notify_master(self.session_id, result, plan_text)
                 return result
 
             # Update plan with revisions for next round
@@ -364,6 +547,14 @@ class ConciliumOrchestrator:
             escalation_summary=self._build_escalation_summary(),
         )
         _persist_result(self.session_id, result, plan_text)
+        _write_status(
+            self.session_id, "escalated",
+            current_round=len(self.rounds),
+            max_rounds=self.max_rounds,
+            active_roles=self.active_roles,
+            extra={"duration_s": duration},
+        )
+        _notify_master(self.session_id, result, plan_text)
         return result
 
     async def _run_round(self, round_num: int, plan_text: str) -> DeliberationRound:
@@ -474,27 +665,96 @@ class ConciliumOrchestrator:
         return _parse_counselor_response(role, raw or "")
 
     def _build_escalation_summary(self) -> dict:
-        """Build an escalation summary from all rounds."""
+        """Build an escalation summary from all rounds.
+
+        Now includes the actual critique text (not just counts), the top
+        unresolved issues across rejecting/revising counselors, and an
+        actionable next-steps section so the user has enough context to
+        decide what to do without reading every events.jsonl entry.
+        """
+        last_round = self.rounds[-1] if self.rounds else None
+
+        # Collect the top issues from counselors who didn't approve in the
+        # last round. These are the unresolved blockers — exactly what a
+        # reviewer needs to see to decide next steps.
+        top_unresolved: list[dict] = []
+        if last_round:
+            for role, c in last_round.critiques.items():
+                if c.vote == Vote.APPROVE:
+                    continue
+                # Cap per-role issues so the summary stays scannable.
+                # ``c.issues`` is ``list[dict]`` with the schema
+                # ``{severity, description, reference}``. The dict-get + fallback
+                # chain stays defensive so a slightly-different counselor JSON
+                # output (e.g. ``text`` instead of ``description``) still lands.
+                role_issues = [
+                    {
+                        "severity": str(i.get("severity", "") or ""),
+                        "description": str(
+                            i.get("description") or i.get("text") or i.get("issue") or ""
+                        )[:400],
+                        "reference": str(
+                            i.get("reference") or i.get("source") or ""
+                        )[:200],
+                        "suggestion": str(
+                            i.get("suggestion") or i.get("recommendation") or ""
+                        )[:400],
+                    }
+                    for i in (c.issues or [])[:5]
+                    if isinstance(i, dict)
+                ]
+                top_unresolved.append({
+                    "role": role,
+                    "vote": c.vote.value,
+                    "confidence": c.confidence,
+                    "issues": role_issues,
+                })
+
+        # Per-round vote table — still useful for a quick visual scan.
+        round_history = [
+            {
+                "round": r.round_number,
+                "critiques": {
+                    role: {
+                        "vote": c.vote.value,
+                        "confidence": c.confidence,
+                        "issues_count": len(c.issues),
+                    }
+                    for role, c in r.critiques.items()
+                },
+                "score": r.weighted_score,
+            }
+            for r in self.rounds
+        ]
+
+        # Free-form next-steps recommendation synthesized from the unresolved
+        # issues. Cheap (no LLM): bullets the most-severe per-role concern.
+        bullets: list[str] = []
+        for entry in top_unresolved:
+            role = entry["role"]
+            for issue in entry["issues"][:2]:
+                text = issue.get("description") or issue.get("suggestion") or ""
+                if not text:
+                    continue
+                sev = issue.get("severity")
+                prefix = f"({role}, {sev})" if sev else f"({role})"
+                bullets.append(f"- {prefix} {text}")
+        if bullets:
+            next_steps = (
+                "Manual review recommended — counselors could not reach consensus.\n\n"
+                "Top unresolved issues:\n" + "\n".join(bullets[:8])
+            )
+        else:
+            next_steps = "Manual review recommended — counselors could not reach consensus."
+
         return {
             "session_id": self.session_id,
             "rounds_completed": len(self.rounds),
-            "round_history": [
-                {
-                    "round": r.round_number,
-                    "critiques": {
-                        role: {
-                            "vote": c.vote.value,
-                            "confidence": c.confidence,
-                            "issues_count": len(c.issues),
-                        }
-                        for role, c in r.critiques.items()
-                    },
-                    "score": r.weighted_score,
-                }
-                for r in self.rounds
-            ],
+            "final_round_score": last_round.weighted_score if last_round else 0.0,
+            "round_history": round_history,
+            "top_unresolved_issues": top_unresolved,
             "remaining_disagreements": self._find_disagreements(),
-            "recommendation": "Manual review recommended — counselors could not reach consensus.",
+            "recommendation": next_steps,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 

@@ -118,9 +118,29 @@ _SERVER_CRASH = settings.agents_dir / "master" / "SERVER_CRASH.MD"
 
 def _do_start(host: str = settings.host, port: int = settings.port) -> None:
     pid = _read_pid()
-    if pid:
+    if pid and _is_pid_alive(pid):
         console.print(f"[yellow]Server already running (PID {pid})[/yellow]")
         return
+    if pid:
+        # Stale PID file: tracked PID is gone but file persisted. Don't bail —
+        # just clear it so we don't loop "already running" forever.
+        _remove_pid()
+
+    # Refuse to spawn a duplicate if anything else is already on the port.
+    # Previously _do_start trusted the PID file alone, so when a prior
+    # server_restart left an orphaned uvicorn alive (lifespan didn't cancel
+    # the Telegram bot task → process hung past shutdown), the next start
+    # would still fork a second uvicorn. That stacked 2-3 instances all
+    # polling the same Telegram bot token → duplicated message processing.
+    existing = _pids_listening_on(port)
+    if existing:
+        console.print(
+            f"[magenta]Port {port} is already held by PID(s) {existing} "
+            f"not tracked by yapoc.[/magenta] Run [bold]yapoc stop[/bold] to clear "
+            f"them, then retry."
+        )
+        return
+
     _SERVER_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     log_fh = open(_SERVER_OUTPUT, "a", encoding="utf-8")
     proc = subprocess.Popen(
@@ -160,66 +180,159 @@ def _is_port_bound(port: int) -> bool:
             pass
 
 
-def _do_stop() -> None:
-    pid = _read_pid()
-    if not pid:
-        console.print("[yellow]No running server found[/yellow]")
-        return
-    if not _is_pid_alive(pid):
-        _remove_pid()
-        console.print(
-            f"[yellow]Process {pid} not found \u2014 cleaning up PID file[/yellow]"
-        )
-        return
+def _pids_listening_on(port: int) -> list[int]:
+    """Return PIDs of *our* processes holding a TCP LISTEN socket on ``port``.
 
-    # Step 1: graceful SIGTERM, wait up to 8s.
+    Used to detect orphaned uvicorn instances that accumulated when a prior
+    `yapoc restart` or in-process `server_restart` tool spawned a new server
+    before the old one finished its lifespan shutdown — see the Telegram bug
+    where 3 uvicorn processes each polled getUpdates and the user saw 3x
+    message processing.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return []
+    pids: list[int] = []
+    try:
+        for conn in psutil.net_connections(kind="tcp"):
+            if (
+                conn.laddr
+                and conn.laddr.port == port
+                and conn.status == psutil.CONN_LISTEN
+                and conn.pid is not None
+            ):
+                pids.append(conn.pid)
+    except (psutil.AccessDenied, PermissionError):
+        # Fall back to scanning own processes when net_connections is restricted.
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                for c in proc.connections(kind="tcp"):
+                    if c.laddr and c.laddr.port == port and c.status == psutil.CONN_LISTEN:
+                        pids.append(proc.pid)
+                        break
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                continue
+    # de-dup while preserving order
+    seen: set[int] = set()
+    return [p for p in pids if not (p in seen or seen.add(p))]
+
+
+def _backend_process_pids() -> list[int]:
+    """Find every running ``uvicorn app.backend.main`` process, regardless of
+    whether it currently holds the listening socket.
+
+    Why this is a *separate* helper from :func:`_pids_listening_on`: when a
+    uvicorn lifespan shutdown hangs (e.g. on an uncancelled Telegram polling
+    task), the process releases its listening socket but stays alive. Port
+    sweep alone misses it, so the next ``yapoc start`` happily spawns yet
+    another instance on top.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return []
+    out: list[int] = []
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            cmd = proc.info.get("cmdline") or []
+            joined = " ".join(cmd)
+            if "uvicorn" in joined and "app.backend.main" in joined:
+                out.append(proc.info["pid"])
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            continue
+    return out
+
+
+def _kill_pid(pid: int, *, label: str) -> bool:
+    """SIGTERM then SIGKILL escalate. Returns True if process is gone."""
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
-        _remove_pid()
-        console.print(f"[yellow]Process {pid} exited before SIGTERM[/yellow]")
-        return
-
+        return True
     sigterm_deadline = time.monotonic() + 8.0
     while time.monotonic() < sigterm_deadline:
         if not _is_pid_alive(pid):
-            break
+            return True
         time.sleep(0.2)
 
-    # Step 2: still alive? Escalate to SIGKILL.
-    # Without this, `yapoc restart` could leave the old uvicorn running
-    # while reporting success. After enough restarts that produces a pile
-    # of zombie uvicorns chewing CPU (we saw 5 in one session).
-    if _is_pid_alive(pid):
-        console.print(
-            f"[magenta]PID {pid} ignored SIGTERM \u2014 escalating to SIGKILL[/magenta]"
-        )
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        sigkill_deadline = time.monotonic() + 3.0
-        while time.monotonic() < sigkill_deadline:
-            if not _is_pid_alive(pid):
-                break
-            time.sleep(0.2)
-        if _is_pid_alive(pid):
-            console.print(
-                f"[red]PID {pid} survived SIGKILL \u2014 manual intervention required[/red]"
-            )
-            # Do NOT remove the PID file; next start will skip
-            return
+    console.print(
+        f"[magenta]{label} PID {pid} ignored SIGTERM \u2014 escalating to SIGKILL[/magenta]"
+    )
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True
+    sigkill_deadline = time.monotonic() + 3.0
+    while time.monotonic() < sigkill_deadline:
+        if not _is_pid_alive(pid):
+            return True
+        time.sleep(0.2)
+    return not _is_pid_alive(pid)
 
-    # Step 3: wait for the listening port to actually free up so a
-    # subsequent _do_start doesn't race with TCP TIME_WAIT or a slow
-    # socket release.
+
+def _do_stop() -> None:
+    # Collect every PID we should kill: the tracked PID + anything currently
+    # listening on settings.port. The port sweep is critical \u2014 without it,
+    # an orphaned uvicorn (whose lifespan hung on the Telegram polling task)
+    # survives across `yapoc restart`, accumulating instances over time.
+    # Each surviving instance polls Telegram independently \u2192 user sees
+    # duplicate replies for one message.
+    tracked = _read_pid()
+    targets: list[int] = []
+    if tracked and _is_pid_alive(tracked):
+        targets.append(tracked)
+
     port = settings.port
+    for listener in _pids_listening_on(port):
+        if listener not in targets:
+            targets.append(listener)
+
+    # Catch processes that already released the port but didn't exit cleanly
+    # (hung lifespan shutdown — e.g. an uncancelled Telegram polling task
+    # kept the process alive after the socket was closed).
+    for backend in _backend_process_pids():
+        if backend not in targets and backend != os.getpid():
+            targets.append(backend)
+
+    if not targets:
+        if tracked:
+            _remove_pid()
+            console.print(
+                f"[yellow]No running server found (PID file pointed at dead PID {tracked} \u2014 cleared)[/yellow]"
+            )
+        else:
+            console.print("[yellow]No running server found[/yellow]")
+        return
+
+    survivors: list[int] = []
+    for pid in targets:
+        ok = _kill_pid(pid, label=("tracked" if pid == tracked else "orphan"))
+        if not ok:
+            survivors.append(pid)
+        else:
+            console.print(f"[yellow]Stopped[/yellow] PID {pid}")
+
+    # Wait for the listening port to fully free so a subsequent _do_start
+    # doesn't race with TCP TIME_WAIT or a slow socket release.
     port_deadline = time.monotonic() + 5.0
     while _is_port_bound(port) and time.monotonic() < port_deadline:
         time.sleep(0.2)
 
     _remove_pid()
-    console.print(f"[yellow]Server stopped[/yellow] (PID {pid})")
+
+    if survivors:
+        console.print(
+            f"[red]PID(s) {survivors} survived SIGKILL \u2014 manual intervention required[/red]"
+        )
+        return
+
+    # Final sweep: if anything STILL holds the port, surface it.
+    remaining = _pids_listening_on(port)
+    if remaining:
+        console.print(
+            f"[red]Port {port} still held by PID(s) {remaining} after stop[/red]"
+        )
 
 
 def _do_restart() -> None:

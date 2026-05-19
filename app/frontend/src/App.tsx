@@ -8,6 +8,7 @@ import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
 import { SessionsPanel } from './components/SessionsPanel'
 import { ObservabilityTab } from './components/ObservabilityTab'
+import { ConciliumTab } from './components/ConciliumTab'
 import { useWebSocket } from './hooks/useWebSocket'
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <NavButton id="chat" label="Chat" />
           <NavButton id="agents" label="Agents" />
           <NavButton id="observability" label="Obs" />
+          <NavButton id="concilium" label="Concilium" />
           <NavButton id="graph" label="Memory" />
           <NavButton id="vault" label="Vault" />
           <NavButton id="sessions" label="Sessions" />
@@ -71,6 +73,7 @@ export default function App() {
             <NavButton id="chat" label="Chat" />
             <NavButton id="agents" label="Agents" />
             <NavButton id="observability" label="Obs" />
+            <NavButton id="concilium" label="Concilium" />
             <NavButton id="graph" label="Memory" />
             <NavButton id="vault" label="Vault" />
             <NavButton id="sessions" label="Sessions" />
@@ -142,6 +145,14 @@ export default function App() {
         style={{ display: tab === 'observability' ? 'flex' : 'none', minHeight: 0 }}
       >
         <ObservabilityTab />
+      </div>
+
+      {/* ── Concilium tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'concilium' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <ConciliumTab />
       </div>
 
     </div>

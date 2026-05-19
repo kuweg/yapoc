@@ -12,6 +12,8 @@ import re
 import time
 from typing import Any, AsyncIterator
 
+from loguru import logger as _log
+
 import httpx
 
 from app.config import settings
@@ -503,8 +505,23 @@ class DeepSeekAdapter(BaseLLMAdapter):
             arguments_str = "".join(acc["arguments_parts"])
             try:
                 arguments = json.loads(arguments_str)
-            except json.JSONDecodeError:
-                arguments = {}
+            except json.JSONDecodeError as exc:
+                # Same rationale as the openai adapter: don't silently
+                # fall back to {} — it masks the parse failure and the
+                # downstream tool reports a misleading "empty input"
+                # error. Sentinel keys let the tool surface the real
+                # cause to the model.
+                _log.bind(
+                    tool=acc.get("name"), adapter="deepseek",
+                    parts=len(acc["arguments_parts"]),
+                ).warning(
+                    "Tool-call args failed to parse ({}): {!r}",
+                    exc, arguments_str[:400],
+                )
+                arguments = {
+                    "__adapter_parse_error__": str(exc)[:120],
+                    "__raw_args__": arguments_str[:400],
+                }
 
             tc = ToolCall(id=acc["id"], name=acc["name"], input=arguments)
             tool_calls.append(tc)

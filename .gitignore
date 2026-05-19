@@ -82,6 +82,10 @@ app/agents/*/sessions/
 projects/
 app/projects/
 
+# Concilium deliberation runtime: one dir per session, holds events.jsonl /
+# LIVE.MD / result.json. Pure runtime output, not source.
+app/agents/concilium/
+
 # ── Personal notes ──────────────────────────────────────────────────────
 personal_notes_do_not_read.md
 

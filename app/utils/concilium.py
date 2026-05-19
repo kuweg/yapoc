@@ -16,7 +16,9 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
@@ -26,6 +28,9 @@ from pathlib import Path
 from typing import Optional
 
 from loguru import logger
+
+from app.config import settings
+from app.utils.adapters import AgentConfig, get_adapter
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -204,6 +209,43 @@ def _write_live_md(session_id: str, phase: str, detail: str) -> None:
     )
 
 
+def _persist_result(session_id: str, result: "DeliberationResult", plan_text: str) -> None:
+    """Snapshot the final DeliberationResult to result.json so the UI can re-load it later."""
+    log_dir = CONCILIUM_DIR / session_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "session_id": result.session_id,
+        "status": result.status.value,
+        "rounds_completed": len(result.rounds),
+        "duration_s": result.duration_s,
+        "total_cost_usd": result.total_cost_usd,
+        "approved_plan": result.approved_plan or None,
+        "escalation_summary": result.escalation_summary,
+        "plan_text": plan_text,
+        "rounds": [
+            {
+                "round_number": r.round_number,
+                "weighted_score": r.weighted_score,
+                "started_at": r.started_at,
+                "completed_at": r.completed_at,
+                "critiques": {
+                    role: {
+                        "role": c.role,
+                        "vote": c.vote.value,
+                        "confidence": c.confidence,
+                        "issues": c.issues,
+                        "timestamp": c.timestamp,
+                    }
+                    for role, c in r.critiques.items()
+                },
+            }
+            for r in result.rounds
+        ],
+        "persisted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    (log_dir / "result.json").write_text(json.dumps(payload, indent=2))
+
+
 # ── Orchestrator ─────────────────────────────────────────────────────────────
 
 class ConciliumOrchestrator:
@@ -266,7 +308,7 @@ class ConciliumOrchestrator:
                     _write_live_md(self.session_id, "APPROVED", f"Plan approved in round {round_num}")
 
                     duration = time.monotonic() - self.start_time
-                    return DeliberationResult(
+                    result = DeliberationResult(
                         status=DeliberationStatus.APPROVED,
                         approved_plan=round_result.revised_plan or current_plan,
                         rounds=self.rounds,
@@ -274,6 +316,8 @@ class ConciliumOrchestrator:
                         duration_s=duration,
                         total_cost_usd=self.total_cost,
                     )
+                    _persist_result(self.session_id, result, plan_text)
+                    return result
 
             # If rejected by any counselor, escalate
             rejections = [
@@ -288,7 +332,7 @@ class ConciliumOrchestrator:
                 _write_live_md(self.session_id, "REJECTED", f"Plan rejected in round {round_num}")
 
                 duration = time.monotonic() - self.start_time
-                return DeliberationResult(
+                result = DeliberationResult(
                     status=DeliberationStatus.REJECTED,
                     rounds=self.rounds,
                     session_id=self.session_id,
@@ -296,6 +340,8 @@ class ConciliumOrchestrator:
                     total_cost_usd=self.total_cost,
                     escalation_summary=self._build_escalation_summary(),
                 )
+                _persist_result(self.session_id, result, plan_text)
+                return result
 
             # Update plan with revisions for next round
             if round_result.revised_plan:
@@ -309,7 +355,7 @@ class ConciliumOrchestrator:
         _write_live_md(self.session_id, "ESCALATED", f"Max rounds ({self.max_rounds}) reached without consensus")
 
         duration = time.monotonic() - self.start_time
-        return DeliberationResult(
+        result = DeliberationResult(
             status=DeliberationStatus.ESCALATED,
             rounds=self.rounds,
             session_id=self.session_id,
@@ -317,34 +363,115 @@ class ConciliumOrchestrator:
             total_cost_usd=self.total_cost,
             escalation_summary=self._build_escalation_summary(),
         )
+        _persist_result(self.session_id, result, plan_text)
+        return result
 
     async def _run_round(self, round_num: int, plan_text: str) -> DeliberationRound:
         """Execute a single deliberation round.
 
-        In a real implementation, this spawns counselor agents via
-        spawn_agent/wait_for_agent. For now, it simulates the round
-        structure and logs the events.
+        Each active counselor role is invoked in parallel via the configured
+        default LLM adapter. The counselor returns a structured JSON critique
+        which is parsed into a ``CounselorCritique``. The round's weighted
+        score is computed from each counselor's vote signal × confidence ×
+        role weight (renormalised by the sum of active-role weights so
+        partial counselor sets are scored on the same scale).
         """
-        round_start = DeliberationRound(round_number=round_num)
+        round_obj = DeliberationRound(round_number=round_num)
         _log_event(self.session_id, f"round_{round_num}_started", {
             "plan_length": len(plan_text),
+            "active_roles": self.active_roles,
         })
 
-        # In production, this would spawn counselor agents in parallel:
-        # for role in self.active_roles:
-        #     spawn_agent(f"concilium_{role}_{self.session_id}", ...)
-        #     wait_for_agent(...)
-        #
-        # For now, we record the round structure and return.
-        # The actual agent spawning is done by Master via the DAG executor.
+        active = [r for r in self.active_roles if r in COUNSELOR_ROLES]
+        if not active:
+            round_obj.completed_at = datetime.now(timezone.utc).isoformat()
+            _log_event(self.session_id, f"round_{round_num}_completed", {
+                "critiques_count": 0, "score": 0.0,
+                "reason": "no_active_counselors",
+            })
+            return round_obj
 
-        round_start.completed_at = datetime.now(timezone.utc).isoformat()
+        tasks = [self._invoke_counselor(role, plan_text) for role in active]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        total_weight = 0.0
+        weighted_score = 0.0
+        for role, res in zip(active, results):
+            weight = float(COUNSELOR_ROLES[role]["weight"])
+            total_weight += weight
+            if isinstance(res, Exception):
+                logger.warning(
+                    "Concilium {} round {} counselor {} failed: {}",
+                    self.session_id, round_num, role, res,
+                )
+                critique = CounselorCritique(
+                    role=role,
+                    issues=[{
+                        "severity": "minor",
+                        "description": f"counselor call failed: {type(res).__name__}: {res}",
+                        "reference": "",
+                    }],
+                    vote=Vote.REVISE,
+                    confidence=0.0,
+                    raw_output=str(res),
+                )
+            else:
+                critique = res
+            round_obj.critiques[role] = critique
+            signal = _vote_signal(critique.vote)
+            weighted_score += weight * signal * critique.confidence
+
+        if total_weight > 0:
+            round_obj.weighted_score = weighted_score / total_weight
+
+        round_obj.completed_at = datetime.now(timezone.utc).isoformat()
+
+        vote_distribution = {
+            v.value: sum(1 for c in round_obj.critiques.values() if c.vote == v)
+            for v in Vote
+        }
         _log_event(self.session_id, f"round_{round_num}_completed", {
-            "critiques_count": len(round_start.critiques),
-            "score": round_start.weighted_score,
+            "critiques_count": len(round_obj.critiques),
+            "score": round_obj.weighted_score,
+            "votes": vote_distribution,
         })
+        _write_live_md(
+            self.session_id,
+            f"ROUND_{round_num}",
+            f"completed: score={round_obj.weighted_score:.2f} votes={vote_distribution}",
+        )
+        return round_obj
 
-        return round_start
+    async def _invoke_counselor(self, role: str, plan_text: str) -> CounselorCritique:
+        """Call a single counselor with the role prompt + plan, parse the JSON response."""
+        role_cfg = COUNSELOR_ROLES[role]
+        system_prompt = role_cfg["prompt"] + _COUNSELOR_OUTPUT_CONTRACT
+
+        # Use the deployment's configured default adapter/model. The
+        # role-level "model" in COUNSELOR_ROLES is advisory; deferring to
+        # settings keeps the feature usable on whichever provider the user
+        # configured via `yapoc init`.
+        config = AgentConfig(
+            adapter=settings.default_adapter,
+            model=settings.default_model,
+            temperature=float(role_cfg["temperature"]),
+            max_tokens=2048,
+        )
+        adapter = get_adapter(config)
+
+        t0 = time.monotonic()
+        raw = await adapter.complete(
+            system_prompt=system_prompt,
+            user_message=f"Plan to evaluate:\n\n{plan_text}",
+            history=None,
+            response_format="json",
+        )
+        elapsed = time.monotonic() - t0
+        _log_event(self.session_id, "counselor_response", {
+            "role": role, "elapsed_s": round(elapsed, 3),
+            "response_chars": len(raw or ""),
+        })
+        return _parse_counselor_response(role, raw or "")
 
     def _build_escalation_summary(self) -> dict:
         """Build an escalation summary from all rounds."""
@@ -411,6 +538,133 @@ class ConciliumOrchestrator:
     def get_all_logs(self) -> list[dict]:
         """Read all logged events for this session."""
         return self.get_round_logs()
+
+
+# ── Counselor response handling ──────────────────────────────────────────────
+
+# Appended to every counselor's role prompt. Asks for a JSON-only response so
+# parsing is reliable across providers. Adapters with native JSON mode honour
+# response_format="json"; others fall back to a system-prompt nudge.
+_COUNSELOR_OUTPUT_CONTRACT = """
+
+OUTPUT CONTRACT — respond with a single JSON object only, no prose, no markdown fences:
+{
+  "vote": "approve" | "revise" | "reject",
+  "confidence": 0.0-1.0,
+  "issues": [
+    {"severity": "blocker" | "major" | "minor" | "suggestion",
+     "description": "...",
+     "reference": "step or line number, optional"}
+  ],
+  "rationale": "1-2 sentences explaining the vote"
+}
+"""
+
+
+_VOTE_SIGNAL = {Vote.APPROVE: 1.0, Vote.REVISE: 0.5, Vote.REJECT: 0.0}
+
+
+def _vote_signal(vote: Vote) -> float:
+    return _VOTE_SIGNAL.get(vote, 0.5)
+
+
+_FENCE_RE = re.compile(r"^```(?:json|JSON)?\s*|\s*```$")
+_VOTE_RE = re.compile(r'"?vote"?\s*[:=]\s*"?(approve|revise|reject)', re.IGNORECASE)
+_CONF_RE = re.compile(r'"?confidence"?\s*[:=]\s*([0-9]*\.?[0-9]+)', re.IGNORECASE)
+
+
+def _parse_counselor_response(role: str, raw: str) -> CounselorCritique:
+    """Parse a counselor LLM response into a CounselorCritique.
+
+    Tries strict JSON first; falls back to regex extraction so a non-conforming
+    response still produces a usable critique rather than nuking the round.
+    """
+    cleaned = (raw or "").strip()
+    # Strip surrounding ```json ... ``` fences if the model emitted them.
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    data: dict | None = None
+    try:
+        data = json.loads(cleaned)
+        if not isinstance(data, dict):
+            data = None
+    except json.JSONDecodeError:
+        # Try to recover the first {...} block in the text.
+        match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group(0))
+                if not isinstance(data, dict):
+                    data = None
+            except json.JSONDecodeError:
+                data = None
+
+    if data is not None:
+        return _critique_from_dict(role, data, raw)
+
+    # Final fallback: regex against the raw text.
+    vote_match = _VOTE_RE.search(cleaned)
+    conf_match = _CONF_RE.search(cleaned)
+    vote = _vote_from_str(vote_match.group(1) if vote_match else "")
+    try:
+        confidence = float(conf_match.group(1)) if conf_match else 0.4
+    except (TypeError, ValueError):
+        confidence = 0.4
+    confidence = max(0.0, min(1.0, confidence))
+    return CounselorCritique(
+        role=role,
+        issues=[{"severity": "minor",
+                 "description": "counselor returned unparseable response; vote recovered via regex",
+                 "reference": ""}],
+        vote=vote,
+        confidence=confidence,
+        raw_output=raw,
+    )
+
+
+def _critique_from_dict(role: str, data: dict, raw: str) -> CounselorCritique:
+    vote = _vote_from_str(str(data.get("vote", "")))
+    try:
+        confidence = float(data.get("confidence", 0.5))
+    except (TypeError, ValueError):
+        confidence = 0.5
+    confidence = max(0.0, min(1.0, confidence))
+
+    issues_raw = data.get("issues", []) or []
+    issues: list[dict] = []
+    if isinstance(issues_raw, list):
+        for item in issues_raw[:20]:  # cap to keep events.jsonl bounded
+            if isinstance(item, dict):
+                issues.append({
+                    "severity": str(item.get("severity", "minor"))[:30],
+                    "description": str(item.get("description", ""))[:500],
+                    "reference": str(item.get("reference", ""))[:200],
+                })
+            else:
+                issues.append({
+                    "severity": "minor",
+                    "description": str(item)[:500],
+                    "reference": "",
+                })
+
+    return CounselorCritique(
+        role=role,
+        issues=issues,
+        vote=vote,
+        confidence=confidence,
+        raw_output=raw,
+    )
+
+
+def _vote_from_str(s: str) -> Vote:
+    s = (s or "").strip().lower()
+    if s.startswith("approve"):
+        return Vote.APPROVE
+    if s.startswith("reject"):
+        return Vote.REJECT
+    return Vote.REVISE
 
 
 # ── Helper: assess task complexity ───────────────────────────────────────────

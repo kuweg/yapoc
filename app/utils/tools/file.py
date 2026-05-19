@@ -25,8 +25,10 @@ _PROTECTED_AGENT_FILES = {
     "CONFIG.yaml",
 }
 
-_MAX_READ_BYTES = 50 * 1024  # 50 KB — files larger than this are read in batches
-_BATCH_SIZE = 40 * 1024      # 40 KB per batch
+_MAX_READ_BYTES = 50 * 1024  # 50 KB — files smaller than this are read in one shot
+_BATCH_SIZE = 40 * 1024      # 40 KB per batch when reading from beginning
+_TAIL_BATCH_SIZE = 40 * 1024 # 40 KB per batch when reading from end
+_MAX_BATCHES = 100           # max batches before we stop (4 MB ceiling)
 
 
 def _sandbox(path_str: str) -> Path:
@@ -56,9 +58,47 @@ class FileReadTool(BaseTool):
                 "description": "Only return the last N lines (default: 0 = all lines)",
                 "default": 0,
             },
+            "start_line": {
+                "type": "integer",
+                "description": "1-based line number to start reading from (default: 0 = beginning). "
+                "Use with tail_lines=0 to read from start_line to end. "
+                "Use with tail_lines=N to read N lines starting from start_line.",
+                "default": 0,
+            },
         },
         "required": ["path"],
     }
+
+    async def _read_lines_range(
+        self, resolved: Path, start_line: int, count: int
+    ) -> tuple[list[str], int]:
+        """Read `count` lines starting from 1-based `start_line`.
+        Returns (lines, total_lines_in_file)."""
+        async with aiofiles.open(resolved, encoding="utf-8") as f:
+            lines: list[str] = []
+            line_num = 0
+            total_lines = 0
+            async for line in f:
+                line_num += 1
+                total_lines += 1
+                if line_num < start_line:
+                    continue
+                if len(lines) < count:
+                    lines.append(line.rstrip("\n").rstrip("\r"))
+                if len(lines) >= count:
+                    # Still need to count remaining lines for total
+                    continue
+            # If we exhausted the file, count is accurate
+            # If we stopped early, we need to count remaining
+            if len(lines) < count:
+                # Already counted all lines
+                pass
+            else:
+                # We have our lines, but total_lines might be incomplete
+                # Read the rest to count
+                async for _ in f:
+                    total_lines += 1
+        return lines, total_lines
 
     async def execute(self, **params: Any) -> str:
         try:
@@ -72,46 +112,110 @@ class FileReadTool(BaseTool):
             return f"ERROR: Not a file: {params['path']}"
 
         file_size = resolved.stat().st_size
+        tail_lines = params.get("tail_lines", 0)
+        start_line = params.get("start_line", 0)
 
-        if file_size <= _MAX_READ_BYTES:
-            # Small file — read entirely
+        # ── Small file: read entirely ──────────────────────────────────────
+        if file_size <= _MAX_READ_BYTES and start_line == 0 and tail_lines == 0:
             try:
                 async with aiofiles.open(resolved, encoding="utf-8") as f:
                     content = await f.read()
             except Exception as exc:
                 return f"ERROR: {exc}"
-        else:
-            # Large file — read in batches
+            return content
+
+        # ── start_line mode: read a specific line range ────────────────────
+        if start_line > 0:
+            count = tail_lines if tail_lines > 0 else 999_999
             try:
-                async with aiofiles.open(resolved, encoding="utf-8") as f:
-                    chunks = []
-                    total_read = 0
-                    while total_read < _BATCH_SIZE:
-                        chunk = await f.read(_BATCH_SIZE)
-                        if not chunk:
-                            break
-                        chunks.append(chunk)
-                        total_read += len(chunk.encode("utf-8"))
-                    content = "".join(chunks)
+                lines, total = await self._read_lines_range(resolved, start_line, count)
             except Exception as exc:
                 return f"ERROR: {exc}"
 
-            # Show a header with file info
-            content = (
-                f"[File is {file_size:,} bytes — showing first ~{_BATCH_SIZE:,} bytes. "
-                f"Use tail_lines=N to read the last N lines.]\n"
-                f"{content}"
+            if not lines:
+                return (
+                    f"[start_line {start_line} is beyond end of file "
+                    f"({total} lines total)]"
+                )
+
+            actual = len(lines)
+            header = (
+                f"[showing lines {start_line}-{start_line + actual - 1} "
+                f"of {total} lines ({file_size:,} bytes)]\n"
             )
+            return header + "\n".join(lines)
 
-        tail_lines = params.get("tail_lines", 0)
-        if tail_lines and tail_lines > 0:
-            lines = content.splitlines()
-            total = len(lines)
-            if total > tail_lines:
-                lines = lines[-tail_lines:]
-                content = f"[showing last {tail_lines} of {total} lines]\n" + "\n".join(lines)
+        # ── tail_lines mode: read from the END ─────────────────────────────
+        if tail_lines > 0:
+            try:
+                async with aiofiles.open(resolved, encoding="utf-8") as f:
+                    # Strategy: read backwards in batches until we have enough lines
+                    batches_read = 0
+                    seek_pos = max(0, file_size - _TAIL_BATCH_SIZE)
+                    all_text = ""
 
-        return content
+                    while batches_read < _MAX_BATCHES and seek_pos > 0:
+                        await f.seek(seek_pos)
+                        chunk = await f.read()
+                        all_text = chunk + all_text
+                        batches_read += 1
+
+                        line_count = all_text.count("\n")
+                        if line_count >= tail_lines:
+                            break
+
+                        # Read another batch before this one
+                        seek_pos = max(0, seek_pos - _TAIL_BATCH_SIZE)
+
+                    # If we still don't have enough, read from beginning
+                    if all_text.count("\n") < tail_lines and seek_pos > 0:
+                        await f.seek(0)
+                        all_text = await f.read()
+                    elif seek_pos <= 0 and all_text.count("\n") < tail_lines:
+                        await f.seek(0)
+                        all_text = await f.read()
+
+                    lines = all_text.splitlines()
+                    total_lines = len(lines)
+
+                    if total_lines > tail_lines:
+                        lines = lines[-tail_lines:]
+
+                    header = (
+                        f"[showing last {len(lines)} of {total_lines} lines "
+                        f"({file_size:,} bytes total)]\n"
+                    )
+                    return header + "\n".join(lines)
+
+            except Exception as exc:
+                return f"ERROR: {exc}"
+
+        # ── Large file, no tail_lines, no start_line: read from beginning ──
+        try:
+            async with aiofiles.open(resolved, encoding="utf-8") as f:
+                chunks = []
+                total_read = 0
+                batches = 0
+                while batches < _MAX_BATCHES and total_read < _BATCH_SIZE:
+                    chunk = await f.read(_BATCH_SIZE)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total_read += len(chunk.encode("utf-8"))
+                    batches += 1
+                content = "".join(chunks)
+        except Exception as exc:
+            return f"ERROR: {exc}"
+
+        # Count total lines for the header
+        total_lines = content.count("\n")
+        header = (
+            f"[File is {file_size:,} bytes — showing first ~{_BATCH_SIZE:,} bytes "
+            f"({total_lines} lines). "
+            f"Use tail_lines=N to read the last N lines, "
+            f"or start_line=N to read from a specific line.]\n"
+        )
+        return header + content
 
 
 class FileListTool(BaseTool):

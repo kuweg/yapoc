@@ -1310,6 +1310,30 @@ def restart(
 
 
 @app.command()
+def supervise(
+    host: str = typer.Option(settings.host, help="Host to bind"),
+    port: int = typer.Option(settings.port, help="Port to listen on"),
+):
+    """Run uvicorn under a pure-Python supervisor that restarts on crash.
+
+    Foreground process: keeps a single uvicorn child alive, respawns
+    with exponential backoff if it crashes, circuit-breaks on tight
+    crash loops, and logs every event to
+    ``app/agents/master/SUPERVISOR.MD``.
+
+    Run this under nohup / systemd / launchd / tmux for unattended
+    uptime. SIGINT or SIGTERM to this process shuts both layers down
+    cleanly.
+
+    Conflicts with ``yapoc start`` — only use one or the other.
+    """
+    from app.cli.supervisor import supervise as _supervise
+    rc = _supervise(host=host, port=port)
+    if rc != 0:
+        raise typer.Exit(code=rc)
+
+
+@app.command()
 def status():
     """Show server and agent status."""
     _do_status()

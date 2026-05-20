@@ -157,6 +157,15 @@ class Settings(BaseSettings):
     max_tool_calls_per_turn: int = 20    # per-turn tool call limit; prevents infinite loops
     max_spawn_depth: int = 5             # max agent spawn chain depth
 
+    # ── Supervisor (`yapoc supervise`) ────────────────────────────────
+    # Pure-Python watchdog that keeps uvicorn alive across crashes.
+    # See app/cli/supervisor.py.
+    supervisor_alive_threshold_s: float = 60.0   # uptime past this resets the fast-crash counter
+    supervisor_max_backoff_s: int = 30           # cap on exponential restart backoff
+    supervisor_circuit_break_after_n: int = 5    # consecutive fast crashes before pausing
+    supervisor_circuit_break_seconds: int = 300  # how long to pause after circuit break
+    supervisor_grace_seconds: float = 10.0       # SIGTERM → SIGKILL grace window on shutdown
+
     # ── Logging / health ──────────────────────────────────────────────
     log_max_size_kb: int = 512  # OUTPUT.MD size cap before rotation
     log_level: str = "INFO"          # Python log level: DEBUG|INFO|WARNING|ERROR  (env: LOG_LEVEL)

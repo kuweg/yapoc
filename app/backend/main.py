@@ -351,6 +351,28 @@ async def _session_digester_tick() -> None:
         pass  # digester logs its own errors
 
 
+async def _goal_proposer_tick() -> None:
+    """Promote persistent evaluator signals to ``## Proposed`` goals.
+
+    Runs every ``settings.goal_proposer_interval_hours``. Idempotent
+    by signal_id and gated by ``settings.goal_proposer_max_per_day``,
+    so a chatty evaluator can't flood GOALS.MD. Proposals land in
+    ``## Proposed`` (not ``## Active``) so master's idle-check doesn't
+    pick them up automatically — promotion is a deliberate user action.
+    """
+    try:
+        from app.utils.goal_proposer import propose_goals
+        result = await asyncio.to_thread(propose_goals)
+        if result.get("proposed", 0) > 0:
+            logger.info(
+                "goal_proposer: wrote {} proposal(s) (persistent={}, dupes={}, cap-skip={})",
+                result["proposed"], result.get("persistent", 0),
+                result.get("skipped_duplicate", 0), result.get("skipped_daily_cap", 0),
+            )
+    except Exception:
+        logger.exception("goal_proposer tick failed")
+
+
 async def _master_notification_watcher() -> None:
     """Background task: watch master's TASK.MD for notification triggers written by
     notify_parent tool and auto-invoke master_agent to process the queue.
@@ -1078,6 +1100,12 @@ async def lifespan(app: FastAPI):
         "interval",
         minutes=settings.session_digest_interval_minutes,
         id="session_digester",
+    )
+    scheduler.add_job(
+        _goal_proposer_tick,
+        "interval",
+        hours=settings.goal_proposer_interval_hours,
+        id="goal_proposer",
     )
     scheduler.start()
     # Run initial checks shortly after startup

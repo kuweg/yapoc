@@ -68,6 +68,7 @@ export interface Session {
   name: string
   createdAt: string
   history: Message[]
+  source?: string  // 'ui' | 'cli' | 'telegram' | etc.
 }
 
 // Voice API types
@@ -100,4 +101,30 @@ export interface STTResponse {
 // Slash command response
 export interface CommandResponse {
   response: string
+}
+
+// Channel Dashboard types
+export interface SessionInfo {
+  id: string
+  name: string
+  createdAt: string
+  messageCount: number
+  source: string
+  preview: string
+}
+
+export interface ChannelInfo {
+  source: string
+  count: number
+  sessions: SessionInfo[]
+}
+
+export interface ChannelsResponse {
+  channels: ChannelInfo[]
+}
+
+export interface ChannelSessionMessagesResponse {
+  session_id: string
+  source: string
+  messages: Message[]
 }

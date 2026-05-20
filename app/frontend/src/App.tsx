@@ -9,6 +9,7 @@ import { VaultTab } from './vault/components/VaultTab'
 import { SessionsPanel } from './components/SessionsPanel'
 import { ObservabilityTab } from './components/ObservabilityTab'
 import { ConciliumTab } from './components/ConciliumTab'
+import { ChannelsDashboard } from './components/ChannelsDashboard'
 import { useWebSocket } from './hooks/useWebSocket'
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
           <NavButton id="graph" label="Memory" />
           <NavButton id="vault" label="Vault" />
           <NavButton id="sessions" label="Sessions" />
+          <NavButton id="channels" label="Channels" />
         </div>
         <div className="flex-1" />
         <ThemeToggle />
@@ -77,6 +79,7 @@ export default function App() {
             <NavButton id="graph" label="Memory" />
             <NavButton id="vault" label="Vault" />
             <NavButton id="sessions" label="Sessions" />
+            <NavButton id="channels" label="Channels" />
           </div>
 
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -137,6 +140,14 @@ export default function App() {
         style={{ display: tab === 'sessions' ? 'flex' : 'none', minHeight: 0 }}
       >
         <SessionsPanel />
+      </div>
+
+      {/* ── Channels tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'channels' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <ChannelsDashboard />
       </div>
 
       {/* ── Observability tab ── */}

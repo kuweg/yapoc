@@ -1,4 +1,4 @@
-import type { AgentStatus, CommandResponse, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
+import type { AgentStatus, ChannelsResponse, ChannelSessionMessagesResponse, CommandResponse, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
 
 export async function getAgents(): Promise<AgentStatus[]> {
   const res = await fetch('/api/agents')
@@ -122,4 +122,18 @@ export async function handleCommand(command: string, args: string = ''): Promise
   })
   if (!res.ok) throw new Error(`POST /commands: ${res.status}`)
   return res.json() as Promise<CommandResponse>
+}
+
+// ── Channel Dashboard ───────────────────────────────────────────────────────
+
+export async function getChannelSessions(): Promise<ChannelsResponse> {
+  const res = await fetch('/api/sessions/channels')
+  if (!res.ok) throw new Error(`GET /sessions/channels: ${res.status}`)
+  return res.json() as Promise<ChannelsResponse>
+}
+
+export async function getChannelSessionMessages(source: string, sessionId: string): Promise<ChannelSessionMessagesResponse> {
+  const res = await fetch(`/api/sessions/channel/${encodeURIComponent(source)}/${encodeURIComponent(sessionId)}`)
+  if (!res.ok) throw new Error(`GET /sessions/channel/${source}/${sessionId}: ${res.status}`)
+  return res.json() as Promise<ChannelSessionMessagesResponse>
 }

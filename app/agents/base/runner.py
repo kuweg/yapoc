@@ -171,10 +171,51 @@ class AgentRunner:
             )
             return {}
 
-    async def _run_task(self, task_body: str) -> None:
-        """Execute a single task, updating TASK.MD frontmatter on completion."""
+    async def _run_task(self, task_body: str, expected_task_id: str = "") -> None:
+        """Execute a single task, updating TASK.MD frontmatter on completion.
+
+        ``expected_task_id`` is the task_id from the Redis task_assign
+        message (or empty when called from the polling/watchdog path).
+        When non-empty, we re-read the on-disk frontmatter and abort if
+        it doesn't match — that's how we catch the "spawn A landed first,
+        spawn B overwrote TASK.MD before this runner read it" race that
+        produced the user-reported "agent continued the previous task and
+        reported the wrong result" bug.
+        """
         self._write_status("running", task_summary=task_body)
         _fm = self._parse_task_frontmatter()
+        # Task-id consistency check (only when we have one to compare):
+        # detects the spawn-vs-spawn race + partial-write contamination
+        # window. If they differ, the on-disk TASK.MD belongs to a newer
+        # spawn — abort cleanly so the agent doesn't run the wrong task
+        # under the wrong id.
+        if expected_task_id:
+            on_disk_id = str(_fm.get("task_id", "") or "")
+            if on_disk_id and on_disk_id != expected_task_id:
+                _log.bind(
+                    agent=self._name,
+                    expected=expected_task_id[:8],
+                    on_disk=on_disk_id[:8],
+                ).warning(
+                    "task_id mismatch — Redis msg said {}, TASK.MD says {}. "
+                    "A newer spawn overwrote our task; aborting so we don't "
+                    "execute the wrong payload.",
+                    expected_task_id[:8], on_disk_id[:8],
+                )
+                # Best-effort signal back to the parent so they don't sit
+                # on a stale ## Result (the newer spawn's runner invocation
+                # will fill that in for the newer task).
+                try:
+                    health_path = self._task_path.parent / "HEALTH.MD"
+                    with open(health_path, "a", encoding="utf-8") as _hf:
+                        _hf.write(
+                            f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}] "
+                            f"task_id mismatch: expected {expected_task_id[:8]}, "
+                            f"on-disk {on_disk_id[:8]}. Aborting stale spawn.\n"
+                        )
+                except Exception:
+                    pass
+                return
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None
@@ -472,11 +513,17 @@ class AgentRunner:
             if not task_text:
                 await self._ack_inbox(msg_id)
                 return False
-            _log.bind(agent=self._name).info(
+            # Carry task_id from the Redis message into _run_task. Without
+            # this, _run_task re-reads TASK.MD's frontmatter and a second
+            # spawn that landed between the message and the read would
+            # silently switch the agent's perceived task. Verified at the
+            # head of _run_task — mismatch = abort with a clear log line.
+            expected_task_id = str(data.get("task_id", "") or "")
+            _log.bind(agent=self._name, task_id=expected_task_id[:8]).info(
                 "Redis inbox: task_assign — running task ({} chars)", len(task_text)
             )
             await self._ack_inbox(msg_id)
-            await self._run_task(task_text)
+            await self._run_task(task_text, expected_task_id=expected_task_id)
             # Drop STATUS.json back to idle. _run_task wrote "running" at
             # entry, but only the polling-driven path (run() main loop)
             # writes "idle" after — the Redis path was leaving STATUS stuck

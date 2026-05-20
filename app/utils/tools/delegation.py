@@ -349,7 +349,15 @@ class SpawnAgentTool(BaseTool):
                 f"then spawn again."
             )
 
-        # Write TASK.MD with frontmatter
+        # Write TASK.MD with frontmatter — atomically via tmp + replace.
+        #
+        # The watchdog watches TASK.MD for modifications. A naive
+        # ``open("w")`` truncates then writes in chunks; if a second
+        # spawn lands while the first is still streaming bytes, or if
+        # the watchdog fires mid-write, the runner reads partial /
+        # stale frontmatter and runs the WRONG task body. Atomic
+        # write via tmp + os.replace guarantees the runner never sees
+        # half-written content.
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         task_id = str(uuid.uuid4())
         task_content = (
@@ -366,8 +374,11 @@ class SpawnAgentTool(BaseTool):
             f"## Result\n\n\n"
             f"## Error\n\n"
         )
-        async with aiofiles.open(_task_path(agent_name), "w", encoding="utf-8") as f:
+        _final_path = _task_path(agent_name)
+        _tmp_path = _final_path.with_suffix(".md.tmp")
+        async with aiofiles.open(_tmp_path, "w", encoding="utf-8") as f:
             await f.write(task_content)
+        os.replace(_tmp_path, _final_path)
 
         # Capture a git checkpoint BEFORE the agent starts working. Verify+commit/rollback
         # happens in WaitForAgentTool/WaitForAgentsTool when the agent reaches a terminal

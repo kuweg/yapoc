@@ -1309,6 +1309,47 @@ def restart(
     _do_start(host, port)
 
 
+@app.command("propose-goals")
+def propose_goals_cmd(
+    min_rounds: int = typer.Option(
+        settings.goal_proposer_min_rounds,
+        "--min-rounds",
+        help="Signal must be open this many evaluator rounds to qualify.",
+    ),
+    max_per_day: int = typer.Option(
+        settings.goal_proposer_max_per_day,
+        "--max-per-day",
+        help="Rolling 24h cap on autonomous proposals (anti-flood).",
+    ),
+    no_refresh: bool = typer.Option(
+        False,
+        "--no-refresh",
+        help="Skip the REPORT.MD re-scan and use the on-disk ledger as-is.",
+    ),
+):
+    """Propose autonomous goals from persistent evaluator signals.
+
+    Walks ``data/signal_ledger.json`` (refreshed from
+    ``app/agents/evaluator/REPORT.MD`` unless ``--no-refresh``), finds
+    signals open across ``--min-rounds`` evaluator rounds, and appends
+    them to ``app/agents/master/GOALS.MD`` under ``## Proposed``.
+    Promotion to ``## Active`` is a deliberate human action so master's
+    idle-check doesn't pick them up automatically.
+    """
+    from app.utils.goal_proposer import propose_goals as _propose
+    result = _propose(
+        min_rounds=min_rounds,
+        max_per_day=max_per_day,
+        refresh_ledger=not no_refresh,
+    )
+    if result.get("proposed", 0) > 0:
+        console.print(f"[green]Wrote {result['proposed']} Proposed goal(s) to GOALS.MD[/green]")
+    else:
+        console.print(f"[yellow]No new proposals (persistent={result.get('persistent', 0)}, "
+                      f"already-proposed={result.get('skipped_duplicate', 0)})[/yellow]")
+    console.print(f"  daily-cap-remaining: {result.get('budget_remaining', 0)}/{result.get('daily_cap', 0)}")
+
+
 @app.command()
 def supervise(
     host: str = typer.Option(settings.host, help="Host to bind"),

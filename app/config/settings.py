@@ -166,6 +166,13 @@ class Settings(BaseSettings):
     supervisor_circuit_break_seconds: int = 300  # how long to pause after circuit break
     supervisor_grace_seconds: float = 10.0       # SIGTERM → SIGKILL grace window on shutdown
 
+    # ── Goal proposer (autonomous goal authoring from signal ledger) ──
+    # Persistent evaluator findings → ## Proposed goals in GOALS.MD.
+    # See app/utils/goal_proposer.py + app/utils/signal_ledger.py.
+    goal_proposer_interval_hours: int = 4        # how often the scheduled tick runs
+    goal_proposer_min_rounds: int = 3            # signal must persist this many rounds to propose
+    goal_proposer_max_per_day: int = 3           # rolling 24h cap on autonomous proposals
+
     # ── Logging / health ──────────────────────────────────────────────
     log_max_size_kb: int = 512  # OUTPUT.MD size cap before rotation
     log_level: str = "INFO"          # Python log level: DEBUG|INFO|WARNING|ERROR  (env: LOG_LEVEL)

@@ -196,12 +196,25 @@ class MasterAgent(BaseAgent):
             pending = notification_queue.drain("master", session_id=self._session_id)
             notifications_context = ""
             if pending:
+                # Cap per-notification content + total block size so a chatty
+                # sub-agent (e.g. a long builder result) can't balloon
+                # master's system prompt and degrade response quality. The
+                # full text is always one `read_task_result` call away.
+                _MAX_PER_NOTIF = 1200
+                _MAX_BLOCK = 6000
                 lines = ["[SYSTEM NOTIFICATION — sub-agent results]"]
                 for n in pending:
                     label = "DONE" if n["status"] == "done" else "ERROR"
-                    content = n["result"] if n["status"] == "done" else n["error"]
+                    content = (n["result"] if n["status"] == "done" else n["error"]) or ""
+                    if len(content) > _MAX_PER_NOTIF:
+                        content = content[:_MAX_PER_NOTIF] + f"\n[…truncated, {len(content) - _MAX_PER_NOTIF} chars more — use read_task_result for full text]"
                     lines.append(f"\n### Agent: {n['child_agent']} — {label}\n{content}")
                 notifications_context = "\n".join(lines)
+                if len(notifications_context) > _MAX_BLOCK:
+                    notifications_context = (
+                        notifications_context[:_MAX_BLOCK]
+                        + f"\n[…notification block truncated at {_MAX_BLOCK} chars]"
+                    )
 
             # Hydrate history from a persisted compaction checkpoint when
             # the session was previously compacted. Re-doing the compact on

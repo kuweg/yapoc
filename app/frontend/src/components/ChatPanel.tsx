@@ -399,6 +399,16 @@ export function ChatPanel() {
           })
         } else if (event.type === 'usage_stats') {
           setUsage(event)
+        } else if (event.type === 'error') {
+          // Backend emits `{type: "error", error: "..."}` when
+          // master_agent.handle_task_stream raises (e.g. budget cap,
+          // adapter chain exhausted, internal crash). Without this
+          // branch, the event is dropped and the UI looks like master
+          // "suddenly stops". Render the error as visible text so the
+          // user knows what happened instead of seeing silence.
+          const errText = `\n\n_⚠ master error: ${(event as { error?: string }).error || 'unknown'}_`
+          setStreamingParts((prev) => [...prev, { kind: 'text', text: errText }])
+          assembledText = (assembledText + errText)
         }
       }
 

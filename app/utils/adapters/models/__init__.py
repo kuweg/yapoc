@@ -14,6 +14,7 @@ from . import codex as _codex
 from . import deepseek as _deepseek
 from . import google as _google
 from . import lmstudio as _lmstudio
+from . import moonshot as _moonshot
 from . import ollama as _ollama
 from . import openai as _openai
 from . import openrouter as _openrouter
@@ -38,6 +39,7 @@ _ALL_MODELS: list[ModelInfo] = _collect(
     _openrouter.MODELS,
     _google.MODELS,
     _lmstudio.MODELS,
+    _moonshot.MODELS,
 )
 
 # id → ModelInfo (fast lookup)
@@ -55,6 +57,7 @@ GOOGLE_MODEL_IDS = [m.id for m in _google.MODELS]
 CODEX_MODEL_IDS = [m.id for m in _codex.MODELS]
 DEEPSEEK_MODEL_IDS = [m.id for m in _deepseek.MODELS]
 LMSTUDIO_MODEL_IDS = [m.id for m in _lmstudio.MODELS]
+MOONSHOT_MODEL_IDS = [m.id for m in _moonshot.MODELS]
 
 PROVIDER_MODELS: dict[str, list[str]] = {
     "anthropic": ANTHROPIC_MODEL_IDS,
@@ -65,6 +68,7 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     "openrouter": OPENROUTER_MODEL_IDS,
     "google": GOOGLE_MODEL_IDS,
     "lmstudio": LMSTUDIO_MODEL_IDS,
+    "moonshot": MOONSHOT_MODEL_IDS,
 }
 
 
@@ -182,6 +186,7 @@ __all__ = [
     "CODEX_MODEL_IDS",
     "DEEPSEEK_MODEL_IDS",
     "LMSTUDIO_MODEL_IDS",
+    "MOONSHOT_MODEL_IDS",
     "PROVIDER_MODELS",
     # Routing helpers
     "get_model",

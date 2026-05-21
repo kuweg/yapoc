@@ -144,6 +144,7 @@ from .memory import AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, Memory
 from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
 from .web import FetchPageTool, WebSearchTool
+from .browser import FetchPageJsTool
 from .telegram import SendTelegramMessageTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
@@ -182,6 +183,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "agent_amnesia": AgentAmnesiaTool,
     "web_search": WebSearchTool,
     "fetch_page": FetchPageTool,
+    "fetch_page_js": FetchPageJsTool,
     "spawn_agent": SpawnAgentTool,
     "ping_agent": PingAgentTool,
     "kill_agent": KillAgentTool,

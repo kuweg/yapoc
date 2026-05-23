@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { getAgentActivity } from '../agent-status/api/agentStatusClient'
+import { useWsStore, type AgentEvent } from '../store/wsStore'
+
+// Stable empty-events reference for the wsStore selector when this agent
+// has no buffered activity yet — avoids a render loop.
+const EMPTY_EVENTS: AgentEvent[] = []
 
 interface Props {
   agentName: string
@@ -13,9 +19,47 @@ interface OutputData {
   total_lines?: number
 }
 
+/** Flatten the structured per-agent event stream into a text view so this
+ *  drawer keeps its scrolling-text feel — but is now driven by the WS push
+ *  pipeline instead of polling LIVE.MD. */
+function eventsToText(events: AgentEvent[]): string {
+  const out: string[] = []
+  for (const ev of events) {
+    const ts = (ev.timestamp || '').slice(11, 19)
+    switch (ev.type) {
+      case 'turn_start':
+        out.push(`\n[${ts}] ── turn ${ev.turn} (${ev.model}) ──`)
+        break
+      case 'turn_done':
+        out.push(`[${ts}] ── turn ${ev.turn} done (${ev.stop_reason}, ${ev.n_tool_calls} tools) ──\n`)
+        break
+      case 'thinking_delta':
+        out.push(String(ev.text ?? ''))
+        break
+      case 'message_delta':
+        out.push(String(ev.text ?? ''))
+        break
+      case 'tool_call': {
+        const input = JSON.stringify(ev.input ?? {})
+        out.push(`\n[${ts}] → ${ev.name} ${input.length > 200 ? input.slice(0, 200) + '…' : input}\n`)
+        break
+      }
+      case 'tool_result': {
+        const r = String(ev.result ?? '')
+        const mark = ev.is_error ? '✗' : '✓'
+        out.push(`[${ts}] ${mark} ${ev.name} ${r.length > 240 ? r.slice(0, 240) + '…' : r}\n`)
+        break
+      }
+      default:
+        // ignore unknown event types in this text view
+        break
+    }
+  }
+  return out.join('')
+}
+
 export function AgentLogDrawer({ agentName, state, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('live')
-  const [liveContent, setLiveContent] = useState('')
   const [outputData, setOutputData] = useState<OutputData | null>(null)
   const [loading, setLoading] = useState(false)
   const liveRef = useRef<HTMLPreElement>(null)
@@ -27,14 +71,11 @@ export function AgentLogDrawer({ agentName, state, onClose }: Props) {
 
   const isRunning = state === 'running' || state === 'spawning'
 
-  async function fetchLive() {
-    try {
-      const res = await fetch(`/api/agents/${agentName}/live`)
-      if (!res.ok) return
-      const data = await res.json()
-      setLiveContent(data.content || '')
-    } catch { /* ignore */ }
-  }
+  const events = useWsStore((s) => s.agentEvents[agentName] ?? EMPTY_EVENTS)
+  const setAgentEvents = useWsStore((s) => s.setAgentEvents)
+  const subscribeAgent = useWsStore((s) => s.subscribeAgent)
+  const unsubscribeAgent = useWsStore((s) => s.unsubscribeAgent)
+  const liveContent = useMemo(() => eventsToText(events), [events])
 
   async function fetchOutput() {
     setLoading(true)
@@ -47,15 +88,28 @@ export function AgentLogDrawer({ agentName, state, onClose }: Props) {
     finally { setLoading(false) }
   }
 
+  // Hydrate the live activity buffer and subscribe via WS.
   useEffect(() => {
-    fetchLive()
-    fetchOutput()
+    let cancelled = false
+    getAgentActivity(agentName)
+      .then((snapshot) => {
+        if (cancelled) return
+        setAgentEvents(agentName, snapshot as AgentEvent[])
+      })
+      .catch(() => { /* WS push will still populate */ })
+    subscribeAgent(agentName)
+    return () => {
+      cancelled = true
+      unsubscribeAgent(agentName)
+    }
+  }, [agentName, setAgentEvents, subscribeAgent, unsubscribeAgent])
 
-    // Poll every 1s when running, 3s when idle.
-    // Always poll live (so it updates on both tabs) and output when on logs tab.
+  // Logs (subprocess stdout/stderr) still polls — separate stream from
+  // the per-agent activity feed.
+  useEffect(() => {
+    fetchOutput()
     const ms = isRunning ? 1000 : 3000
     intervalRef.current = setInterval(() => {
-      fetchLive()
       if (tabRef.current === 'output') fetchOutput()
     }, ms)
 

@@ -4,7 +4,7 @@ import { useSessionStore } from '../store/session'
 import { useWsStore } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
-import { handleCommand, synthesizeSpeech } from '../api/client'
+import { handleCommand, synthesizeSpeech, getAgents } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -80,14 +80,15 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
   return parts
 }
 
-// Default model for cost estimation — update when backend exposes model in usage events
-const DEFAULT_MODEL = 'claude-sonnet-4-6'
+// Default model for cost estimation — overridden at runtime by masterModel state
+const DEFAULT_MODEL = 'kimi-k2.6'
 
 export function ChatPanel() {
   const { activeId, history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [usage, setUsage] = useState<UsageEvent | null>(null)
+  const [masterModel, setMasterModel] = useState<string>('')
   const [awaitingNotification, setAwaitingNotification] = useState(false)
   const [backgroundActivity, setBackgroundActivity] = useState<string>('')
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
@@ -241,6 +242,17 @@ export function ChatPanel() {
     if (!stickToBottomRef.current) return
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history, streamingParts])
+
+  // Fetch master agent's model name on mount and whenever the WebSocket reconnects
+  // (so the label updates after a server restart / model switch)
+  useEffect(() => {
+    getAgents().then((agents) => {
+      const master = agents.find((a) => a.name === 'master')
+      if (master?.model) setMasterModel(master.model)
+    }).catch(() => {
+      // ignore — model will just be empty
+    })
+  }, [wsConnected])
 
   // When the user sends a new message, snap to bottom regardless
   useEffect(() => {
@@ -487,7 +499,7 @@ export function ChatPanel() {
 
         {history.map((msg, i) => (
           <div key={i} className="group relative">
-            <MessageBubble role={msg.role} content={msg.content} agentName={msg.role === 'assistant' ? 'master' : undefined} />
+            <MessageBubble role={msg.role} content={msg.content} agentName={msg.role === 'assistant' ? 'master' : undefined} agentModel={msg.role === 'assistant' ? masterModel : undefined} />
             {msg.role === 'assistant' && voiceEnabled && (
               <button
                 onClick={() => {
@@ -520,7 +532,7 @@ export function ChatPanel() {
           <div className="space-y-1">
             {streamingParts.map((part, i) =>
               part.kind === 'text' ? (
-                <MessageBubble key={`t-${i}`} role="assistant" content={part.text} agentName="master" />
+                <MessageBubble key={`t-${i}`} role="assistant" content={part.text} agentName="master" agentModel={masterModel} />
               ) : part.kind === 'thinking' ? (
                 <ThinkingBlock key={part.id} text={part.text} done={part.done} />
               ) : (
@@ -630,7 +642,7 @@ export function ChatPanel() {
         </div>
         {usage && (
           <CostBar
-            model={DEFAULT_MODEL}
+            model={masterModel || DEFAULT_MODEL}
             inputTokens={usage.input_tokens}
             outputTokens={usage.output_tokens}
             tokensPerSecond={usage.tokens_per_second}

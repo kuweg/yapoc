@@ -32,6 +32,7 @@ from .base import (
     UsageStats,
 )
 from .models import ALL_CONTEXT_WINDOWS
+from .normalize import sanitize_tool_id
 
 log = logging.getLogger(__name__)
 
@@ -110,9 +111,20 @@ def _normalize_to_deepseek(
             combined_text = "\n".join(t for t in text_parts if t)
             out["content"] = combined_text or None
             if tool_calls:
+                # Sanitize so the assistant tool_calls IDs match the
+                # tool_call_id we'll send on the corresponding tool message.
+                for tc in tool_calls:
+                    tc["id"] = sanitize_tool_id(str(tc.get("id", "")))
                 out["tool_calls"] = tool_calls
-            if include_reasoning_content and reasoning_parts:
-                out["reasoning_content"] = "\n".join(t for t in reasoning_parts if t)
+            if include_reasoning_content:
+                if reasoning_parts:
+                    out["reasoning_content"] = "\n".join(t for t in reasoning_parts if t)
+                elif tool_calls:
+                    # deepseek-v4-pro rejects assistant tool_use messages
+                    # in thinking mode unless ``reasoning_content`` is
+                    # present. Cross-adapter fallback (e.g. from Moonshot)
+                    # without a thinking block needs a placeholder.
+                    out["reasoning_content"] = " "
             result.append(out)
 
         elif role == "user":
@@ -128,7 +140,7 @@ def _normalize_to_deepseek(
                 if btype == "tool_result":
                     tool_results.append({
                         "role": "tool",
-                        "tool_call_id": block["tool_use_id"],
+                        "tool_call_id": sanitize_tool_id(str(block.get("tool_use_id", ""))),
                         "content": block.get("content", ""),
                     })
                 elif btype == "text":
@@ -326,7 +338,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
                 _DEEPSEEK_API_URL,
                 json=payload,
                 headers=self._headers(),
-                timeout=120,
+                timeout=600,
             )
             _raise_with_detail(response)
             data = response.json()
@@ -351,12 +363,18 @@ class DeepSeekAdapter(BaseLLMAdapter):
                 _DEEPSEEK_API_URL,
                 json=payload,
                 headers=self._headers(),
-                timeout=120,
+                timeout=600,
             ) as response:
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if line.startswith("data: ") and line != "data: [DONE]":
                         chunk = json.loads(line[6:])
                         delta = chunk["choices"][0]["delta"].get("content", "")
@@ -415,7 +433,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
                 _DEEPSEEK_API_URL,
                 json=payload,
                 headers=self._headers(),
-                timeout=300,
+                timeout=600,
             ) as response:
                 if not response.is_success:
                     await response.aread()
@@ -423,7 +441,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
                 aiter_lines = response.aiter_lines()
                 while True:
                     try:
-                        async with asyncio.timeout(60):
+                        async with asyncio.timeout(180):
                             line = await aiter_lines.__anext__()
                     except StopAsyncIteration:
                         break
@@ -523,11 +541,12 @@ class DeepSeekAdapter(BaseLLMAdapter):
                     "__raw_args__": arguments_str[:400],
                 }
 
-            tc = ToolCall(id=acc["id"], name=acc["name"], input=arguments)
+            sanitized_id = sanitize_tool_id(acc["id"])
+            tc = ToolCall(id=sanitized_id, name=acc["name"], input=arguments)
             tool_calls.append(tc)
             assistant_content.append({
                 "type": "tool_use",
-                "id": acc["id"],
+                "id": sanitized_id,
                 "name": acc["name"],
                 "input": arguments,
             })

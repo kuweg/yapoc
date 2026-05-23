@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import re
 import signal
 import tempfile
 import time
@@ -16,7 +17,7 @@ from watchdog.observers import Observer
 from app.config import settings
 from app.agents.base import BaseAgent
 from app.agents.base.context import _parse_runner_config
-from app.utils.adapters import TextDelta, ThinkingDelta, ToolStart, ToolDone, UsageStats
+from app.utils.adapters import UsageStats
 
 
 # Stale task_result messages claimed from a Redis consumer group's pending
@@ -139,14 +140,6 @@ class AgentRunner:
                 os.unlink(tmp)
             raise
 
-    def _write_live(self, text: str) -> None:
-        """Overwrite LIVE.MD with current model output buffer (best-effort)."""
-        live_path = self._agent_dir / "LIVE.MD"
-        try:
-            live_path.write_text(text, encoding="utf-8")
-        except OSError:
-            pass
-
     # ── Signal handling ──────────────────────────────────────────────────
 
     def _setup_signals(self) -> None:
@@ -268,9 +261,6 @@ class AgentRunner:
             )
 
         try:
-            live_buf: list[str] = []
-            last_live_flush = time.monotonic()
-            last_thinking_marker = 0.0
             last_tps: float | None = None
             last_input: int | None = None
             last_output: int | None = None
@@ -281,40 +271,17 @@ class AgentRunner:
                 if task_body.startswith("[Process incoming")
                 else None
             )
+            # Stream events flow to the UI via BaseAgent._emit_event ->
+            # Redis (session:{id}:events + agent:{name}:activity) -> relay ->
+            # WebSocket. The runner no longer writes LIVE.MD; the only
+            # turn-level side-effect it owns is refreshing STATUS.json on
+            # each UsageStats event.
             async for event in self._agent.run_stream_with_tools(
                 manage_task_file=False,
                 notifications_context=notifications_context,
                 blocked_tools=_blocked,
             ):
-                if isinstance(event, TextDelta):
-                    live_buf.append(event.text)
-                    # Flush live output at most every 0.5s to avoid hammering FS
-                    now = time.monotonic()
-                    if now - last_live_flush >= 0.5:
-                        self._write_live("".join(live_buf))
-                        last_live_flush = now
-                elif isinstance(event, ThinkingDelta):
-                    # Keep LIVE.MD visibly active during long non-text reasoning/tool turns.
-                    now = time.monotonic()
-                    if now - last_thinking_marker >= 2.0:
-                        live_buf.append("\n[thinking...]\n")
-                        self._write_live("".join(live_buf))
-                        last_live_flush = now
-                        last_thinking_marker = now
-                elif isinstance(event, ToolStart):
-                    input_preview = str(event.input).replace("\n", " ")
-                    live_buf.append(f"\n[tool:start] {event.name} {input_preview}\n")
-                    now = time.monotonic()
-                    self._write_live("".join(live_buf))
-                    last_live_flush = now
-                elif isinstance(event, ToolDone):
-                    result_preview = (event.result or "").replace("\n", " ")
-                    status_label = "error" if event.is_error else "done"
-                    live_buf.append(f"\n[tool:{status_label}] {event.name} {result_preview}\n")
-                    now = time.monotonic()
-                    self._write_live("".join(live_buf))
-                    last_live_flush = now
-                elif isinstance(event, UsageStats):
+                if isinstance(event, UsageStats):
                     last_tps = event.tokens_per_second
                     last_input = event.input_tokens
                     last_output = event.output_tokens
@@ -325,10 +292,6 @@ class AgentRunner:
                         input_tokens=last_input,
                         output_tokens=last_output,
                     )
-
-            # Final flush of live output
-            if live_buf:
-                self._write_live("".join(live_buf))
 
             # Read the full response from RESULT.MD (written by _write_result).
             # This decouples result transport from MEMORY.MD, which only stores
@@ -406,8 +369,6 @@ class AgentRunner:
             await self._notify_parent_via_bus(str(exc), "error")
             if task_body.startswith("[Process incoming"):
                 await self._agent.mark_task_consumed()
-            # Clear live buffer so UI shows nothing when idle
-            self._write_live("")
         finally:
             # Stop the heartbeat coroutine so it cannot keep rewriting
             # STATUS.json (state="running", idle_since=None) after the task
@@ -806,6 +767,19 @@ class AgentRunner:
                     break
                 if ran:
                     self._write_status("idle")
+                    # Strip task_id from TASK.MD so it cannot trigger a stale
+                    # "task_id mismatch" abort on the next spawn. The task is
+                    # finished — its result lives in RESULT.MD / notification_queue.
+                    try:
+                        fm = self._parse_task_frontmatter()
+                        if fm.get("task_id"):
+                            content = self._task_path.read_text(encoding="utf-8")
+                            content = re.sub(
+                                r"^task_id:\s*.*\n?", "", content, flags=re.MULTILINE
+                            )
+                            self._task_path.write_text(content, encoding="utf-8")
+                    except Exception:
+                        pass
 
                 # Check notification queue for pending notifications.
                 # Only needed when Redis is down (file-based fallback).

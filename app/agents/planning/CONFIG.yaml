@@ -42,7 +42,7 @@ delegation_targets:
   - model_manager
 runner:
   max_turns: 15
-  task_timeout: 300
+  task_timeout: 600
   poll_interval: 30
   retry_attempts: 3
   context_memory_limit: 20

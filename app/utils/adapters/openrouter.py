@@ -6,6 +6,7 @@ Models are namespaced: "anthropic/claude-sonnet-4-6", "openai/gpt-4o", etc.
 """
 
 import json
+import asyncio
 import time
 from typing import Any, AsyncIterator
 
@@ -160,7 +161,13 @@ class OpenRouterAdapter(BaseLLMAdapter):
                 timeout=120,
             ) as response:
                 response.raise_for_status()
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if line.startswith("data: ") and line != "data: [DONE]":
                         chunk = json.loads(line[6:])
                         choices = chunk.get("choices", [])
@@ -218,7 +225,13 @@ class OpenRouterAdapter(BaseLLMAdapter):
                 timeout=300,
             ) as response:
                 response.raise_for_status()
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])

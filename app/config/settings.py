@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openrouter_api_key: str = ""
     deepseek_api_key: str = ""
+    moonshot_api_key: str = ""
     # Google Gemini — accepts GOOGLE_API_KEY or GEMINI_API_KEY
     google_api_key: str = Field(
         default="",
@@ -57,7 +58,7 @@ class Settings(BaseSettings):
     cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
 
     # ── Runner defaults ──────────────────────────────────────────────────────
-    max_turns: int = 999
+    max_turns: int = 99999
     task_timeout: int = 300
 
     # ── Webhook ────────────────────────────────────────────────────────
@@ -108,12 +109,12 @@ class Settings(BaseSettings):
     # Hard cap on live sub-agent processes to prevent runaway fan-out
     # (prompt injection / model confusion can otherwise spawn many at once).
     # Counts STATUS.json entries in state=idle|running|spawning.
-    max_concurrent_agents: int = 10
-    stuck_signature_threshold: int = 10  # identical tool calls in a row before marking as stuck
+    max_concurrent_agents: int = 50
+    stuck_signature_threshold: int = 50  # identical tool calls in a row before marking as stuck
 
     # ── Context management ─────────────────────────────────────────────
     context_compact_threshold: float = (
-        0.85  # fraction of context window before full auto-compact fires
+        0.95  # fraction of context window before full auto-compact fires
     )
     context_compact_threshold_preemptive: float = (
         0.70  # earlier threshold: extract facts only (no lossy summarize)
@@ -150,12 +151,12 @@ class Settings(BaseSettings):
     max_concurrent_tasks: int = 3  # max parallel tasks in the background dispatcher
 
     # ── Cost governance ────────────────────────────────────────────────
-    budget_per_task_usd: float = 2.0     # hard pause per task; override via BUDGET_PER_TASK_USD
+    budget_per_task_usd: float = 100.0   # hard pause per task; override via BUDGET_PER_TASK_USD
     budget_per_agent_usd: float = 0.0    # 0 = no limit; per-agent lifetime cap
     cost_runaway_multiplier: float = 5.0 # pause if agent cost > multiplier x median agent cost
-    daily_autonomous_budget_usd: float = 10.0  # daily cap for autonomous tasks (cron, goal, doctor)
-    max_tool_calls_per_turn: int = 20    # per-turn tool call limit; prevents infinite loops
-    max_spawn_depth: int = 5             # max agent spawn chain depth
+    daily_autonomous_budget_usd: float = 100.0 # daily cap for autonomous tasks (cron, goal, doctor)
+    max_tool_calls_per_turn: int = 200   # per-turn tool call limit; prevents infinite loops
+    max_spawn_depth: int = 20            # max agent spawn chain depth
 
     # ── Supervisor (`yapoc supervise`) ────────────────────────────────
     # Pure-Python watchdog that keeps uvicorn alive across crashes.
@@ -183,7 +184,7 @@ class Settings(BaseSettings):
     cron_interval_minutes: int = 10  # Cron agent trigger frequency
     health_log_retention_days: int = 7  # HEALTH.MD entries older than this are pruned
     model_manager_interval_hours: int = 24  # Model Manager audit frequency
-    evaluator_interval_hours: int = 4  # Scheduled self-evaluation cadence
+    evaluator_interval_minutes: int = 30  # Scheduled self-evaluation cadence
     memory_max_age_days: int = 7  # Drop MEMORY.MD entries older than this on prune
 
     # ── Embedding / indexer ───────────────────────────────────────────────

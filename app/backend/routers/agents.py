@@ -5,11 +5,14 @@ import signal
 import subprocess
 import sys
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.backend.models import AgentStatus, AgentDetail
 from app.backend.services import AgentService, _read_status_json, _pid_alive, _is_stale_status
+from app.backend.services.graph_events import graph_event_bus
 from app.config import settings
 from app.utils.crash import agent_exit_watcher, count_crashes
 
@@ -169,6 +172,7 @@ async def spawn_agent(name: str):
         stderr=log_fh,
     )
     agent_exit_watcher(proc, output_path, crash_path, name, restart_count)
+    await graph_event_bus.emit_agent_spawned(source="api", target=name)
     return {"status": "spawned", "name": name, "pid": proc.pid}
 
 
@@ -188,6 +192,7 @@ async def kill_agent(name: str):
 
     try:
         os.kill(pid, signal.SIGTERM)
+        await graph_event_bus.emit_agent_died(source="api", target=name)
         return {"status": "killed", "name": name, "pid": pid}
     except ProcessLookupError:
         return {"status": "not_running", "name": name, "pid": pid}
@@ -266,13 +271,32 @@ async def get_agent_output(name: str, lines: int = 200):
 
 @router.get("/{name}/live")
 async def get_agent_live(name: str):
-    """Return current model generation buffer (LIVE.MD) — empty when agent is idle."""
+    """Deprecated: LIVE.MD has been replaced by the push-based per-agent
+    activity feed. Use ``GET /agents/{name}/activity`` plus a WebSocket
+    subscription (``{"type": "subscribe_agent", "agent": name}``).
+
+    Returns an empty body so cached frontends don't 404 during the rollout.
+    """
     agent_dir = settings.agents_dir / name
     if not agent_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
-    live_path = agent_dir / "LIVE.MD"
-    content = live_path.read_text(encoding="utf-8", errors="replace") if live_path.exists() else ""
-    return {"name": name, "content": content}
+    return {"name": name, "content": ""}
+
+
+@router.get("/{name}/activity")
+async def get_agent_activity(name: str):
+    """Return the last ~200 push-based activity events for an agent.
+
+    The relay's in-memory ring buffer is the source. Used by the Agents
+    tab's "Live" sub-tab to hydrate on cold load before the WebSocket
+    subscription (``subscribe_agent``) takes over for live streaming.
+    """
+    agent_dir = settings.agents_dir / name
+    if not agent_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+    from app.backend.relay import relay as _relay
+    events = _relay.get_agent_activity(name)
+    return {"name": name, "events": events}
 
 
 @router.get("/{name}/files")

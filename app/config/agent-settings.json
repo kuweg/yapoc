@@ -5,21 +5,52 @@
   "stale_task_threshold_seconds": 600,
   "agents": {
     "master": {
-      "adapter": "deepseek",
-      "model": "deepseek-chat",
+      "adapter": "moonshot",
+      "model": "kimi-k2.6",
+      "temperature": 1,
+      "task_timeout": 900,
       "tools": [
         "file_read",
         "file_write",
         "file_edit",
         "file_delete",
         "file_list",
+        "show_agent_settings",
+        "shell_exec",
+        "web_search",
+        "fetch_page",
+        "fetch_page_js",
+        "spawn_agent",
+        "ping_agent",
+        "kill_agent",
+        "wait_for_agent",
+        "wait_for_agents",
+        "execute_dag",
+        "check_task_status",
+        "read_task_result",
+        "read_agent_logs",
         "create_agent",
         "delete_agent",
+        "server_restart",
+        "process_restart",
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "notes_append",
+        "health_log",
+        "agent_amnesia",
+        "search_memory",
+        "learnings_append",
+        "shared_knowledge_append",
+        "image_read",
         "send_telegram_message"
       ],
-      "temperature": 0.3,
-      "max_tokens": 8096,
+      "max_tokens": 8192,
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
@@ -35,8 +66,8 @@
       ]
     },
     "planning": {
-      "adapter": "deepseek",
-      "model": "deepseek-chat",
+      "adapter": "moonshot",
+      "model": "kimi-k2.6",
       "tools": [
         "file_read",
         "file_write",
@@ -44,12 +75,13 @@
         "file_delete",
         "file_list"
       ],
-      "temperature": 0.3,
+      "temperature": 1,
       "max_tokens": 8096,
+      "task_timeout": 600,
       "fallbacks": [
         {
           "adapter": "deepseek",
-          "model": "deepseek-v4-pro"
+          "model": "deepseek-chat"
         },
         {
           "adapter": "anthropic",
@@ -72,9 +104,14 @@
         "file_list",
         "shell_exec"
       ],
-      "temperature": 0.2,
+      "temperature": 1,
       "max_tokens": 8096,
+      "task_timeout": 600,
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "codex",
           "model": "gpt-5.1-codex"
@@ -103,6 +140,10 @@
       "max_tokens": 4096,
       "fallbacks": [
         {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
+        {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
         },
@@ -117,13 +158,17 @@
       ]
     },
     "concilium": {
-      "adapter": "deepseek",
-      "model": "deepseek-chat",
+      "adapter": "moonshot",
+      "model": "kimi-k2.6",
       "temperature": 0.3,
       "max_tokens": 4096,
       "tools": [],
       "delegation_targets": [],
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
@@ -147,6 +192,10 @@
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
@@ -175,6 +224,10 @@
       "max_tokens": 4096,
       "fallbacks": [
         {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
+        {
           "adapter": "google",
           "model": "gemini-2.5-flash"
         },
@@ -197,6 +250,10 @@
       "temperature": 0.2,
       "max_tokens": 4096,
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "openai",
           "model": "gpt-5.4-mini"
@@ -226,6 +283,10 @@
       "delegation_targets": [],
       "fallbacks": [
         {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
+        {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
         },
@@ -250,11 +311,16 @@
         "notes_append",
         "health_log",
         "notify_parent",
-        "shared_knowledge_append"
+        "shared_knowledge_append",
+        "learnings_append"
       ],
       "temperature": 0.2,
       "max_tokens": 8096,
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
@@ -272,6 +338,10 @@
       "temperature": 0.0,
       "max_tokens": 256,
       "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
         {
           "adapter": "anthropic",
           "model": "claude-haiku-4-5-20251001"

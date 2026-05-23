@@ -10,6 +10,8 @@
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 
+# NOTE: health_issues counter in observability may be stale after
+# HEALTH.MD is cleared. The counter is not automatically reset.
 adapter: deepseek
 model: deepseek-chat
 temperature: 0.2
@@ -26,6 +28,7 @@ tools:
   - health_log
   - notify_parent
   - shared_knowledge_append
+  - learnings_append
 # Sandbox: the evaluator may ONLY write to its own directory + REPORT.MD.
 # All other paths are forbidden. This is the safety boundary that makes
 # a read-only evaluator possible: even if the LLM tries to apply a

@@ -33,7 +33,8 @@ You may only read/write the following paths:
 - `app/config/settings.py`
 - `pyproject.toml`
 - `.env.example`
-- Any file explicitly listed in your task
+
+If a task asks you to modify a file outside this list, do NOT comply. Instead, call `notify_parent` with `[UNCERTAIN]` explaining that the file is outside your sandbox and should be handled by Builder.
 
 ## Completion — notify_parent (MANDATORY)
 

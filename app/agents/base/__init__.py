@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import re
 import time as _time
@@ -278,6 +279,48 @@ def _detect_stuck_loop(tail: str) -> str | None:
     return None
 
 
+_AUDIT_LOG_PATH = settings.project_root / "app" / "logs" / "AUDIT.md"
+
+
+async def _append_audit_log(
+    agent_name: str,
+    task_id: str | None,
+    tool_name: str,
+    tool_input: Any,
+    success: bool,
+    error: str | None,
+    duration_ms: int,
+) -> None:
+    """Append a structured JSON line to the shared audit log.
+
+    Failures are swallowed silently — audit logging must never break
+    tool execution.
+    """
+    try:
+        _AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).isoformat()
+        input_hash = hashlib.sha256(
+            json.dumps(tool_input, default=str).encode("utf-8")
+        ).hexdigest()[:16]
+        line = json.dumps(
+            {
+                "timestamp": ts,
+                "agent": agent_name,
+                "task_id": task_id or "",
+                "tool": tool_name,
+                "input_hash": input_hash,
+                "success": success,
+                "duration_ms": duration_ms,
+                "error": error,
+            },
+            default=str,
+        ) + "\n"
+        async with aiofiles.open(_AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+            await f.write(line)
+    except Exception:
+        pass
+
+
 class BaseAgent:
     def __init__(self, agent_dir: Path) -> None:
         self._dir = agent_dir
@@ -295,39 +338,52 @@ class BaseAgent:
     async def _emit_event(self, event_type: str, payload: dict[str, Any]) -> None:
         """Write a structured event to the session event log (append-only JSONL).
 
-        Also pushes to WebSocket subscribers if available.
-        Events are used for real-time streaming in the Chat tab.
+        Also pushes to two Redis channels:
+        - ``session:{id}:events`` — Chat tab streaming (only when session-bound)
+        - ``agent:{name}:activity`` — Agents tab per-agent live feed (always)
         """
-        if not self._session_id:
-            return
         event = {
             "type": event_type,
             "agent": self._name,
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             **payload,
         }
-        # Write to session event log (local audit)
-        session_dir = settings.project_root / "data" / "sessions" / self._session_id
-        session_dir.mkdir(parents=True, exist_ok=True)
-        event_file = session_dir / "events.jsonl"
-        try:
-            async with aiofiles.open(event_file, "a", encoding="utf-8") as f:
-                await f.write(json.dumps(event, default=str) + "\n")
-        except Exception as _ev_exc:
-            _log.bind(agent=self._name).warning(
-                "Session event JSONL write failed: {}", _ev_exc
-            )
-        # Publish to Redis pub/sub for real-time streaming to UI
+        # Session-bound: write JSONL audit log + publish session channel.
+        if self._session_id:
+            session_dir = settings.project_root / "data" / "sessions" / self._session_id
+            session_dir.mkdir(parents=True, exist_ok=True)
+            event_file = session_dir / "events.jsonl"
+            try:
+                async with aiofiles.open(event_file, "a", encoding="utf-8") as f:
+                    await f.write(json.dumps(event, default=str) + "\n")
+            except Exception as _ev_exc:
+                _log.bind(agent=self._name).warning(
+                    "Session event JSONL write failed: {}", _ev_exc
+                )
+            try:
+                from app.backend.message_bus import bus
+                await bus.publish(
+                    f"session:{self._session_id}:events",
+                    event,
+                    agent_name=self._name,
+                )
+            except Exception as _redis_exc:
+                _log.bind(agent=self._name).warning(
+                    "Session event Redis publish failed: {}", _redis_exc
+                )
+        # Per-agent activity channel: always published (Agents tab does not
+        # require a session binding). Fed into the backend ring buffer +
+        # per-agent WS subscribers by MessageBusRelay._relay_agent_activity.
         try:
             from app.backend.message_bus import bus
             await bus.publish(
-                f"session:{self._session_id}:events",
+                f"agent:{self._name}:activity",
                 event,
                 agent_name=self._name,
             )
         except Exception as _redis_exc:
             _log.bind(agent=self._name).warning(
-                "Session event Redis publish failed: {}", _redis_exc
+                "Agent activity Redis publish failed: {}", _redis_exc
             )
 
     # ── File helpers ────────────────────────────────────────────────────────
@@ -1088,7 +1144,7 @@ class BaseAgent:
                 # stuck-loops in one task means the recovery isn't working;
                 # give up cleanly instead of looping forever.
                 _stuck_loop_count: int = 0
-                _STUCK_LOOP_GIVEUP: int = 2
+                _STUCK_LOOP_GIVEUP: int = 20
                 max_turns = _runner.get("max_turns", settings.max_turns)
                 _ctx_window = adapter.context_window_size()
                 threshold_tokens = int(_ctx_window * settings.context_compact_threshold)
@@ -1161,6 +1217,14 @@ class BaseAgent:
                         agent=self._name, event="turn_start", turn=_turn,
                         model=config.model, in_tokens=estimated,
                     ).info("Turn {} start | model={} est_tokens={}", _turn, config.model, estimated)
+                    # Lightweight turn boundary for the Agents-tab Live feed —
+                    # lets the UI group thinking/message deltas under a
+                    # collapsible per-turn block keyed by turn index.
+                    await self._emit_event("turn_start", {
+                        "turn": _turn,
+                        "model": config.model,
+                        "in_tokens": estimated,
+                    })
 
                     # Stream one LLM turn
                     turn_complete: TurnComplete | None = None
@@ -1346,6 +1410,14 @@ class BaseAgent:
                     # ── Diagnostic: per-turn loop control state ──
                     # Helps trace the "parallel tools → Turn 1 silent" failure
                     # mode. One line, structured, easy to grep.
+                    # Counterpart to turn_start — closes the per-turn group on
+                    # the Agents-tab Live feed.
+                    await self._emit_event("turn_done", {
+                        "turn": _turn,
+                        "model": config.model,
+                        "stop_reason": getattr(turn_complete, "stop_reason", "?"),
+                        "n_tool_calls": len(getattr(turn_complete, "tool_calls", []) or []),
+                    })
                     _log.bind(
                         agent=self._name, event="turn_decision", turn=_turn,
                         model=config.model,
@@ -1488,11 +1560,17 @@ class BaseAgent:
                             _sig_src = repr(tool_done_item.name)
                         _sig = _hashlib.sha256(_sig_src.encode("utf-8")).hexdigest()[:8]
                         self._recent_tools.append((tool_done_item.name, _sig))
-                    # Check if the last 10 calls are the same tool (existing detector)
+                    # Check if the last 10 calls are the same tool (existing detector).
+                    # Refined: only fire when the *parameters* are also mostly identical
+                    # — i.e. 3 or fewer distinct signatures across 10 same-named calls.
+                    # Without this, legitimate sequential workflows (e.g. reading 10+
+                    # different files in a row) trip the guard and master force-stops.
                     if len(self._recent_tools) >= 10:
                         last_10 = list(self._recent_tools)[-10:]
                         last_10_names = [item[0] if isinstance(item, tuple) else item for item in last_10]
-                        if len(set(last_10_names)) == 1:
+                        last_10_tuples = [item for item in last_10 if isinstance(item, tuple)]
+                        distinct_sigs = len({sig for _, sig in last_10_tuples}) if last_10_tuples else 1
+                        if len(set(last_10_names)) == 1 and distinct_sigs <= 3:
                             if self._loop_reflected:
                                 # Already reflected once — force-stop
                                 _log.bind(agent=self._name).warning(

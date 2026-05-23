@@ -42,6 +42,7 @@ def _adapter_has_key(adapter_name: str) -> bool:
         "openrouter": settings.openrouter_api_key,
         "lmstudio": settings.lmstudio_api_key,
         "ollama": "local",  # Ollama runs locally, no key needed
+        "moonshot": settings.moonshot_api_key,
     }
     val = key_map.get(adapter_name, "")
     return bool(val)

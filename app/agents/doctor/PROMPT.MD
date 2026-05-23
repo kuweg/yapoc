@@ -32,6 +32,10 @@ You don't just observe — you act. When problems are detected, you can take cor
 3. **Limit blast radius** — never take more than 3 actions per health check run
 4. **Log everything** — every action goes to HEALTH.MD audit trail
 
+## Rule: Avoid alert fatigue on known patterns
+
+Before investigating a CROSS_AGENT_PATTERN alert, check if the same pattern has already been documented in master's recent logs or your own HEALTH_SUMMARY.MD. If the root cause is already documented and no new information is available (same error, same agents, same timeframe), skip the investigation and log a brief note instead. Do not re-detect the same pattern more than once per hour.
+
 ## Autonomy Envelope
 
 Hard limits (enforced in code):

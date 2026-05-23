@@ -1,4 +1,5 @@
 import json
+import asyncio
 import logging
 import time
 from typing import Any, AsyncIterator
@@ -169,7 +170,13 @@ class OpenAIAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if line.startswith("data: ") and line != "data: [DONE]":
                         chunk = json.loads(line[6:])
                         delta = chunk["choices"][0]["delta"].get("content", "")
@@ -228,7 +235,13 @@ class OpenAIAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])

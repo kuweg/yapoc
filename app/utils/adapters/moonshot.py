@@ -6,6 +6,7 @@ different base URL and API key.
 """
 
 import json
+import asyncio
 import logging
 import time
 from typing import Any, AsyncIterator
@@ -22,6 +23,7 @@ from .base import (
     Message,
     StreamEvent,
     TextDelta,
+    ThinkingDelta,
     ToolCall,
     ToolDefinition,
     ToolStart,
@@ -29,7 +31,113 @@ from .base import (
     UsageStats,
 )
 from .models import ALL_CONTEXT_WINDOWS
-from .normalize import normalize_to_openai
+from .normalize import sanitize_tool_id
+
+
+def _normalize_to_moonshot(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Convert Anthropic-style history to Moonshot's chat-completions shape.
+
+    Kimi-K2 thinking models require ``reasoning_content`` to be echoed back
+    on every assistant tool_use message — otherwise the API rejects with
+    "thinking is enabled but reasoning_content is missing". We extract any
+    ``thinking`` / ``reasoning`` blocks from assistant_content and place
+    them on the assistant message; if a tool_use is present but no
+    thinking block was captured (e.g. cross-adapter fallback), we inject
+    a single-space placeholder so the API accepts the request.
+
+    Tool IDs are sanitized to ``[a-zA-Z0-9_-]+`` for cross-adapter
+    consistency.
+    """
+    result: list[dict[str, Any]] = []
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if isinstance(content, str):
+            result.append({"role": role, "content": content})
+            continue
+
+        if not isinstance(content, list):
+            result.append({"role": role, "content": str(content)})
+            continue
+
+        if role == "assistant":
+            text_parts: list[str] = []
+            reasoning_parts: list[str] = []
+            tool_calls: list[dict[str, Any]] = []
+
+            for block in content:
+                if not isinstance(block, dict):
+                    text_parts.append(str(block))
+                    continue
+                btype = block.get("type", "")
+                if btype == "text":
+                    text_parts.append(block.get("text", ""))
+                elif btype == "tool_use":
+                    tool_calls.append({
+                        "id": sanitize_tool_id(str(block.get("id", ""))),
+                        "type": "function",
+                        "function": {
+                            "name": block["name"],
+                            "arguments": json.dumps(block.get("input", {})),
+                        },
+                    })
+                elif btype == "thinking":
+                    t = block.get("thinking", "")
+                    if t:
+                        reasoning_parts.append(t)
+                elif btype == "reasoning":
+                    t = block.get("text", block.get("reasoning", ""))
+                    if t:
+                        reasoning_parts.append(t)
+
+            out: dict[str, Any] = {"role": "assistant"}
+            combined_text = "\n".join(t for t in text_parts if t)
+            out["content"] = combined_text or None
+            if tool_calls:
+                out["tool_calls"] = tool_calls
+            if reasoning_parts:
+                out["reasoning_content"] = "\n".join(reasoning_parts)
+            elif tool_calls:
+                # Required-but-missing fallback so the API accepts the message.
+                out["reasoning_content"] = " "
+            result.append(out)
+
+        elif role == "user":
+            tool_results: list[dict[str, Any]] = []
+            text_parts_user: list[str] = []
+
+            for block in content:
+                if not isinstance(block, dict):
+                    text_parts_user.append(str(block))
+                    continue
+                btype = block.get("type", "")
+                if btype == "tool_result":
+                    tool_results.append({
+                        "role": "tool",
+                        "tool_call_id": sanitize_tool_id(str(block.get("tool_use_id", ""))),
+                        "content": block.get("content", ""),
+                    })
+                elif btype == "text":
+                    text_parts_user.append(block.get("text", ""))
+                else:
+                    text_parts_user.append(str(block))
+
+            combined = "\n".join(t for t in text_parts_user if t)
+            if combined:
+                result.append({"role": "user", "content": combined})
+            result.extend(tool_results)
+
+        else:
+            result.append({
+                "role": role,
+                "content": str(content) if not isinstance(content, str) else content,
+            })
+
+    return result
 
 log = logging.getLogger(__name__)
 
@@ -147,7 +255,13 @@ class MoonshotAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(60):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if line.startswith("data: ") and line != "data: [DONE]":
                         chunk = json.loads(line[6:])
                         delta = chunk["choices"][0]["delta"].get("content", "")
@@ -160,9 +274,10 @@ class MoonshotAdapter(BaseLLMAdapter):
         messages: list[dict[str, Any]],
         tools: list[ToolDefinition],
     ) -> AsyncIterator[StreamEvent]:
-        # Convert Anthropic-format messages to OpenAI format
+        # Convert Anthropic-format messages to Moonshot format, preserving
+        # ``reasoning_content`` so kimi-k2 thinking models accept the request.
         openai_messages = [{"role": "system", "content": system_prompt}]
-        openai_messages.extend(normalize_to_openai(messages))
+        openai_messages.extend(_normalize_to_moonshot(messages))
 
         openai_tools = [
             {
@@ -192,6 +307,7 @@ class MoonshotAdapter(BaseLLMAdapter):
         # Accumulators for streaming tool calls
         # Map: tool_call index -> {id, name, arguments_parts}
         tc_accum: dict[int, dict[str, Any]] = {}
+        reasoning_parts: list[str] = []
         input_tokens = 0
         output_tokens = 0
 
@@ -206,7 +322,13 @@ class MoonshotAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(60):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])
@@ -222,6 +344,11 @@ class MoonshotAdapter(BaseLLMAdapter):
                         continue
 
                     delta = choices[0].get("delta", {})
+
+                    # Reasoning content (kimi-k2 thinking models)
+                    if reasoning := delta.get("reasoning_content"):
+                        reasoning_parts.append(reasoning)
+                        yield ThinkingDelta(reasoning)
 
                     # Text content
                     if text := delta.get("content"):
@@ -250,6 +377,14 @@ class MoonshotAdapter(BaseLLMAdapter):
         tool_calls: list[ToolCall] = []
         assistant_content: list[dict[str, Any]] = []
 
+        # Preserve reasoning so subsequent turns can echo ``reasoning_content``
+        # back to Moonshot (required when thinking is enabled) and so cross-
+        # adapter fallback (e.g. deepseek) sees the same thinking block.
+        if reasoning_parts:
+            assistant_content.append(
+                {"type": "thinking", "thinking": "".join(reasoning_parts)}
+            )
+
         for idx in sorted(tc_accum):
             acc = tc_accum[idx]
             arguments_str = "".join(acc["arguments_parts"])
@@ -268,11 +403,14 @@ class MoonshotAdapter(BaseLLMAdapter):
                     "__raw_args__": arguments_str[:400],
                 }
 
-            tc = ToolCall(id=acc["id"], name=acc["name"], input=arguments)
+            # Sanitize tool IDs so cross-adapter fallback (e.g. Anthropic,
+            # which requires ``^[a-zA-Z0-9_-]+$``) accepts the replay.
+            sanitized_id = sanitize_tool_id(acc["id"])
+            tc = ToolCall(id=sanitized_id, name=acc["name"], input=arguments)
             tool_calls.append(tc)
             assistant_content.append({
                 "type": "tool_use",
-                "id": acc["id"],
+                "id": sanitized_id,
                 "name": acc["name"],
                 "input": arguments,
             })

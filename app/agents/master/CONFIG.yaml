@@ -38,6 +38,7 @@ tools:
   - server_restart
   - process_restart
   - web_search
+  - fetch_page
   - memory_append
   - notes_read
   - notes_write
@@ -63,6 +64,8 @@ runner:
   task_timeout: 0
   poll_interval: 30
   retry_attempts: 3
-  context_memory_limit: 10
-  context_health_limit: 5
-  context_notes_limit: 3000
+  context_memory_limit: 30
+  context_health_limit: 10
+  context_notes_limit: 5000
+  context_learnings_chars: 4000
+  context_knowledge_chars: 3000

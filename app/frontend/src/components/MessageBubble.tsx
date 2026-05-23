@@ -6,6 +6,7 @@ interface MessageBubbleProps {
   role: 'user' | 'assistant'
   content: string
   agentName?: string
+  agentModel?: string
 }
 
 // Per-agent accent colors (Tailwind classes)
@@ -21,7 +22,7 @@ const AGENT_COLORS: Record<string, { label: string; dot: string }> = {
 
 const DEFAULT_AGENT_COLORS = { label: 'text-zinc-400', dot: 'bg-zinc-400' }
 
-function AgentLabel({ name }: { name: string }) {
+function AgentLabel({ name, model }: { name: string; model?: string }) {
   const colors = AGENT_COLORS[name] ?? DEFAULT_AGENT_COLORS
   const displayName = name.replace(/_/g, ' ')
   return (
@@ -29,12 +30,13 @@ function AgentLabel({ name }: { name: string }) {
       <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${colors.dot}`} />
       <span className={`text-xs font-semibold uppercase tracking-wide ${colors.label}`}>
         {displayName}
+        {model && <span className="text-[10px] font-normal text-zinc-500 lowercase ml-1.5">[{model}]</span>}
       </span>
     </div>
   )
 }
 
-function MessageBubbleImpl({ role, content, agentName }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, agentName, agentModel }: MessageBubbleProps) {
   if (role === 'user') {
     return (
       <div className="flex justify-end">
@@ -55,7 +57,7 @@ function MessageBubbleImpl({ role, content, agentName }: MessageBubbleProps) {
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%]">
-        {agentName && <AgentLabel name={agentName} />}
+        {agentName && <AgentLabel name={agentName} model={agentModel} />}
         <div className="rounded-2xl rounded-tl-sm bg-zinc-800 px-4 py-2 text-zinc-100 text-sm">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}

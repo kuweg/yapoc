@@ -15,9 +15,11 @@ const MAX_DELAY_MS = 30_000
 
 export function useWebSocket() {
   const activeSessionId = useSessionStore((s) => s.activeId)
+  const subscribedAgents = useWsStore((s) => s.subscribedAgents)
   const wsRef = useRef<WebSocket | null>(null)
   const activeSessionRef = useRef<string | null>(activeSessionId)
   const subscribedSessionRef = useRef<string | null>(null)
+  const subscribedAgentsRef = useRef<Set<string>>(new Set())
   const retryRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unmountedRef = useRef(false)
@@ -40,6 +42,24 @@ export function useWebSocket() {
     }
   }, [activeSessionId])
 
+  // Reconcile per-agent subscriptions against the open WS.
+  useEffect(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    const desired = new Set(subscribedAgents)
+    for (const agent of subscribedAgentsRef.current) {
+      if (!desired.has(agent)) {
+        ws.send(JSON.stringify({ type: 'unsubscribe_agent', agent }))
+      }
+    }
+    for (const agent of desired) {
+      if (!subscribedAgentsRef.current.has(agent)) {
+        ws.send(JSON.stringify({ type: 'subscribe_agent', agent }))
+      }
+    }
+    subscribedAgentsRef.current = desired
+  }, [subscribedAgents])
+
   useEffect(() => {
     unmountedRef.current = false
 
@@ -58,6 +78,14 @@ export function useWebSocket() {
             ws.send(JSON.stringify({ type: 'subscribe', session_id: sid }))
             subscribedSessionRef.current = sid
           }
+          // Re-arm any per-agent subscriptions after reconnect. The server-
+          // side subscriber set is wiped when the previous WS closed.
+          const desired = new Set(useWsStore.getState().subscribedAgents)
+          subscribedAgentsRef.current = new Set()
+          for (const agent of desired) {
+            ws.send(JSON.stringify({ type: 'subscribe_agent', agent }))
+            subscribedAgentsRef.current.add(agent)
+          }
         }
 
         ws.onmessage = (ev) => {
@@ -73,6 +101,7 @@ export function useWebSocket() {
           useWsStore.getState().setConnected(false)
           wsRef.current = null
           subscribedSessionRef.current = null
+          subscribedAgentsRef.current = new Set()
           scheduleReconnect()
         }
 

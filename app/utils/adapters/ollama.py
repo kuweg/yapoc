@@ -1,4 +1,5 @@
 import json
+import asyncio
 import time
 from typing import Any, AsyncIterator
 
@@ -99,7 +100,13 @@ class OllamaAdapter(BaseLLMAdapter):
                 "POST", self._chat_url, json=payload, timeout=300
             ) as response:
                 response.raise_for_status()
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if line:
                         chunk = json.loads(line)
                         if content := chunk.get("message", {}).get("content", ""):
@@ -146,7 +153,13 @@ class OllamaAdapter(BaseLLMAdapter):
                 "POST", self._chat_url, json=payload, timeout=300
             ) as response:
                 response.raise_for_status()
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line:
                         continue
                     chunk = json.loads(line)

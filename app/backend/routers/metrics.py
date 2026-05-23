@@ -67,19 +67,34 @@ def _last_active_at(agent_dir: Path) -> str | None:
 
 
 def _count_health_issues(agent_dir: Path) -> int:
-    """Count non-blank lines in HEALTH.MD (0 if file doesn't exist)."""
+    """Count ERROR-level lines in HEALTH.MD from the last 24 hours."""
+    import re
+
     health_path = agent_dir / "HEALTH.MD"
     if not health_path.exists():
         return 0
     try:
-        lines = [
-            line.strip()
-            for line in health_path.read_text(encoding="utf-8", errors="ignore").splitlines()
-            if line.strip()
-        ]
-        return len(lines)
+        raw = health_path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return 0
+
+    pattern = re.compile(_HEALTH_LINE_RE)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    count = 0
+    for line in raw.splitlines():
+        m = pattern.match(line.strip())
+        if not m:
+            continue
+        level = m.group("level").upper()
+        if level != "ERROR":
+            continue
+        try:
+            ts = datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+            if ts >= cutoff:
+                count += 1
+        except ValueError:
+            continue
+    return count
 
 
 def _get_current_status(agent_dir: Path) -> str:
@@ -356,7 +371,7 @@ _HEALTH_LINE_RE = (
 
 
 def _recent_health_lines(agent_dir: Path, max_lines: int = 50) -> list[ObservabilityError]:
-    """Tail HEALTH.MD and parse the most-recent timestamped lines."""
+    """Tail HEALTH.MD and parse timestamped lines from the last 24 hours."""
     import re
 
     health_path = agent_dir / "HEALTH.MD"
@@ -369,10 +384,17 @@ def _recent_health_lines(agent_dir: Path, max_lines: int = 50) -> list[Observabi
 
     parsed: list[ObservabilityError] = []
     pattern = re.compile(_HEALTH_LINE_RE)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     # Tail to keep parsing cheap on long logs.
     for line in raw.splitlines()[-max_lines:]:
         m = pattern.match(line.strip())
         if not m:
+            continue
+        try:
+            ts = datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if ts < cutoff:
             continue
         parsed.append(
             ObservabilityError(
@@ -638,73 +660,9 @@ async def get_hierarchy_metrics():
     )
 
 
-# ── Live trace stream (SSE) ─────────────────────────────────────────────────
-
-import asyncio
-
-
-@router.get("/trace-stream")
-async def trace_stream(request: Request, agent: str = ""):
-    """SSE endpoint that streams LIVE.MD updates for one or all agents.
-
-    Polls LIVE.MD files every 2 seconds and pushes any changes as SSE events.
-    Optional ``agent`` query param filters to a single agent.
-    """
-    from fastapi.responses import StreamingResponse
-
-    async def event_generator():
-        last_contents: dict[str, str] = {}
-
-        while True:
-            try:
-                targets: list[Path] = []
-                if agent:
-                    agent_path = AGENTS_DIR / agent
-                    if agent_path.is_dir():
-                        targets.append(agent_path / "LIVE.MD")
-                else:
-                    for ad in sorted(AGENTS_DIR.iterdir()):
-                        if not ad.is_dir() or ad.name.startswith("_"):
-                            continue
-                        if ad.name in ("base", "shared"):
-                            continue
-                        live_path = ad / "LIVE.MD"
-                        if live_path.exists():
-                            targets.append(live_path)
-
-                for live_path in targets:
-                    try:
-                        content = live_path.read_text(encoding="utf-8", errors="replace")
-                    except OSError:
-                        continue
-
-                    agent_name = live_path.parent.name
-                    prev = last_contents.get(agent_name, "")
-                    if content != prev:
-                        last_contents[agent_name] = content
-                        # SSE format: data: <json>\n\n
-                        import json as _json
-                        payload = _json.dumps({
-                            "agent": agent_name,
-                            "content": content,
-                            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        })
-                        yield f"data: {payload}\n\n"
-
-            except Exception:
-                pass
-
-            await asyncio.sleep(2)
-
-        # Note: this generator runs until the client disconnects.
-        # FastAPI's StreamingResponse handles client disconnect cleanup.
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+# The per-agent ``trace-stream`` SSE endpoint that polled LIVE.MD files
+# every 2s was removed. It has been superseded by:
+#   GET /agents/{name}/activity  — hydration snapshot from the relay's
+#                                   in-memory ring buffer
+#   WebSocket {"type": "subscribe_agent", "agent": name}
+#                               — live push of per-agent activity events

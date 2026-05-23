@@ -117,10 +117,16 @@ def _cleanup_stale_agent_statuses() -> None:
 
         # Clear stale TASK.MD frontmatter so the next spawn writes fresh content
         # and the sidebar doesn't show a busy state.
+        # FIX: also strip any lingering task_id — a stale ID from a prior session
+        # causes the runner's "task_id mismatch" abort when a new spawn sends a
+        # Redis task_assign message (the on-disk ID != expected ID). Clearing the
+        # whole file is safe: results live in RESULT.MD and the notification queue.
         if task_path.exists():
             try:
                 content = task_path.read_text(encoding="utf-8", errors="ignore")
-                if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
+                has_stale_status = re.search(r"^status:\s*(pending|running)", content, re.MULTILINE)
+                has_stale_task_id = re.search(r"^task_id:\s*\S", content, re.MULTILINE)
+                if has_stale_status or has_stale_task_id:
                     task_path.write_text("")
             except Exception:
                 pass
@@ -776,10 +782,41 @@ async def _startup_resume() -> None:
                     resume_session_id = fm.get("session_id", "")
 
             if next_action:
+                # Session checkpointing: if this resume belongs to a session
+                # that was compacted before the crash, hydrate the prompt with
+                # the pre-crash context so master doesn't start from a blank
+                # slate (Fix 5: session checkpointing).
+                resume_prompt = f"[Resume] {next_action}"
+                if resume_session_id:
+                    try:
+                        from app.cli.sessions import read_summary, summary_path
+                        summary = read_summary(resume_session_id)
+                        if summary:
+                            anchor = summary.get("anchor", {}).get("content", "")
+                            synth = summary.get("synth", {}).get("content", "")
+                            if anchor or synth:
+                                resume_prompt += (
+                                    f"\n\n[SESSION CONTEXT FROM BEFORE RESTART]\n"
+                                    f"Original task: {anchor[:400]}\n"
+                                    f"Progress summary: {synth[:1200]}"
+                                )
+                            # Consume the checkpoint so it doesn't replay on
+                            # the next restart.  write_summary will recreate
+                            # it when the next compact fires.
+                            try:
+                                summary_path(resume_session_id).unlink(missing_ok=True)
+                            except Exception:
+                                pass
+                    except Exception as _sum_exc:
+                        logger.debug(
+                            "Startup resume: failed to load session summary ({})",
+                            _sum_exc,
+                        )
+
                 task_id = str(uuid.uuid4())
                 create_queued_task(
                     id=task_id,
-                    prompt=f"[Resume] {next_action}",
+                    prompt=resume_prompt,
                     source="resume",
                     session_id=resume_session_id,
                 )
@@ -1098,7 +1135,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         _evaluator_tick,
         "interval",
-        hours=settings.evaluator_interval_hours,
+        minutes=settings.evaluator_interval_minutes,
         id="evaluator_scheduled",
     )
     scheduler.add_job(

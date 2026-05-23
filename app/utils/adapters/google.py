@@ -91,7 +91,7 @@ class GoogleAdapter(BaseLLMAdapter):
                         )
                     elif btype == "tool_result":
                         tool_use_id = block["tool_use_id"]
-                        name = tool_names.get(tool_use_id, "")
+                        name = tool_names.get(tool_use_id, "") or tool_use_id
                         parts.append(
                             types.Part(
                                 function_response=types.FunctionResponse(
@@ -244,6 +244,7 @@ class GoogleAdapter(BaseLLMAdapter):
             contents=gemini_contents,
             config=config,
         )
+        _synthetic_id_counter = 0
         async for chunk in stream:
             if chunk.text:
                 assistant_text_parts.append(chunk.text)
@@ -251,10 +252,19 @@ class GoogleAdapter(BaseLLMAdapter):
 
             if chunk.function_calls:
                 for fc in chunk.function_calls:
-                    if fc.id and fc.id not in seen_call_ids:
-                        seen_call_ids.add(fc.id)
+                    _fc_id = fc.id
+                    # Gemini sometimes omits function_call.id entirely.
+                    # We must synthesise one so that (a) the tool call is
+                    # not silently dropped, and (b) the later tool_result
+                    # message has a non-empty id/name pair (empty name
+                    # triggers Gemini 400 INVALID_ARGUMENT).
+                    if not _fc_id:
+                        _synthetic_id_counter += 1
+                        _fc_id = f"gemini_fc_{_synthetic_id_counter}"
+                    if _fc_id not in seen_call_ids:
+                        seen_call_ids.add(_fc_id)
                         args = fc.args if isinstance(fc.args, dict) else {}
-                        tc = ToolCall(id=fc.id, name=fc.name or "", input=args)
+                        tc = ToolCall(id=_fc_id, name=fc.name or "", input=args)
                         tool_calls.append(tc)
                         yield ToolStart(name=tc.name, input=tc.input)
 

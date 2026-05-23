@@ -8,6 +8,7 @@ See docs/llmstudio-guide.md for setup instructions.
 """
 
 import json
+import asyncio
 import time
 from typing import Any, AsyncIterator
 
@@ -142,7 +143,13 @@ class LMStudioAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if line.startswith("data: ") and line != "data: [DONE]":
                         chunk = json.loads(line[6:])
                         choices = chunk.get("choices") or []
@@ -201,7 +208,13 @@ class LMStudioAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])

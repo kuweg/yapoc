@@ -21,6 +21,51 @@ from .base import (
 )
 
 from .models import ALL_CONTEXT_WINDOWS
+from .normalize import sanitize_tool_id
+
+
+def _sanitize_tool_ids_in_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rewrite tool_use / tool_result IDs to match Anthropic's ``[a-zA-Z0-9_-]+``.
+
+    Cross-adapter fallback can hand us history whose tool IDs include
+    ``.``, ``:`` or other chars that Moonshot/DeepSeek allow but Anthropic
+    rejects. We deep-copy the affected messages so the caller's state is
+    untouched.
+    """
+    if not messages:
+        return messages
+
+    out: list[dict[str, Any]] = []
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            out.append(msg)
+            continue
+        new_content = []
+        mutated = False
+        for block in content:
+            if not isinstance(block, dict):
+                new_content.append(block)
+                continue
+            btype = block.get("type")
+            if btype == "tool_use":
+                orig_id = str(block.get("id", ""))
+                fixed = sanitize_tool_id(orig_id)
+                if fixed != orig_id:
+                    block = {**block, "id": fixed}
+                    mutated = True
+            elif btype == "tool_result":
+                orig_id = str(block.get("tool_use_id", ""))
+                fixed = sanitize_tool_id(orig_id)
+                if fixed != orig_id:
+                    block = {**block, "tool_use_id": fixed}
+                    mutated = True
+            new_content.append(block)
+        if mutated:
+            out.append({**msg, "content": new_content})
+        else:
+            out.append(msg)
+    return out
 
 _DEFAULT_CONTEXT_WINDOW = 200_000
 
@@ -165,6 +210,11 @@ class AnthropicAdapter(BaseLLMAdapter):
             }
             for t in tools
         ])
+
+        # Cross-adapter fallback can supply tool_use / tool_result IDs that
+        # include characters Anthropic rejects (``^[a-zA-Z0-9_-]+$``).
+        # Sanitize before caching so the cache hash stays stable.
+        messages = _sanitize_tool_ids_in_messages(messages)
 
         # Cache the conversation prefix so each subsequent turn reads the
         # old message history at 0.1× input cost. This is the dominant

@@ -8,6 +8,7 @@ Responses API docs: https://platform.openai.com/docs/api-reference/responses
 """
 
 import json
+import asyncio
 import logging
 import time
 from typing import Any, AsyncIterator
@@ -229,7 +230,13 @@ class CodexAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: "):
                         continue
                     raw = line[6:]
@@ -289,7 +296,13 @@ class CodexAdapter(BaseLLMAdapter):
                 if not response.is_success:
                     await response.aread()
                     _raise_with_detail(response)
-                async for line in response.aiter_lines():
+                aiter_lines = response.aiter_lines()
+                while True:
+                    try:
+                        async with asyncio.timeout(180):
+                            line = await aiter_lines.__anext__()
+                    except StopAsyncIteration:
+                        break
                     if not line.startswith("data: "):
                         continue
                     raw = line[6:]

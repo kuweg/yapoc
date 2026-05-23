@@ -33,6 +33,16 @@ export interface SessionEventEnvelope {
   event: SessionEvent
 }
 
+export interface AgentEvent {
+  type: string
+  agent: string
+  timestamp: string
+  [key: string]: unknown
+}
+
+/** Per-agent ring buffer cap — mirrors the backend's relay buffer. */
+export const AGENT_EVENTS_MAX = 500
+
 interface WsStore {
   connected: boolean
   backgroundTasks: BackgroundTask[]
@@ -45,12 +55,24 @@ interface WsStore {
    * specific session because session_id was lost upstream. ChatPanel falls
    * back to showing this in the active chat when awaiting a notification. */
   lastOrphanNotification: { text: string } | null
+  /** Per-agent live event buffer (bounded — see AGENT_EVENTS_MAX). */
+  agentEvents: Record<string, AgentEvent[]>
+  /** Agents the UI has asked to subscribe to. The useWebSocket hook
+   *  reconciles this against the open WS by sending subscribe_agent /
+   *  unsubscribe_agent frames. */
+  subscribedAgents: string[]
 
   setConnected: (v: boolean) => void
   handleEvent: (data: Record<string, unknown>) => void
   dismissNotification: (taskId: string) => void
   clearLastCompletedTask: () => void
   clearLastOrphanNotification: () => void
+  /** Replace the buffer with a fresh snapshot (used after HTTP hydration). */
+  setAgentEvents: (agent: string, events: AgentEvent[]) => void
+  /** Drop everything we have for an agent. */
+  clearAgentEvents: (agent: string) => void
+  subscribeAgent: (agent: string) => void
+  unsubscribeAgent: (agent: string) => void
 }
 
 export const useWsStore = create<WsStore>((set) => ({
@@ -60,6 +82,8 @@ export const useWsStore = create<WsStore>((set) => ({
   unreadNotifications: [],
   lastCompletedTask: null,
   lastOrphanNotification: null,
+  agentEvents: {},
+  subscribedAgents: [],
 
   setConnected: (v) => set({ connected: v }),
 
@@ -71,6 +95,35 @@ export const useWsStore = create<WsStore>((set) => ({
   clearLastCompletedTask: () => set({ lastCompletedTask: null }),
 
   clearLastOrphanNotification: () => set({ lastOrphanNotification: null }),
+
+  setAgentEvents: (agent, events) =>
+    set((s) => ({
+      agentEvents: {
+        ...s.agentEvents,
+        [agent]: events.slice(-AGENT_EVENTS_MAX),
+      },
+    })),
+
+  clearAgentEvents: (agent) =>
+    set((s) => {
+      if (!(agent in s.agentEvents)) return s
+      const { [agent]: _drop, ...rest } = s.agentEvents
+      return { agentEvents: rest }
+    }),
+
+  subscribeAgent: (agent) =>
+    set((s) =>
+      s.subscribedAgents.includes(agent)
+        ? s
+        : { subscribedAgents: [...s.subscribedAgents, agent] }
+    ),
+
+  unsubscribeAgent: (agent) =>
+    set((s) =>
+      s.subscribedAgents.includes(agent)
+        ? { subscribedAgents: s.subscribedAgents.filter((a) => a !== agent) }
+        : s
+    ),
 
   handleEvent: (data) => {
     const type = data.type as string
@@ -155,6 +208,19 @@ export const useWsStore = create<WsStore>((set) => ({
       const event = (data.event ?? null) as SessionEvent | null
       if (!sessionId || !event) return
       set({ lastSessionEvent: { session_id: sessionId, event } })
+      return
+    }
+
+    if (type === 'agent_event') {
+      const agent = String(data.agent ?? '')
+      const event = (data.event ?? null) as AgentEvent | null
+      if (!agent || !event) return
+      set((s) => {
+        const existing = s.agentEvents[agent] ?? []
+        const next = [...existing, event]
+        if (next.length > AGENT_EVENTS_MAX) next.splice(0, next.length - AGENT_EVENTS_MAX)
+        return { agentEvents: { ...s.agentEvents, [agent]: next } }
+      })
       return
     }
 

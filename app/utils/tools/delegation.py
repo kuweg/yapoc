@@ -602,8 +602,8 @@ class WaitForAgentTool(BaseTool):
             },
             "timeout": {
                 "type": "integer",
-                "description": "Max seconds to wait (default 300)",
-                "default": 300,
+                "description": "Max seconds to wait (default 900)",
+                "default": 900,
             },
             "poll_interval": {
                 "type": "integer",
@@ -616,7 +616,7 @@ class WaitForAgentTool(BaseTool):
 
     async def execute(self, **params: Any) -> str:
         agent_name = params["agent_name"]
-        timeout = params.get("timeout", 300)
+        timeout = params.get("timeout", 900)
         poll_interval = params.get("poll_interval", 3)
 
         path = _task_path(agent_name)
@@ -741,8 +741,8 @@ class WaitForAgentsTool(BaseTool):
             },
             "timeout": {
                 "type": "integer",
-                "description": "Max seconds to wait for all agents (default 300)",
-                "default": 300,
+                "description": "Max seconds to wait for all agents (default 900)",
+                "default": 900,
             },
             "poll_interval": {
                 "type": "integer",
@@ -760,7 +760,7 @@ class WaitForAgentsTool(BaseTool):
 
     async def execute(self, **params: Any) -> str:
         agent_names: list[str] = params["agent_names"]
-        timeout: int = params.get("timeout", 300)
+        timeout: int = params.get("timeout", 900)
         poll_interval: int = params.get("poll_interval", 3)
         fail_fast: bool = params.get("fail_fast", True)
 

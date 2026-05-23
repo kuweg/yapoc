@@ -196,6 +196,16 @@ async def _execute_task(task_id: str) -> None:
             pass
         logger.info(f"Task {task_id[:8]}… completed ({len(result_text)} chars)")
 
+        # Event-driven indexer: every 20 turns
+        from app.utils.db import increment_indexer_counter
+        from app.utils.indexer import indexer_tick
+        try:
+            new_count = increment_indexer_counter()
+            if new_count % 20 == 0:
+                asyncio.create_task(indexer_tick(reason="turn_counter"))
+        except Exception:
+            pass
+
         # Morning report — emit on autonomous task completion so an overnight
         # operator sees the result without scraping logs.
         #
@@ -348,6 +358,17 @@ async def dispatcher_loop() -> None:
                     if is_autonomous_budget_exhausted():
                         logger.info(f"Skipping autonomous task {tid[:8]}… (daily budget exhausted)")
                         continue
+                # Event-driven indexer: new session detection
+                session_id = task.get("session_id")
+                if session_id:
+                    from app.utils.db import is_new_session
+                    from app.utils.indexer import indexer_tick
+                    try:
+                        if is_new_session(session_id):
+                            asyncio.create_task(indexer_tick(reason="new_session"))
+                    except Exception:
+                        pass
+
                 _running_task_ids.add(tid)
                 asyncio.create_task(_execute_task(tid))
 

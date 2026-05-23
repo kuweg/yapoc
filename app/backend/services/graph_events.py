@@ -82,6 +82,26 @@ class GraphEventBus:
         self._events: list[GraphEvent] = []
         self._max_events = max_events
         self._listeners: list[Callable[[dict[str, Any]], Awaitable[None]]] = []
+        self._running = False
+
+    # ── Lifecycle ────────────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        """Start the graph event bus.
+
+        Logically marks the bus as running. Subclasses or extensions may
+        override this to, e.g., start a background flush loop or connect
+        to an external event sink.
+        """
+        self._running = True
+
+    async def stop(self) -> None:
+        """Stop the graph event bus.
+
+        Clears the running flag. Subclasses may override to flush pending
+        events or disconnect external sinks.
+        """
+        self._running = False
 
     # ── Listeners ────────────────────────────────────────────────────────
 

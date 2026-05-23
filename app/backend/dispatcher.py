@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 
 from loguru import logger
 
+from app.backend.services.graph_events import graph_event_bus
 from app.config import settings
 from app.utils.db import (
     create_queued_task,
@@ -132,6 +133,13 @@ async def _execute_task(task_id: str) -> None:
     _chain_ctx_timeout: int | None = None if _chain_timeout is None else _chain_timeout
     # Master is unbounded — see Fix 2.2.
     _chain_ctx_timeout = None  # all tasks dispatched here go through master
+
+    # Emit graph event for task assignment
+    await graph_event_bus.emit_task_assigned(
+        source="dispatcher",
+        target="master",
+        task_id=task_id,
+    )
 
     logger.info(
         f"Dispatching task {task_id[:8]}… prompt={prompt} "

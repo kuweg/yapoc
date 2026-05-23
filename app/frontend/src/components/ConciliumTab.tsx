@@ -70,13 +70,6 @@ function roleColor(key: string): string {
   return ROLE_COLORS[key] ?? 'text-zinc-300'
 }
 
-function fmtTimestamp(iso: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString()
-}
-
 function shortTimestamp(iso: string): string {
   if (!iso) return ''
   const d = new Date(iso)

@@ -216,10 +216,13 @@ async def get_channels() -> ChannelsResponse:
         "SELECT DISTINCT source, session_id FROM task_queue WHERE source != 'cli' ORDER BY source"
     ).fetchall()
 
-    # Group session_ids by source
+    # Group session_ids by source (skip NULL session_ids)
     source_sessions: dict[str, set[str]] = defaultdict(set)
     for row in rows:
-        source_sessions[row["source"]].add(row["session_id"])
+        sid = row["session_id"]
+        if sid is None:
+            continue  # skip tasks without a session_id
+        source_sessions[row["source"]].add(sid)
 
     # 3. Build channel info for each source from task_queue
     channels: list[ChannelInfo] = [cli_channel]

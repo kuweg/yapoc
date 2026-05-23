@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/session'
 import { useAppStore } from '../store/appStore'
 import { getChannelSessions, getChannelSessionMessages } from '../api/client'
@@ -12,13 +12,8 @@ export function ChannelsDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [selectedChannel, setSelectedChannel] = useState<ChannelInfo | null>(null)
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null)
-  const [loadingMessages, setLoadingMessages] = useState(false)
 
-  const loadSession = useSessionStore((s) => s.loadSession)
-  const newSession = useSessionStore((s) => s.newSession)
-  const appendMessage = useSessionStore((s) => s.appendMessage)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
-  const sessions = useSessionStore((s) => s.sessions)
 
   useEffect(() => {
     loadChannels()
@@ -45,7 +40,6 @@ export function ChannelsDashboard() {
 
   async function handleSessionClick(session: SessionInfo) {
     setSelectedSession(session)
-    setLoadingMessages(true)
     try {
       const data = await getChannelSessionMessages(session.source, session.id)
       // Create a local session entry with the loaded messages
@@ -66,8 +60,6 @@ export function ChannelsDashboard() {
       setActiveTab('chat')
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc))
-    } finally {
-      setLoadingMessages(false)
     }
   }
 

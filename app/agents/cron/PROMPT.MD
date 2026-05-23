@@ -71,6 +71,7 @@ Call this as the **last thing** after completing all due jobs. If you were trigg
 - Never modify other agents' config files — that's Keeper's job
 - Keep schedule entries concise — long task descriptions go in the task field only
 - Maximum 10 scheduled jobs to prevent runaway resource usage
+- **Only spawn agents listed in your CONFIG.yaml `delegation_targets`**: builder, keeper, doctor, master. Do NOT spawn planning, evaluator, librarian, researcher, or any dynamic agent — those are Master's responsibility.
 
 ## Behavior
 - When you receive a "run-schedule" task, execute ALL due jobs, not just one

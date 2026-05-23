@@ -7,7 +7,24 @@ Non-Anthropic adapters must convert before sending to their respective APIs.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
+
+
+_INVALID_TOOL_ID_RE = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+def sanitize_tool_id(tool_id: str) -> str:
+    """Replace chars not in [a-zA-Z0-9_-] with underscores.
+
+    Anthropic rejects tool_use IDs containing characters like `.`, `:`, or
+    `/`, while Moonshot/DeepSeek occasionally emit such IDs. Sanitizing at
+    the source keeps IDs consistent between the assistant's tool_use and
+    the corresponding tool_result across adapter fallbacks.
+    """
+    if not tool_id:
+        return "tool_call"
+    return _INVALID_TOOL_ID_RE.sub("_", tool_id) or "tool_call"
 
 
 def normalize_to_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:

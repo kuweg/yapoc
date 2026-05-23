@@ -68,6 +68,20 @@ export async function getAgentLive(name: string): Promise<string> {
   return String(data.content ?? '')
 }
 
+export interface AgentActivityEvent {
+  type: string
+  agent: string
+  timestamp: string
+  [key: string]: unknown
+}
+
+export async function getAgentActivity(name: string): Promise<AgentActivityEvent[]> {
+  const res = await fetch(`/api/agents/${name}/activity`)
+  if (!res.ok) throw new Error(`agent activity ${res.status}`)
+  const data = await res.json()
+  return Array.isArray(data.events) ? data.events : []
+}
+
 export async function getModels(): Promise<AdapterInfo[]> {
   const res = await fetch('/api/models')
   if (!res.ok) throw new Error(`models ${res.status}`)

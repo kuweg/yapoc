@@ -28,6 +28,7 @@ class WebSocketManager:
     def __init__(self) -> None:
         self._clients: set[WebSocket] = set()
         self._session_subscribers: dict[str, set[WebSocket]] = {}
+        self._agent_subscribers: dict[str, set[WebSocket]] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, ws: WebSocket) -> None:
@@ -88,6 +89,45 @@ class WebSocketManager:
                     if not subs:
                         del self._session_subscribers[session_id]
 
+    async def push_agent_event(self, agent_name: str, event: dict[str, Any]) -> None:
+        """Send a per-agent activity event only to that agent's subscribers."""
+        message = json.dumps(
+            {"type": "agent_event", "agent": agent_name, "event": event}
+        )
+        async with self._lock:
+            clients = list(self._agent_subscribers.get(agent_name, set()))
+        dead: list[WebSocket] = []
+        for ws in clients:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.append(ws)
+        if dead:
+            async with self._lock:
+                subs = self._agent_subscribers.get(agent_name)
+                if subs is not None:
+                    for ws in dead:
+                        subs.discard(ws)
+                    if not subs:
+                        del self._agent_subscribers[agent_name]
+
+    async def subscribe_agent(self, ws: WebSocket, agent_name: str) -> None:
+        """Subscribe a client to per-agent activity events."""
+        async with self._lock:
+            if agent_name not in self._agent_subscribers:
+                self._agent_subscribers[agent_name] = set()
+            self._agent_subscribers[agent_name].add(ws)
+        logger.debug(f"WebSocket subscribed to agent {agent_name}")
+
+    async def unsubscribe_agent(self, ws: WebSocket, agent_name: str) -> None:
+        """Unsubscribe a client from a per-agent activity feed."""
+        async with self._lock:
+            subs = self._agent_subscribers.get(agent_name)
+            if subs:
+                subs.discard(ws)
+                if not subs:
+                    del self._agent_subscribers[agent_name]
+
     async def subscribe_session(self, ws: WebSocket, session_id: str) -> None:
         """Subscribe a client to turn-level events for a specific session."""
         async with self._lock:
@@ -106,15 +146,23 @@ class WebSocketManager:
                     del self._session_subscribers[session_id]
 
     async def _unsubscribe_all(self, ws: WebSocket) -> None:
-        """Remove a client from all session subscriptions."""
+        """Remove a client from all session and agent subscriptions."""
         async with self._lock:
-            empty: list[str] = []
+            empty_sessions: list[str] = []
             for sid, subs in self._session_subscribers.items():
                 subs.discard(ws)
                 if not subs:
-                    empty.append(sid)
-            for sid in empty:
+                    empty_sessions.append(sid)
+            for sid in empty_sessions:
                 del self._session_subscribers[sid]
+
+            empty_agents: list[str] = []
+            for name, subs in self._agent_subscribers.items():
+                subs.discard(ws)
+                if not subs:
+                    empty_agents.append(name)
+            for name in empty_agents:
+                del self._agent_subscribers[name]
 
     @property
     def client_count(self) -> int:
@@ -147,6 +195,16 @@ async def websocket_endpoint(ws: WebSocket) -> None:
                     if sid:
                         await ws_manager.unsubscribe_session(ws, sid)
                         await ws.send_text(json.dumps({"type": "unsubscribed", "session_id": sid}))
+                elif msg_type == "subscribe_agent":
+                    name = msg.get("agent", "")
+                    if name:
+                        await ws_manager.subscribe_agent(ws, name)
+                        await ws.send_text(json.dumps({"type": "agent_subscribed", "agent": name}))
+                elif msg_type == "unsubscribe_agent":
+                    name = msg.get("agent", "")
+                    if name:
+                        await ws_manager.unsubscribe_agent(ws, name)
+                        await ws.send_text(json.dumps({"type": "agent_unsubscribed", "agent": name}))
             except json.JSONDecodeError:
                 pass
     except WebSocketDisconnect:

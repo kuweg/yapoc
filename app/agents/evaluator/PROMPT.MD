@@ -25,6 +25,9 @@ Call `get_recent_signals()` once. It returns the unified observability snapshot:
 - Recent tasks feed (last 50, with agent + status + duration + summary + error_summary)
 - Per-agent config snapshot: adapter, model, temperature, fallback chain
 
+**CRITICAL: Verify current state before reporting config problems.**
+When a signal indicates a config issue (timeout value, adapter mismatch, model name, missing tool), you MUST read the actual config file (`app/config/agent-settings.json` or the agent's `CONFIG.yaml`) to confirm the issue still exists. HEALTH.MD errors are historical — they persist until the file is cleared. A timeout error from 6 hours ago does not mean the timeout is still set to that value. Do not report stale config problems as current issues.
+
 ### 2. Read existing context (optional, only if signals point you somewhere specific)
 - `file_read` to inspect a specific `app/agents/<name>/CONFIG.yaml` if proposing a config tweak
 - `file_read` to inspect a specific `app/agents/<name>/PROMPT.MD` if proposing a prompt edit
@@ -120,8 +123,12 @@ Where N = highest prior round number + 1 (count via `search_memory("evaluator ro
 
 2. ...
 
-### Proposed changes (read-only — for human review)
-1. **Target**: <file path or agent name>
+### Action items (structured for auto-application)
+For each issue, tag it as `[AUTO-FIX]` or `[NEEDS_APPROVAL]`:
+- `[AUTO-FIX]` = safe, reversible, single-file change (config tweak, prompt edit, timeout bump). Include exact file path and before/after snippet.
+- `[NEEDS_APPROVAL]` = architectural, cross-file, or touches secrets/.env. Include options with trade-offs.
+
+1. **[AUTO-FIX|NEEDS_APPROVAL]** **Target**: <file path or agent name>
    **Change**:
    ```
    <before>

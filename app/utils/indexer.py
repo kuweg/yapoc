@@ -756,3 +756,15 @@ def run_indexer() -> int:
                 _log.error("Session indexer error for '{}': {}", session_file.name, exc)
 
     return total
+
+
+async def indexer_tick(reason: str = "scheduled") -> int:
+    """Async wrapper for run_indexer(). Returns entries indexed."""
+    import asyncio
+    try:
+        count = await asyncio.to_thread(run_indexer)
+        _log.info("Indexer triggered by '{}' indexed {} entries", reason, count)
+        return count
+    except Exception as exc:
+        _log.error("Indexer tick failed (reason={}): {}", reason, exc)
+        return 0

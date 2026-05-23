@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import json
+
 import numpy as np
 
 from app.config import settings
@@ -117,7 +119,80 @@ def init_schema() -> None:
         db.commit()
     except Exception:
         pass  # column already exists
+
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS indexer_state (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+    """)
     db.commit()
+
+
+# ── Indexer state helpers ────────────────────────────────────────────────
+
+
+def get_indexer_counter() -> int:
+    """Read the indexer turn_counter. Returns 0 if not yet set."""
+    db = get_db()
+    row = db.execute(
+        "SELECT value FROM indexer_state WHERE key = 'turn_counter'"
+    ).fetchone()
+    return int(row["value"]) if row else 0
+
+
+def increment_indexer_counter() -> int:
+    """Atomically increment the turn_counter. Returns the new value."""
+    db = get_db()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    current = get_indexer_counter()
+    new_val = current + 1
+    db.execute(
+        """INSERT INTO indexer_state (key, value, updated_at)
+           VALUES ('turn_counter', ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?""",
+        (str(new_val), now, str(new_val), now),
+    )
+    db.commit()
+    return new_val
+
+
+def get_seen_sessions() -> set[str]:
+    """Read the set of seen session IDs from indexer_state."""
+    db = get_db()
+    row = db.execute(
+        "SELECT value FROM indexer_state WHERE key = 'seen_sessions'"
+    ).fetchone()
+    if not row:
+        return set()
+    try:
+        return set(json.loads(row["value"]))
+    except (json.JSONDecodeError, TypeError):
+        return set()
+
+
+def is_new_session(session_id: str) -> bool:
+    """Check if session_id has been seen before. If new, adds it and persists.
+
+    Returns True if session_id is new (was not in seen_sessions before).
+    """
+    if not session_id:
+        return False
+    seen = get_seen_sessions()
+    if session_id in seen:
+        return False
+    seen.add(session_id)
+    db = get_db()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    db.execute(
+        """INSERT INTO indexer_state (key, value, updated_at)
+           VALUES ('seen_sessions', ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?""",
+        (json.dumps(list(seen)), now, json.dumps(list(seen)), now),
+    )
+    db.commit()
+    return True
 
 
 # ── Task history helpers ──────────────────────────────────────────────────

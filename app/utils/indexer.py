@@ -519,9 +519,195 @@ def index_session_jsonl(session_path: Path) -> int:
     return count
 
 
+# ── User memory indexing ────────────────────────────────────────────────
+
+
+def _split_by_headers(content: str) -> list[str]:
+    """Split content into sections by ## headers.
+
+    Each ## section becomes one entry. If no headers, the whole content
+    is returned as one entry. Skips sections shorter than _MIN_CONTENT_LEN.
+    """
+    parts = re.split(r'\n(?=##+ )', content)
+    sections = [p.strip() for p in parts if len(p.strip()) >= _MIN_CONTENT_LEN]
+    return sections if sections else [content.strip()]
+
+
+def _parse_history_line(line: str) -> str:
+    """Parse a HISTORY.md line like '[YYYY-MM-DD] ...' returning the full line."""
+    return line.strip()
+
+
+def index_user_memory() -> int:
+    """Index user PROFILE.md and HISTORY.md with agent='user', source='PROFILE.md'/'HISTORY.md'.
+
+    Profile is indexed section-by-section (split by ## headers).
+    History is indexed line-by-line (like MEMORY.MD).
+    Uses hash-based change detection like NOTES.MD.
+    Returns total entries indexed.
+    """
+    memory_dir = settings.agents_dir.parent / "memory"
+    user_dir = memory_dir / "user"
+    total = 0
+
+    # — Index PROFILE.md section-by-section —
+    profile_path = user_dir / "PROFILE.md"
+    if profile_path.exists():
+        content = profile_path.read_text(encoding="utf-8").strip()
+        if content:
+            content_hash = hashlib.md5(content.encode()).hexdigest()
+            if get_checkpoint_hash("user", "PROFILE.md") != content_hash:
+                deleted = delete_agent_source_entries("user", "PROFILE.md")
+                if deleted:
+                    _log.debug("Removed {} stale PROFILE.md entries", deleted)
+
+                sections = _split_by_headers(content)
+                if sections:
+                    try:
+                        embeddings = embed_batch(sections)
+                    except Exception as exc:
+                        _log.error("Embedding failed for user PROFILE.md: {}", exc)
+                        return total
+
+                    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    count = 0
+                    for section, emb in zip(sections, embeddings):
+                        try:
+                            insert_memory_entry(
+                                agent="user",
+                                source="PROFILE.md",
+                                content=section,
+                                timestamp=now,
+                                embedding=emb,
+                            )
+                            count += 1
+                        except Exception as exc:
+                            _log.warning("Failed to insert PROFILE.md entry: {}", exc)
+
+                    set_checkpoint_hash("user", "PROFILE.md", content_hash)
+                    _log.info("Indexed {} sections from user/PROFILE.md", count)
+                    total += count
+
+    # — Index HISTORY.md line-by-line (like MEMORY.MD) —
+    history_path = user_dir / "HISTORY.md"
+    if history_path.exists():
+        lines = history_path.read_text(encoding="utf-8").splitlines()
+        checkpoint = get_checkpoint("user", "HISTORY.md")
+        new_lines = lines[checkpoint:]
+        if new_lines:
+            entries: list[tuple[str, str, int]] = []
+            for i, line in enumerate(new_lines):
+                line = line.strip()
+                if len(line) < _MIN_CONTENT_LEN:
+                    continue
+                ts = "unknown"
+                m = re.match(r"^\[(\d{4}-\d{2}-\d{2})\]\s*(.*)", line)
+                if m:
+                    ts = m.group(1)
+                    content = m.group(2)
+                else:
+                    content = line
+                entries.append((ts, content, checkpoint + i))
+
+            if entries:
+                texts = [c for _, c, _ in entries]
+                try:
+                    embeddings = embed_batch(texts)
+                except Exception as exc:
+                    _log.error("Embedding failed for user HISTORY.md: {}", exc)
+                    return total
+
+                count = 0
+                for (ts, content, _idx), emb in zip(entries, embeddings):
+                    try:
+                        insert_memory_entry(
+                            agent="user",
+                            source="HISTORY.md",
+                            content=content,
+                            timestamp=ts,
+                            embedding=emb,
+                        )
+                        count += 1
+                    except Exception as exc:
+                        _log.warning("Failed to insert HISTORY.md entry: {}", exc)
+
+                set_checkpoint("user", "HISTORY.md", len(lines))
+                _log.info("Indexed {} new lines from user/HISTORY.md", count)
+                total += count
+
+    return total
+
+
+# ── Project memory indexing ─────────────────────────────────────────────
+
+
+def index_project_memory() -> int:
+    """Index project KNOWLEDGE.md, DECISIONS.md, and CONVENTIONS.md with
+    agent='project', source being the filename (e.g. 'KNOWLEDGE.md').
+
+    Each file is indexed section-by-section (split by ## headers).
+    Uses hash-based change detection like NOTES.MD.
+    Returns total entries indexed.
+    """
+    memory_dir = settings.agents_dir.parent / "memory"
+    project_dir = memory_dir / "project"
+    total = 0
+
+    sources = ["KNOWLEDGE.md", "DECISIONS.md", "CONVENTIONS.md"]
+
+    for src in sources:
+        path = project_dir / src
+        if not path.exists():
+            continue
+
+        content = path.read_text(encoding="utf-8").strip()
+        if not content:
+            continue
+
+        content_hash = hashlib.md5(content.encode()).hexdigest()
+        if get_checkpoint_hash("project", src) == content_hash:
+            continue  # unchanged
+
+        deleted = delete_agent_source_entries("project", src)
+        if deleted:
+            _log.debug("Removed {} stale {} entries", deleted, src)
+
+        sections = _split_by_headers(content)
+        if not sections:
+            continue
+
+        try:
+            embeddings = embed_batch(sections)
+        except Exception as exc:
+            _log.error("Embedding failed for project/{}: {}", src, exc)
+            continue
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        count = 0
+        for section, emb in zip(sections, embeddings):
+            try:
+                insert_memory_entry(
+                    agent="project",
+                    source=src,
+                    content=section,
+                    timestamp=now,
+                    embedding=emb,
+                )
+                count += 1
+            except Exception as exc:
+                _log.warning("Failed to insert project/{} entry: {}", src, exc)
+
+        set_checkpoint_hash("project", src, content_hash)
+        _log.info("Indexed {} sections from project/{}", count, src)
+        total += count
+
+    return total
+
+
 def run_indexer() -> int:
     """Index all agents' MEMORY.MD, NOTES.MD, LEARNINGS.MD, TASK.MD, and
-    REPORT.MD files plus shared/KNOWLEDGE.MD and chat session JSONLs.
+    REPORT.MD files plus shared/KNOWLEDGE.MD, user memory, project memory,
+    and chat session JSONLs.
     Returns total entries indexed."""
     init_schema()
     total = 0
@@ -547,6 +733,18 @@ def run_indexer() -> int:
         total += index_shared_knowledge()
     except Exception as exc:
         _log.error("Indexer error for shared knowledge: {}", exc)
+
+    # Index user memory (PROFILE.md + HISTORY.md)
+    try:
+        total += index_user_memory()
+    except Exception as exc:
+        _log.error("Indexer error for user memory: {}", exc)
+
+    # Index project memory (KNOWLEDGE.md + DECISIONS.md + CONVENTIONS.md)
+    try:
+        total += index_project_memory()
+    except Exception as exc:
+        _log.error("Indexer error for project memory: {}", exc)
 
     # Index chat session JSONLs (per-session checkpoint, reuses memory_entries).
     sessions_dir = settings.agents_dir / "master" / "sessions"

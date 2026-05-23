@@ -23,6 +23,7 @@ from app.backend.routers import (
     metrics_router,
     models_router,
     notification_trace_router,
+    observability_router,
     sessions_router,
     stale_tasks_router,
     tasks_router,

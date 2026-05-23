@@ -16,6 +16,7 @@ from .sessions import router as sessions_router
 from .admin import router as admin_router
 from .commands import router as commands_router
 from .concilium import concilium_router
+from .observability import router as observability_router
 
 __all__ = [
     "health_router",
@@ -36,4 +37,5 @@ __all__ = [
     "admin_router",
     "commands_router",
     "concilium_router",
+    "observability_router",
 ]

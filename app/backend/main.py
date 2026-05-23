@@ -336,14 +336,9 @@ async def _model_manager_tick() -> None:
 
 
 async def _indexer_tick() -> None:
-    """Run the memory indexer (called by APScheduler)."""
-    import asyncio
-    from app.utils.indexer import run_indexer
-
-    try:
-        await asyncio.to_thread(run_indexer)
-    except Exception:
-        pass  # indexer logs its own errors
+    """Scheduled fallback indexer tick."""
+    from app.utils.indexer import indexer_tick
+    await indexer_tick(reason="scheduled_fallback")
 
 
 async def _session_digester_tick() -> None:

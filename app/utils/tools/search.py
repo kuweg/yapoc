@@ -39,9 +39,12 @@ class SearchMemoryTool(BaseTool):
                 "type": "string",
                 "description": (
                     "Where to search: 'agent' (default, agent MEMORY/NOTES/LEARNINGS/etc.), "
-                    "'sessions' (chat session transcripts), or 'all' (both)."
+                    "'sessions' (chat session transcripts), "
+                    "'user' (user profile and interaction history), "
+                    "'project' (project knowledge, decisions, and conventions), "
+                    "or 'all' (all of the above)."
                 ),
-                "enum": ["agent", "sessions", "all"],
+                "enum": ["agent", "sessions", "user", "project", "all"],
                 "default": "agent",
             },
         },
@@ -53,7 +56,7 @@ class SearchMemoryTool(BaseTool):
         agent = params.get("agent", "") or None
         top_k = int(params.get("top_k", 8))
         scope = (params.get("scope") or "agent").lower()
-        if scope not in {"agent", "sessions", "all"}:
+        if scope not in {"agent", "sessions", "user", "project", "all"}:
             scope = "agent"
 
         try:
@@ -71,22 +74,29 @@ class SearchMemoryTool(BaseTool):
             # Embed query in a thread (blocks ~5ms, but model load can be slow on first call)
             query_vec = await asyncio.to_thread(embed, query)
 
-            # Run one or two scoped searches and merge by rrf_score.
+            # Run scoped searches and merge by rrf_score.
             # Session entries live under the pseudo-agent "_session"; agent
-            # entries are everything else. Filtering at the search layer is
-            # fastest — pulls fewer rows back from SQLite.
+            # entries are everything else; user entries use agent="user";
+            # project entries use agent="project".
             results: list[dict[str, Any]] = []
             if scope in ("agent", "all"):
                 agent_hits = search_hybrid(query, query_vec, agent=agent, top_k=top_k)
-                # Drop session entries from this branch (defensive; agent=None
-                # means "all agents" which includes "_session"). Explicit
-                # filter so a user passing agent="" + scope="agent" still
-                # gets agent-only results.
-                agent_hits = [r for r in agent_hits if r.get("agent") != "_session"]
+                # Drop non-agent entries from this branch (defensive; agent=None
+                # means "all agents" which includes "_session", "user", "project").
+                agent_hits = [
+                    r for r in agent_hits
+                    if r.get("agent") not in ("_session", "user", "project")
+                ]
                 results.extend(agent_hits)
             if scope in ("sessions", "all"):
                 session_hits = search_hybrid(query, query_vec, agent="_session", top_k=top_k)
                 results.extend(session_hits)
+            if scope in ("user", "all"):
+                user_hits = search_hybrid(query, query_vec, agent="user", top_k=top_k)
+                results.extend(user_hits)
+            if scope in ("project", "all"):
+                project_hits = search_hybrid(query, query_vec, agent="project", top_k=top_k)
+                results.extend(project_hits)
 
             if scope == "all" and results:
                 # Merge: drop duplicates by id, sort by rrf_score desc, trim

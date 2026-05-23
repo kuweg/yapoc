@@ -127,6 +127,14 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
     learnings = await _read_if_exists(agent_dir / "LEARNINGS.MD")
     knowledge = await _read_if_exists(_settings.agents_dir / "shared" / "KNOWLEDGE.MD")
 
+    # New layered memory (user, project, agent)
+    user_profile = await _read_if_exists(
+        _settings.project_root / "app" / "memory" / "user" / "PROFILE.md"
+    )
+    project_knowledge = await _read_if_exists(
+        _settings.project_root / "app" / "memory" / "project" / "KNOWLEDGE.md"
+    )
+
     sections: list[str] = []
 
     # PROMPT.MD — always included

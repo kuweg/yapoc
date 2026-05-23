@@ -18,6 +18,7 @@ from app.backend.routers import (
     concilium_router,
     costs_router,
     files_router,
+    graph_router,
     health_router,
     memory_graph_router,
     metrics_router,
@@ -34,6 +35,7 @@ from app.backend.routers import (
 )
 from app.backend.websocket import websocket_endpoint
 from app.backend.message_bus import bus
+from app.backend.services.graph_events import graph_event_bus
 from app.config import settings
 
 
@@ -962,6 +964,9 @@ async def lifespan(app: FastAPI):
         except Exception as _prune_exc:
             logger.warning("Startup consumer prune failed: {}", _prune_exc)
 
+    # Start graph event bus
+    await graph_event_bus.start()
+
     _cleanup_stale_agent_statuses()
 
     # If the cleanup signaled crash-recovery (orphan SIGTERMs or stale tasks),
@@ -1124,6 +1129,7 @@ async def lifespan(app: FastAPI):
         dispatcher_task.cancel()
         scheduler.shutdown(wait=False)
         poller.stop()
+        await graph_event_bus.stop()
         await message_bus_relay.stop()
 
         # Shut the Telegram bot down BEFORE anything else awaitable so the
@@ -1192,5 +1198,6 @@ app.include_router(notification_trace_router)
 app.include_router(voice_router)
 app.include_router(sessions_router)
 app.include_router(commands_router)
+app.include_router(graph_router)
 app.include_router(concilium_router)
 app.include_router(admin_router)

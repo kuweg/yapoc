@@ -1,0 +1,15 @@
+# Health Log
+
+[2026-05-23 13:36] INFO: Timeout configuration updated to 600s. Prior timeouts were caused by heavy implementation tasks (observability router) exceeding the 300s default. Fix applied: task_timeout increased to 600s in agent-settings.json.
+[2026-05-23 16:38] task_id mismatch: expected e48d97fb, on-disk 29996791. Aborting stale spawn.
+[2026-05-23 21:23] task_id mismatch: expected 29996791, on-disk 6a596652. Aborting stale spawn.
+[2026-05-23 21:39] task_id mismatch: expected 6a596652, on-disk d05488a4. Aborting stale spawn.
+[2026-05-23 22:03] task_id mismatch: expected d05488a4, on-disk 773a8dac. Aborting stale spawn.
+[2026-05-23 22:10] task_id mismatch: expected 773a8dac, on-disk d6badf16. Aborting stale spawn.
+[2026-05-23 22:40] task_id mismatch: expected d6badf16, on-disk 17f08e40. Aborting stale spawn.
+[2026-05-23 22:54] task_id mismatch: expected 17f08e40, on-disk a1c62d06. Aborting stale spawn.
+[2026-05-23 23:01] task_id mismatch: expected a1c62d06, on-disk 4e06ff2d. Aborting stale spawn.
+[2026-05-23 23:08] task_id mismatch: expected 4e06ff2d, on-disk f02273a7. Aborting stale spawn.
+[2026-05-23 23:27] task_id mismatch: expected f02273a7, on-disk ff99f439. Aborting stale spawn.
+[2026-05-24 11:32] task_id mismatch: expected ff99f439, on-disk 5936cc4a. Aborting stale spawn.
+[2026-05-24 11:52] task_id mismatch: expected 5936cc4a, on-disk ed2b2992. Aborting stale spawn.

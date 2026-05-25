@@ -1,1 +1,1 @@
-The memory sweep completed, but no relevant facts were found in the docs/ directory. The librarian agent is still processing. Would you like me to wait further or perform another action?
+The memory sweep by librarian has been completed successfully. It extracted and stored 18 durable facts, including user preferences, history, project decisions, and key rules.

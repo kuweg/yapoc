@@ -3,6 +3,10 @@ export type TextEvent = { type: 'text'; text: string }
 export type ThinkingEvent = { type: 'thinking'; text: string }
 export type ToolStartEvent = { type: 'tool_start'; name: string; input: Record<string, unknown> }
 export type ToolDoneEvent = { type: 'tool_done'; name: string; result: string; is_error: boolean }
+export type ErrorEvent = {
+  type: 'error'
+  error: string
+}
 export type UsageEvent = {
   type: 'usage_stats'
   input_tokens: number
@@ -15,6 +19,7 @@ export type StreamEvent =
   | ThinkingEvent
   | ToolStartEvent
   | ToolDoneEvent
+  | ErrorEvent
   | UsageEvent
 
 export interface AgentStatus {

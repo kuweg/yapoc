@@ -74,3 +74,17 @@
 - **Action:** When receiving a [SYSTEM NOTIFICATION] from evaluator: (1) Immediately read evaluator/REPORT.MD, (2) Parse the ## Action Items section, (3) Auto-spawn builder/keeper for any [AUTO-FIX] items without asking user, (4) Surface [NEEDS_APPROVAL] items to user with [DECISION NEEDED] format only if they exist, (5) After all [AUTO-FIX] items complete, auto-spawn evaluator to verify fixes, (6) Do NOT ask user for permission on [AUTO-FIX] items — git autocheckpoint is the safety net.
 - **Confidence:** high
 
+
+## Rule: Review builder agent speed — user flagged it as too slow
+- **Observed:** 2026-05-25
+- **Context:** During memory sweep, user stated "The builder agent is too slow, speed it up." This is a direct performance complaint about the builder agent's execution speed.
+- **Action:** Investigate builder agent timeouts, task completion times, and identify bottlenecks. Consider: (1) reducing builder's task complexity by splitting large tasks, (2) increasing builder's task_timeout, (3) optimizing builder's prompt to reduce token waste, (4) checking if builder is being assigned tasks that should go to other agents. Report findings and proposed fixes to user.
+- **Confidence:** medium
+
+
+## Rule: Keep agent prompts under 4000 tokens
+- **Observed:** 2026-05-25
+- **Context:** User explicitly stated "Keep agent prompts under 4000 tokens" as a constraint during memory sweep. This applies to all agent PROMPT.MD files.
+- **Action:** When creating or updating any agent's PROMPT.MD, ensure total token count stays under 4000. If a prompt exceeds this, trim instructions, consolidate rules, or move detailed guidelines to NOTES.MD with a reference in PROMPT.MD.
+- **Confidence:** high
+

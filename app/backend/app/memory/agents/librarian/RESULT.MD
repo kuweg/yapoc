@@ -1,0 +1,3 @@
+This is a Mode A (Memory Curation) task. The user's location is a user-facing fact that should be stored in the user profile.
+
+Let me first read the existing user profile to understand the format.Good. The profile has a clean structure. I'll add a "Location" section under Identity.Done. The user's location (Serbia, Belgrade) has been stored in `app/memory/user/PROFILE.md` under the Identity section.

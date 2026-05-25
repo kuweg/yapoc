@@ -5,3 +5,4 @@
 [2026-05-21 21:48] task_id mismatch: expected 6733651d, on-disk 4dd1717e. Aborting stale spawn.
 [2026-05-21 21:48] task_id mismatch: expected e413831b, on-disk 4dd1717e. Aborting stale spawn.
 [2026-05-23 21:41] task_id mismatch: expected 5fc641b5, on-disk fb17b25f. Aborting stale spawn.
+[2026-05-25 21:56] task_id mismatch: expected 9692d236, on-disk 9833fd0f. Aborting stale spawn.

@@ -21,3 +21,4 @@ Previous entries cleared after investigation:
 [2026-05-26 07:22] task_id mismatch: expected 25475a81, on-disk 7c02e035. Aborting stale spawn.
 [2026-05-26 07:25] task_id mismatch: expected 7c02e035, on-disk d30cd755. Aborting stale spawn.
 [2026-05-26 07:34] task_id mismatch: expected d30cd755, on-disk 33e1d133. Aborting stale spawn.
+[2026-05-26 07:36] task_id mismatch: expected 33e1d133, on-disk 3ea4ce94. Aborting stale spawn.

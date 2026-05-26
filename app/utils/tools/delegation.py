@@ -349,6 +349,19 @@ class SpawnAgentTool(BaseTool):
                 f"then spawn again."
             )
 
+        # Pre-clear existing task_id from TASK.MD before writing the new one.
+        # Prevents the runner's post-task strip code from racing and removing
+        # the NEW task_id. See delegation.py Option A fix — stale spawn bug.
+        try:
+            _pre_clear_path = _task_path(agent_name)
+            if _pre_clear_path.exists():
+                _existing = _pre_clear_path.read_text(encoding="utf-8")
+                _cleared = re.sub(r"^task_id:\s*.*\n?", "", _existing, flags=re.MULTILINE)
+                if _cleared != _existing:
+                    _pre_clear_path.write_text(_cleared, encoding="utf-8")
+        except Exception:
+            pass  # non-fatal: the atomic write below is the real source of truth
+
         # Write TASK.MD with frontmatter — atomically via tmp + replace.
         #
         # The watchdog watches TASK.MD for modifications. A naive

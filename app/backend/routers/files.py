@@ -1,9 +1,11 @@
-"""Files router — project file tree + file content reader."""
+"""Files router — project file tree + file content reader + image upload."""
 
+import uuid
+import shutil
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from app.config import settings
@@ -37,6 +39,23 @@ class FileNode(BaseModel):
 
 
 FileNode.model_rebuild()
+
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    allowed_ext = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 5MB)")
+    dest_dir = settings.project_root / "data" / "telegram_media"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"{uuid.uuid4()}_{file.filename}"
+    dest = dest_dir / fname
+    dest.write_bytes(contents)
+    return {"path": f"data/telegram_media/{fname}"}
 
 
 def _sandbox(path: str) -> Path:

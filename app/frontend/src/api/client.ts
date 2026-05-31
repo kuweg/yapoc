@@ -132,6 +132,16 @@ export async function getChannelSessions(): Promise<ChannelsResponse> {
   return res.json() as Promise<ChannelsResponse>
 }
 
+// ── Image upload ─────────────────────────────────────────────────────────────
+
+export async function uploadImage(file: File): Promise<{ path: string }> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch('/files/upload', { method: 'POST', body: form })
+  if (!res.ok) throw new Error(`POST /files/upload: ${res.status}`)
+  return res.json() as Promise<{ path: string }>
+}
+
 export async function getChannelSessionMessages(source: string, sessionId: string): Promise<ChannelSessionMessagesResponse> {
   const res = await fetch(`/api/sessions/channel/${encodeURIComponent(source)}/${encodeURIComponent(sessionId)}`)
   if (!res.ok) throw new Error(`GET /sessions/channel/${source}/${sessionId}: ${res.status}`)

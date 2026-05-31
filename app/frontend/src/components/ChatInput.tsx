@@ -8,7 +8,7 @@ export interface ChatInputHandle {
 }
 
 interface ChatInputProps {
-  onSubmit: (text: string) => void
+  onSubmit: (text: string, imageFile?: File) => void
   disabled?: boolean
   placeholder?: string
 }
@@ -45,6 +45,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [text, setText] = useState('')
     const [showAutocomplete, setShowAutocomplete] = useState(false)
     const [selectedIndex, setSelectedIndex] = useState(0)
+    const [imageFile, setImageFile] = useState<File | null>(null)
+    const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const autocompleteRef = useRef<HTMLDivElement>(null)
 
@@ -55,13 +58,29 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(typed))
     }, [text])
 
+    const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      setImageFile(file)
+      const url = URL.createObjectURL(file)
+      setImagePreview(url)
+      e.target.value = '' // reset so same file can be reselected
+    }, [])
+
+    const clearImage = useCallback(() => {
+      setImageFile(null)
+      if (imagePreview) URL.revokeObjectURL(imagePreview)
+      setImagePreview(null)
+    }, [imagePreview])
+
     const doSubmit = useCallback(() => {
       const trimmed = text.trim()
       if (!trimmed || disabled) return
-      onSubmit(trimmed)
+      onSubmit(trimmed, imageFile ?? undefined)
       setText('')
       setShowAutocomplete(false)
-    }, [text, disabled, onSubmit])
+      clearImage()
+    }, [text, disabled, onSubmit, imageFile, clearImage])
 
     useImperativeHandle(ref, () => ({
       setText,
@@ -128,7 +147,29 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     }
 
     return (
-      <div className="relative flex-1 min-w-[12rem]">
+      <div className="relative flex flex-col flex-1 min-w-[12rem]">
+        {/* Hidden file input for image selection */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          onChange={handleImageSelect}
+          className="hidden"
+        />
+
+        {/* Image preview */}
+        {imagePreview && (
+          <div className="relative mb-1 inline-block">
+            <img src={imagePreview} alt="preview" className="max-h-24 rounded-lg" />
+            <button
+              onClick={clearImage}
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-red-600"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Autocomplete dropdown */}
         {showAutocomplete && filteredCommands.length > 0 && (
           <div
@@ -152,16 +193,32 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             ))}
           </div>
         )}
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder ?? 'Message YAPOC… (Enter to send, Shift+Enter for newline)'}
-          disabled={disabled}
-          rows={3}
-          className="w-full resize-none rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-        />
+
+        {/* Note: the autocomplete dropdown's parent .relative div is the outer
+            container, so the dropdown still positions relative to the whole block.
+            The textarea + attach button are wrapped in a flex row below. */}
+
+        <div className="flex items-end gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-50 text-lg"
+            title="Attach image"
+          >
+            +
+          </button>
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder ?? 'Message YAPOC… (Enter to send, Shift+Enter for newline)'}
+            disabled={disabled}
+            rows={3}
+            className="w-full resize-none rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
+          />
+        </div>
       </div>
     )
   },

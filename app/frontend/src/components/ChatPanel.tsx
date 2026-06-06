@@ -8,6 +8,8 @@ import { handleCommand, synthesizeSpeech, getAgents, uploadImage } from '../api/
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
+import { GroupedToolCallBlock } from './GroupedToolCallBlock'
+import { groupParts } from './groupParts'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
@@ -196,6 +198,72 @@ function SendButton({ isStreaming, launchTick, onSend, onStop }: { isStreaming: 
         </svg>
       )}
     </button>
+  )
+}
+
+/**
+ * Renders a TaskPart[] as a vertical CHAIN of steps — each text run is its own
+ * bubble, consecutive same-name tool calls are grouped, thinking blocks inline.
+ * Used identically for the live stream AND the saved message, so a response does
+ * NOT collapse into a single block when it finishes (it just stops updating).
+ *
+ * `content` (the assembled summary text) is only rendered as a trailing bubble
+ * when there are no text parts — otherwise it would duplicate the text already
+ * shown in the chain (e.g. a direct response where the text *is* the answer).
+ */
+function PartsChain({
+  parts,
+  content,
+  masterModel,
+  streaming,
+}: {
+  parts: Part[]
+  content?: string
+  masterModel?: string
+  streaming?: boolean
+}) {
+  const grouped = groupParts(parts)
+  const hasText = parts.some((p) => p.kind === 'text')
+  let labelShown = false // show the agent label once, on the first text bubble
+  return (
+    <div className="space-y-1">
+      {grouped.map((part, i) => {
+        if (part.kind === 'tool_group') {
+          return <GroupedToolCallBlock key={`grp-${part.name}-${i}`} name={part.name} calls={part.calls} />
+        }
+        if (part.kind === 'text') {
+          const showLabel = !labelShown
+          labelShown = true
+          return (
+            <MessageBubble
+              key={`t-${i}`}
+              role="assistant"
+              content={part.text}
+              agentName={showLabel ? 'master' : undefined}
+              agentModel={masterModel}
+              streaming={streaming}
+            />
+          )
+        }
+        if (part.kind === 'thinking') {
+          return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+        }
+        return (
+          <ToolCallBlock
+            key={part.id}
+            id={part.id}
+            name={part.name}
+            input={part.input}
+            result={part.result}
+            isError={part.isError}
+            done={part.done}
+          />
+        )
+      })}
+      {content && !hasText && (
+        <MessageBubble role="assistant" content={content} agentName="master" agentModel={masterModel} />
+      )}
+    </div>
   )
 }
 
@@ -735,13 +803,19 @@ export function ChatPanel() {
 
         {history.map((msg, i) => (
           <div key={i} className="group relative">
-            <MessageBubble
-              role={msg.role}
-              content={msg.content}
-              agentName={msg.role === 'assistant' ? 'master' : undefined}
-              agentModel={msg.role === 'assistant' ? masterModel : undefined}
-              onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
-            />
+            {msg.role === 'assistant' && msg.parts && msg.parts.length > 0 ? (
+              // Render the saved step chain exactly as it streamed (no collapse
+              // into a single block, no duplicated final-text blob).
+              <PartsChain parts={msg.parts} content={msg.content} masterModel={masterModel} />
+            ) : (
+              <MessageBubble
+                role={msg.role}
+                content={msg.content}
+                agentName={msg.role === 'assistant' ? 'master' : undefined}
+                agentModel={msg.role === 'assistant' ? masterModel : undefined}
+                onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
+              />
+            )}
             {msg.role === 'assistant' && voiceEnabled && (
               <button
                 onClick={() => {
@@ -776,25 +850,7 @@ export function ChatPanel() {
         )}
 
         {isStreaming && streamingParts.length > 0 && (
-          <div className="space-y-1">
-            {streamingParts.map((part, i) =>
-              part.kind === 'text' ? (
-                <MessageBubble key={`t-${i}`} role="assistant" content={part.text} agentName="master" agentModel={masterModel} streaming />
-              ) : part.kind === 'thinking' ? (
-                <ThinkingBlock key={part.id} text={part.text} done={part.done} />
-              ) : (
-                <ToolCallBlock
-                  key={part.id}
-                  id={part.id}
-                  name={part.name}
-                  input={part.input}
-                  result={part.result}
-                  isError={part.isError}
-                  done={part.done}
-                />
-              ),
-            )}
-          </div>
+          <PartsChain parts={streamingParts} masterModel={masterModel} streaming />
         )}
 
         {awaitingNotification && (

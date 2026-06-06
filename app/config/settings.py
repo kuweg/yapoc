@@ -209,6 +209,16 @@ class Settings(BaseSettings):
         return self.project_root / "app" / "agents"
 
     @property
+    def memory_agents_dir(self) -> Path:
+        """Runtime per-agent memory dir (MEMORY/HEALTH/NOTES/RESULT/ERROR.MD).
+
+        Distinct from ``agents_dir`` (source: PROMPT/CONFIG/TASK.MD). Result
+        transport files (RESULT.MD, ERROR.MD) are written here by BaseAgent;
+        readers MUST resolve them here, not under ``agents_dir``.
+        """
+        return self.project_root / "app" / "memory" / "agents"
+
+    @property
     def base_url(self) -> str:
         return f"http://localhost:{self.port}"
 

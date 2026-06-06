@@ -80,11 +80,18 @@ async def collect_agent_results(
             continue
 
         is_error = status == "error"
-        section = "## Error" if is_error else "## Result"
-        m = re.search(rf"{section}\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
-        result_text = m.group(1).strip() if m else "(no result)"
-
         agent = BaseAgent(agent_dir)
+
+        # Read the canonical transport file (RESULT.MD / ERROR.MD, resolved to
+        # the memory dir by _read_file) first; fall back to TASK.MD's
+        # denormalized ## Result / ## Error section only if it's empty.
+        canonical = "ERROR.MD" if is_error else "RESULT.MD"
+        result_text = (await agent._read_file(canonical)).strip()
+        if not result_text:
+            section = "## Error" if is_error else "## Result"
+            m = re.search(rf"{section}\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
+            result_text = m.group(1).strip() if m else ("(no error)" if is_error else "(no result)")
+
         await agent.mark_task_consumed()
 
         results.append((agent_dir.name, result_text, is_error, depth))

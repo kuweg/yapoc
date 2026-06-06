@@ -1,12 +1,13 @@
-# NOTE: For agents listed in app/config/agent-settings.json, the values
-# below are NOT authoritative at runtime. The runtime config-resolution
-# order is:
-#   1. app/config/agent-settings.json (adapter, model, temperature,
-#      max_tokens, fallbacks, tools — authoritative when present)
-#   2. THIS FILE (CONFIG.yaml) — fallback for fields not in agent-settings.json
-#   3. NOTES.MD [config] block (legacy)
-#   4. app/config/settings.py defaults
-# Sandbox + runner blocks are still read from this file at all times.
+# NOTE: Runtime config-resolution differs by field:
+#   * adapter / model / temperature / max_tokens / fallbacks:
+#       1. app/config/agent-settings.json (authoritative when present)
+#       2. THIS FILE (CONFIG.yaml) fallback
+#   * tools (see BaseAgent._load_tool_names):
+#       1. THIS FILE's `tools:` block is AUTHORITATIVE
+#       2. agent-settings.json `tools` is only a fallback when this block is
+#          absent — keep the two in sync or an audit of the JSON is misled.
+#   * sandbox + runner blocks: always read from THIS file.
+#   * NOTES.MD [config] block (legacy) then settings.py defaults.
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 

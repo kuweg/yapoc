@@ -392,7 +392,15 @@ class BaseAgent:
 
     @staticmethod
     def _is_memory_file(filename: str) -> bool:
-        return filename in {"MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD"}
+        # RESULT.MD / ERROR.MD are result-transport files written by
+        # _write_result / _write_error via _write_memory_file (memory dir).
+        # They MUST be listed here so the runner's _read_file("RESULT.MD")
+        # resolves to the SAME memory dir — otherwise it reads a stale/empty
+        # app/agents/<name>/RESULT.MD and emits the "Task completed." fallback.
+        return filename in {
+            "MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD",
+            "RESULT.MD", "ERROR.MD",
+        }
 
     async def _read_file(self, filename: str, dir: Path | None = None) -> str:
         target_dir = dir or (self._memory_dir if self._is_memory_file(filename) else self._dir)
@@ -801,7 +809,14 @@ class BaseAgent:
     # ── Tool helpers ────────────────────────────────────────────────────────
 
     async def _load_tool_names(self, config_raw: str | None = None) -> list[str]:
-        """Parse tool names from CONFIG.yaml tools: block, falling back to agent-settings.json.
+        """Parse tool names for this agent.
+
+        Authoritative source is the agent's ``CONFIG.yaml`` ``tools:`` block.
+        ``agent-settings.json`` is consulted ONLY as a fallback when CONFIG.yaml
+        has no tools block (note: this is the opposite of model/adapter
+        resolution, which is agent-settings.json-first). The ``tools`` arrays in
+        agent-settings.json are therefore NOT authoritative — keep them in sync
+        with CONFIG.yaml or an audit reading the JSON will be misled.
 
         Tolerates blank lines and ``#`` comments between list items so
         that agents can annotate their tool lists without breaking the
@@ -837,14 +852,13 @@ class BaseAgent:
                         break
 
         # Fallback: check agent-settings.json when CONFIG.yaml has no tools:
+        # block. (Previously imported a non-existent ``load_agent_settings``,
+        # so this fallback silently never fired — an agent with an empty
+        # CONFIG.yaml tools block got ZERO tools.)
         if not names:
             try:
-                from app.utils.agent_settings import load_agent_settings
-                settings_json = load_agent_settings()
-                agent_cfg = (settings_json.get("agents") or {}).get(self._name, {})
-                json_tools = agent_cfg.get("tools", [])
-                if json_tools:
-                    names = list(json_tools)
+                from app.utils.agent_settings import agent_tools
+                names = agent_tools(self._name)
             except Exception:
                 pass
 

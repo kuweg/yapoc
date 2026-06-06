@@ -5,8 +5,8 @@
   "stale_task_threshold_seconds": 600,
   "agents": {
     "master": {
-      "adapter": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
       "temperature": 1,
       "task_timeout": 300,
       "tools": [
@@ -71,23 +71,35 @@
     "planning": {
       "adapter": "deepseek",
       "model": "deepseek-chat",
+      "_tools_note": "Authoritative tool source is app/agents/planning/CONFIG.yaml; this list is a fallback and must mirror it.",
       "tools": [
         "file_read",
         "file_write",
         "file_edit",
         "file_delete",
         "file_list",
-        "load_skills",
-        "grep"
+        "spawn_agent",
+        "ping_agent",
+        "kill_agent",
+        "wait_for_agent",
+        "wait_for_agents",
+        "check_task_status",
+        "read_task_result",
+        "notify_parent",
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "notes_append",
+        "health_log",
+        "add_task_trace",
+        "search_memory",
+        "learnings_append",
+        "shared_knowledge_append"
       ],
       "temperature": 1,
       "max_tokens": 8096,
       "task_timeout": 600,
       "fallbacks": [
-        {
-          "adapter": "deepseek",
-          "model": "deepseek-chat"
-        },
         {
           "adapter": "anthropic",
           "model": "claude-sonnet-4-6"
@@ -114,19 +126,19 @@
       ],
       "temperature": 1,
       "max_tokens": 8096,
-      "task_timeout": 120,
+      "task_timeout": 600,
       "fallbacks": [
         {
           "adapter": "deepseek",
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "codex",
-          "model": "gpt-5.1-codex"
+          "adapter": "anthropic",
+          "model": "claude-sonnet-4-6"
         },
         {
           "adapter": "openai",
-          "model": "gpt-5.2"
+          "model": "gpt-5.4-mini"
         },
         {
           "adapter": "google",

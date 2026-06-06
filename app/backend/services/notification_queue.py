@@ -42,8 +42,45 @@ class Notification(TypedDict):
     result: str
     error: str
     session_id: str
+    task_id: str
     completed_at: str
     consumed: bool
+
+
+def _is_duplicate(
+    existing: "Notification",
+    *,
+    parent_agent: str,
+    child_agent: str,
+    status: str,
+    result: str,
+    error: str,
+    session_id: str,
+    task_id: str,
+) -> bool:
+    """Return True if ``existing`` is an unconsumed duplicate of this completion.
+
+    When ``task_id`` is known it is the authoritative key: three independent
+    producers (NotificationPoller, the Redis master-watcher, startup reconcile)
+    can each read RESULT.MD at a different instant and enqueue with a different
+    ``result`` payload for the SAME task — keying on task_id collapses them.
+    Falls back to the legacy exact-payload match when no task_id is available.
+    """
+    if existing.get("consumed"):
+        return False
+    if existing["parent_agent"] != parent_agent:
+        return False
+    if existing["child_agent"] != child_agent:
+        return False
+    if existing.get("session_id", "") != (session_id or ""):
+        return False
+    if task_id:
+        return existing.get("task_id", "") == task_id
+    return (
+        existing["status"] == status
+        and existing.get("result", "") == result
+        and existing.get("error", "") == error
+    )
 
 
 class NotificationQueue:
@@ -158,6 +195,7 @@ class NotificationQueue:
         result: str = "",
         error: str = "",
         session_id: str = "",
+        task_id: str = "",
     ) -> None:
         """Add a new notification to the queue."""
         notification: Notification = {
@@ -167,24 +205,27 @@ class NotificationQueue:
             "result": result,
             "error": error,
             "session_id": session_id or "",
+            "task_id": task_id or "",
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "consumed": False,
         }
         with self._lock:
             with self._disk_transaction() as items:
-                # Dedup: skip if an unconsumed notification for this (parent, child) pair exists.
-                # Prevents double-delivery when notify_parent tool and NotificationPoller
-                # both fire for the same completion. Keep multiple distinct completions
-                # from the same child (same parent) by matching the payload too.
+                # Dedup by task_id (authoritative) when available, else by exact
+                # payload. Prevents the 10-30x duplicate delivery seen when the
+                # poller, the Redis master-watcher, and startup reconcile each
+                # enqueue the same completion with a slightly different result
+                # payload (RESULT.MD read at different instants).
                 for existing in items:
-                    if (
-                        existing["parent_agent"] == parent_agent
-                        and existing["child_agent"] == child_agent
-                        and existing["status"] == status
-                        and existing.get("result", "") == result
-                        and existing.get("error", "") == error
-                        and existing.get("session_id", "") == (session_id or "")
-                        and not existing["consumed"]
+                    if _is_duplicate(
+                        existing,
+                        parent_agent=parent_agent,
+                        child_agent=child_agent,
+                        status=status,
+                        result=result,
+                        error=error,
+                        session_id=session_id or "",
+                        task_id=task_id or "",
                     ):
                         self._record_trace(
                             "deduped",
@@ -192,7 +233,8 @@ class NotificationQueue:
                             child_agent=child_agent,
                             status=status,
                             session_id=session_id or "",
-                            reason="unconsumed duplicate payload",
+                            task_id=task_id or "",
+                            reason="unconsumed duplicate (task_id)" if task_id else "unconsumed duplicate payload",
                         )
                         return
                 items.append(notification)
@@ -284,22 +326,24 @@ class NotificationQueue:
         result: str = "",
         error: str = "",
         session_id: str = "",
+        task_id: str = "",
     ) -> bool:
-        """Return True if an unconsumed entry with this exact payload already exists.
+        """Return True if an unconsumed entry for this completion already exists.
 
-        Same field comparison as enqueue's dedup logic.
+        Same dedup logic as enqueue (task_id-keyed when available).
         """
         with self._lock:
             with self._disk_transaction(readonly=True):
                 for existing in self._items:
-                    if (
-                        existing["parent_agent"] == parent_agent
-                        and existing["child_agent"] == child_agent
-                        and existing["status"] == status
-                        and existing.get("result", "") == result
-                        and existing.get("error", "") == error
-                        and existing.get("session_id", "") == (session_id or "")
-                        and not existing["consumed"]
+                    if _is_duplicate(
+                        existing,
+                        parent_agent=parent_agent,
+                        child_agent=child_agent,
+                        status=status,
+                        result=result,
+                        error=error,
+                        session_id=session_id or "",
+                        task_id=task_id or "",
                     ):
                         return True
         return False

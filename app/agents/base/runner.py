@@ -7,6 +7,7 @@ import re
 import signal
 import tempfile
 import time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -29,6 +30,15 @@ from app.utils.adapters import UsageStats
 # freshness gate). See the planning cross-up investigation for the failure
 # mode this prevents.
 _STALE_TASK_RESULT_THRESHOLD_S = 600  # 10 minutes
+# task_assign messages older than this are stale replays from a previous agent
+# lifetime. The inbox consumer group starts at id 0, and the watchdog/TASK.MD
+# path runs tasks without acking the matching Redis message — so that message
+# lingers unacked and gets reclaimed on the NEXT startup, where it no longer
+# matches on-disk TASK.MD and produces a noisy "task_id mismatch" abort (and,
+# pre-gate, a spurious parent error notification). A legitimate task_assign is
+# consumed within seconds (active consumer + the spawn guard prevents queuing),
+# so anything older than this bound is unambiguously a stale replay — drop it.
+_STALE_TASK_ASSIGN_THRESHOLD_S = 120  # 2 minutes
 
 
 def _redis_msg_age_seconds(msg_id: str) -> float | None:
@@ -92,6 +102,13 @@ class AgentRunner:
         self._poll_interval = settings.runner_poll_interval
         self._shutting_down = False
         self._temporary = self._load_temporary_flag()
+        # Task-ids already executed in this process lifetime. Both the Redis
+        # inbox path and the watchdog/TASK.MD path can deliver the SAME task
+        # (the consumer group starts at id 0, and SpawnAgentTool both writes
+        # TASK.MD and publishes task_assign). Recording each id the moment we
+        # commit to running it lets the second delivery skip cleanly instead
+        # of double-executing or aborting with a noisy "task_id mismatch".
+        self._recent_task_ids: deque[str] = deque(maxlen=64)
 
     def _load_temporary_flag(self) -> bool:
         """Check CONFIG.yaml for lifecycle.temporary flag."""
@@ -175,8 +192,20 @@ class AgentRunner:
         produced the user-reported "agent continued the previous task and
         reported the wrong result" bug.
         """
-        self._write_status("running", task_summary=task_body)
         _fm = self._parse_task_frontmatter()
+        # Cross-path dedup: the same task can be delivered by BOTH the Redis
+        # inbox and the TASK.MD watchdog. The effective id is the Redis
+        # message's task_id (authoritative) or, for the watchdog path, the
+        # on-disk task_id. If we already ran it, skip cleanly — this is what
+        # eliminates the double-execution and the "task_id mismatch" abort
+        # spam without dropping any genuinely new task.
+        effective_task_id = expected_task_id or str(_fm.get("task_id", "") or "")
+        if effective_task_id and effective_task_id in self._recent_task_ids:
+            _log.bind(agent=self._name, task_id=effective_task_id[:8]).info(
+                "task_id already executed via the other delivery path — skipping duplicate"
+            )
+            return
+        self._write_status("running", task_summary=task_body)
         # Task-id consistency check (only when we have one to compare):
         # detects the spawn-vs-spawn race + partial-write contamination
         # window. If they differ, the on-disk TASK.MD may belong to a
@@ -229,7 +258,25 @@ class AgentRunner:
                             )
                     except Exception:
                         pass
+                    # This task_id genuinely never ran (not in the dedup set)
+                    # and a newer spawn has taken over TASK.MD. Signal the
+                    # parent so a blocking wait_for_agent doesn't sit until
+                    # timeout. We do NOT call set_task_status here — the
+                    # on-disk TASK.MD belongs to the newer task and must not
+                    # be clobbered with this older task's error.
+                    try:
+                        await self._notify_parent_via_bus(
+                            f"aborted: task superseded by a newer spawn "
+                            f"(task_id {expected_task_id[:8]} was overwritten)",
+                            "error",
+                        )
+                    except Exception:
+                        pass
                     return
+        # Committed to running this task — record its id so a duplicate
+        # delivery from the other path skips cleanly at the dedup guard above.
+        if effective_task_id:
+            self._recent_task_ids.append(effective_task_id)
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None
@@ -501,9 +548,28 @@ class AgentRunner:
             # silently switch the agent's perceived task. Verified at the
             # head of _run_task — mismatch = abort with a clear log line.
             expected_task_id = str(data.get("task_id", "") or "")
+            # Freshness gate: drop stale task_assign replays from a previous
+            # agent lifetime (reclaimed from the consumer group's PEL on
+            # startup). They no longer match on-disk TASK.MD and would only
+            # produce a "task_id mismatch" abort + a spurious parent error
+            # notification. Fail-open when age is unknown.
+            _assign_age = _redis_msg_age_seconds(msg_id)
+            if _assign_age is not None and _assign_age > _STALE_TASK_ASSIGN_THRESHOLD_S:
+                _log.bind(agent=self._name, task_id=expected_task_id[:8]).warning(
+                    "Discarding stale task_assign (age={:.0f}s > {}s) — likely a "
+                    "replay from a previous instance; not running.",
+                    _assign_age, _STALE_TASK_ASSIGN_THRESHOLD_S,
+                )
+                await self._ack_inbox(msg_id)
+                return False
             _log.bind(agent=self._name, task_id=expected_task_id[:8]).info(
                 "Redis inbox: task_assign — running task ({} chars)", len(task_text)
             )
+            # Mark running BEFORE acking/executing so SpawnAgentTool's
+            # state=="running" guard (delegation.py) rejects a concurrent
+            # spawn during the window between ACK and _run_task's own
+            # status write. Closes the spawn-vs-spawn race at the source.
+            self._write_status("running", task_summary=task_text)
             await self._ack_inbox(msg_id)
             await self._run_task(task_text, expected_task_id=expected_task_id)
             # Drop STATUS.json back to idle. _run_task wrote "running" at
@@ -619,6 +685,7 @@ class AgentRunner:
             return
 
         session_id = fm.get("session_id", "")
+        task_id = str(fm.get("task_id", "") or "")
 
         # Try Redis first
         bus_ok = False
@@ -633,6 +700,7 @@ class AgentRunner:
                             "status": status,
                             "result": result,
                             "session_id": session_id,
+                            "task_id": task_id,
                         },
                         agent_name=self._name,
                     )
@@ -660,6 +728,7 @@ class AgentRunner:
                     result=result if status == "done" else "",
                     error=result if status == "error" else "",
                     session_id=session_id,
+                    task_id=task_id,
                 )
                 _log.bind(agent=self._name).info(
                     "Queue notify: parent={} result_len={} status={}", parent, len(result), status

@@ -3,7 +3,7 @@ import { useAppStore } from './store/appStore'
 import { useAgentChatStore } from './store/agentChatStore'
 import { AgentSidebar } from './components/AgentSidebar'
 import { ChatPanel } from './components/ChatPanel'
-import { AgentChatFlowPanel } from './components/AgentChatFlowPanel'
+import { AgentFlowPane } from './components/AgentFlowPane'
 import { AgentDashboard } from './agent-status'
 import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
@@ -24,6 +24,8 @@ export default function App() {
   const setTab = useAppStore((s) => s.setActiveTab)
   const openWindows = useWindowsStore((s) => s.windows)
   const closeWindow = useWindowsStore((s) => s.closeWindow)
+  const selectedFlowAgent = useAgentChatStore((s) => s.selectedLogAgent)
+  const setSelectedFlowAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
 
   function NavButton({ id, label }: { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string }) {
     const active = tab === id
@@ -61,16 +63,6 @@ export default function App() {
         <ThemeToggle />
       </header>
     )
-  }
-
-  // ── Agent Chat Flow Panel overlay ──────────────────────────────────
-  function AgentChatFlowPanelOverlay() {
-    const selectedAgent = useAgentChatStore((s) => s.selectedLogAgent)
-    const setSelected = useAgentChatStore((s) => s.setSelectedLogAgent)
-
-    if (!selectedAgent) return null
-
-    return <AgentChatFlowPanel agentName={selectedAgent} onClose={() => setSelected(null)} />
   }
 
   // Single render tree — all tabs stay mounted; inactive tabs are hidden via display:none
@@ -132,10 +124,19 @@ export default function App() {
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
         <AgentSidebar />
-        <main className="flex-1 overflow-hidden relative" style={{ minWidth: 0 }}>
-          <ChatPanel />
-          {/* Agent Chat Flow Panel — overlays or sits alongside ChatPanel */}
-          <AgentChatFlowPanelOverlay />
+        {/* Chat + agent-flow tile in one row: ChatPanel (flex-1) shrinks to make
+            room for the flow pane, and the draggable seam between them sets the
+            ratio. */}
+        <main className="flex-1 flex flex-row overflow-hidden relative" style={{ minWidth: 0 }}>
+          <div className="flex-1 min-w-0 h-full">
+            <ChatPanel />
+          </div>
+          {selectedFlowAgent && (
+            <AgentFlowPane
+              agentName={selectedFlowAgent}
+              onClose={() => setSelectedFlowAgent(null)}
+            />
+          )}
         </main>
       </div>
 

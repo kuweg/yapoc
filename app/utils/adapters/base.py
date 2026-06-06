@@ -146,7 +146,18 @@ class CompactEvent:
     tokens_after: int
 
 
-StreamEvent = TextDelta | ThinkingDelta | ToolStart | ToolDone | TurnComplete | UsageStats | CompactEvent
+@dataclass
+class MessageBoundary:
+    """Signals a boundary between logical messages in a streaming response.
+
+    Used by master_agent to separate notification-processing output from
+    continuation output, so the frontend can split them into separate
+    chat messages instead of concatenating everything into one.
+    """
+    pass  # no payload — the boundary itself carries the signal
+
+
+StreamEvent = TextDelta | ThinkingDelta | ToolStart | ToolDone | TurnComplete | UsageStats | CompactEvent | MessageBoundary
 
 
 class BaseLLMAdapter(ABC):

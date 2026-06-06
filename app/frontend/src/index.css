@@ -1128,6 +1128,148 @@ canvas {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   Dynamic side-by-side windows (drag / dock / snap / resize / split)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Full-viewport layer; lets clicks through except on the window itself. */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.modal-content {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  min-width: 320px;
+  min-height: 200px;
+  background: var(--color-bg-overlay, #1f1f1f);
+  border: 1px solid var(--color-border, #303030);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  /* Springy easing for snap/peel (rule #6). */
+  transition:
+    left 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    top 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    height 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-radius 0.2s ease;
+}
+.modal-content.modal-dragging {
+  transition: none !important; /* follow the cursor 1:1 */
+  cursor: grabbing;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.55);
+  z-index: 60;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border, #303030);
+  background: var(--color-bg-raised, #262626);
+  cursor: grab;
+  user-select: none;
+}
+.modal-header:active { cursor: grabbing; }
+.modal-title { flex: 1; min-width: 0; overflow: hidden; }
+.modal-win-controls { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+.modal-win-controls button {
+  width: 1.5rem; height: 1.5rem; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1;
+  color: var(--color-text-secondary, #a1a1aa);
+}
+.modal-win-controls button:hover {
+  background: var(--color-bg-subtle, #2a2a2a);
+  color: var(--color-text-primary, #fafafa);
+}
+.modal-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+/* Docked / fullscreen: instant positioning (gotcha #1 — else an instant var
+   change animates a fly-across), square corners. */
+.modal-content.modal-right-docked,
+.modal-content.modal-left-docked,
+.modal-content.modal-fullscreen {
+  transition: none !important;
+  border-radius: 0 !important;
+}
+.modal-content.modal-right-docked {
+  border-left: 1px solid var(--color-border, #303030);
+  box-shadow: -4px 0 14px rgba(0, 0, 0, 0.18);
+}
+.modal-content.modal-left-docked {
+  border-right: 1px solid var(--color-border, #303030);
+  box-shadow: 4px 0 14px rgba(0, 0, 0, 0.18);
+}
+
+/* Reflow: the app body shares the row with the docked pane (plain ease, #6). */
+body.right-dock-active { padding-right: var(--right-dock-w, 0px); }
+body.left-dock-active { padding-left: var(--left-dock-w, 0px); }
+body.right-dock-active,
+body.left-dock-active { transition: padding 0.2s ease; }
+
+/* Collapse the agent sidebar to free space (left-dock, or auto when tight). */
+body.sidebar-railed aside,
+body.sidebar-auto-railed aside {
+  width: 0 !important;
+  min-width: 0 !important;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 0.2s ease, opacity 0.15s ease;
+}
+
+/* Tile snap preview. */
+#tile-ghost {
+  position: fixed;
+  z-index: 55;
+  pointer-events: none;
+  background: rgba(255, 182, 51, 0.14);
+  border: 2px solid rgba(255, 182, 51, 0.55);
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.12s ease, left 0.12s ease, top 0.12s ease, width 0.12s ease, height 0.12s ease;
+}
+#tile-ghost.visible { opacity: 1; }
+
+/* Split seam — left-edge grip on a right-docked pane (two panes share a row). */
+.split-seam { display: none; }
+.modal-content.modal-right-docked .split-seam {
+  display: block;
+  position: absolute;
+  left: -3px; top: 0; bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+}
+.modal-content.modal-right-docked .split-seam:hover,
+.split-seam.split-active { background: rgba(255, 182, 51, 0.4); }
+
+/* Mobile (rule #4): full-screen sheets, no dock/drag/resize/split. */
+@media (max-width: 768px) {
+  .modal-content {
+    position: fixed !important;
+    inset: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    transition: none !important;
+  }
+  .modal-header { cursor: default; }
+  #tile-ghost, .split-seam { display: none !important; }
+  body.right-dock-active { padding-right: 0 !important; }
+  body.left-dock-active { padding-left: 0 !important; }
+  body.sidebar-railed aside,
+  body.sidebar-auto-railed aside { width: auto !important; min-width: 0; opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    Agent Chat Flow Panel
    ═══════════════════════════════════════════════════════════════════ */
 

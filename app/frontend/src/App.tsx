@@ -12,6 +12,8 @@ import { SessionsPanel } from './components/SessionsPanel'
 import { ObservabilityTab } from './components/ObservabilityTab'
 import { ConciliumTab } from './components/ConciliumTab'
 import { ChannelsDashboard } from './components/ChannelsDashboard'
+import { AgentLogDrawer } from './components/AgentLogDrawer'
+import { useWindowsStore } from './store/windowsStore'
 import { useWebSocket } from './hooks/useWebSocket'
 
 export default function App() {
@@ -20,6 +22,8 @@ export default function App() {
   const newSession = useSessionStore((s) => s.newSession)
   const tab = useAppStore((s) => s.activeTab)
   const setTab = useAppStore((s) => s.setActiveTab)
+  const openWindows = useWindowsStore((s) => s.windows)
+  const closeWindow = useWindowsStore((s) => s.closeWindow)
 
   function NavButton({ id, label }: { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string }) {
     const active = tab === id
@@ -76,6 +80,17 @@ export default function App() {
       className="flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden"
       style={{ height: '100dvh', minHeight: '100dvh' }}
     >
+
+      {/* ── Floating dockable windows (rendered at root so a docked window can
+          reflow the whole app body regardless of the active tab) ── */}
+      {openWindows.map((w) => (
+        <AgentLogDrawer
+          key={w.id}
+          agentName={w.agentName}
+          state={w.state}
+          onClose={() => closeWindow(w.id)}
+        />
+      ))}
 
       {/* ── Chat tab header (only visible when chat is active) ── */}
       {tab === 'chat' ? (

@@ -3,7 +3,7 @@ name = "yapoc"
 version = "0.1.0"
 description = "Yet Another Python OpenClaw — an autonomous multi-agent system where a hierarchy of specialized AI agents collaborate to plan, build, and self-manage tasks via file-based communication."
 authors = [
-    {name = "Nikita Zaitsev",email = "partner.Nikita.Zaitsev@philips.com"}
+    {name = "Nikita Zaitsev",email = "thekuweg@gmail.com"}
 ]
 requires-python = ">=3.12,<4.0"
 dependencies = [

@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     default_adapter: str = "anthropic"
     default_model: str = "claude-sonnet-4-6"
     default_temperature: float = 0.7
-    enable_thinking: bool = False
+    enable_thinking: bool = True
     thinking_budget_tokens: int = 24000  # per-turn cap; must be < max_tokens (32768)
 
     # ── Message bus ──────────────────────────────────────────────────────────

@@ -1,0 +1,21 @@
+name: docker_build
+summary: Build and tag a Docker image from a Dockerfile
+description: |
+  Builds a Docker image from a Dockerfile with optional tagging,
+  caching, and build-arg injection.
+level_1: "Build and tag Docker images from a Dockerfile"
+level_2: |
+  Parameters:
+  - tag: Image tag (e.g., myapp:v1.0) (required)
+  - dockerfile: Path to Dockerfile (default: ./Dockerfile)
+  - context: Build context directory (default: .)
+  - no_cache: true/false to disable layer caching
+  - build_args: Key-value pairs for ARG injection
+level_3: |
+  Procedure:
+  1. Verify Dockerfile exists at the given context path
+  2. Build: `docker build -f <dockerfile> -t <tag> <context>`
+  3. If no_cache is true, add `--no-cache` flag
+  4. Pass build_args as `--build-arg KEY=VALUE` for each pair
+  5. Verify image exists with `docker images <tag>`
+  6. Report the image ID and size

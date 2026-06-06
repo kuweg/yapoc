@@ -21,5 +21,6 @@ tools:
   - file_delete
   - file_list
   - memory_append
+  - notify_parent
 runner:
   task_timeout: 300

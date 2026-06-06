@@ -325,6 +325,8 @@ class BaseAgent:
     def __init__(self, agent_dir: Path) -> None:
         self._dir = agent_dir
         self._name = agent_dir.name
+        self._memory_dir = settings.project_root / "app" / "memory" / "agents" / self._name
+        self._memory_dir.mkdir(parents=True, exist_ok=True)
         self._last_config: AgentConfig | None = None
         self._usage = UsageTracker(agent_dir)
         self._session_id: str | None = None  # set by dispatcher or caller
@@ -388,20 +390,41 @@ class BaseAgent:
 
     # ── File helpers ────────────────────────────────────────────────────────
 
-    async def _read_file(self, filename: str) -> str:
-        path = self._dir / filename
+    @staticmethod
+    def _is_memory_file(filename: str) -> bool:
+        return filename in {"MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD"}
+
+    async def _read_file(self, filename: str, dir: Path | None = None) -> str:
+        target_dir = dir or (self._memory_dir if self._is_memory_file(filename) else self._dir)
+        path = target_dir / filename
         if not path.exists():
             return ""
         async with aiofiles.open(path, encoding="utf-8") as f:
             return await f.read()
 
-    async def _write_file(self, filename: str, content: str) -> None:
-        async with aiofiles.open(self._dir / filename, "w", encoding="utf-8") as f:
+    async def _write_file(self, filename: str, content: str, dir: Path | None = None) -> None:
+        target_dir = dir or (self._memory_dir if self._is_memory_file(filename) else self._dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(target_dir / filename, "w", encoding="utf-8") as f:
             await f.write(content)
 
-    async def _append_file(self, filename: str, content: str) -> None:
-        async with aiofiles.open(self._dir / filename, "a", encoding="utf-8") as f:
+    async def _append_file(self, filename: str, content: str, dir: Path | None = None) -> None:
+        target_dir = dir or (self._memory_dir if self._is_memory_file(filename) else self._dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(target_dir / filename, "a", encoding="utf-8") as f:
             await f.write(content)
+
+    async def _read_memory_file(self, filename: str) -> str:
+        """Read a file from the memory directory."""
+        return await self._read_file(filename, dir=self._memory_dir)
+
+    async def _write_memory_file(self, filename: str, content: str) -> None:
+        """Write a file to the memory directory."""
+        return await self._write_file(filename, content, dir=self._memory_dir)
+
+    async def _append_memory_file(self, filename: str, content: str) -> None:
+        """Append to a file in the memory directory."""
+        return await self._append_file(filename, content, dir=self._memory_dir)
 
     async def _prune_memory_if_needed(self, max_lines: int = 200, keep: int = 100) -> None:
         """Trim MEMORY.MD by both line-count AND age.
@@ -419,7 +442,7 @@ class BaseAgent:
         Lines without a parseable timestamp prefix are kept (defensive — we
         never silently drop unknown content).
         """
-        path = self._dir / "MEMORY.MD"
+        path = self._memory_dir / "MEMORY.MD"
         if not path.exists():
             return
         async with aiofiles.open(path, encoding="utf-8") as f:
@@ -476,7 +499,7 @@ class BaseAgent:
         short 1-sentence summaries to avoid the "double message" bug where
         the model imitates/continues truncated previous responses.
         """
-        await self._write_file("RESULT.MD", text)
+        await self._write_memory_file("RESULT.MD", text)
 
     async def _write_error(self, text: str) -> None:
         """Write an error/exception trace to ERROR.MD (overwrite each time).
@@ -485,7 +508,22 @@ class BaseAgent:
         websocket notification relay, /agents/{name}/file endpoints)
         never surface error text formatted as a success result.
         """
-        await self._write_file("ERROR.MD", text)
+        await self._write_memory_file("ERROR.MD", text)
+
+    # ── Indexer triggers ─────────────────────────────────────────────────────
+
+    async def _maybe_trigger_indexer(self, reason: str) -> None:
+        """Fire the background indexer as a detached task.
+
+        Called every 20 turns and on new session start so memory is
+        searchable without waiting for the 10-minute scheduled tick.
+        Swallows all errors — indexing must never break the agent loop.
+        """
+        try:
+            from app.utils.indexer import indexer_tick
+            asyncio.create_task(indexer_tick(reason=reason))
+        except Exception:
+            pass
 
     # ── Config ───────────────────────────────────────────────────────────────
 
@@ -520,7 +558,7 @@ class BaseAgent:
         if raw.strip():
             cfg = parse_config_block(raw)
         else:
-            notes = await self._read_file("NOTES.MD")
+            notes = await self._read_memory_file("NOTES.MD")
             cfg = parse_config_block(notes)
 
         adapter = cfg.get("adapter") or settings.default_adapter
@@ -571,7 +609,7 @@ class BaseAgent:
             return False
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         entry = f"[{timestamp}] CONFIG_CHANGE: {', '.join(changes)}\n"
-        await self._append_file("HEALTH.MD", entry)
+        await self._append_memory_file("HEALTH.MD", entry)
         return True
 
     # ── Task ─────────────────────────────────────────────────────────────────
@@ -685,7 +723,7 @@ class BaseAgent:
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             entry = f"[{timestamp}] task: {_sanitize_for_memory(task)} | result: {_sanitize_for_memory(response)} | outcome: success\n"
-            await self._append_file("MEMORY.MD", entry)
+            await self._append_memory_file("MEMORY.MD", entry)
 
             await self._write_file("TASK.MD", "")
             return response
@@ -695,7 +733,7 @@ class BaseAgent:
             _exc_tb = traceback.format_exc()
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             error_entry = f"[{timestamp}] ERROR: {exc}\n{_exc_tb}\n"
-            await self._append_file("HEALTH.MD", error_entry)
+            await self._append_memory_file("HEALTH.MD", error_entry)
             raise
 
         finally:
@@ -748,7 +786,7 @@ class BaseAgent:
             response = "".join(full_response)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             entry = f"[{timestamp}] task: {_sanitize_for_memory(task)} | result: {_sanitize_for_memory(response)} | outcome: success\n"
-            await self._append_file("MEMORY.MD", entry)
+            await self._append_memory_file("MEMORY.MD", entry)
             await self._write_result(response)
 
             await self._write_file("TASK.MD", "")
@@ -757,7 +795,7 @@ class BaseAgent:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             tb_str = traceback.format_exc()
             error_entry = f"[{timestamp}] ERROR: {exc}\n{tb_str}\n"
-            await self._append_file("HEALTH.MD", error_entry)
+            await self._append_memory_file("HEALTH.MD", error_entry)
             raise
 
     # ── Tool helpers ────────────────────────────────────────────────────────
@@ -1144,7 +1182,7 @@ class BaseAgent:
                 # stuck-loops in one task means the recovery isn't working;
                 # give up cleanly instead of looping forever.
                 _stuck_loop_count: int = 0
-                _STUCK_LOOP_GIVEUP: int = 20
+                _STUCK_LOOP_GIVEUP: int = 5
                 max_turns = _runner.get("max_turns", settings.max_turns)
                 _ctx_window = adapter.context_window_size()
                 threshold_tokens = int(_ctx_window * settings.context_compact_threshold)
@@ -1161,6 +1199,11 @@ class BaseAgent:
                 _budget_exceeded = False
 
                 for _turn in range(max_turns):
+                    # Trigger indexer every 20 turns so new memory is
+                    # searchable without waiting for the scheduled tick.
+                    if _turn > 0 and _turn % 20 == 0:
+                        await self._maybe_trigger_indexer(f"turn_{_turn}_{self._name}")
+
                     # Auto-compact if approaching context limit. The estimate
                     # now includes system_prompt + tool defs, so it reflects
                     # *real* token usage rather than the messages array alone
@@ -1284,7 +1327,7 @@ class BaseAgent:
                                         model=config.model, unit_len=len(_loop_unit),
                                         count=_stuck_loop_count, give_up=_give_up,
                                     ).warning(_msg)
-                                    await self._append_file(
+                                    await self._append_memory_file(
                                         "HEALTH.MD",
                                         f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_msg}\n",
                                     )
@@ -1330,7 +1373,7 @@ class BaseAgent:
                                         f"${_usage_snap['total_cost_usd']:.4f} >= "
                                         f"budget ${settings.budget_per_agent_usd:.4f}. Stopping."
                                     )
-                                    await self._append_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
+                                    await self._append_memory_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
                                     yield TextDelta(text=f"\n\n{_budget_msg}")
                                     _budget_exceeded = True
                             # Per-task budget
@@ -1340,7 +1383,7 @@ class BaseAgent:
                                         f"[BUDGET EXCEEDED] Task cost ${_task_cost_usd:.4f} >= "
                                         f"budget ${settings.budget_per_task_usd:.4f}. Stopping."
                                     )
-                                    await self._append_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
+                                    await self._append_memory_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
                                     yield TextDelta(text=f"\n\n{_budget_msg}")
                                     _budget_exceeded = True
                             # Daily autonomous budget (only for non-user-initiated runs).
@@ -1364,7 +1407,7 @@ class BaseAgent:
                                             f"${_spend:.4f} >= cap ${settings.daily_autonomous_budget_usd:.4f}. "
                                             f"Halting {self._task_source!r} task; resumes after midnight UTC."
                                         )
-                                        await self._append_file(
+                                        await self._append_memory_file(
                                             "HEALTH.MD",
                                             f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n",
                                         )
@@ -1373,22 +1416,20 @@ class BaseAgent:
                                         # Emit morning report so a human waking up sees the halt
                                         try:
                                             from app.backend.morning_report import write_morning_report
-                                            write_morning_report("budget_halt", {
-                                                "agent": self._name,
-                                                "source": self._task_source,
-                                                "spend_usd": f"{_spend:.4f}",
-                                                "cap_usd": f"{settings.daily_autonomous_budget_usd:.2f}",
-                                            })
+                                            await asyncio.to_thread(
+                                                write_morning_report, "budget_halt", {
+                                                    "agent": self._name,
+                                                    "source": self._task_source,
+                                                    "spend_usd": f"{_spend:.4f}",
+                                                    "cap_usd": f"{settings.daily_autonomous_budget_usd:.2f}",
+                                                },
+                                            )
                                         except Exception:
                                             pass
                                 except Exception as _auto_exc:
                                     _log.bind(agent=self._name).warning(
                                         "daily-budget check failed ({}) — continuing without halt", _auto_exc,
                                     )
-                            _cost = _calc_turn_cost(
-                                config.model, event.input_tokens, event.output_tokens,
-                                event.cache_creation_tokens, event.cache_read_tokens,
-                            )
                             _log.bind(
                                 agent=self._name, event="usage_stats", turn=_turn,
                                 model=config.model,
@@ -1397,12 +1438,12 @@ class BaseAgent:
                                 cache_r=event.cache_read_tokens,
                                 cache_w=event.cache_creation_tokens,
                                 tps=round(event.tokens_per_second, 1),
-                                cost_usd=round(_cost, 6),
+                                cost_usd=round(_turn_cost, 6),
                             ).info(
                                 "Usage turn={} | in={} out={} cache_r={} cache_w={} tps={:.1f} cost=${:.6f}",
                                 _turn, event.input_tokens, event.output_tokens,
                                 event.cache_read_tokens, event.cache_creation_tokens,
-                                event.tokens_per_second, _cost,
+                                event.tokens_per_second, _turn_cost,
                             )
                         elif isinstance(event, TurnComplete):
                             turn_complete = event
@@ -1530,11 +1571,30 @@ class BaseAgent:
                             "Tool {} done | elapsed={:.3f}s {}",
                             tool_done.name, _elapsed, "ERROR" if tool_done.is_error else "ok",
                         )
+                        _content = tool_result.content
+                        # If this is an image_read result, reformat as an Anthropic image block
+                        # so the model can actually see the image (not just read base64 text).
+                        if not tool_result.is_error and isinstance(_content, str):
+                            try:
+                                _parsed = json.loads(_content)
+                                if isinstance(_parsed, dict) and _parsed.get("type") == "image_read":
+                                    _content = [
+                                        {
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": _parsed["media_type"],
+                                                "data": _parsed["data"],
+                                            },
+                                        }
+                                    ]
+                            except (json.JSONDecodeError, KeyError, TypeError):
+                                pass  # keep content as-is
                         tool_results.append(
                             {
                                 "type": "tool_result",
                                 "tool_use_id": tool_result.tool_use_id,
-                                "content": tool_result.content,
+                                "content": _content,
                                 "is_error": tool_result.is_error,
                             }
                         )
@@ -1618,7 +1678,7 @@ class BaseAgent:
                                     "Stuck detected: {} (sig={}) repeated {}x — force-stop.",
                                     _top_sig[0], _top_sig[1], _top_count,
                                 )
-                                await self._append_file(
+                                await self._append_memory_file(
                                     "HEALTH.MD",
                                     f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_stuck_msg}\n",
                                 )
@@ -1626,12 +1686,14 @@ class BaseAgent:
                                 # Emit morning report
                                 try:
                                     from app.backend.morning_report import write_morning_report
-                                    write_morning_report("stuck", {
-                                        "agent": self._name,
-                                        "tool": _top_sig[0],
-                                        "signature": _top_sig[1],
-                                        "repeat_count": str(_top_count),
-                                    })
+                                    await asyncio.to_thread(
+                                        write_morning_report, "stuck", {
+                                            "agent": self._name,
+                                            "tool": _top_sig[0],
+                                            "signature": _top_sig[1],
+                                            "repeat_count": str(_top_count),
+                                        },
+                                    )
                                 except Exception:
                                     pass
                                 break
@@ -1676,7 +1738,7 @@ class BaseAgent:
 
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
                 entry = f"[{timestamp}] task: {_sanitize_for_memory(task)} | result: {_sanitize_for_memory(response)} | outcome: success\n"
-                await self._append_file("MEMORY.MD", entry)
+                await self._append_memory_file("MEMORY.MD", entry)
                 await self._prune_memory_if_needed()
                 if manage_task_file:
                     await self._write_file("TASK.MD", "")
@@ -1689,7 +1751,7 @@ class BaseAgent:
                 exc_type="TimeoutError", exc_msg=f"timeout after {_task_timeout}s",
             ).error("Exception TimeoutError | Task timed out after {}s", _task_timeout)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-            await self._append_file(
+            await self._append_memory_file(
                 "HEALTH.MD",
                 f"[{timestamp}] ERROR: Task timed out after {_task_timeout}s\n{_stream_exc_tb}\n",
             )
@@ -1703,7 +1765,7 @@ class BaseAgent:
             ).opt(exception=True).error("Exception {} | {}", type(exc).__name__, exc)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             error_entry = f"[{timestamp}] ERROR: {exc}\n{_stream_exc_tb}\n"
-            await self._append_file("HEALTH.MD", error_entry)
+            await self._append_memory_file("HEALTH.MD", error_entry)
             raise
 
         finally:
@@ -1738,8 +1800,8 @@ class BaseAgent:
 
     async def get_status(self) -> dict:
         task = await self._read_file("TASK.MD")
-        memory = await self._read_file("MEMORY.MD")
-        health = await self._read_file("HEALTH.MD")
+        memory = await self._read_memory_file("MEMORY.MD")
+        health = await self._read_memory_file("HEALTH.MD")
 
         memory_entries = len([l for l in memory.splitlines() if l.strip()])
         health_errors = len([l for l in health.splitlines() if l.strip()])

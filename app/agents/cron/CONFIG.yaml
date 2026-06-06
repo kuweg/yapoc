@@ -36,6 +36,7 @@ delegation_targets:
   - keeper
   - doctor
   - master
+  - librarian
 runner:
   max_turns: 20
   task_timeout: 300

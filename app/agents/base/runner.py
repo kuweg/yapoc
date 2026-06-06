@@ -199,7 +199,8 @@ class AgentRunner:
                 # on a stale ## Result (the newer spawn's runner invocation
                 # will fill that in for the newer task).
                 try:
-                    health_path = self._task_path.parent / "HEALTH.MD"
+                    health_path = self._agent._memory_dir / "HEALTH.MD"
+                    health_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(health_path, "a", encoding="utf-8") as _hf:
                         _hf.write(
                             f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}] "
@@ -752,7 +753,8 @@ class AgentRunner:
                             _check_exc,
                         )
                         try:
-                            health_path = self._agent_dir / "HEALTH.MD"
+                            health_path = self._agent._memory_dir / "HEALTH.MD"
+                            health_path.parent.mkdir(parents=True, exist_ok=True)
                             stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
                             with open(health_path, "a", encoding="utf-8") as f:
                                 f.write(

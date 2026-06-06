@@ -41,3 +41,8 @@
 - **Source:** researcher
 - **Time:** 2026-05-17 13:04
 - **Content:** LiveBench research report saved at app/projects/research/livebench_report.md. LiveBench is a contamination-limited LLM benchmark with 7 categories, 23 tasks, monthly-updated questions, objective scoring (no LLM judge), accepted as ICLR 2025 Spotlight. Top model: o4 Mini High at 87.3%. Team of 18 from Abacus.AI, NYU, NVIDIA, UMD, USC.
+
+## Entry: convention
+- **Source:** master
+- **Time:** 2026-05-24 14:10
+- **Content:** Librarian agent is the central memory curator. Any agent can spawn librarian with a thought/observation to store. Librarian classifies and routes it to the correct store: agent_memory (episodic), learning (reusable patterns), note (working context), project_knowledge (shared KNOWLEDGE.MD), or user_profile/history. Use librarian instead of direct memory_append when the thought has broader value or unclear classification.

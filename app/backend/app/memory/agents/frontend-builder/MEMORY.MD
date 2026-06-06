@@ -1,1 +1,0 @@
-[2026-05-25 13:54] task: --- status: running task_id: 67fb7d20-1b9b-47a4-ab0c-591fb7161d87 session_id: a8cd91b1-0678-4ea0-aa92-8323efd0ff67 assigned_by: master | result: **BUILD SUCCESS** ✅ Full output: ``` > yapoc-frontend@0.1.0 build /home/kuweg/Projects/yapoc/app/frontend > tsc -b && vite build | outcome: success

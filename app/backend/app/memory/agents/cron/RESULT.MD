@@ -1,1 +1,0 @@
-The memory sweep by librarian has been completed successfully. It extracted and stored 18 durable facts, including user preferences, history, project decisions, and key rules.

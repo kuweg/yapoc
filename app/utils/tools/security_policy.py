@@ -278,6 +278,18 @@ def _target_is_core_protected(params: dict) -> bool:
     return target in {"master", "security"}
 
 
+def _is_orphaned_agent_memory_file(raw: str) -> bool:
+    """True if the path is a memory file inside app/agents/ that has been
+    migrated to app/memory/agents/. Deleting these orphaned duplicates is
+    safe — the live copy lives under app/memory/agents/."""
+    norm = raw.replace("\\", "/")
+    return (
+        "app/agents/" in norm
+        and "app/memory/agents/" not in norm
+        and any(norm.endswith(f"/{f}") for f in ("MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD"))
+    )
+
+
 HARDCODED_ALLOW: tuple[AllowRule, ...] = (
     # Master is the orchestrator — killing a stuck sub-agent is routine
     # recovery work. Hardcoded-deny for target=master/security still wins.
@@ -303,6 +315,12 @@ HARDCODED_ALLOW: tuple[AllowRule, ...] = (
     # no longer require an allow rule — the corresponding deny rules were
     # removed (deletion is what's protected, not edits). Anyone can edit
     # critical config files; deletion is still blocked by `file_delete` denies.
+    # Master can delete orphaned memory files after migration to app/memory/agents/
+    AllowRule(
+        tool="file_delete",
+        matcher=lambda caller, p: caller == "master" and _is_orphaned_agent_memory_file(str(p.get("path", ""))),
+        reason="master can delete orphaned memory files after migration to app/memory/agents/",
+    ),
 )
 
 

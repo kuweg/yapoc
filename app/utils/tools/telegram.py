@@ -19,6 +19,10 @@ class SendTelegramMessageTool(BaseTool):
                 "type": "string",
                 "description": "The text message to send via Telegram",
             },
+            "reply_to_message_id": {
+                "type": "integer",
+                "description": "Optional message ID to reply to",
+            },
         },
         "required": ["message"],
     }
@@ -45,9 +49,23 @@ class SendTelegramMessageTool(BaseTool):
 
             # Send to the first authorized chat (prefer authenticated over whitelisted)
             chat_id = next(iter(all_authorized))
-            msg_id = await bot._send_message(chat_id, message)
-            if msg_id is not None:
-                return f"✅ Telegram message sent to chat {chat_id} (message_id: {msg_id})"
+            reply_to = params.get("reply_to_message_id")
+
+            # Auto-split long messages (Telegram hard limit is 4096 chars)
+            chunks = bot._split_text_for_telegram(message, max_len=4000)
+            sent_ids = []
+            for i, chunk in enumerate(chunks):
+                # Only apply reply_to on the first chunk
+                chunk_reply_to = reply_to if i == 0 else None
+                msg_id = await bot._send_message(chat_id, chunk, reply_to_message_id=chunk_reply_to)
+                if msg_id is not None:
+                    sent_ids.append(msg_id)
+
+            if sent_ids:
+                if len(sent_ids) == 1:
+                    return f"✅ Telegram message sent to chat {chat_id} (message_id: {sent_ids[0]})"
+                else:
+                    return f"✅ Telegram message sent to chat {chat_id} in {len(sent_ids)} parts (message_ids: {sent_ids})"
             else:
                 return f"ERROR: Failed to send Telegram message to chat {chat_id}"
         except Exception as exc:

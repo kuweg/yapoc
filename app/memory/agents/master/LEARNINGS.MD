@@ -18,6 +18,12 @@
 - **Action:** After any Builder or Keeper sub-agent completes a file mutation (write, edit, delete) to Python files, config files, agent-settings.json, or .env: call server_restart automatically. Do NOT ask the user for permission. Exception: skip restart if the change was only to agent prompt files (MEMORY.MD, NOTES.MD, LEARNINGS.MD). In UI mode, warn the user about a brief disconnect before restarting.
 - **Confidence:** high
 
+## Rule: Never call server_restart for frontend-only changes
+- **Observed:** 2026-05-25
+- **Context:** Builder's `npm run build` produces static files in `dist/`. The backend already serves these files. Calling `server_restart` for frontend changes is unnecessary — the user just needs to refresh. Worse, it triggers the "Server restarted — connection lost" message.
+- **Action:** When builder/keeper completes frontend-only changes (JS, TSX, CSS, HTML in the frontend project): (1) do NOT call `server_restart`, (2) tell the user "Built — refresh the page to see changes", (3) let them decide when to refresh.
+- **Confidence:** high
+
 
 ## Rule: Narrative-tool alignment: if you say you'll do it, you must try
 - **Observed:** 2026-05-19

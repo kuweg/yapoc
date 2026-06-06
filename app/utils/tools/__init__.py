@@ -164,6 +164,8 @@ from .config_update import UpdateConfigTool
 from .model_manager import CheckModelAvailabilityTool, ListModelsTool, UpdateAgentConfigTool
 from .search import SearchMemoryTool
 from .evaluator_signals import GetRecentSignalsTool
+from .grep import GrepTool
+from .skills import CreateSkillTool, LoadSkillsTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
@@ -208,6 +210,9 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "image_read": ImageReadTool,
     "parse_csv": ParseCsvTool,
     "send_telegram_message": SendTelegramMessageTool,
+    "load_skills": LoadSkillsTool,
+    "create_skill": CreateSkillTool,
+    "grep": GrepTool,
 }
 
 # Tools that need agent_dir injected

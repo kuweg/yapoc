@@ -200,7 +200,7 @@ class DoctorAgent(BaseAgent):
         # Collect error snippets per agent
         agent_errors: dict[str, list[str]] = {}
         for agent_dir in agent_dirs:
-            health_path = agent_dir / "HEALTH.MD"
+            health_path = agent_dir.parent.parent / "memory" / "agents" / agent_dir.name / "HEALTH.MD"
             if not health_path.exists():
                 continue
             text = health_path.read_text(encoding="utf-8", errors="replace")
@@ -370,7 +370,10 @@ class DoctorAgent(BaseAgent):
         # Prune old entries from all agents' HEALTH.MD first
         retention = settings.health_log_retention_days
         for agent_dir in agent_dirs:
-            self._prune_health_log(agent_dir / "HEALTH.MD", retention)
+            self._prune_health_log(
+                agent_dir.parent.parent / "memory" / "agents" / agent_dir.name / "HEALTH.MD",
+                retention,
+            )
 
         issues_found = 0
         optimization_targets: list[tuple[str, str, int]] = []
@@ -380,7 +383,7 @@ class DoctorAgent(BaseAgent):
             agent_section: list[str] = []
 
             # Check HEALTH.MD
-            health_path = agent_dir / "HEALTH.MD"
+            health_path = agent_dir.parent.parent / "memory" / "agents" / agent_dir.name / "HEALTH.MD"
             if health_path.exists():
                 health_text = health_path.read_text(encoding="utf-8", errors="replace").strip()
                 if health_text:

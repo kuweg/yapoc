@@ -188,10 +188,13 @@ export const useWsStore = create<WsStore>((set) => ({
 
     if (type === 'task_error') {
       const taskId = data.task_id as string
+      const rawError = data.error as string | undefined
+      // Normalize "unknown" / empty errors so the task group still completes
+      const cleanedError = rawError?.trim() && rawError !== 'unknown' ? rawError.trim() : 'Task failed — check agent health logs'
       const errTask: BackgroundTask = {
         task_id: taskId,
         status: data.status as string ?? 'error',
-        error: data.error as string | undefined,
+        error: cleanedError,
         completed_at: data.completed_at as string | undefined,
         source: data.source as string | undefined,
         session_id: data.session_id as string | undefined,
@@ -199,6 +202,7 @@ export const useWsStore = create<WsStore>((set) => ({
       set((s) => ({
         backgroundTasks: upsertTask(s.backgroundTasks, errTask),
         unreadNotifications: [errTask, ...s.unreadNotifications],
+        lastCompletedTask: errTask,
       }))
       return
     }

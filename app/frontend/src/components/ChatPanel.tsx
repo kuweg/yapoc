@@ -4,28 +4,18 @@ import { useSessionStore } from '../store/session'
 import { useWsStore } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
-import { handleCommand, synthesizeSpeech, getAgents } from '../api/client'
+import { handleCommand, synthesizeSpeech, getAgents, uploadImage } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
+import { TaskGroupBubble, type TaskGroup, type TaskPart } from './TaskGroupBubble'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
 import type { UsageEvent } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
-type TextPart = { kind: 'text'; text: string }
-type ThinkingPart = { kind: 'thinking'; id: string; text: string; done: boolean }
-type ToolCallPart = {
-  kind: 'tool'
-  id: string
-  name: string
-  input: Record<string, unknown>
-  result?: string
-  isError?: boolean
-  done: boolean
-}
-type Part = TextPart | ThinkingPart | ToolCallPart
+type Part = TaskPart
 
 // Buffered stream events, flushed once per animation frame to cap streaming-
 // induced re-renders at ~60Hz regardless of delta rate.
@@ -34,6 +24,14 @@ type PendingStreamEvent =
   | { kind: 'text_delta'; text: string }
   | { kind: 'tool_start'; id: string; name: string; input: Record<string, unknown> }
   | { kind: 'tool_done'; name: string; result: string; isError: boolean }
+
+/** ES2023 findLastIndex polyfill */
+function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (predicate(arr[i])) return i
+  }
+  return -1
+}
 
 function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] {
   let parts = prev
@@ -64,11 +62,11 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
       const target = parts
         .map((p, i) => ({ p, i }))
         .reverse()
-        .find(({ p }) => p.kind === 'tool' && !(p as ToolCallPart).done && p.name === event.name)
+        .find(({ p }) => p.kind === 'tool' && !(p as { kind: 'tool'; id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean; done: boolean }).done && p.name === event.name)
       if (target) {
         const updated = [...parts]
         updated[target.i] = {
-          ...(updated[target.i] as ToolCallPart),
+          ...(updated[target.i] as { kind: 'tool'; id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean; done: boolean }),
           result: event.result,
           isError: event.isError,
           done: true,
@@ -94,6 +92,7 @@ export function ChatPanel() {
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [backendSpeaking, setBackendSpeaking] = useState(false)
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([])
   const abortRef = useRef<AbortController | null>(null)
   const backendAudioRef = useRef<HTMLAudioElement | null>(null)
   const backendAudioUrlRef = useRef<string | null>(null)
@@ -101,10 +100,17 @@ export function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
   const chatInputRef = useRef<ChatInputHandle>(null)
+  // Ref to read latest streamingParts without closure staleness
+  const streamingPartsRef = useRef<Part[]>([])
   // Stream-event coalescing — one setState per animation frame regardless of
   // how many SSE deltas arrive in that frame.
   const pendingEventsRef = useRef<PendingStreamEvent[]>([])
   const rafHandleRef = useRef<number | null>(null)
+
+  // Keep ref in sync so sendMessage can capture the latest parts
+  useEffect(() => {
+    streamingPartsRef.current = streamingParts
+  }, [streamingParts])
 
   const flushPendingEvents = useCallback(() => {
     rafHandleRef.current = null
@@ -259,21 +265,31 @@ export function ChatPanel() {
     if (isStreaming) stickToBottomRef.current = true
   }, [isStreaming])
 
-  // WebSocket notification: when a background task completes, show result in chat
+  // WebSocket notification: when a background task completes, update the running task group
   useEffect(() => {
     if (!awaitingNotification || !lastCompletedTask || !activeId) return
     if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
     const result = lastCompletedTask.result?.trim()
-    if (result) {
-      appendMessage('assistant', result)
-    } else if (lastCompletedTask.error) {
-      appendMessage('assistant', `_Background task error: ${lastCompletedTask.error}_`)
-    }
+    const hasError = Boolean(lastCompletedTask.error)
+    setTaskGroups((prev) => {
+      const idx = findLastIndex(prev, (g) => g.status === 'running')
+      if (idx < 0) return prev
+      const updated = [...prev]
+      const errorText = lastCompletedTask.error
+      const isGenericError = hasError && (!errorText || errorText === 'unknown' || errorText.trim() === '')
+      updated[idx] = {
+        ...updated[idx],
+        finalText: result || (hasError
+          ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
+          : '_Task completed_'),
+        status: hasError ? 'error' : 'done',
+      }
+      return updated
+    })
     setAwaitingNotification(false)
     setBackgroundActivity('')
-    // Clear the lastCompletedTask so it doesn't re-trigger
     clearLastCompletedTask()
-  }, [lastCompletedTask, awaitingNotification, activeId, appendMessage, clearLastCompletedTask])
+  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask])
 
   useEffect(() => {
     if (!awaitingNotification || !lastSessionEvent || !activeId) return
@@ -282,7 +298,13 @@ export function ChatPanel() {
     if (eventType === 'notification_result') {
       const text = String(lastSessionEvent.event.text ?? '').trim()
       if (text) {
-        appendMessage('assistant', text)
+        setTaskGroups((prev) => {
+          const idx = findLastIndex(prev, (g) => g.status === 'running')
+          if (idx < 0) return prev
+          const updated = [...prev]
+          updated[idx] = { ...updated[idx], finalText: text, status: 'done' }
+          return updated
+        })
       }
       setAwaitingNotification(false)
       setBackgroundActivity('')
@@ -290,21 +312,28 @@ export function ChatPanel() {
     }
     const line = formatSessionActivity(lastSessionEvent)
     if (line) setBackgroundActivity(line)
-  }, [awaitingNotification, lastSessionEvent, activeId, appendMessage])
+  }, [awaitingNotification, lastSessionEvent, activeId])
 
   // Orphan-notification fallback: when the backend couldn't route master's
   // notification result to a specific session (session_id lost upstream),
-  // it broadcasts a top-level notification_result event. If we're actively
-  // awaiting a sub-agent chain to finish, surface the result in this chat
-  // rather than letting it die silently.
+  // it broadcasts a top-level notification_result event. Update the running
+  // task group rather than appending a plain message.
   useEffect(() => {
     if (!awaitingNotification || !lastOrphanNotification) return
     const text = lastOrphanNotification.text.trim()
-    if (text) appendMessage('assistant', text)
+    if (text) {
+      setTaskGroups((prev) => {
+        const idx = findLastIndex(prev, (g) => g.status === 'running')
+        if (idx < 0) return prev
+        const updated = [...prev]
+        updated[idx] = { ...updated[idx], finalText: text, status: 'done' }
+        return updated
+      })
+    }
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastOrphanNotification()
-  }, [awaitingNotification, lastOrphanNotification, appendMessage, clearLastOrphanNotification])
+  }, [awaitingNotification, lastOrphanNotification, clearLastOrphanNotification])
 
   // Clean up on unmount
   useEffect(() => {
@@ -318,6 +347,13 @@ export function ChatPanel() {
     }
   }, [stopPolling, stopSpeaking])
 
+  // Clear task groups when switching sessions
+  useEffect(() => {
+    setTaskGroups([])
+    setAwaitingNotification(false)
+    setBackgroundActivity('')
+  }, [activeId])
+
   // Auto-send when the dashboard assigns a task to master and switches to chat
   useEffect(() => {
     if (pendingChatInput && !isStreaming) {
@@ -328,9 +364,27 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatInput])
 
-  const sendMessage = useCallback(async (rawText: string) => {
-    const text = rawText.trim()
-    if (!text || isStreaming) return
+  const sendMessage = useCallback(async (rawText: string, imageFile?: File) => {
+    let text = rawText.trim()
+    let displayText = text
+    if (!text && !imageFile) return
+    if (isStreaming) return
+
+    // Upload image if provided, append marker to text and show preview inline
+    if (imageFile) {
+      const localPreviewUrl = URL.createObjectURL(imageFile)
+      try {
+        const { path } = await uploadImage(imageFile)
+        text = text ? `${text} [📎 photo attached: ${path}]` : `[📎 photo attached: ${path}]`
+        displayText = text
+        URL.revokeObjectURL(localPreviewUrl)
+      } catch (e) {
+        URL.revokeObjectURL(localPreviewUrl)
+        appendMessage('user', rawText)
+        appendMessage('assistant', `_Failed to upload image: ${(e as Error).message}_`)
+        return
+      }
+    }
 
     // ── Slash command interception ──────────────────────────────────────
     if (text.startsWith('/')) {
@@ -373,7 +427,7 @@ export function ChatPanel() {
     // Capture history BEFORE appending the new user message
     const apiHistory = useSessionStore.getState().history
 
-    appendMessage('user', text)
+    appendMessage('user', displayText)
     const sessionId = useSessionStore.getState().activeId
     setStreamingParts([])
     setIsStreaming(true)
@@ -436,19 +490,30 @@ export function ChatPanel() {
       setStreamingParts((prev) =>
         prev.map((p) => (p.kind === 'thinking' && !p.done ? { ...p, done: true } : p)),
       )
-      if (assembledText) appendMessage('assistant', assembledText)
 
-      // Auto-speak response if voice auto-speak is enabled
-      if (assembledText) {
-        const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
-        if (ve && vas) {
-          speakText(assembledText)
-        }
-      }
-
-      // If sub-agents were spawned, listen for background results via WebSocket
+      // If sub-agents were spawned, preserve the execution trace as a task group
+      // instead of flattening it into a single history message.
       if (hadSpawnAgent) {
+        const currentParts = streamingPartsRef.current
+        setTaskGroups((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            parts: currentParts,
+            finalText: assembledText,
+            status: 'running',
+          },
+        ])
         setAwaitingNotification(true)
+      } else {
+        if (assembledText) appendMessage('assistant', assembledText)
+        // Auto-speak response if voice auto-speak is enabled
+        if (assembledText) {
+          const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
+          if (ve && vas) {
+            speakText(assembledText)
+          }
+        }
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
@@ -499,7 +564,13 @@ export function ChatPanel() {
 
         {history.map((msg, i) => (
           <div key={i} className="group relative">
-            <MessageBubble role={msg.role} content={msg.content} agentName={msg.role === 'assistant' ? 'master' : undefined} agentModel={msg.role === 'assistant' ? masterModel : undefined} />
+            <MessageBubble
+              role={msg.role}
+              content={msg.content}
+              agentName={msg.role === 'assistant' ? 'master' : undefined}
+              agentModel={msg.role === 'assistant' ? masterModel : undefined}
+              onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
+            />
             {msg.role === 'assistant' && voiceEnabled && (
               <button
                 onClick={() => {
@@ -518,6 +589,11 @@ export function ChatPanel() {
               </button>
             )}
           </div>
+        ))}
+
+        {/* Completed task groups */}
+        {taskGroups.map((group) => (
+          <TaskGroupBubble key={group.id} group={group} masterModel={masterModel} />
         ))}
 
         {/* Streaming assistant response */}
@@ -589,7 +665,7 @@ export function ChatPanel() {
         <div className="flex flex-wrap gap-2 items-end">
           <ChatInput
             ref={chatInputRef}
-            onSubmit={sendMessage}
+            onSubmit={(text, img) => sendMessage(text, img)}
             disabled={isStreaming}
           />
           {isStreaming ? (

@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 
 interface ThinkingBlockProps {
   text: string
@@ -6,7 +6,44 @@ interface ThinkingBlockProps {
 }
 
 function ThinkingBlockImpl({ text, done }: ThinkingBlockProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
+  const [displayedText, setDisplayedText] = useState('')
+  const posRef = useRef(0)
+
+  // Auto-expand while streaming
+  useEffect(() => {
+    if (!done) setExpanded(true)
+  }, [done])
+
+  // Robust typewriter: uses a ref for position so rapid text updates
+  // don't cause stale-closure jumps or duplicate intervals.
+  useEffect(() => {
+    if (done) {
+      setDisplayedText(text)
+      posRef.current = text.length
+      return
+    }
+
+    // If text shrank, clamp position and show what's available
+    if (posRef.current > text.length) {
+      posRef.current = text.length
+      setDisplayedText(text)
+      return
+    }
+
+    // Nothing new to reveal
+    if (posRef.current >= text.length) return
+
+    const interval = setInterval(() => {
+      posRef.current++
+      setDisplayedText(text.slice(0, posRef.current))
+      if (posRef.current >= text.length) {
+        clearInterval(interval)
+      }
+    }, 8) // ~120 chars/sec
+
+    return () => clearInterval(interval)
+  }, [text, done])
 
   return (
     <div className="rounded-lg border border-indigo-800/50 bg-indigo-950/40 text-indigo-300 text-xs my-1">
@@ -24,7 +61,10 @@ function ThinkingBlockImpl({ text, done }: ThinkingBlockProps) {
       </button>
       {expanded && (
         <pre className="px-3 pb-3 font-mono text-[11px] text-indigo-200/80 whitespace-pre-wrap break-words overflow-x-auto border-t border-indigo-800/30 pt-2">
-          {text}
+          {displayedText}
+          {!done && (
+            <span className="inline-block w-1.5 h-3.5 bg-indigo-400/60 ml-0.5 animate-pulse align-middle" />
+          )}
         </pre>
       )}
     </div>

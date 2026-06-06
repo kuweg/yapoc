@@ -11,7 +11,7 @@
 # app/config/agent-settings.json.
 
 adapter: deepseek
-model: deepseek-reasoner
+model: deepseek-chat
 temperature: 0.3
 tools:
   - file_read

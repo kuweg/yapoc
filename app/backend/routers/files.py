@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import settings
@@ -56,6 +57,20 @@ async def upload_file(file: UploadFile = File(...)):
     dest = dest_dir / fname
     dest.write_bytes(contents)
     return {"path": f"data/telegram_media/{fname}"}
+
+
+@router.get("/image")
+async def serve_image(path: str = Query(..., description="Path relative to project root")):
+    try:
+        abs_path = _sandbox(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not abs_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    if abs_path.suffix.lower() not in image_extensions:
+        raise HTTPException(status_code=422, detail="Not an image file")
+    return FileResponse(str(abs_path))
 
 
 def _sandbox(path: str) -> Path:

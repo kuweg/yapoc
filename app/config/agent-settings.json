@@ -5,10 +5,10 @@
   "stale_task_threshold_seconds": 600,
   "agents": {
     "master": {
-      "adapter": "moonshot",
-      "model": "kimi-k2.6",
+      "adapter": "anthropic",
+      "model": "claude-sonnet-4-6",
       "temperature": 1,
-      "task_timeout": 900,
+      "task_timeout": 300,
       "tools": [
         "file_read",
         "file_write",
@@ -43,7 +43,10 @@
         "learnings_append",
         "shared_knowledge_append",
         "image_read",
-        "send_telegram_message"
+        "send_telegram_message",
+        "load_skills",
+        "create_skill",
+        "grep"
       ],
       "max_tokens": 8192,
       "fallbacks": [
@@ -66,14 +69,16 @@
       ]
     },
     "planning": {
-      "adapter": "moonshot",
-      "model": "kimi-k2.6",
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
       "tools": [
         "file_read",
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "file_list",
+        "load_skills",
+        "grep"
       ],
       "temperature": 1,
       "max_tokens": 8096,
@@ -102,11 +107,14 @@
         "file_edit",
         "file_delete",
         "file_list",
-        "shell_exec"
+        "shell_exec",
+        "load_skills",
+        "create_skill",
+        "grep"
       ],
       "temperature": 1,
       "max_tokens": 8096,
-      "task_timeout": 600,
+      "task_timeout": 120,
       "fallbacks": [
         {
           "adapter": "deepseek",
@@ -134,7 +142,8 @@
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "file_list",
+        "grep"
       ],
       "temperature": 0.2,
       "max_tokens": 4096,
@@ -158,11 +167,11 @@
       ]
     },
     "concilium": {
-      "adapter": "moonshot",
-      "model": "kimi-k2.6",
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
       "temperature": 0.3,
       "max_tokens": 4096,
-      "tools": [],
+      "tools": ["grep"],
       "delegation_targets": [],
       "fallbacks": [
         {
@@ -183,11 +192,24 @@
       "adapter": "openai",
       "model": "gpt-4.1-nano",
       "tools": [
+        "spawn_agent",
+        "ping_agent",
+        "kill_agent",
+        "wait_for_agent",
+        "check_task_status",
+        "read_task_result",
         "file_read",
+        "file_list",
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "health_log",
+        "notify_parent",
+        "shared_knowledge_append",
+        "grep"
       ],
       "temperature": 0.2,
       "max_tokens": 4096,
@@ -218,7 +240,21 @@
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "file_list",
+        "read_agent_logs",
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "notes_append",
+        "health_log",
+        "heal_agent_settings",
+        "show_agent_settings",
+        "shared_knowledge_append",
+        "search_memory",
+        "spawn_agent",
+        "kill_agent",
+        "check_task_status",
+        "grep"
       ],
       "temperature": 0.2,
       "max_tokens": 4096,
@@ -245,7 +281,11 @@
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "file_list",
+        "list_models",
+        "check_model_availability",
+        "update_agent_config",
+        "grep"
       ],
       "temperature": 0.2,
       "max_tokens": 4096,
@@ -278,7 +318,10 @@
         "file_write",
         "file_edit",
         "file_delete",
-        "file_list"
+        "file_list",
+        "memory_append",
+        "notify_parent",
+        "grep"
       ],
       "delegation_targets": [],
       "fallbacks": [
@@ -312,7 +355,8 @@
         "health_log",
         "notify_parent",
         "shared_knowledge_append",
-        "learnings_append"
+        "learnings_append",
+        "grep"
       ],
       "temperature": 0.2,
       "max_tokens": 8096,
@@ -334,7 +378,7 @@
     "security": {
       "adapter": "deepseek",
       "model": "deepseek-chat",
-      "tools": [],
+      "tools": ["grep"],
       "temperature": 0.0,
       "max_tokens": 256,
       "fallbacks": [
@@ -371,7 +415,8 @@
         "notify_parent",
         "spawn_agent",
         "wait_for_agent",
-        "check_task_status"
+        "check_task_status",
+        "grep"
       ],
       "temperature": 0.3,
       "max_tokens": 8096,

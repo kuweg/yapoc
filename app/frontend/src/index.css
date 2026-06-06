@@ -1001,3 +1001,348 @@ canvas {
   image-rendering: crisp-edges;
   shape-rendering: crispEdges;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Chat Animations
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 1. Message entrance — fade in + slide up */
+@keyframes msg-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg { animation: msg-enter 0.3s ease-out both; }
+
+/* Bulk-render override (loaded history — no animation) */
+.chat-history.no-animate .msg { animation: none !important; }
+
+/* 2. AI bubble smooth height growth */
+.msg-ai { transition: min-height 0.25s ease-out; }
+
+/* 3. Per-token streaming fade */
+@keyframes token-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.token-new { animation: token-fade 0.4s ease-out both; }
+
+/* 4. Send / Stop button state machine */
+.send-btn[data-mode="send"] svg { animation: none !important; }
+
+@keyframes btn-spin-out {
+  to { transform: rotate(90deg) scale(0); }
+}
+@keyframes btn-spin-in {
+  from { transform: rotate(-180deg) scale(0); }
+  to   { transform: rotate(0deg) scale(1); }
+}
+@keyframes btn-launch {
+  0%   { transform: translateY(0); }
+  70%  { transform: translateY(-30px); opacity: 1; }
+  100% { transform: translateY(-58px); opacity: 0; }
+}
+@keyframes btn-land {
+  from { transform: translateY(10px) scale(0.3); }
+  to   { transform: translateY(0) scale(1); }
+}
+@keyframes siren-icon {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(0.8); }
+}
+@keyframes quarter-turn {
+  0%   { transform: rotate(0deg); }
+  25%  { transform: rotate(90deg); }
+  50%  { transform: rotate(180deg); }
+  75%  { transform: rotate(270deg); }
+  100% { transform: rotate(360deg); }
+}
+.send-btn.anim-launch { overflow: visible !important; }
+
+/* Bind the launch/land keyframes to the send-arrow icon. The JS toggles
+   anim-launch (on send) and anim-land (on stream end) on the button; without
+   these rules the keyframes were defined but never applied. Both fire while
+   data-mode="send", so they must out-specify AND override the idle
+   `[data-mode="send"] svg { animation: none !important }` rule above — hence
+   the compound selector + !important. The streaming (stop) icon keeps its own
+   siren/quarter-turn animation. */
+.send-btn[data-mode="send"].anim-launch svg {
+  animation: btn-launch 0.3s cubic-bezier(0.6, 0, 0.4, 1) forwards !important;
+}
+.send-btn[data-mode="send"].anim-land svg {
+  animation: btn-land 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+/* 5. Typing / loading indicator — ASCII wave */
+@keyframes ascii-wave {
+  0%   { content: '▁'; }
+  12.5% { content: '▂'; }
+  25%  { content: '▃'; }
+  37.5% { content: '▄'; }
+  50%  { content: '▅'; }
+  62.5% { content: '▆'; }
+  75%  { content: '▅'; }
+  87.5% { content: '▄'; }
+  100% { content: '▃'; }
+}
+.typing-indicator::after {
+  animation: ascii-wave 0.15s steps(1) infinite;
+  content: '▁';
+  display: inline-block;
+}
+
+/* 6. Welcome screen entrance — name reveal */
+@keyframes welcome-name-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    transform: scaleX(0.96);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: scaleX(1);
+  }
+}
+.welcome-ready .welcome-name {
+  animation: welcome-name-reveal 0.55s cubic-bezier(0.34, 1.32, 0.55, 1) both;
+}
+/* Keep splash hidden until JS sets .welcome-ready */
+.splash-hidden { opacity: 0; }
+
+/* Hard rule: reduced motion. The compound send-btn selectors below must match
+   the specificity of the launch/land bindings (which carry !important) so they
+   actually win here. */
+@media (prefers-reduced-motion: reduce) {
+  .msg,
+  .token-new,
+  .send-btn,
+  .send-btn *,
+  .send-btn[data-mode="send"].anim-launch svg,
+  .send-btn[data-mode="send"].anim-land svg,
+  .welcome-name,
+  .welcome-ready .welcome-name,
+  .typing-indicator::after,
+  [class*="modal"],
+  [class*="toast"] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Agent Chat Flow Panel
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Panel container ──────────────────────────────────────────── */
+.agent-chat-flow-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 100%;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .agent-chat-flow-panel {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    z-index: 50;
+    border-left: none;
+  }
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+.agent-chat-flow-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  flex-shrink: 0;
+}
+
+.agent-chat-flow-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-chat-flow-agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-chat-flow-agent-name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agent-chat-flow-msg-count {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.agent-chat-flow-close-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.agent-chat-flow-close-btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-accent);
+}
+
+/* ── Message list ────────────────────────────────────────────── */
+.agent-chat-flow-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.agent-chat-flow-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.agent-chat-flow-empty-icon {
+  font-size: 24px;
+  animation: spin 2s linear infinite;
+  opacity: 0.5;
+}
+.agent-chat-flow-empty-sub {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* ── Activity bubble ─────────────────────────────────────────── */
+.agent-activity-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--color-bg-tertiary);
+  border-left: 3px solid var(--color-border);
+  border-radius: 0 4px 4px 0;
+  animation: msg-enter 0.25s ease-out both;
+  min-width: 0;
+}
+
+.agent-activity-bubble-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.agent-activity-timestamp {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.agent-activity-agent-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.agent-activity-type-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  border: 1px solid;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+.agent-activity-content {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  min-width: 0;
+  word-break: break-word;
+}
+
+.agent-activity-pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.agent-chat-flow-footer {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  flex-shrink: 0;
+}
+
+.agent-chat-flow-footer-text {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  .agent-activity-bubble {
+    animation: none !important;
+  }
+  .agent-chat-flow-empty-icon {
+    animation: none !important;
+  }
+}

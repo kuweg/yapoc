@@ -1,13 +1,23 @@
 import { memo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ThinkingBlock } from './ThinkingBlock'
+import { ToolCallBlock } from './ToolCallBlock'
+import { GroupedToolCallBlock } from './GroupedToolCallBlock'
+import { groupParts, type GroupedPart } from './groupParts'
+import { StreamingText } from './StreamingText'
+import type { TaskPart } from '../api/types'
 
 interface MessageBubbleProps {
   role: 'user' | 'assistant'
   content: string
+  parts?: TaskPart[]
   agentName?: string
   agentModel?: string
   onDelete?: () => void
+  // When true the AI text is rendered through StreamingText (per-token fade)
+  // instead of markdown — used only for the in-flight streaming bubble.
+  streaming?: boolean
 }
 
 // Per-agent accent colors (Tailwind classes)
@@ -23,6 +33,45 @@ const AGENT_COLORS: Record<string, { label: string; dot: string }> = {
 
 const DEFAULT_AGENT_COLORS = { label: 'text-zinc-400', dot: 'bg-zinc-400' }
 
+const MARKDOWN_COMPONENTS = {
+  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="bg-zinc-900 rounded p-3 overflow-x-auto my-2 text-xs">{children}</pre>
+  ),
+  code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+    if (className) {
+      return <code className={`font-mono ${className}`}>{children}</code>
+    }
+    return (
+      <code className="bg-zinc-700 rounded px-1 py-0.5 text-xs font-mono text-zinc-200">
+        {children}
+      </code>
+    )
+  },
+  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc ml-4 mb-2 space-y-0.5">{children}</ul>,
+  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal ml-4 mb-2 space-y-0.5">{children}</ol>,
+  li: ({ children }: { children?: React.ReactNode }) => <li>{children}</li>,
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-400 underline"
+    >
+      {children}
+    </a>
+  ),
+  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-lg font-bold mb-2 mt-3">{children}</h1>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-base font-bold mb-1.5 mt-2">{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="font-semibold mb-1 mt-2">{children}</h3>,
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-2 border-zinc-600 pl-3 my-2 text-zinc-400 italic">
+      {children}
+    </blockquote>
+  ),
+  hr: () => <hr className="border-zinc-700 my-3" />,
+}
+
 function AgentLabel({ name, model }: { name: string; model?: string }) {
   const colors = AGENT_COLORS[name] ?? DEFAULT_AGENT_COLORS
   const displayName = name.replace(/_/g, ' ')
@@ -37,7 +86,7 @@ function AgentLabel({ name, model }: { name: string; model?: string }) {
   )
 }
 
-function MessageBubbleImpl({ role, content, agentName, agentModel, onDelete }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDelete, streaming }: MessageBubbleProps) {
   if (role === 'user') {
     // Check for photo attachment marker
     const photoMatch = content.match(/\[📎 photo attached: ([^\]]+)\]/)
@@ -47,7 +96,7 @@ function MessageBubbleImpl({ role, content, agentName, agentModel, onDelete }: M
     displayContent = displayContent.replace(/!\[image\]\(blob:[^)]+\)/g, '').trim()
 
     return (
-      <div className="flex flex-col items-end gap-0.5 group">
+      <div className="msg flex flex-col items-end gap-0.5 group">
         <div
           className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-2 text-sm whitespace-pre-wrap"
           style={{
@@ -85,54 +134,79 @@ function MessageBubbleImpl({ role, content, agentName, agentModel, onDelete }: M
     )
   }
 
+  // Helper to render a single grouped part
+  function renderPart(part: GroupedPart, i: number) {
+    if (part.kind === 'tool_group') {
+      return <GroupedToolCallBlock key={`grp-${part.name}-${i}`} name={part.name} calls={part.calls} />
+    }
+    if (part.kind === 'text') {
+      return (
+        <MessageBubbleImpl
+          key={`p-t-${i}`}
+          role="assistant"
+          content={part.text}
+          agentName={agentName}
+          agentModel={agentModel}
+        />
+      )
+    }
+    if (part.kind === 'thinking') {
+      return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+    }
+    return (
+      <ToolCallBlock
+        key={part.id}
+        id={part.id}
+        name={part.name}
+        input={part.input}
+        result={part.result}
+        isError={part.isError}
+        done={part.done}
+      />
+    )
+  }
+
+  // If the message has structured parts, render them as the execution trace
+  // (tool calls, thinking blocks, text) followed by the final text summary.
+  if (parts && parts.length > 0) {
+    const grouped = groupParts(parts)
+    return (
+      <div className="msg msg-ai flex justify-start">
+        <div className="max-w-[90%] space-y-1">
+          {agentName && <AgentLabel name={agentName} model={agentModel} />}
+          <div className="rounded-2xl rounded-tl-sm bg-zinc-800/70 px-3 py-2">
+            {grouped.map((part, i) => renderPart(part, i))}
+            {content && (
+              <div className="pt-2 border-t border-zinc-700/30 mt-2">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={MARKDOWN_COMPONENTS}
+                >
+                  {content}
+                </ReactMarkdown>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex justify-start">
+    <div className="msg msg-ai flex justify-start">
       <div className="max-w-[90%]">
         {agentName && <AgentLabel name={agentName} model={agentModel} />}
         <div className="rounded-2xl rounded-tl-sm bg-zinc-800 px-4 py-2 text-zinc-100 text-sm">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-              pre: ({ children }) => (
-                <pre className="bg-zinc-900 rounded p-3 overflow-x-auto my-2 text-xs">{children}</pre>
-              ),
-              code: ({ children, className }) => {
-                if (className) {
-                  return <code className={`font-mono ${className}`}>{children}</code>
-                }
-                return (
-                  <code className="bg-zinc-700 rounded px-1 py-0.5 text-xs font-mono text-zinc-200">
-                    {children}
-                  </code>
-                )
-              },
-              ul: ({ children }) => <ul className="list-disc ml-4 mb-2 space-y-0.5">{children}</ul>,
-              ol: ({ children }) => <ol className="list-decimal ml-4 mb-2 space-y-0.5">{children}</ol>,
-              li: ({ children }) => <li>{children}</li>,
-              a: ({ href, children }) => (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 underline"
-                >
-                  {children}
-                </a>
-              ),
-              h1: ({ children }) => <h1 className="text-lg font-bold mb-2 mt-3">{children}</h1>,
-              h2: ({ children }) => <h2 className="text-base font-bold mb-1.5 mt-2">{children}</h2>,
-              h3: ({ children }) => <h3 className="font-semibold mb-1 mt-2">{children}</h3>,
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-zinc-600 pl-3 my-2 text-zinc-400 italic">
-                  {children}
-                </blockquote>
-              ),
-              hr: () => <hr className="border-zinc-700 my-3" />,
-            }}
-          >
-            {content}
-          </ReactMarkdown>
+          {streaming ? (
+            <StreamingText text={content} />
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={MARKDOWN_COMPONENTS}
+            >
+              {content}
+            </ReactMarkdown>
+          )}
         </div>
       </div>
     </div>

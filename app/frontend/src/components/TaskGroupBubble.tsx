@@ -2,20 +2,11 @@ import { useState } from 'react'
 import { MessageBubble } from './MessageBubble'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
+import { GroupedToolCallBlock } from './GroupedToolCallBlock'
+import { groupParts } from './groupParts'
+import type { TaskPart } from '../api/types'
 
-export type TaskPart =
-  | { kind: 'text'; text: string }
-  | { kind: 'thinking'; id: string; text: string; done: boolean }
-  | {
-      kind: 'tool'
-      id: string
-      name: string
-      input: Record<string, unknown>
-      result?: string
-      isError?: boolean
-      done: boolean
-    }
-
+export type { TaskPart }
 export interface TaskGroup {
   id: string
   parts: TaskPart[]
@@ -61,29 +52,39 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
 
       {expanded && (
         <div className="px-4 pb-3 space-y-1 border-t border-zinc-700/50 pt-2">
-          {group.parts.map((part, i) =>
-            part.kind === 'text' ? (
-              <MessageBubble
-                key={`tg-${group.id}-t-${i}`}
-                role="assistant"
-                content={part.text}
-                agentName="master"
-                agentModel={masterModel}
-              />
-            ) : part.kind === 'thinking' ? (
-              <ThinkingBlock key={part.id} text={part.text} done={part.done} />
-            ) : (
-              <ToolCallBlock
-                key={part.id}
-                id={part.id}
-                name={part.name}
-                input={part.input}
-                result={part.result}
-                isError={part.isError}
-                done={part.done}
-              />
-            ),
-          )}
+          {(() => {
+            const grouped = groupParts(group.parts)
+            return grouped.map((part, i) => {
+              if (part.kind === 'tool_group') {
+                return <GroupedToolCallBlock key={`tg-${group.id}-grp-${i}`} name={part.name} calls={part.calls} />
+              }
+              if (part.kind === 'text') {
+                return (
+                  <MessageBubble
+                    key={`tg-${group.id}-t-${i}`}
+                    role="assistant"
+                    content={part.text}
+                    agentName="master"
+                    agentModel={masterModel}
+                  />
+                )
+              }
+              if (part.kind === 'thinking') {
+                return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+              }
+              return (
+                <ToolCallBlock
+                  key={part.id}
+                  id={part.id}
+                  name={part.name}
+                  input={part.input}
+                  result={part.result}
+                  isError={part.isError}
+                  done={part.done}
+                />
+              )
+            })
+          })()}
 
           {group.status === 'running' && (
             <div className="flex items-center gap-2 text-zinc-500 text-xs pl-1 py-1">

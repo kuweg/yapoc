@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { AgentActivityLog } from '../types/agentActivity'
 import { useWsStore } from '../store/wsStore'
 import { getAgentActivity } from '../agent-status/api/agentStatusClient'
@@ -8,7 +8,11 @@ import type { AgentEvent } from '../store/wsStore'
 function eventToActivity(event: AgentEvent): AgentActivityLog | null {
   const agent = event.agent || 'unknown'
   const timestamp = event.timestamp || new Date().toISOString()
-  const type = event.type as AgentActivityLog['type']
+  // Raw incoming event type (e.g. 'thinking_delta', 'turn_start') — kept as a
+  // plain string; the switch maps it to an AgentActivityLog['type']. (Casting
+  // to AgentActivityLog['type'] here was wrong: it narrowed away the input
+  // event types, so the cases below failed to type-check.)
+  const type = String(event.type)
 
   // Map the raw event to our typed format
   switch (type) {
@@ -86,7 +90,9 @@ const MAX_ACTIVITY = 200
  */
 export function useAgentActivity(agentName: string): AgentActivityLog[] {
   const [activities, setActivities] = useState<AgentActivityLog[]>([])
-  const [hasRealData, setHasRealData] = useState(false)
+  // Tracks whether real data has arrived (drives hydratedRef); the boolean
+  // value itself isn't read, only the setter is used as a render trigger.
+  const [, setHasRealData] = useState(false)
   const hydratedRef = useRef(false)
   const lastLenRef = useRef(0)
 

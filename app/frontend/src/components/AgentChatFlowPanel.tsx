@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import type { AgentActivityLog } from '../types/agentActivity'
 import { ACTIVITY_TYPE_COLORS, ACTIVITY_TYPE_LABELS, getAgentColor } from '../types/agentActivity'
 import { useAgentActivity } from '../hooks/useAgentActivity'

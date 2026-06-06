@@ -3,6 +3,10 @@ export type TextEvent = { type: 'text'; text: string }
 export type ThinkingEvent = { type: 'thinking'; text: string }
 export type ToolStartEvent = { type: 'tool_start'; name: string; input: Record<string, unknown> }
 export type ToolDoneEvent = { type: 'tool_done'; name: string; result: string; is_error: boolean }
+export type MessageBoundaryEvent = {
+  type: 'message_boundary'
+}
+
 export type ErrorEvent = {
   type: 'error'
   error: string
@@ -21,6 +25,7 @@ export type StreamEvent =
   | ToolDoneEvent
   | ErrorEvent
   | UsageEvent
+  | MessageBoundaryEvent
 
 export interface AgentStatus {
   name: string
@@ -62,9 +67,24 @@ export interface ModelsResponse {
   adapters: AdapterInfo[]
 }
 
+// A single part inside a structured assistant message
+export type TaskPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'thinking'; id: string; text: string; done: boolean }
+  | {
+      kind: 'tool'
+      id: string
+      name: string
+      input: Record<string, unknown>
+      result?: string
+      isError?: boolean
+      done: boolean
+    }
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
+  parts?: TaskPart[]  // execution trace for structured assistant messages
 }
 
 // Client-side session (localStorage)

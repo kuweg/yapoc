@@ -1,7 +1,9 @@
 import { useSessionStore } from './store/session'
 import { useAppStore } from './store/appStore'
+import { useAgentChatStore } from './store/agentChatStore'
 import { AgentSidebar } from './components/AgentSidebar'
 import { ChatPanel } from './components/ChatPanel'
+import { AgentChatFlowPanel } from './components/AgentChatFlowPanel'
 import { AgentDashboard } from './agent-status'
 import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
@@ -57,6 +59,16 @@ export default function App() {
     )
   }
 
+  // ── Agent Chat Flow Panel overlay ──────────────────────────────────
+  function AgentChatFlowPanelOverlay() {
+    const selectedAgent = useAgentChatStore((s) => s.selectedLogAgent)
+    const setSelected = useAgentChatStore((s) => s.setSelectedLogAgent)
+
+    if (!selectedAgent) return null
+
+    return <AgentChatFlowPanel agentName={selectedAgent} onClose={() => setSelected(null)} />
+  }
+
   // Single render tree — all tabs stay mounted; inactive tabs are hidden via display:none
   // This preserves React state (e.g. ChatPanel input) across tab switches.
   return (
@@ -105,8 +117,10 @@ export default function App() {
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
         <AgentSidebar />
-        <main className="flex-1 overflow-hidden" style={{ minWidth: 0 }}>
+        <main className="flex-1 overflow-hidden relative" style={{ minWidth: 0 }}>
           <ChatPanel />
+          {/* Agent Chat Flow Panel — overlays or sits alongside ChatPanel */}
+          <AgentChatFlowPanelOverlay />
         </main>
       </div>
 

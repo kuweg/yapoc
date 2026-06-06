@@ -179,9 +179,10 @@ class AgentRunner:
         _fm = self._parse_task_frontmatter()
         # Task-id consistency check (only when we have one to compare):
         # detects the spawn-vs-spawn race + partial-write contamination
-        # window. If they differ, the on-disk TASK.MD belongs to a newer
-        # spawn — abort cleanly so the agent doesn't run the wrong task
-        # under the wrong id.
+        # window. If they differ, the on-disk TASK.MD may belong to a
+        # newer spawn that hasn't finished writing yet (race between Redis
+        # delivery and atomic file write). Wait up to 2s with 100ms polls
+        # for the correct task_id to appear before aborting.
         if expected_task_id:
             on_disk_id = str(_fm.get("task_id", "") or "")
             if on_disk_id and on_disk_id != expected_task_id:
@@ -189,27 +190,46 @@ class AgentRunner:
                     agent=self._name,
                     expected=expected_task_id[:8],
                     on_disk=on_disk_id[:8],
-                ).warning(
-                    "task_id mismatch — Redis msg said {}, TASK.MD says {}. "
-                    "A newer spawn overwrote our task; aborting so we don't "
-                    "execute the wrong payload.",
+                ).info(
+                    "task_id mismatch (expected={}, on_disk={}) — "
+                    "waiting for atomic write...",
                     expected_task_id[:8], on_disk_id[:8],
                 )
-                # Best-effort signal back to the parent so they don't sit
-                # on a stale ## Result (the newer spawn's runner invocation
-                # will fill that in for the newer task).
-                try:
-                    health_path = self._agent._memory_dir / "HEALTH.MD"
-                    health_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(health_path, "a", encoding="utf-8") as _hf:
-                        _hf.write(
-                            f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}] "
-                            f"task_id mismatch: expected {expected_task_id[:8]}, "
-                            f"on-disk {on_disk_id[:8]}. Aborting stale spawn.\n"
+                for _ in range(20):
+                    await asyncio.sleep(0.1)
+                    _fm2 = self._parse_task_frontmatter()
+                    on_disk_id2 = str(_fm2.get("task_id", "") or "")
+                    if on_disk_id2 == expected_task_id:
+                        _log.bind(agent=self._name).info(
+                            "task_id resolved after retry — atomic write completed"
                         )
-                except Exception:
-                    pass
-                return
+                        break
+                else:
+                    _log.bind(
+                        agent=self._name,
+                        expected=expected_task_id[:8],
+                        on_disk=on_disk_id[:8],
+                    ).warning(
+                        "task_id mismatch persisted after 2s wait — "
+                        "Redis msg said {}, TASK.MD says {}. "
+                        "A newer spawn overwrote our task; aborting.",
+                        expected_task_id[:8], on_disk_id[:8],
+                    )
+                    # Best-effort signal back to the parent so they don't sit
+                    # on a stale ## Result (the newer spawn's runner invocation
+                    # will fill that in for the newer task).
+                    try:
+                        health_path = self._agent._memory_dir / "HEALTH.MD"
+                        health_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(health_path, "a", encoding="utf-8") as _hf:
+                            _hf.write(
+                                f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}] "
+                                f"task_id mismatch: expected {expected_task_id[:8]}, "
+                                f"on-disk {on_disk_id2[:8]}. Aborting stale spawn.\n"
+                            )
+                    except Exception:
+                        pass
+                    return
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None

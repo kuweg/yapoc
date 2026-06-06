@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentStatus } from '../api/types'
-import { AgentLogDrawer } from './AgentLogDrawer'
+import { useAgentChatStore } from '../store/agentChatStore'
 
 const STATUS_DOT: Record<string, string> = {
   running: 'bg-amber-400 animate-pulse',
@@ -67,21 +67,19 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
-  // `status` combines process state + task state (running > busy > error > idle).
-  // `process_state` is raw STATUS.json which can be "idle" even when a task is active.
   const state = agent.status || agent.process_state || 'idle'
   const dotColor = STATUS_DOT[state] ?? 'bg-zinc-500'
   const textColor = STATUS_TEXT[state] ?? 'text-zinc-500'
   const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
 
-  // Accumulate TPS history locally
+  const setSelectedLogAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
+
+  // TPS sparkline history
   const tpsHistoryRef = useRef<number[]>([])
   const [tpsHistory, setTpsHistory] = useState<number[]>([])
-  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => {
     if (!isRunning) {
-      // Fade out: clear history when agent goes idle
       tpsHistoryRef.current = []
       setTpsHistory([])
       return
@@ -101,88 +99,78 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
     onClick()
   }
 
-  function openDrawer(e: React.MouseEvent) {
+  function openAgentFlow(e: React.MouseEvent) {
     e.stopPropagation()
-    setDrawerOpen(true)
+    setSelectedLogAgent(agent.name)
   }
 
   return (
-    <>
-      <button
-        onClick={handleClick}
-        className={`w-full text-left px-4 py-2.5 hover:bg-zinc-800 transition-colors ${
-          selected ? 'bg-zinc-800' : ''
-        }`}
-      >
-        {/* Row 1: dot + name + status */}
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${dotColor}`} />
-          <span className="text-sm text-zinc-200 truncate flex-1">{agent.name}</span>
-          <span className={`text-xs ${textColor}`}>{state}</span>
+    <button
+      onClick={handleClick}
+      className={`w-full text-left px-4 py-2.5 hover:bg-zinc-800 transition-colors ${
+        selected ? 'bg-zinc-800' : ''
+      }`}
+    >
+      {/* Row 1: dot + name + status */}
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${dotColor}`} />
+        <span className="text-sm text-zinc-200 truncate flex-1">{agent.name}</span>
+        <span className={`text-xs ${textColor}`}>{state}</span>
+      </div>
+
+      {/* Row 2: pid / task summary */}
+      {(agent.pid != null || agent.task_summary) && (
+        <div className="pl-4 mt-0.5">
+          {agent.pid != null && (
+            <span className="text-xs text-zinc-600">pid {agent.pid}</span>
+          )}
+          {agent.task_summary && (
+            <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>
+          )}
         </div>
-
-        {/* Row 2: pid / task summary */}
-        {(agent.pid != null || agent.task_summary) && (
-          <div className="pl-4 mt-0.5">
-            {agent.pid != null && (
-              <span className="text-xs text-zinc-600">pid {agent.pid}</span>
-            )}
-            {agent.task_summary && (
-              <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>
-            )}
-          </div>
-        )}
-
-        {/* Row 3: model info (when selected) */}
-        {selected && (
-          <div className="pl-4 mt-0.5">
-            <span className="text-[10px] text-zinc-500">{agent.adapter}/{agent.model}</span>
-          </div>
-        )}
-
-        {/* Row 4: token stats (only when running) */}
-        {isRunning && (tps != null || outTokens != null) && (
-          <div className="pl-4 mt-1 flex items-center gap-3">
-            {/* Counts */}
-            <div className="flex flex-col gap-0.5 text-[10px] text-zinc-500 tabular-nums">
-              {inTokens != null && (
-                <span>in&nbsp;<span className="text-zinc-400">{inTokens.toLocaleString()}</span></span>
-              )}
-              {outTokens != null && (
-                <span>out&nbsp;<span className="text-zinc-400">{outTokens.toLocaleString()}</span></span>
-              )}
-              {tps != null && (
-                <span className="text-amber-400/80">{tps.toFixed(1)}&thinsp;t/s</span>
-              )}
-            </div>
-
-            {/* Sparkline */}
-            {tpsHistory.length > 1 && (
-              <TpsSparkline values={tpsHistory} />
-            )}
-          </div>
-        )}
-
-        {/* Row 4: "View logs" button when running or selected */}
-        {(isRunning || selected) && (
-          <div className="pl-4 mt-1.5">
-            <button
-              onClick={openDrawer}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
-            >
-              View logs →
-            </button>
-          </div>
-        )}
-      </button>
-
-      {drawerOpen && (
-        <AgentLogDrawer
-          agentName={agent.name}
-          state={state}
-          onClose={() => setDrawerOpen(false)}
-        />
       )}
-    </>
+
+      {/* Row 3: model info (when selected) */}
+      {selected && (
+        <div className="pl-4 mt-0.5">
+          <span className="text-[10px] text-zinc-500">{agent.adapter}/{agent.model}</span>
+        </div>
+      )}
+
+      {/* Row 4: token stats (only when running) */}
+      {isRunning && (tps != null || outTokens != null) && (
+        <div className="pl-4 mt-1 flex items-center gap-3">
+          {/* Counts */}
+          <div className="flex flex-col gap-0.5 text-[10px] text-zinc-500 tabular-nums">
+            {inTokens != null && (
+              <span>in&nbsp;<span className="text-zinc-400">{inTokens.toLocaleString()}</span></span>
+            )}
+            {outTokens != null && (
+              <span>out&nbsp;<span className="text-zinc-400">{outTokens.toLocaleString()}</span></span>
+            )}
+            {tps != null && (
+              <span className="text-amber-400/80">{tps.toFixed(1)}&thinsp;t/s</span>
+            )}
+          </div>
+
+          {/* Sparkline */}
+          {tpsHistory.length > 1 && (
+            <TpsSparkline values={tpsHistory} />
+          )}
+        </div>
+      )}
+
+      {/* "Agent flow" button — opens the side panel */}
+      {(isRunning || selected) && (
+        <div className="pl-4 mt-1.5">
+          <button
+            onClick={openAgentFlow}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
+          >
+            Agent flow →
+          </button>
+        </div>
+      )}
+    </button>
   )
 }

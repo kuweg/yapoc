@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Session, Message } from '../api/types'
+import type { Session, Message, TaskPart } from '../api/types'
 
 interface SessionStore {
   sessions: Session[]
@@ -9,7 +9,7 @@ interface SessionStore {
   pendingChatInput: string | null
   newSession: () => void
   loadSession: (id: string) => void
-  appendMessage: (role: 'user' | 'assistant', content: string) => void
+  appendMessage: (role: 'user' | 'assistant', content: string, parts?: TaskPart[]) => void
   deleteSession: (id: string) => void
   deleteMessage: (index: number) => void
   setPendingChatInput: (text: string) => void
@@ -47,8 +47,8 @@ export const useSessionStore = create<SessionStore>()(
         set({ activeId: id, history: session.history })
       },
 
-      appendMessage(role, content) {
-        const msg: Message = { role, content }
+      appendMessage(role, content, parts) {
+        const msg: Message = parts ? { role, content, parts } : { role, content }
         const { activeId, sessions } = get()
 
         if (!activeId) {

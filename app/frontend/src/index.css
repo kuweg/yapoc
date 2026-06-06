@@ -1274,23 +1274,33 @@ body.sidebar-auto-railed aside {
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── Panel container ──────────────────────────────────────────── */
+/* Tiled with the chat (desktop): fills the width-controlled .flow-pane wrapper,
+   so the chat reflows beside it instead of being overlaid. */
 .agent-chat-flow-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 420px;
-  max-width: 100%;
-  z-index: 40;
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-secondary);
-  border-left: 1px solid var(--color-border);
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
   overflow: hidden;
 }
+.flow-pane { border-left: 1px solid var(--color-border); }
+
+/* Draggable seam between the chat and the agent-flow pane (sets the ratio). */
+.flow-divider {
+  flex-shrink: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: var(--color-border);
+  transition: background 0.12s ease;
+  touch-action: none;
+}
+.flow-divider:hover,
+.flow-divider-active { background: var(--color-accent, #FFB633); }
 
 @media (max-width: 768px) {
+  /* Mobile: full-screen overlay, no tiling/seam. */
   .agent-chat-flow-panel {
     position: fixed;
     inset: 0;
@@ -1298,6 +1308,8 @@ body.sidebar-auto-railed aside {
     z-index: 50;
     border-left: none;
   }
+  .flow-divider { display: none; }
+  .flow-pane { width: auto !important; border-left: none; }
 }
 
 /* ── Header ──────────────────────────────────────────────────── */

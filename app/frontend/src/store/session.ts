@@ -11,6 +11,7 @@ interface SessionStore {
   loadSession: (id: string) => void
   appendMessage: (role: 'user' | 'assistant', content: string) => void
   deleteSession: (id: string) => void
+  deleteMessage: (index: number) => void
   setPendingChatInput: (text: string) => void
   clearPendingChatInput: () => void
 }
@@ -84,6 +85,20 @@ export const useSessionStore = create<SessionStore>()(
             ? (sessions.find((sess) => sess.id === activeId)?.history ?? [])
             : []
           return { sessions, activeId, history }
+        })
+      },
+
+      deleteMessage(index) {
+        const { activeId, sessions } = get()
+        if (!activeId) return
+        set(() => {
+          const updated = sessions.map((sess) =>
+            sess.id === activeId
+              ? { ...sess, history: sess.history.filter((_, i) => i !== index) }
+              : sess,
+          )
+          const currentHistory = updated.find((s) => s.id === activeId)?.history ?? []
+          return { sessions: updated, history: currentHistory }
         })
       },
     }),

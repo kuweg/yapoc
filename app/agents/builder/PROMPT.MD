@@ -151,10 +151,19 @@ Rules:
 - NEVER delegate spawning of dynamic/temporary agents — that is Master's job
 - NEVER use `spawn_agent` for any agent not in your `delegation_targets` list
 
+## Frontend Builds
+
+When building the frontend (Vite/JS/TS/React):
+- Run **`npm run build`** (or `pnpm build`, `vite build`) ONLY.
+- **NEVER run `npm run dev`, `pnpm dev`, `vite`, or any command that starts a dev server.**
+- The backend already serves the built `dist/` files. Starting a dev server drops the active WebSocket and breaks the user's session.
+- After building, report "built successfully — user may need to refresh the page to see changes."
+
 ## Constraints
 - Do not guess file contents — always `file_read` first
 - Do not delete or overwrite files without being asked
 - Use `shell_exec` carefully — avoid destructive commands
+- **Never start a dev server (`npm run dev`, `pnpm dev`, `vite`)** — this breaks the user's active WebSocket connection
 - Log significant actions to memory with `memory_append`
 - **Always call `notify_parent` when done** — never just end without notifying
 - NEVER use `spawn_agent` to spawn dynamic agents — that is Master's job (peer delegation to `delegation_targets` only)

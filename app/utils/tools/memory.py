@@ -21,7 +21,8 @@ class MemoryAppendTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = agent_dir / "MEMORY.MD"
+        self._path = settings.project_root / "app" / "memory" / "agents" / agent_dir.name / "MEMORY.MD"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
         entry = scrub(params["entry"])
@@ -38,7 +39,8 @@ class NotesReadTool(BaseTool):
     input_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = agent_dir / "NOTES.MD"
+        self._path = settings.project_root / "app" / "memory" / "agents" / agent_dir.name / "NOTES.MD"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
         if not self._path.exists():
@@ -60,7 +62,8 @@ class NotesWriteTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = agent_dir / "NOTES.MD"
+        self._path = Path("app/memory/agents") / agent_dir.name / "NOTES.MD"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
         content = scrub(params["content"])
@@ -89,17 +92,17 @@ class NotesAppendTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._agent_dir = agent_dir
+        self._path = Path("app/memory/agents") / agent_dir.name / "NOTES.MD"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
         content: str = scrub(params["content"])
         section: str | None = params.get("section")
-        path = self._agent_dir / "NOTES.MD"
         if section:
             block = f"\n## {section}\n{content}\n"
         else:
             block = f"\n{content}\n"
-        async with aiofiles.open(path, "a", encoding="utf-8") as f:
+        async with aiofiles.open(self._path, "a", encoding="utf-8") as f:
             await f.write(block)
         return f"Appended {len(content)} chars to NOTES.MD."
 
@@ -123,7 +126,8 @@ class HealthLogTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = agent_dir / "HEALTH.MD"
+        self._path = settings.project_root / "app" / "memory" / "agents" / agent_dir.name / "HEALTH.MD"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
         message = scrub(params.get("message") or params.get("error") or "")
@@ -174,7 +178,8 @@ class LearningsAppendTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = agent_dir / "LEARNINGS.MD"
+        self._path = settings.project_root / "app" / "memory" / "agents" / agent_dir.name / "LEARNINGS.MD"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
         rule_name = scrub(params["rule_name"])
@@ -295,13 +300,20 @@ class AgentAmnesiaTool(BaseTool):
         agent_dir = settings.agents_dir / agent_name
         if not agent_dir.is_dir():
             return f"Error: agent directory not found: {agent_dir}"
+        memory_dir = settings.project_root / "app" / "memory" / "agents" / agent_name
         cleared = []
         for fname in _AGENT_AMNESIA_FILES:
-            path = agent_dir / fname
+            # Clear from new memory location
+            path = memory_dir / fname
             if path.exists():
                 async with aiofiles.open(path, "w", encoding="utf-8") as f:
                     await f.write("")
                 cleared.append(fname)
+            # Also clear from legacy agent directory if still present
+            legacy_path = agent_dir / fname
+            if legacy_path.exists():
+                async with aiofiles.open(legacy_path, "w", encoding="utf-8") as f:
+                    await f.write("")
 
         # Clean SQLite vector index so search_memory doesn't return stale results
         try:

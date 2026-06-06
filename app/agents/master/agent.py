@@ -189,6 +189,10 @@ class MasterAgent(BaseAgent):
         async with self._run_lock:
             previous_session_id = self._session_id
             if session_id is not None:
+                # Trigger indexer on new session start so prior session
+                # memory is searchable immediately.
+                if session_id != previous_session_id:
+                    await self._maybe_trigger_indexer(f"session_start_{session_id}")
                 self._session_id = session_id
 
             # Drain any results pushed by sub-agents via notify_parent.

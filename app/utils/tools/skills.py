@@ -18,7 +18,9 @@ import yaml
 
 from . import BaseTool
 
-SKILLS_DIR = Path("app/projects/skills")
+from app.config import settings
+
+SKILLS_DIR = settings.project_root / "app" / "skills"
 _SKILL_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
@@ -76,7 +78,7 @@ class LoadSkillsTool(BaseTool):
     name = "load_skills"
     description = (
         "Load one or more skills at a specific disclosure level. "
-        "Skills are stored as YAML files in app/projects/skills/ with "
+        "Skills are stored as YAML files in app/skills/ with "
         "three levels: Level 1 (summary), Level 2 (parameters), "
         "Level 3 (full procedure). Use this tool when you need the "
         "detailed instructions for a named skill."
@@ -117,7 +119,7 @@ class LoadSkillsTool(BaseTool):
                 continue
 
             if data is None:
-                results.append(f"- {name}: **Skill not found** — no file at app/projects/skills/{name}.yaml")
+                results.append(f"- {name}: **Skill not found** — no file at app/skills/{name}.yaml")
                 continue
 
             content = data.get(level_key)
@@ -137,7 +139,7 @@ class LoadSkillsTool(BaseTool):
 class CreateSkillTool(BaseTool):
     name = "create_skill"
     description = (
-        "Create a new skill YAML file in app/projects/skills/. "
+        "Create a new skill YAML file in app/skills/. "
         "A skill has three disclosure levels: Level 1 (one-line summary), "
         "Level 2 (parameters and inputs), Level 3 (full step-by-step "
         "procedure). Once created, the skill is immediately available to "

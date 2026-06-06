@@ -7,6 +7,7 @@ interface MessageBubbleProps {
   content: string
   agentName?: string
   agentModel?: string
+  onDelete?: () => void
 }
 
 // Per-agent accent colors (Tailwind classes)
@@ -36,10 +37,17 @@ function AgentLabel({ name, model }: { name: string; model?: string }) {
   )
 }
 
-function MessageBubbleImpl({ role, content, agentName, agentModel }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, agentName, agentModel, onDelete }: MessageBubbleProps) {
   if (role === 'user') {
+    // Check for photo attachment marker
+    const photoMatch = content.match(/\[📎 photo attached: ([^\]]+)\]/)
+    const photoPath = photoMatch?.[1] ?? null
+    // Strip the attachment marker and any stale blob-URL markdown (![image](blob:...))
+    let displayContent = photoPath ? content.replace(photoMatch![0], '').trim() : content
+    displayContent = displayContent.replace(/!\[image\]\(blob:[^)]+\)/g, '').trim()
+
     return (
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end gap-0.5 group">
         <div
           className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-2 text-sm whitespace-pre-wrap"
           style={{
@@ -48,8 +56,31 @@ function MessageBubbleImpl({ role, content, agentName, agentModel }: MessageBubb
             border: '1px solid var(--color-border)',
           }}
         >
-          {content}
+          {photoPath && (
+            <div className="mb-2">
+              <img
+                src={`/api/files/image?path=${encodeURIComponent(photoPath)}`}
+                alt="attached"
+                className="max-w-[300px] rounded-lg"
+              />
+            </div>
+          )}
+          {displayContent}
         </div>
+        {onDelete && (
+          <div className="flex items-center justify-end gap-1 mr-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              onClick={onDelete}
+              className="p-0.5 rounded text-red-400/60 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              title="Delete message"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     )
   }

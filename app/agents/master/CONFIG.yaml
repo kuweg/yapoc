@@ -10,8 +10,8 @@
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 
-adapter: deepseek
-model: deepseek-chat
+adapter: moonshot
+model: kimi-k2.6
 temperature: 0.3
 tools:
   # ── Reads (safe, do them yourself) ──────────────────────────────────

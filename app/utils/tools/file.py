@@ -19,9 +19,6 @@ _PROTECTED_NAMES = {".env", ".git", ".gitignore"}
 _PROTECTED_AGENT_FILES = {
     "PROMPT.MD",
     "TASK.MD",
-    "MEMORY.MD",
-    "NOTES.MD",
-    "HEALTH.MD",
     "CONFIG.yaml",
 }
 
@@ -436,7 +433,17 @@ class FileDeleteTool(BaseTool):
         # Check protected names
         if resolved.name in _PROTECTED_NAMES:
             return f"ERROR: Refusing to delete protected file: {resolved.name}"
-        if resolved.name in _PROTECTED_AGENT_FILES:
+
+        # Memory files migrated to app/memory/agents/ — allow deletion of
+        # orphaned copies still sitting in app/agents/<name>/
+        _norm = str(resolved).replace("\\", "/")
+        is_orphaned_memory = (
+            resolved.name in ("MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD")
+            and "app/agents/" in _norm
+            and "app/memory/agents/" not in _norm
+        )
+
+        if resolved.name in _PROTECTED_AGENT_FILES and not is_orphaned_memory:
             return f"ERROR: Refusing to delete core agent file: {resolved.name}"
 
         try:

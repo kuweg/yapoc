@@ -10,6 +10,7 @@ from pathlib import Path
 import aiofiles
 
 from app.config import settings as _settings
+from app.utils.tools.skills import load_skills_summaries
 
 
 def _parse_runner_config(config_text: str) -> dict[str, int | bool]:
@@ -93,6 +94,47 @@ def _sanitize_memory_for_context(memory_block: str) -> str:
     return "\n".join(out)
 
 
+
+async def _get_rag_memories(agent_dir: Path, query_hint: str = "recent tasks and decisions") -> str:
+    """Search the vector DB for the top 3 relevant memory entries for this agent.
+
+    For master only (agent_dir.name == "master"), this replaces/supplements
+    the raw MEMORY.MD tail with semantically relevant results.
+    Returns a formatted markdown string or empty string if unavailable.
+    """
+    if agent_dir.name != "master":
+        return ""
+
+    try:
+        from app.utils.embeddings import embed
+        from app.utils.db import search_hybrid
+
+        query_vec = embed(query_hint)
+        results = search_hybrid(query_hint, query_vec, agent="master", top_k=3)
+
+        if not results:
+            return ""
+
+        lines: list[str] = []
+        for i, entry in enumerate(results, 1):
+            source = entry.get("source", "?")
+            ts = entry.get("timestamp", "?")
+            content = entry.get("content", "")
+            score = entry.get("rrf_score", 0)
+            # Truncate long content to avoid bloat
+            if len(content) > 300:
+                content = content[:300] + "..."
+            lines.append(
+                f"**{i}. [{source}] {ts}** (score: {score})\n"
+                f"  {content}"
+            )
+
+        return "\n".join(lines)
+
+    except Exception:
+        return ""
+
+
 async def build_system_context(agent_dir: Path, config_text: str | None = None) -> str:
     """Assemble system prompt from agent's markdown files.
 
@@ -120,19 +162,20 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
     knowledge_chars = runner.get("context_knowledge_chars", _settings.context_knowledge_chars)
 
     # Read all files
+    memory_dir = agent_dir.parent.parent / "memory" / "agents" / agent_dir.name
     prompt = await _read_if_exists(agent_dir / "PROMPT.MD")
-    memory = await _read_if_exists(agent_dir / "MEMORY.MD")
-    notes = await _read_if_exists(agent_dir / "NOTES.MD")
-    health = await _read_if_exists(agent_dir / "HEALTH.MD")
-    learnings = await _read_if_exists(agent_dir / "LEARNINGS.MD")
+    memory = await _read_if_exists(memory_dir / "MEMORY.MD")
+    notes = await _read_if_exists(memory_dir / "NOTES.MD")
+    health = await _read_if_exists(memory_dir / "HEALTH.MD")
+    learnings = await _read_if_exists(memory_dir / "LEARNINGS.MD")
     knowledge = await _read_if_exists(_settings.agents_dir / "shared" / "KNOWLEDGE.MD")
 
     # New layered memory (user, project, agent)
     user_profile = await _read_if_exists(
-        _settings.project_root / "app" / "memory" / "user" / "PROFILE.md"
+        _settings.agents_dir.parent / "memory" / "user" / "PROFILE.md"
     )
     project_knowledge = await _read_if_exists(
-        _settings.project_root / "app" / "memory" / "project" / "KNOWLEDGE.md"
+        _settings.agents_dir.parent / "memory" / "project" / "KNOWLEDGE.md"
     )
 
     sections: list[str] = []
@@ -170,27 +213,36 @@ async def build_system_context(agent_dir: Path, config_text: str | None = None) 
         trimmed = learnings.strip()[:learnings_chars]
         sections.append(f"## Learned Rules\n{trimmed}")
 
-    # KNOWLEDGE.MD — shared, capped
+    # KNOWLEDGE.MD — shared, capped (legacy location)
     if knowledge.strip():
         trimmed = knowledge.strip()[:knowledge_chars]
         sections.append(f"## Shared Knowledge\n{trimmed}")
 
-    # RAG hint — encourage using search_memory for past work
+    # User Profile — injected for all agents
+    if user_profile.strip():
+        trimmed = user_profile.strip()[:knowledge_chars]
+        sections.append(f"## User Profile\n{trimmed}")
+
+    # Project Knowledge — new structured layer
+    if project_knowledge.strip():
+        trimmed = project_knowledge.strip()[:knowledge_chars]
+        sections.append(f"## Project Knowledge\n{trimmed}")
+
+    # Available Skills — Level 1 summaries injected for all agents
     try:
-        from app.utils.db import get_db
-        db = get_db()
-        row = db.execute(
-            "SELECT COUNT(*) FROM memory_entries WHERE agent = ?",
-            (agent_dir.name,),
-        ).fetchone()
-        if row and row[0] > 0:
-            sections.append(
-                f"## Memory Index\n"
-                f"{row[0]} past memories indexed. Use search_memory(query=...) "
-                f"to find relevant past tasks, notes, and learnings."
-            )
+        skills = await load_skills_summaries()
+        if skills:
+            sections.append(f"## Available Skills\nUse `load_skills` with `level: 3` when you need the full procedure for any skill.\n{skills}")
     except Exception:
-        pass  # DB may not be initialized yet
+        pass  # Skills directory may not exist yet
+
+    # RAG-based relevant memories (master only — semantic search over vector DB)
+    try:
+        rag = await _get_rag_memories(agent_dir, query_hint="recent tasks and decisions")
+        if rag:
+            sections.append(f"## Relevant Memories\n{rag}")
+    except Exception:
+        pass  # DB may not be initialized yet or embeddings unavailable
 
     # HEALTH.MD — last N lines
     if health.strip():

@@ -148,6 +148,17 @@ async def _execute_task(task_id: str) -> None:
 
     response_parts: list[str] = []
     total_cost = 0.0
+
+    # Telegram streaming: push partial text to the bot as it generates
+    telegram_bot = None
+    if source == "telegram":
+        from app.backend.telegram_bot import get_telegram_bot_instance
+        telegram_bot = get_telegram_bot_instance()
+        if telegram_bot is None:
+            logger.warning(f"Dispatcher: telegram_bot instance is None for task {task_id[:8]}...")
+        else:
+            logger.info(f"Dispatcher: telegram streaming enabled for task {task_id[:8]}...")
+
     try:
         async with asyncio.timeout(_chain_ctx_timeout):
             async for event in master_agent.handle_task_stream(
@@ -161,6 +172,16 @@ async def _execute_task(task_id: str) -> None:
 
                 if isinstance(event, TextDelta):
                     response_parts.append(event.text)
+                    if telegram_bot is not None:
+                        telegram_bot.append_streaming_text(task_id, event.text)
+                        if len(response_parts) <= 3 or len(response_parts) % 20 == 0:
+                            logger.info(
+                                f"Dispatcher: streamed {len(event.text)} chars for task {task_id[:8]}... "
+                                f"(total deltas={len(response_parts)})")
+                    else:
+                        if len(response_parts) <= 3:
+                            logger.debug(
+                                f"Dispatcher: no telegram bot, buffering text for task {task_id[:8]}...")
                 elif isinstance(event, UsageStats):
                     # Accumulate cost if available
                     pass
@@ -199,12 +220,25 @@ async def _execute_task(task_id: str) -> None:
         # Event-driven indexer: every 20 turns
         from app.utils.db import increment_indexer_counter
         from app.utils.indexer import indexer_tick
+        new_count = 0
         try:
             new_count = increment_indexer_counter()
             if new_count % 20 == 0:
                 asyncio.create_task(indexer_tick(reason="turn_counter"))
         except Exception:
             pass
+
+        # Auto-trigger memory sweep every 20 turns
+        if new_count % 20 == 0:
+            try:
+                sweep_task_id = create_queued_task(
+                    prompt="memory-sweep",
+                    source="system",
+                    metadata=json.dumps({"auto_triggered": True, "turn_count": new_count}),
+                )
+                logger.info(f"Auto-queued memory-sweep task {sweep_task_id[:8]}… at turn {new_count}")
+            except Exception as exc:
+                logger.warning(f"Failed to auto-queue memory-sweep: {exc}")
 
         # Morning report — emit on autonomous task completion so an overnight
         # operator sees the result without scraping logs.
@@ -227,6 +261,41 @@ async def _execute_task(task_id: str) -> None:
                 ))
             except Exception:
                 pass
+
+        # Telegram notification on task completion (user preference)
+        # Skip for telegram-sourced tasks — the Telegram bot already handles
+        # result delivery by editing the "Processing..." acknowledgment.
+        if (source or "").lower() != "telegram":
+            try:
+                from app.backend.telegram_bot import get_telegram_bot_instance
+
+                bot = get_telegram_bot_instance()
+                if bot is not None:
+                    authorized_chats = bot._auth._authorized_chats | bot._auth._whitelist
+                    if authorized_chats:
+                        chat_id = next(iter(authorized_chats))
+                        reply_to = None
+                        if task_row.get("metadata"):
+                            try:
+                                meta = json.loads(task_row["metadata"])
+                                reply_to = meta.get("reply_to_message_id")
+                            except Exception:
+                                pass
+                        # Send header first (with reply_to)
+                        header_msg = (
+                            f"✅ <b>Task Done</b>\n"
+                            f"<i>Source:</i> {source or 'ui'}\n"
+                            f"<i>Task:</i> {prompt[:120]}{'...' if len(prompt) > 120 else ''}"
+                        )
+                        await bot._send_message(chat_id, header_msg, reply_to_message_id=reply_to)
+                        # Send full result split into multiple messages (no truncation)
+                        from app.backend.telegram_bot import TelegramBot as _TelegramBot
+                        result_display = result_text if result_text else "(no text output)"
+                        chunks = _TelegramBot._split_text_for_telegram(result_display, max_len=4000)
+                        for chunk in chunks:
+                            await bot._send_message(chat_id, chunk)
+            except Exception:
+                pass  # Telegram is best-effort; never fail the task because of it
 
         # Webhook callback delivery
         await _deliver_webhook_callback(task_id, result_text)
@@ -260,6 +329,33 @@ async def _execute_task(task_id: str) -> None:
         partial = "".join(response_parts)
         if partial:
             update_queued_task(task_id, result=f"[PARTIAL] {partial}")
+        # Telegram notification on task timeout (skip for telegram-sourced tasks)
+        if (source or "").lower() != "telegram":
+            try:
+                from app.backend.telegram_bot import get_telegram_bot_instance
+
+                bot = get_telegram_bot_instance()
+                if bot is not None:
+                    authorized_chats = bot._auth._authorized_chats | bot._auth._whitelist
+                    if authorized_chats:
+                        chat_id = next(iter(authorized_chats))
+                        reply_to = None
+                        if task_row.get("metadata"):
+                            try:
+                                meta = json.loads(task_row["metadata"])
+                                reply_to = meta.get("reply_to_message_id")
+                            except Exception:
+                                pass
+                        await bot._send_message(
+                            chat_id,
+                            f"<b>⏰ Task Timeout</b>\n"
+                            f"<i>Source:</i> {source or 'ui'}\n"
+                            f"<i>Task:</i> {prompt[:120]}{'...' if len(prompt) > 120 else ''}\n\n"
+                            f"{error_text}",
+                            reply_to_message_id=reply_to,
+                        )
+            except Exception:
+                pass
         logger.warning(f"Task {task_id[:8]}… chain timeout after {_chain_timeout}s")
 
     except Exception as exc:
@@ -292,6 +388,33 @@ async def _execute_task(task_id: str) -> None:
             })
         except Exception:
             pass
+        # Telegram notification on task error (skip for telegram-sourced tasks)
+        if (source or "").lower() != "telegram":
+            try:
+                from app.backend.telegram_bot import get_telegram_bot_instance
+
+                bot = get_telegram_bot_instance()
+                if bot is not None:
+                    authorized_chats = bot._auth._authorized_chats | bot._auth._whitelist
+                    if authorized_chats:
+                        chat_id = next(iter(authorized_chats))
+                        reply_to = None
+                        if task_row.get("metadata"):
+                            try:
+                                meta = json.loads(task_row["metadata"])
+                                reply_to = meta.get("reply_to_message_id")
+                            except Exception:
+                                pass
+                        await bot._send_message(
+                            chat_id,
+                            f"<b>❌ Task Error</b>\n"
+                            f"<i>Source:</i> {source or 'ui'}\n"
+                            f"<i>Task:</i> {prompt[:120]}{'...' if len(prompt) > 120 else ''}\n\n"
+                            f"{error_text[:300]}",
+                            reply_to_message_id=reply_to,
+                        )
+            except Exception:
+                pass
         logger.error(f"Task {task_id[:8]}… failed: {error_text}")
 
     finally:

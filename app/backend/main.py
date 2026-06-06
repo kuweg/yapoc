@@ -447,10 +447,13 @@ async def _master_notification_watcher() -> None:
                 async for _ in master_agent.handle_task_stream(
                     task=(
                         "[Auto-notification] Sub-agent task(s) just completed. "
-                        "Read the sub-agent results via read_task_result if needed, "
-                        "then write ONE short summary message for the user describing "
-                        "what was accomplished. Do NOT spawn agents, do NOT restart servers, "
-                        "do NOT re-verify. Your only job: surface the outcome to the user."
+                        "Read the sub-agent results via read_task_result if needed. "
+                        "If a planning step produced a PLAN that was not actually "
+                        "executed (the implementation work wasn't carried out), "
+                        "CONTINUE the chain now by spawning the needed specialists "
+                        "(builder/keeper). Otherwise write ONE short summary message "
+                        "for the user describing what was accomplished. Do NOT restart "
+                        "servers and do NOT re-verify work that is already done."
                     ),
                     source="notification",
                     session_id=sid,
@@ -465,7 +468,7 @@ async def _master_notification_watcher() -> None:
                 try:
                     from app.backend.websocket import ws_manager
 
-                    result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+                    result_text = (settings.memory_agents_dir / "master" / "RESULT.MD").read_text(
                         encoding="utf-8",
                         errors="replace",
                     ).strip()
@@ -604,6 +607,7 @@ async def _process_inbox_message(
     child_status = str(data.get("status", "done"))
     session_id = str(data.get("session_id", ""))
     raw_result = str(data.get("result", ""))
+    task_id = str(data.get("task_id", ""))
 
     def _safety_enqueue() -> bool:
         """Enqueue this Redis payload into notification_queue. Returns True on success.
@@ -620,6 +624,7 @@ async def _process_inbox_message(
                 result=raw_result if child_status == "done" else "",
                 error=raw_result if child_status == "error" else "",
                 session_id=session_id,
+                task_id=task_id,
             )
             return True
         except Exception as _enq_exc:
@@ -649,6 +654,7 @@ async def _process_inbox_message(
         result=raw_result if child_status == "done" else "",
         error=raw_result if child_status == "error" else "",
         session_id=session_id,
+        task_id=task_id,
     ):
         logger.debug(
             "Redis master watcher: queue match — deferring to notification watcher"
@@ -660,14 +666,29 @@ async def _process_inbox_message(
         child_agent, child_status, session_id[:8] if session_id else "<none>",
     )
 
+    # When planning completes it may have only produced a PLAN without
+    # executing it (planning has spawn_agent/notify_parent but doesn't always
+    # use them). In that case master must CONTINUE the chain rather than treat
+    # it as finished — the old unconditional "chain has finished, do NOT
+    # re-spawn" dead-ended exactly this case. Leaf executors (builder/keeper)
+    # are genuinely terminal, so for those we keep the surface-only guidance.
+    if child_agent == "planning" and child_status == "done":
+        followup = (
+            "If planning only produced a PLAN and the implementation was NOT "
+            "actually carried out (no builder/keeper changes were made), EXECUTE "
+            "the plan now by spawning the needed specialists, then summarize. "
+            "If the work is already done, just surface the outcome to the user."
+        )
+    else:
+        followup = (
+            "Do NOT re-spawn agents and do NOT re-verify work that is already "
+            "done — your only job here is to surface the outcome to the user."
+        )
     task_prompt = (
         f"[Auto-notification via Redis] {child_agent} completed ({child_status}). "
-        "Read the sub-agent results via read_task_result if needed, "
-        "then write ONE short summary message for the user describing "
-        "what was accomplished. Do NOT re-spawn agents, do NOT re-verify "
-        "work that is already verified, and do NOT investigate beyond "
-        "reading the result text. The chain has already finished — your "
-        "only job here is to surface the outcome to the user."
+        "Read the sub-agent results via read_task_result if needed, then write "
+        "ONE short summary message for the user describing what was accomplished. "
+        f"{followup}"
     )
 
     try:
@@ -682,7 +703,7 @@ async def _process_inbox_message(
         notification_queue.drain("master", session_id=session_id or None)
 
         # Push result to WebSocket
-        result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+        result_text = (settings.memory_agents_dir / "master" / "RESULT.MD").read_text(
             encoding="utf-8", errors="replace"
         ).strip()
         if result_text:
@@ -849,6 +870,7 @@ async def _startup_resume() -> None:
                         status = str(data.get("status", "done"))
                         result = str(data.get("result", ""))
                         sid = str(data.get("session_id", ""))
+                        tid = str(data.get("task_id", ""))
                         # Fix 3.3: skip if the child's TASK.MD already has
                         # consumed_at set — this Redis message arrived from
                         # work that was already processed before crash.
@@ -867,6 +889,7 @@ async def _startup_resume() -> None:
                             result=result if status == "done" else "",
                             error=result if status == "error" else "",
                             session_id=sid,
+                            task_id=tid,
                         )
                         logger.info(
                             "Startup resume: enqueued {} ({}) result for master (sid={})",

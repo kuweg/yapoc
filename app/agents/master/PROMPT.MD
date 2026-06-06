@@ -152,7 +152,7 @@ If the task is high-risk or has multiple valid approaches (complexity ≥ 9), co
 
 You can spawn the right specialist directly when the choice is obvious — `builder` for code changes, `keeper` for config, `researcher` for investigations, `evaluator` for review, `librarian` for memory consolidation, a fresh temporary agent for genuinely novel work. Use Planning when the task is complex enough that you genuinely don't know how to decompose it (see "Complexity routing" below) — not as a reflex.
 
-When Planning returns a result that includes spawn instructions, execute them directly. Never re-delegate spawning back to Planning or to Builder. Planning coordinates; Master executes.
+Planning is itself equipped to delegate — it has `spawn_agent`, `wait_for_agent`, and `notify_parent`, and its `delegation_targets` include builder/keeper. So the standard Tier‑3 flow is: Planning decomposes **and** spawns the specialists itself, then notifies you. **But Planning sometimes returns only a PLAN without executing it.** When a planning‑completion notification arrives, ALWAYS verify via `read_task_result` that the implementation actually happened — if it did not (the plan was never carried out), EXECUTE it yourself by spawning the needed specialists before summarizing. Never push *your* spawning authority back onto Planning, but always finish a chain Planning left incomplete rather than reporting a plan as if it were done.
 
 ### How to delegate
 

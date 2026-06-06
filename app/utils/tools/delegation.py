@@ -1329,6 +1329,16 @@ async def _read_session_id(task_path: "Path") -> str:
     return m.group(1).strip() if m else ""
 
 
+async def _read_task_id(task_path: "Path") -> str:
+    """Read the task_id field from TASK.MD frontmatter (for notification dedup)."""
+    if not task_path.exists():
+        return ""
+    async with aiofiles.open(task_path, encoding="utf-8") as f:
+        content = await f.read()
+    m = re.search(r"^task_id:\s*(.*)$", content, re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
 async def _get_task_status_from_file(task_path: "Path") -> str:
     """Return the status field from a TASK.MD frontmatter, or empty string."""
     if not task_path.exists():
@@ -1454,6 +1464,7 @@ class NotifyParentTool(BaseTool):
         task_path = self._agent_dir / "TASK.MD"
         parent_name = await _read_assigned_by(task_path)
         session_id = await _read_session_id(task_path)
+        task_id = await _read_task_id(task_path)
 
         if not parent_name or parent_name in ("", "notification"):
             return "Error: no parent found in TASK.MD (assigned_by is missing or 'notification')."
@@ -1478,6 +1489,7 @@ class NotifyParentTool(BaseTool):
                     "status": status,
                     "result": result_text,
                     "session_id": session_id or "",
+                    "task_id": task_id or "",
                 },
                 agent_name=self._agent_dir.name,
             )
@@ -1497,6 +1509,7 @@ class NotifyParentTool(BaseTool):
                 result=result_text if status == "done" else "",
                 error=result_text if status == "error" else "",
                 session_id=session_id or "",
+                task_id=task_id or "",
             )
 
         # Wake signal always fires — carries no payload, only triggers a

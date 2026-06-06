@@ -120,6 +120,15 @@ def _read_error_section(task_md_path: Path) -> str:
     return ""
 
 
+def _memory_dir_for(agent_dir: Path) -> Path:
+    """Resolve the runtime memory dir for an agent given its agents_dir path.
+
+    RESULT.MD / ERROR.MD live under app/memory/agents/<name>/, while TASK.MD
+    and source files live under app/agents/<name>/ (== ``agent_dir``).
+    """
+    return settings.memory_agents_dir / agent_dir.name
+
+
 def _read_result_text(agent_dir: Path) -> str:
     """Fix 3.2: canonical notification payload source.
 
@@ -131,7 +140,9 @@ def _read_result_text(agent_dir: Path) -> str:
 
     Falls back to TASK.MD's ## Result when RESULT.MD is missing or empty.
     """
-    result_md = agent_dir / "RESULT.MD"
+    # RESULT.MD lives in the memory dir (BaseAgent writes via _write_memory_file),
+    # NOT under agents_dir. TASK.MD stays in the agent dir.
+    result_md = _memory_dir_for(agent_dir) / "RESULT.MD"
     try:
         if result_md.exists():
             text = result_md.read_text(encoding="utf-8").strip()
@@ -148,7 +159,8 @@ def _read_error_text(agent_dir: Path) -> str:
     error paths; the runner sets ## Error in TASK.MD via set_task_status.
     Falls back to ERROR.MD if present, otherwise TASK.MD's ## Error.
     """
-    error_md = agent_dir / "ERROR.MD"
+    # ERROR.MD lives in the memory dir (see _read_result_text).
+    error_md = _memory_dir_for(agent_dir) / "ERROR.MD"
     try:
         if error_md.exists():
             text = error_md.read_text(encoding="utf-8").strip()
@@ -292,6 +304,7 @@ class NotificationPoller:
                 result=result,
                 error=error,
                 session_id=str(fm.get("session_id", "") or ""),
+                task_id=str(fm.get("task_id", "") or ""),
             )
             self._notified.add(dedup_key)
             self._notified_dirty = True

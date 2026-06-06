@@ -32,7 +32,7 @@ from .base import (
     UsageStats,
 )
 from .models import ALL_CONTEXT_WINDOWS
-from .normalize import sanitize_tool_id
+from .normalize import flatten_tool_result_text, sanitize_tool_id
 
 log = logging.getLogger(__name__)
 
@@ -141,7 +141,10 @@ def _normalize_to_deepseek(
                     tool_results.append({
                         "role": "tool",
                         "tool_call_id": sanitize_tool_id(str(block.get("tool_use_id", ""))),
-                        "content": block.get("content", ""),
+                        # deepseek-chat is text-only and rejects Anthropic
+                        # image blocks (HTTP 400 "Invalid value: 'image'").
+                        # Flatten any image content to a text placeholder.
+                        "content": flatten_tool_result_text(block.get("content", "")),
                     })
                 elif btype == "text":
                     text_parts_user.append(block.get("text", ""))

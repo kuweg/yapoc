@@ -8,11 +8,12 @@ import { handleCommand, synthesizeSpeech, getAgents, uploadImage } from '../api/
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
-import { TaskGroupBubble, type TaskGroup, type TaskPart } from './TaskGroupBubble'
+import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
-import type { UsageEvent } from '../api/types'
+import { startAsciiWave, ASCII_WAVE_FRAMES } from './spinner'
+import type { UsageEvent, TaskPart } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
 type Part = TaskPart
@@ -81,6 +82,123 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
 // Default model for cost estimation — overridden at runtime by masterModel state
 const DEFAULT_MODEL = 'kimi-k2.6'
 
+// ── Animated send/stop button ──────────────────────────────────────
+// Loading / typing indicator (spec §5). Drives the ASCII wave via the spinner
+// module so the interval handle is owned and cleared on unmount (rule #5);
+// honors prefers-reduced-motion by rendering a static frame.
+function TypingIndicator() {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduce) {
+      el.textContent = ASCII_WAVE_FRAMES[2]
+      return
+    }
+    const handle = startAsciiWave(el, 120)
+    return () => handle.stop()
+  }, [])
+  return <span ref={ref} className="font-mono text-[#FFB633] w-7 inline-block" aria-hidden />
+}
+
+function SendButton({ isStreaming, launchTick, onSend, onStop }: { isStreaming: boolean; launchTick: number; onSend: () => void; onStop: () => void }) {
+  // `view` is the VISUAL icon state, decoupled from isStreaming so the launch
+  // (arrow flies up & out) completes before the stop icon swaps in (spec §4):
+  //   send --launch--> [animationend] --> streaming(stop) --land--> send
+  const [view, setView] = useState<'send' | 'streaming'>('send')
+  const [phase, setPhase] = useState<'processing' | 'receiving'>('processing')
+  const [animClass, setAnimClass] = useState('')
+  const launching = useRef(false)
+  const firstTick = useRef(true)
+
+  // Launch on every real send (click OR Enter — driven by launchTick), keeping
+  // view='send' so the arrow is mounted to animate. The swap to the stop icon
+  // happens on the launch's animationend.
+  useEffect(() => {
+    if (firstTick.current) {
+      firstTick.current = false
+      return
+    }
+    launching.current = true
+    setAnimClass('anim-launch')
+  }, [launchTick])
+
+  // Drive the streaming phase (processing pulse -> receiving quarter-turn).
+  useEffect(() => {
+    if (view !== 'streaming') return
+    setPhase('processing')
+    const t = setTimeout(() => setPhase('receiving'), 2000)
+    return () => clearTimeout(t)
+  }, [view])
+
+  const prevStreaming = useRef(isStreaming)
+  useEffect(() => {
+    if (prevStreaming.current && !isStreaming) {
+      // Stream ended — arrow returns (land).
+      setView('send')
+      setAnimClass('anim-land')
+    } else if (!prevStreaming.current && isStreaming && !launching.current) {
+      // Streaming started without a launch (e.g. programmatic) — show stop now.
+      setView('streaming')
+    }
+    prevStreaming.current = isStreaming
+  }, [isStreaming])
+
+  const handleClick = () => {
+    if (view === 'send') onSend() // launch is fired by launchTick on the actual send
+    else onStop()
+  }
+
+  const handleAnimEnd = () => {
+    if (animClass === 'anim-launch') {
+      setAnimClass('')
+      launching.current = false
+      if (isStreaming) setView('streaming') // swap to stop icon after the launch
+    } else if (animClass === 'anim-land') {
+      setAnimClass('')
+    }
+  }
+
+  const mode = view
+
+  return (
+    <button
+      onClick={handleClick}
+      onAnimationEnd={handleAnimEnd}
+      data-mode={mode}
+      data-phase={phase}
+      className={`send-btn flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+        mode === 'send'
+          ? animClass === 'anim-launch' ? 'bg-[#FFB633]' : 'bg-[#FFB633] hover:bg-[#ffc84d]'
+          : 'bg-red-700 hover:bg-red-600'
+      } ${animClass}`}
+      title={mode === 'send' ? 'Send message' : 'Stop streaming'}
+    >
+      {mode === 'send' ? (
+        <svg
+          width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke="#0a0a0a" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+          className={animClass === 'anim-launch' ? 'anim-launch' : ''}
+        >
+          <line x1="12" y1="19" x2="12" y2="5" />
+          <polyline points="5 12 12 5 19 12" />
+        </svg>
+      ) : (
+        <svg
+          width="14" height="14" viewBox="0 0 24 24"
+          fill="white" stroke="white" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          className={phase === 'processing' ? 'animate-[siren-icon_1.5s_ease-in-out_infinite]' : 'animate-[quarter-turn_2s_cubic-bezier(0.4,0,0.2,1)_infinite]'}
+        >
+          <rect x="6" y="6" width="12" height="12" rx="1" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export function ChatPanel() {
   const { activeId, history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
@@ -93,6 +211,15 @@ export function ChatPanel() {
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [backendSpeaking, setBackendSpeaking] = useState(false)
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([])
+  // Bulk-render guard (rule #2): suppress msg-enter while a session's history
+  // is loaded wholesale, so old messages don't all animate in at once.
+  const [noAnimate, setNoAnimate] = useState(true)
+  // Welcome-screen reveal gate (spec §6): hold the splash hidden until after
+  // first paint so the clip-path name reveal doesn't flicker during font load.
+  const [welcomeReady, setWelcomeReady] = useState(false)
+  // Bumped on every real send (click OR Enter) so the send button plays its
+  // launch animation regardless of how the message was submitted (spec §4).
+  const [launchTick, setLaunchTick] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
   const backendAudioRef = useRef<HTMLAudioElement | null>(null)
   const backendAudioUrlRef = useRef<string | null>(null)
@@ -111,6 +238,23 @@ export function ChatPanel() {
   useEffect(() => {
     streamingPartsRef.current = streamingParts
   }, [streamingParts])
+
+  // Rule #2: when a session's history loads in bulk, paint it once with
+  // .no-animate, then drop the class on the next frame so subsequently
+  // appended messages animate normally. Re-runs on session switch.
+  useEffect(() => {
+    setNoAnimate(true)
+    const r1 = requestAnimationFrame(() =>
+      requestAnimationFrame(() => setNoAnimate(false)),
+    )
+    return () => cancelAnimationFrame(r1)
+  }, [activeId])
+
+  // Spec §6: reveal the welcome splash only after first paint.
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setWelcomeReady(true))
+    return () => cancelAnimationFrame(r)
+  }, [])
 
   const flushPendingEvents = useCallback(() => {
     rafHandleRef.current = null
@@ -265,31 +409,44 @@ export function ChatPanel() {
     if (isStreaming) stickToBottomRef.current = true
   }, [isStreaming])
 
-  // WebSocket notification: when a background task completes, update the running task group
+  // Persist a completed task group to history and remove it from taskGroups
+  const persistTaskGroupToHistory = useCallback((group: TaskGroup) => {
+    const text = group.finalText || '_Task completed_'
+    const partsToSave = group.parts.length > 0 ? group.parts : undefined
+    appendMessage('assistant', text, partsToSave)
+    setTaskGroups((prev) => prev.filter((g) => g.id !== group.id))
+  }, [appendMessage])
+
+  // WebSocket notification: when a background task completes, persist to history
   useEffect(() => {
     if (!awaitingNotification || !lastCompletedTask || !activeId) return
     if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
     const result = lastCompletedTask.result?.trim()
     const hasError = Boolean(lastCompletedTask.error)
+
     setTaskGroups((prev) => {
       const idx = findLastIndex(prev, (g) => g.status === 'running')
       if (idx < 0) return prev
-      const updated = [...prev]
+      const group = prev[idx]
       const errorText = lastCompletedTask.error
       const isGenericError = hasError && (!errorText || errorText === 'unknown' || errorText.trim() === '')
-      updated[idx] = {
-        ...updated[idx],
-        finalText: result || (hasError
-          ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
-          : '_Task completed_'),
+      const finalText = result || (hasError
+        ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
+        : '_Task completed_')
+      const completedGroup: TaskGroup = {
+        ...group,
+        finalText,
         status: hasError ? 'error' : 'done',
       }
-      return updated
+      // Schedule persistence via setTimeout to avoid setState-during-render
+      setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+      return prev.filter((g) => g.id !== group.id)
     })
+
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastCompletedTask()
-  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask])
+  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask, persistTaskGroupToHistory])
 
   useEffect(() => {
     if (!awaitingNotification || !lastSessionEvent || !activeId) return
@@ -297,43 +454,42 @@ export function ChatPanel() {
     const eventType = String(lastSessionEvent.event.type ?? '')
     if (eventType === 'notification_result') {
       const text = String(lastSessionEvent.event.text ?? '').trim()
-      if (text) {
-        setTaskGroups((prev) => {
-          const idx = findLastIndex(prev, (g) => g.status === 'running')
-          if (idx < 0) return prev
-          const updated = [...prev]
-          updated[idx] = { ...updated[idx], finalText: text, status: 'done' }
-          return updated
-        })
-      }
+      setTaskGroups((prev) => {
+        const idx = findLastIndex(prev, (g) => g.status === 'running')
+        if (idx < 0) return prev
+        const group = prev[idx]
+        const finalText = text || '_Task completed_'
+        const completedGroup: TaskGroup = { ...group, finalText, status: 'done' }
+        setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+        return prev.filter((g) => g.id !== group.id)
+      })
       setAwaitingNotification(false)
       setBackgroundActivity('')
       return
     }
     const line = formatSessionActivity(lastSessionEvent)
     if (line) setBackgroundActivity(line)
-  }, [awaitingNotification, lastSessionEvent, activeId])
+  }, [awaitingNotification, lastSessionEvent, activeId, persistTaskGroupToHistory])
 
   // Orphan-notification fallback: when the backend couldn't route master's
   // notification result to a specific session (session_id lost upstream),
-  // it broadcasts a top-level notification_result event. Update the running
-  // task group rather than appending a plain message.
+  // it broadcasts a top-level notification_result event. Persist to history.
   useEffect(() => {
     if (!awaitingNotification || !lastOrphanNotification) return
     const text = lastOrphanNotification.text.trim()
-    if (text) {
-      setTaskGroups((prev) => {
-        const idx = findLastIndex(prev, (g) => g.status === 'running')
-        if (idx < 0) return prev
-        const updated = [...prev]
-        updated[idx] = { ...updated[idx], finalText: text, status: 'done' }
-        return updated
-      })
-    }
+    setTaskGroups((prev) => {
+      const idx = findLastIndex(prev, (g) => g.status === 'running')
+      if (idx < 0) return prev
+      const group = prev[idx]
+      const finalText = text || '_Task completed_'
+      const completedGroup: TaskGroup = { ...group, finalText, status: 'done' }
+      setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+      return prev.filter((g) => g.id !== group.id)
+    })
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastOrphanNotification()
-  }, [awaitingNotification, lastOrphanNotification, clearLastOrphanNotification])
+  }, [awaitingNotification, lastOrphanNotification, clearLastOrphanNotification, persistTaskGroupToHistory])
 
   // Clean up on unmount
   useEffect(() => {
@@ -429,6 +585,7 @@ export function ChatPanel() {
 
     appendMessage('user', displayText)
     const sessionId = useSessionStore.getState().activeId
+    setLaunchTick((t) => t + 1) // fire the send-button launch (spec §4)
     setStreamingParts([])
     setIsStreaming(true)
     setBackgroundActivity('')
@@ -491,22 +648,26 @@ export function ChatPanel() {
         prev.map((p) => (p.kind === 'thinking' && !p.done ? { ...p, done: true } : p)),
       )
 
-      // If sub-agents were spawned, preserve the execution trace as a task group
-      // instead of flattening it into a single history message.
+      // Capture the full parts array before resetting
+      const finalParts = streamingPartsRef.current
+
       if (hadSpawnAgent) {
-        const currentParts = streamingPartsRef.current
+        // Preserve the execution trace as a task group (collapsible, live-updating)
         setTaskGroups((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
-            parts: currentParts,
+            parts: finalParts,
             finalText: assembledText,
             status: 'running',
           },
         ])
         setAwaitingNotification(true)
       } else {
-        if (assembledText) appendMessage('assistant', assembledText)
+        // Save both the structured parts AND the final assembled text into history.
+        // On page refresh, MessageBubble will render the parts as the execution trace.
+        const partsToSave = finalParts.length > 0 ? finalParts : undefined
+        appendMessage('assistant', assembledText, partsToSave)
         // Auto-speak response if voice auto-speak is enabled
         if (assembledText) {
           const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
@@ -553,12 +714,22 @@ export function ChatPanel() {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        className={`chat-history flex-1 overflow-y-auto px-4 py-4 space-y-3 ${noAnimate ? 'no-animate' : ''}`}
         style={{ minHeight: 0 }}
       >
         {history.length === 0 && !isStreaming && (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
-            Send a message to get started
+          <div
+            className={`flex flex-col items-center justify-center h-full gap-3 select-none ${
+              welcomeReady ? 'welcome-ready' : 'splash-hidden'
+            }`}
+          >
+            <div
+              className="welcome-name text-4xl font-bold tracking-[0.2em] font-mono"
+              style={{ color: 'var(--color-text-primary, #FFB633)' }}
+            >
+              YAPOC
+            </div>
+            <div className="text-zinc-600 text-sm">Send a message to get started</div>
           </div>
         )}
 
@@ -599,7 +770,7 @@ export function ChatPanel() {
         {/* Streaming assistant response */}
         {isStreaming && streamingParts.length === 0 && (
           <div className="flex items-center gap-2 text-zinc-500 text-sm pl-1">
-            <span className="animate-pulse">●</span>
+            <TypingIndicator />
             <span>Thinking…</span>
           </div>
         )}
@@ -608,7 +779,7 @@ export function ChatPanel() {
           <div className="space-y-1">
             {streamingParts.map((part, i) =>
               part.kind === 'text' ? (
-                <MessageBubble key={`t-${i}`} role="assistant" content={part.text} agentName="master" agentModel={masterModel} />
+                <MessageBubble key={`t-${i}`} role="assistant" content={part.text} agentName="master" agentModel={masterModel} streaming />
               ) : part.kind === 'thinking' ? (
                 <ThinkingBlock key={part.id} text={part.text} done={part.done} />
               ) : (
@@ -668,53 +839,42 @@ export function ChatPanel() {
             onSubmit={(text, img) => sendMessage(text, img)}
             disabled={isStreaming}
           />
-          {isStreaming ? (
+          {sttSupported && voiceEnabled && (
             <button
-              onClick={handleStop}
-              className="px-4 py-2 rounded-lg bg-red-700 text-white text-sm hover:bg-red-600 flex-shrink-0"
+              onClick={() => {
+                if (sttListening) {
+                  sttStop()
+                } else {
+                  sttStart()
+                }
+              }}
+              className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
+                sttListening
+                  ? 'bg-red-700 text-white hover:bg-red-600 animate-pulse'
+                  : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+              }`}
+              title={sttListening ? 'Stop listening' : 'Start listening'}
             >
-              Stop
+              🎤
             </button>
-          ) : (
-            <>
-              {sttSupported && voiceEnabled && (
-                <button
-                  onClick={() => {
-                    if (sttListening) {
-                      sttStop()
-                    } else {
-                      sttStart()
-                    }
-                  }}
-                  className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
-                    sttListening
-                      ? 'bg-red-700 text-white hover:bg-red-600 animate-pulse'
-                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                  }`}
-                  title={sttListening ? 'Stop listening' : 'Start listening'}
-                >
-                  🎤
-                </button>
-              )}
-              <button
-                onClick={() => setShowVoiceSettings((v) => !v)}
-                className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
-                  showVoiceSettings
-                    ? 'bg-zinc-600 text-zinc-100'
-                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                }`}
-                title={showVoiceSettings ? 'Hide voice settings' : 'Show voice settings'}
-              >
-                ⚙ Voice
-              </button>
-              <button
-                onClick={() => chatInputRef.current?.submit()}
-                className="px-4 py-2 rounded-lg bg-[#FFB633] text-[#0a0a0a] text-sm font-semibold hover:bg-[#ffc84d] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-              >
-                Send ↵
-              </button>
-            </>
           )}
+          <button
+            onClick={() => setShowVoiceSettings((v) => !v)}
+            className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
+              showVoiceSettings
+                ? 'bg-zinc-600 text-zinc-100'
+                : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+            }`}
+            title={showVoiceSettings ? 'Hide voice settings' : 'Show voice settings'}
+          >
+            ⚙ Voice
+          </button>
+          <SendButton
+            isStreaming={isStreaming}
+            launchTick={launchTick}
+            onSend={() => chatInputRef.current?.submit()}
+            onStop={handleStop}
+          />
         </div>
         {usage && (
           <CostBar

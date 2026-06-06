@@ -93,7 +93,7 @@ HEALTH_LINE_RE = re.compile(
 
 def _parse_health_log(agent_dir, last_n: int = 20) -> tuple[list[HealthLogEntry], str, int]:
     """Return (entries[-last_n], health_status, error_count)."""
-    path = agent_dir / "HEALTH.MD"
+    path = agent_dir.parent.parent / "memory" / "agents" / agent_dir.name / "HEALTH.MD"
     entries: list[HealthLogEntry] = []
     if path.exists():
         for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -127,7 +127,7 @@ def _parse_health_log(agent_dir, last_n: int = 20) -> tuple[list[HealthLogEntry]
 
 def _parse_memory(agent_dir) -> tuple[int, str | None, list[str]]:
     """Return (entry_count, last_entry_truncated, last_5_entries)."""
-    path = agent_dir / "MEMORY.MD"
+    path = agent_dir.parent.parent / "memory" / "agents" / agent_dir.name / "MEMORY.MD"
     if not path.exists():
         return 0, None, []
     lines = [l.strip() for l in path.read_text(encoding="utf-8", errors="ignore").splitlines() if l.strip()]

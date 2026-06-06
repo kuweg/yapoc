@@ -137,7 +137,7 @@ export async function getChannelSessions(): Promise<ChannelsResponse> {
 export async function uploadImage(file: File): Promise<{ path: string }> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch('/files/upload', { method: 'POST', body: form })
+  const res = await fetch('/api/files/upload', { method: 'POST', body: form })
   if (!res.ok) throw new Error(`POST /files/upload: ${res.status}`)
   return res.json() as Promise<{ path: string }>
 }

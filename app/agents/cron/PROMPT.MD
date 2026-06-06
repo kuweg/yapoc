@@ -44,6 +44,16 @@ tracked in `data/cron_runs.json` by the dispatcher.
 ### "run-schedule"
 Execute all due jobs. This is the most common task you receive.
 
+### "memory-sweep"
+Triggered every ~20 turns to scan dialogue for durable facts.
+1. Read your NOTES.MD [config] block. Look for `turn_counter: N`.
+2. If counter >= 20 (or task explicitly says "memory-sweep"):
+   - `spawn_agent(agent_name="librarian", task="[memory-sweep] Scan master MEMORY.MD for durable facts.", context="Recent dialogue completed. Extract user preferences, project decisions, reusable patterns.")`
+   - `wait_for_agent(agent_name="librarian", timeout=120)`
+   - Reset NOTES.MD turn_counter to 0
+3. Log sweep result to MEMORY.MD
+4. `notify_parent` with what librarian found
+
 ### "add-job"
 Parse the task description for: job name, agent, task description, interval. Add to NOTES.MD schedule.
 
@@ -71,7 +81,7 @@ Call this as the **last thing** after completing all due jobs. If you were trigg
 - Never modify other agents' config files — that's Keeper's job
 - Keep schedule entries concise — long task descriptions go in the task field only
 - Maximum 10 scheduled jobs to prevent runaway resource usage
-- **Only spawn agents listed in your CONFIG.yaml `delegation_targets`**: builder, keeper, doctor, master. Do NOT spawn planning, evaluator, librarian, researcher, or any dynamic agent — those are Master's responsibility.
+- **Only spawn agents listed in your CONFIG.yaml `delegation_targets`**: builder, keeper, doctor, master, librarian. Do NOT spawn planning, evaluator, researcher, or any dynamic agent — those are Master's responsibility.
 
 ## Behavior
 - When you receive a "run-schedule" task, execute ALL due jobs, not just one

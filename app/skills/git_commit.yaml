@@ -1,0 +1,20 @@
+name: git_commit
+summary: Commit changes using conventional commit format
+description: |
+  Creates a git commit with a properly formatted message following
+  conventional commits specification (feat:, fix:, docs:, etc.).
+level_1: "Commit changes with conventional commits"
+level_2: |
+  Parameters:
+  - message: The commit message (required)
+  - scope: Optional scope (e.g., api, ui, docs)
+  - breaking: true/false for breaking changes
+level_3: |
+  Procedure:
+  1. Run `git status` to see changed files
+  2. If no changes, exit with error
+  3. Stage files with `git add .` or specific files
+  4. Format message as: `<type>[(<scope>)]: <message>`
+  5. If breaking, add `BREAKING CHANGE:` in body
+  6. Run `git commit -m "<message>"`
+  7. Verify commit succeeded

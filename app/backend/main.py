@@ -1124,7 +1124,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         _indexer_tick,
         "interval",
-        minutes=settings.embedding_index_interval_minutes,
+        minutes=10,
         id="indexer",
     )
     scheduler.add_job(

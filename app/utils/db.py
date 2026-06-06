@@ -458,6 +458,17 @@ def get_tasks_by_status(*statuses: str, limit: int = 50) -> list[dict[str, Any]]
     return [dict(r) for r in rows]
 
 
+def clear_session_tasks(session_id: str, source: str = "telegram") -> int:
+    """Delete all task_queue rows for a given session+source. Returns count deleted."""
+    db = get_db()
+    cur = db.execute(
+        "DELETE FROM task_queue WHERE session_id = ? AND source = ?",
+        (session_id, source),
+    )
+    db.commit()
+    return cur.rowcount
+
+
 def recent_tasks_queue(limit: int = 50, status: str | None = None) -> list[dict[str, Any]]:
     """Return recent task_queue entries, newest first. Optional status filter."""
     db = get_db()

@@ -113,7 +113,7 @@ export function CostBar({ model, inputTokens, outputTokens, tokensPerSecond, con
 
   return (
     <div className="px-4 py-2 border-t border-zinc-700 bg-zinc-900 flex items-center gap-3 text-xs flex-shrink-0 flex-wrap">
-      <span className="text-zinc-400 font-semibold">[master]</span>
+      <span className="text-purple-400 font-semibold">[master]</span>
 
       <span className={colorCls}>{(animInput / 1000).toFixed(1)}k in</span>
       <span className="text-zinc-600">·</span>

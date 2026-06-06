@@ -45,9 +45,9 @@ def _parse_memory_line(line: str) -> tuple[str, str]:
     return "", line.strip()
 
 
-def index_agent_memory(agent_name: str, agent_dir: Path) -> int:
+def index_agent_memory(agent_name: str, memory_dir: Path) -> int:
     """Index new MEMORY.MD lines for a single agent. Returns count of new entries."""
-    memory_path = agent_dir / "MEMORY.MD"
+    memory_path = memory_dir / "MEMORY.MD"
     if not memory_path.exists():
         return 0
 
@@ -115,14 +115,14 @@ def _split_notes_sections(content: str) -> list[str]:
     return sections if sections else [content.strip()]
 
 
-def index_agent_notes(agent_name: str, agent_dir: Path) -> int:
+def index_agent_notes(agent_name: str, memory_dir: Path) -> int:
     """Index NOTES.MD for a single agent. Re-indexes when content changes.
 
     Uses a content hash to detect changes — only re-indexes when NOTES.MD
     has been modified. Deletes old entries and inserts fresh ones on change.
     Returns count of entries indexed (0 if unchanged or empty).
     """
-    notes_path = agent_dir / "NOTES.MD"
+    notes_path = memory_dir / "NOTES.MD"
     if not notes_path.exists():
         return 0
 
@@ -166,9 +166,9 @@ def index_agent_notes(agent_name: str, agent_dir: Path) -> int:
     return count
 
 
-def index_agent_learnings(agent_name: str, agent_dir: Path) -> int:
+def index_agent_learnings(agent_name: str, memory_dir: Path) -> int:
     """Index LEARNINGS.MD for a single agent. Same hash-based approach as NOTES.MD."""
-    learnings_path = agent_dir / "LEARNINGS.MD"
+    learnings_path = memory_dir / "LEARNINGS.MD"
     if not learnings_path.exists():
         return 0
 
@@ -713,16 +713,18 @@ def run_indexer() -> int:
     total = 0
 
     agents_dir = settings.agents_dir
+    memory_agents_dir = agents_dir.parent / "memory" / "agents"
     if not agents_dir.exists():
         return 0
 
     for agent_dir in sorted(agents_dir.iterdir()):
         if not agent_dir.is_dir() or agent_dir.name in _SKIP_DIRS:
             continue
+        memory_dir = memory_agents_dir / agent_dir.name
         try:
-            total += index_agent_memory(agent_dir.name, agent_dir)
-            total += index_agent_notes(agent_dir.name, agent_dir)
-            total += index_agent_learnings(agent_dir.name, agent_dir)
+            total += index_agent_memory(agent_dir.name, memory_dir)
+            total += index_agent_notes(agent_dir.name, memory_dir)
+            total += index_agent_learnings(agent_dir.name, memory_dir)
             total += index_agent_tasks(agent_dir.name, agent_dir)
             total += index_agent_report(agent_dir.name, agent_dir)
         except Exception as exc:

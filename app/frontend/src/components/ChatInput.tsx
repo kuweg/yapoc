@@ -75,7 +75,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const doSubmit = useCallback(() => {
       const trimmed = text.trim()
-      if (!trimmed || disabled) return
+      if ((!trimmed && !imageFile) || disabled) return
       onSubmit(trimmed, imageFile ?? undefined)
       setText('')
       setShowAutocomplete(false)
@@ -87,7 +87,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       clear: () => { setText(''); setShowAutocomplete(false) },
       focus: () => textareaRef.current?.focus(),
       submit: doSubmit,
-    }))
+    }), [setText, doSubmit])
 
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
       // Autocomplete navigation

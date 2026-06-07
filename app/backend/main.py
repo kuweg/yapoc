@@ -29,6 +29,7 @@ from app.backend.routers import (
     stale_tasks_router,
     tasks_router,
     test_endpoint_router,
+    uploads_router,
     vault_router,
     voice_router,
     webhook_router,
@@ -1242,6 +1243,7 @@ app.include_router(tasks_router)
 app.include_router(agents_router)
 app.include_router(metrics_router)
 app.include_router(files_router)
+app.include_router(uploads_router)
 app.include_router(memory_graph_router)
 app.include_router(vault_router)
 app.include_router(test_endpoint_router)

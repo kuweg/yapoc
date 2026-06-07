@@ -18,6 +18,12 @@ export type UsageEvent = {
   tokens_per_second: number
   context_window: number
 }
+export type CompactEvent = {
+  type: 'compact'
+  reason: string
+  tokens_before: number
+  tokens_after: number
+}
 export type StreamEvent =
   | TextEvent
   | ThinkingEvent
@@ -25,6 +31,7 @@ export type StreamEvent =
   | ToolDoneEvent
   | ErrorEvent
   | UsageEvent
+  | CompactEvent
   | MessageBoundaryEvent
 
 export interface AgentStatus {
@@ -80,6 +87,7 @@ export type TaskPart =
       isError?: boolean
       done: boolean
     }
+  | { kind: 'compact'; id: string; tokensBefore: number; tokensAfter: number; reason: string }
 
 export interface Attachment {
   id?: string          // server upload id (present after upload)

@@ -195,7 +195,15 @@ class Settings(BaseSettings):
     # Snapshot HEAD before each sub-agent task spawn; verify (smoke test +
     # JSON sanity) on terminal status; commit or roll back. Per-sub-agent-task
     # granularity. Disable to skip entirely (snapshot returns a no-op handle).
-    git_autocheckpoint_enabled: bool = True
+    #
+    # DEFAULT OFF: the checkpoint attributes every path that became dirty after
+    # its snapshot to the agent (commit_checkpoint: `current - baseline`). It
+    # therefore CANNOT distinguish the agent's edits from any concurrent edit —
+    # a human (or a parallel agent) working at the same time has their new files
+    # swept into a `yapoc:agent:*:done` commit on the shared branch, racing
+    # manual commits. Only safe for fully-autonomous, single-writer runs. Opt in
+    # explicitly via GIT_AUTOCHECKPOINT_ENABLED=true when no human is editing.
+    git_autocheckpoint_enabled: bool = False
     git_verify_smoke_test: bool = True
     git_checkpoint_label_prefix: str = "yapoc"
 

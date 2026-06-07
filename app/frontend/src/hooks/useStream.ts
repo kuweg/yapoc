@@ -44,13 +44,14 @@ export async function* streamTask(
   history: Message[],
   signal: AbortSignal,
   sessionId?: string | null,
+  attachments?: string[],
 ): AsyncGenerator<StreamEvent> {
   let attempt = 0
   let yieldedAny = false
 
   while (true) {
     try {
-      for await (const event of _streamOnce(task, history, signal, sessionId)) {
+      for await (const event of _streamOnce(task, history, signal, sessionId, attachments)) {
         yieldedAny = true
         yield event
       }
@@ -147,11 +148,18 @@ async function* _streamOnce(
   history: Message[],
   signal: AbortSignal,
   sessionId?: string | null,
+  attachments?: string[],
 ): AsyncGenerator<StreamEvent> {
   const res = await fetch('/api/task/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task, history, source: 'ui', session_id: sessionId || undefined }),
+    body: JSON.stringify({
+      task,
+      history,
+      source: 'ui',
+      session_id: sessionId || undefined,
+      attachments: attachments && attachments.length ? attachments : undefined,
+    }),
     signal,
   })
 

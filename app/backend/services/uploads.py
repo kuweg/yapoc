@@ -263,3 +263,82 @@ def touch_accessed(file_id: str) -> None:
         if rec:
             rec["last_accessed"] = datetime.now(timezone.utc).isoformat()
             _save_index(index)
+
+
+# ── message injection (Phase 1 — image_read marker path + inline text) ───────
+TEXT_BUDGET = 24_000  # total inlined chars across all attachments in one message
+_TEXT_MIMES = ("text/", "application/json", "application/xml", "application/x-yaml")
+
+
+def project_rel_path(rec: dict[str, Any]) -> str:
+    """Path of the stored file relative to project_root, so the agent's
+    ``image_read`` / ``file_read`` tools (which sandbox to project_root) can load
+    it directly."""
+    return f"data/uploads/{rec['path']}"
+
+
+def _extract_text(rec: dict[str, Any]) -> Optional[str]:
+    """Best-effort text extraction for Phase 1 (text/code/markdown/docx). Returns
+    None for formats handled by later phases (pdf/office-non-docx/audio)."""
+    mime = (rec.get("mime") or "").lower()
+    name = (rec.get("name") or "").lower()
+    path = upload_path(rec)
+    if not path.exists():
+        return None
+    is_text = mime.startswith(_TEXT_MIMES) or name.endswith(
+        (".txt", ".md", ".markdown", ".json", ".yaml", ".yml", ".csv", ".log",
+         ".py", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".sh", ".toml", ".ini")
+    )
+    if is_text:
+        try:
+            return path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+    if name.endswith(".docx"):
+        try:
+            import io as _io
+            import docx  # python-docx
+            doc = docx.Document(_io.BytesIO(path.read_bytes()))
+            return "\n".join(p.text for p in doc.paragraphs)
+        except Exception:
+            return None
+    return None
+
+
+def build_attachment_injection(ids: list[str], owner: str) -> tuple[str, list[dict[str, Any]]]:
+    """Resolve attachment IDs (owner-scoped) and build the text to append to the
+    user message: an ``image_read`` marker per image, inline text for
+    text/docx, and a note for formats not yet extracted. Returns
+    ``(suffix, meta_list)`` where meta_list is the public metadata for the SSE
+    ``attachments`` event + bubble rendering.
+    """
+    parts: list[str] = []
+    meta: list[dict[str, Any]] = []
+    budget = TEXT_BUDGET
+    for fid in ids or []:
+        rec = resolve_upload(fid, owner=owner)
+        if not rec:
+            continue
+        meta.append(public_meta(rec))
+        mime = (rec.get("mime") or "")
+        name = rec.get("name") or "file"
+        rel = project_rel_path(rec)
+        if mime.startswith("image/"):
+            # Master loads it via image_read; normalize.py formats per-adapter.
+            parts.append(f"[📎 photo attached: {rel}]")
+            continue
+        text = _extract_text(rec)
+        if text is not None:
+            if budget <= 0:
+                parts.append(f"\n\n[Attachment omitted (budget exceeded): {name}]")
+                continue
+            snippet = text[:budget]
+            budget -= len(snippet)
+            trunc = "\n[… truncated]" if len(text) > len(snippet) else ""
+            ext = name.rsplit(".", 1)[-1] if "." in name else ""
+            fence = f"```{ext}\n" if ext and ext not in ("txt", "md", "markdown") else ""
+            close = "```" if fence else ""
+            parts.append(f"\n\n--- Attachment: {name} ---\n{fence}{snippet}{trunc}\n{close}\n--- end {name} ---")
+        else:
+            parts.append(f"\n\n[Attachment: {name} ({mime}) — content extraction not available yet]")
+    return ("\n".join(parts) if parts else ""), meta

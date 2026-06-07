@@ -6,7 +6,7 @@ import { ToolCallBlock } from './ToolCallBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts, type GroupedPart } from './groupParts'
 import { StreamingText } from './StreamingText'
-import type { TaskPart } from '../api/types'
+import type { TaskPart, Attachment } from '../api/types'
 
 interface MessageBubbleProps {
   role: 'user' | 'assistant'
@@ -15,9 +15,52 @@ interface MessageBubbleProps {
   agentName?: string
   agentModel?: string
   onDelete?: () => void
+  attachments?: Attachment[]
   // When true the AI text is rendered through StreamingText (per-token fade)
   // instead of markdown — used only for the in-flight streaming bubble.
   streaming?: boolean
+}
+
+const ATTACH_IMG_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
+function attachIsImage(a: Attachment): boolean {
+  return (a.mime || '').startsWith('image/') || ATTACH_IMG_RE.test(a.name || '')
+}
+
+/** Render attachment cards for a user message (image thumbnails + file chips). */
+function AttachCards({ attachments }: { attachments: Attachment[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-1.5 justify-end">
+      {attachments.map((a, i) => {
+        const src = a.previewUrl || (a.id ? `/api/upload/${a.id}?thumb=1` : undefined)
+        if (attachIsImage(a) && src) {
+          const full = a.id ? `/api/upload/${a.id}` : a.previewUrl
+          return (
+            <a key={a.id ?? i} href={full} target="_blank" rel="noopener noreferrer" className="block">
+              <img
+                src={src}
+                alt={a.name}
+                loading="lazy"
+                className="max-h-32 max-w-[180px] rounded-lg border border-zinc-700 object-cover hover:opacity-90 transition-opacity"
+              />
+            </a>
+          )
+        }
+        const href = a.id ? `/api/upload/${a.id}` : undefined
+        return (
+          <a
+            key={a.id ?? i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 font-mono"
+            title={a.name}
+          >
+            📄 <span className="truncate max-w-[140px]">{a.name}</span>
+          </a>
+        )
+      })}
+    </div>
+  )
 }
 
 // Per-agent accent colors (Tailwind classes)
@@ -86,17 +129,19 @@ function AgentLabel({ name, model }: { name: string; model?: string }) {
   )
 }
 
-function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDelete, streaming }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDelete, attachments, streaming }: MessageBubbleProps) {
   if (role === 'user') {
-    // Check for photo attachment marker
+    // Legacy single-image marker (older messages); new attachments come via the
+    // `attachments` prop and render as cards above the bubble.
     const photoMatch = content.match(/\[📎 photo attached: ([^\]]+)\]/)
     const photoPath = photoMatch?.[1] ?? null
-    // Strip the attachment marker and any stale blob-URL markdown (![image](blob:...))
     let displayContent = photoPath ? content.replace(photoMatch![0], '').trim() : content
     displayContent = displayContent.replace(/!\[image\]\(blob:[^)]+\)/g, '').trim()
 
     return (
       <div className="msg flex flex-col items-end gap-0.5 group">
+        {attachments && attachments.length > 0 && <AttachCards attachments={attachments} />}
+        {(displayContent || photoPath) && (
         <div
           className="max-w-[80%] rounded-2xl rounded-tr-sm px-4 py-2 text-sm whitespace-pre-wrap"
           style={{
@@ -116,6 +161,7 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
           )}
           {displayContent}
         </div>
+        )}
         {onDelete && (
           <div className="flex items-center justify-end gap-1 mr-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <button

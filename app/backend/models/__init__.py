@@ -8,6 +8,7 @@ class TaskRequest(BaseModel):
     history: list[dict] | None = None
     source: str | None = None  # "cli", "ui", "notification"
     session_id: str | None = None  # bind task/event stream to a UI chat session
+    attachments: list[str] | None = None  # uploaded attachment IDs (owner-scoped)
 
 
 class TaskResponse(BaseModel):

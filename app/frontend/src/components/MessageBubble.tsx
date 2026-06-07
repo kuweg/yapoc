@@ -6,6 +6,7 @@ import { ToolCallBlock } from './ToolCallBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts, type GroupedPart } from './groupParts'
 import { StreamingText } from './StreamingText'
+import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import type { TaskPart, Attachment } from '../api/types'
 
 interface MessageBubbleProps {
@@ -63,19 +64,6 @@ function AttachCards({ attachments }: { attachments: Attachment[] }) {
   )
 }
 
-// Per-agent accent colors (Tailwind classes)
-const AGENT_COLORS: Record<string, { label: string; dot: string }> = {
-  master:        { label: 'text-purple-400',  dot: 'bg-purple-400' },
-  planning:      { label: 'text-blue-400',    dot: 'bg-blue-400' },
-  builder:       { label: 'text-green-400',   dot: 'bg-green-400' },
-  keeper:        { label: 'text-yellow-400',  dot: 'bg-yellow-400' },
-  cron:          { label: 'text-orange-400',  dot: 'bg-orange-400' },
-  doctor:        { label: 'text-red-400',     dot: 'bg-red-400' },
-  model_manager: { label: 'text-cyan-400',    dot: 'bg-cyan-400' },
-}
-
-const DEFAULT_AGENT_COLORS = { label: 'text-zinc-400', dot: 'bg-zinc-400' }
-
 const MARKDOWN_COMPONENTS = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
   pre: ({ children }: { children?: React.ReactNode }) => (
@@ -116,13 +104,12 @@ const MARKDOWN_COMPONENTS = {
 }
 
 function AgentLabel({ name, model }: { name: string; model?: string }) {
-  const colors = AGENT_COLORS[name] ?? DEFAULT_AGENT_COLORS
-  const displayName = name.replace(/_/g, ' ')
+  const color = getAgentColor(name)
   return (
     <div className="flex items-center gap-1.5 mb-1 pl-1">
-      <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${colors.dot}`} />
-      <span className={`text-xs font-semibold uppercase tracking-wide ${colors.label}`}>
-        {displayName}
+      <AgentAvatar name={name} size={16} />
+      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color }}>
+        {getAgentDisplayName(name)}
         {model && <span className="text-[10px] font-normal text-zinc-500 lowercase ml-1.5">[{model}]</span>}
       </span>
     </div>

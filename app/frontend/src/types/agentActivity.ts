@@ -28,20 +28,7 @@ export const ACTIVITY_TYPE_LABELS: Record<AgentActivityLog['type'], string> = {
   thinking: 'Thinking',
 }
 
-/** Per-agent name badge colors */
-export const AGENT_NAME_COLORS: Record<string, string> = {
-  builder: '#3b82f6',     // blue
-  planning: '#22c55e',    // green
-  keeper: '#f97316',      // orange
-  evaluator: '#a855f7',   // purple
-  doctor: '#ef4444',      // red
-  cron: '#14b8a6',        // teal
-  researcher: '#06b6d4',  // cyan
-  librarian: '#eab308',   // gold
-  master: '#8b5cf6',      // violet
-  default: '#6b7280',     // gray fallback
-}
-
-export function getAgentColor(name: string): string {
-  return AGENT_NAME_COLORS[name.toLowerCase()] ?? AGENT_NAME_COLORS.default
-}
+// Per-agent name colors are canonical in lib/agentIdentity (single source of
+// truth). Re-export so existing importers get the consolidated palette + the
+// stable hash fallback for dynamic agents.
+export { getAgentColor } from '../lib/agentIdentity'

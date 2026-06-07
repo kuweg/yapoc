@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentStatus } from '../api/types'
 import { useAgentChatStore } from '../store/agentChatStore'
+import { killAgent } from '../api/client'
 import { AgentAvatar, getAgentDisplayName } from '../lib/agentIdentity'
 import { AgentPresenceIndicator } from './AgentPresence'
 
@@ -53,6 +54,9 @@ interface AgentCardProps {
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
   const state = agent.status || agent.process_state || 'idle'
   const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
+  // Killable = a live subprocess exists (busy OR idle-but-alive). You can stop
+  // any running process, not just one actively working a task.
+  const killable = agent.pid != null || isRunning
 
   const setSelectedLogAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
 
@@ -86,6 +90,19 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
     setSelectedLogAgent(agent.name)
   }
 
+  const [killing, setKilling] = useState(false)
+  async function handleStop(e: React.MouseEvent) {
+    e.stopPropagation()
+    setKilling(true)
+    try {
+      await killAgent(agent.name)
+    } catch {
+      /* error surfaced by the sidebar refresh / next poll */
+    } finally {
+      setKilling(false)
+    }
+  }
+
   return (
     <button
       onClick={handleClick}
@@ -93,11 +110,23 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
         selected ? 'bg-zinc-800' : ''
       }`}
     >
-      {/* Row 1: identity avatar + name + live presence */}
+      {/* Row 1: identity avatar + name + live presence + per-agent stop */}
       <div className="flex items-center gap-2">
         <AgentAvatar name={agent.name} size={18} />
         <span className="text-sm text-zinc-200 truncate flex-1">{getAgentDisplayName(agent.name)}</span>
         <AgentPresenceIndicator name={agent.name} status={state} />
+        {killable && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleStop}
+            aria-disabled={killing}
+            title={`Stop ${agent.name}`}
+            className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-red-400/70 hover:text-red-300 hover:bg-red-500/15 transition-colors ${killing ? 'opacity-40 pointer-events-none' : ''}`}
+          >
+            <svg width="8" height="8" viewBox="0 0 10 10"><rect width="10" height="10" rx="1.5" fill="currentColor" /></svg>
+          </span>
+        )}
       </div>
 
       {/* Row 2: pid / task summary */}

@@ -38,6 +38,22 @@ export function AgentSidebar() {
     }
   }
 
+  const RUNNING = new Set(['running', 'busy', 'spawning'])
+  // Killable = a live subprocess (has a pid) or a running status.
+  const killableAgents = agents.filter(
+    (a) => a.pid != null || RUNNING.has(String(a.status || a.process_state || '')),
+  )
+
+  // Stop the whole swarm at once without killing them one-by-one (spec #4).
+  async function handleStopAll() {
+    if (killableAgents.length === 0) return
+    setActionError(null)
+    const results = await Promise.allSettled(killableAgents.map((a) => killAgent(a.name)))
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed) setActionError(`Stop all: ${failed}/${killableAgents.length} failed`)
+    refresh()
+  }
+
   return (
     <aside className="flex flex-col bg-zinc-900 border-r border-zinc-700 w-48 min-w-[12rem] flex-shrink-0 max-md:w-36 max-md:min-w-[9rem] max-sm:hidden">
       <div className="px-4 py-3 border-b border-zinc-700">
@@ -69,6 +85,14 @@ export function AgentSidebar() {
       </div>
 
       <div className="px-4 py-3 border-t border-zinc-700 flex flex-col gap-2">
+        <button
+          onClick={handleStopAll}
+          disabled={killableAgents.length === 0}
+          title="Stop all live agents"
+          className="w-full rounded border border-red-700/60 bg-transparent px-2 py-1 text-xs text-red-400 hover:bg-red-700 hover:text-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          ■ Stop all{killableAgents.length > 0 ? ` (${killableAgents.length})` : ''}
+        </button>
         <button
           onClick={handleOpenLogs}
           disabled={!selected}

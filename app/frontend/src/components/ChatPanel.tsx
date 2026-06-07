@@ -9,6 +9,7 @@ import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
+import { CompactionMarker } from './ContextGauge'
 import { groupParts } from './groupParts'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { CostBar } from './CostBar'
@@ -27,6 +28,7 @@ type PendingStreamEvent =
   | { kind: 'text_delta'; text: string }
   | { kind: 'tool_start'; id: string; name: string; input: Record<string, unknown> }
   | { kind: 'tool_done'; name: string; result: string; isError: boolean }
+  | { kind: 'compact'; tokensBefore: number; tokensAfter: number; reason: string }
 
 /** ES2023 findLastIndex polyfill */
 function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
@@ -76,6 +78,11 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
         }
         parts = updated
       }
+    } else if (event.kind === 'compact') {
+      parts = [
+        ...parts,
+        { kind: 'compact', id: crypto.randomUUID(), tokensBefore: event.tokensBefore, tokensAfter: event.tokensAfter, reason: event.reason },
+      ]
     }
   }
   return parts
@@ -247,6 +254,9 @@ function PartsChain({
         }
         if (part.kind === 'thinking') {
           return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+        }
+        if (part.kind === 'compact') {
+          return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
         }
         return (
           <ToolCallBlock
@@ -696,6 +706,13 @@ export function ChatPanel() {
           })
         } else if (event.type === 'usage_stats') {
           setUsage(event)
+        } else if (event.type === 'compact') {
+          enqueueStreamEvent({
+            kind: 'compact',
+            tokensBefore: event.tokens_before,
+            tokensAfter: event.tokens_after,
+            reason: event.reason,
+          })
         } else if (event.type === 'error') {
           // Backend emits `{type: "error", error: "..."}` when
           // master_agent.handle_task_stream raises (e.g. budget cap,

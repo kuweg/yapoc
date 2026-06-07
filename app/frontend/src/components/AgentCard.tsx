@@ -4,6 +4,7 @@ import { useAgentChatStore } from '../store/agentChatStore'
 import { killAgent } from '../api/client'
 import { AgentAvatar, getAgentDisplayName } from '../lib/agentIdentity'
 import { AgentPresenceIndicator } from './AgentPresence'
+import { ContextGauge, contextWindowForModel } from './ContextGauge'
 
 const MAX_SPARKLINE = 20
 
@@ -54,6 +55,7 @@ interface AgentCardProps {
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
   const state = agent.status || agent.process_state || 'idle'
   const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
+  const ctxUsed = (agent.input_tokens || 0) + (agent.output_tokens || 0)
   // Killable = a live subprocess exists (busy OR idle-but-alive). EXCLUDE master:
   // it runs in-process, so its STATUS pid IS the backend (uvicorn) pid — killing
   // it would SIGTERM the whole backend. The UI must never do that.
@@ -130,12 +132,15 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
         )}
       </div>
 
-      {/* Row 2: pid / task summary */}
-      {(agent.pid != null || agent.task_summary) && (
+      {/* Row 2: pid / context gauge / task summary */}
+      {(agent.pid != null || agent.task_summary || ctxUsed > 0) && (
         <div className="pl-4 mt-0.5">
-          {agent.pid != null && (
-            <span className="text-xs text-zinc-600">pid {agent.pid}</span>
-          )}
+          <div className="flex items-center gap-2">
+            {agent.pid != null && (
+              <span className="text-xs text-zinc-600 flex-shrink-0">pid {agent.pid}</span>
+            )}
+            <ContextGauge used={ctxUsed} window={contextWindowForModel(agent.model)} />
+          </div>
           {agent.task_summary && (
             <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>
           )}

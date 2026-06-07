@@ -5,6 +5,7 @@ import { ToolCallBlock } from './ToolCallBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts } from './groupParts'
 import { AgentAvatar, getAgentColor, getAgentDisplayName, withAlpha } from '../lib/agentIdentity'
+import { CompactionMarker } from './ContextGauge'
 import type { TaskPart } from '../api/types'
 
 export type { TaskPart }
@@ -158,6 +159,9 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
               }
               if (part.kind === 'thinking') {
                 return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+              }
+              if (part.kind === 'compact') {
+                return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
               }
               return (
                 <ToolCallBlock

@@ -7,6 +7,7 @@ import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts, type GroupedPart } from './groupParts'
 import { StreamingText } from './StreamingText'
 import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
+import { CompactionMarker } from './ContextGauge'
 import type { TaskPart, Attachment } from '../api/types'
 
 interface MessageBubbleProps {
@@ -185,6 +186,9 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
     }
     if (part.kind === 'thinking') {
       return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+    }
+    if (part.kind === 'compact') {
+      return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
     }
     return (
       <ToolCallBlock

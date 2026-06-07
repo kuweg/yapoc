@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from app.agents.master.agent import master_agent
 from app.backend.models import TaskRequest, TaskResponse
 from app.backend.services.agent_results import build_result_injection, collect_agent_results
-from app.utils.adapters import Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
+from app.utils.adapters import CompactEvent, Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
 from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
 router = APIRouter()
@@ -30,6 +30,13 @@ def _event_to_dict(event: Any) -> dict | None:
         return {"type": "tool_start", "name": event.name, "input": event.input}
     if isinstance(event, ToolDone):
         return {"type": "tool_done", "name": event.name, "result": event.result, "is_error": event.is_error}
+    if isinstance(event, CompactEvent):
+        return {
+            "type": "compact",
+            "reason": event.reason,
+            "tokens_before": event.tokens_before,
+            "tokens_after": event.tokens_after,
+        }
     if isinstance(event, UsageStats):
         return {
             "type": "usage_stats",

@@ -778,13 +778,19 @@ export function ChatPanel() {
       }
       flushPendingEvents()
 
-      // Mark any open thinking parts as done
-      setStreamingParts((prev) =>
-        prev.map((p) => (p.kind === 'thinking' && !p.done ? { ...p, done: true } : p)),
-      )
+      // The turn is over — nothing is still "running". Close out any open
+      // thinking OR tool parts so a tool whose tool_done never arrived (e.g.
+      // wait_for_agent, whose result master surfaced inline) doesn't spin
+      // forever. Applied to BOTH the live view and the captured finalParts
+      // (what gets persisted/grouped), since the ref lags the last flush.
+      const closeOpenParts = (parts: Part[]): Part[] =>
+        parts.map((p) =>
+          (p.kind === 'thinking' || p.kind === 'tool') && !p.done ? { ...p, done: true } : p,
+        )
+      setStreamingParts((prev) => closeOpenParts(prev))
 
       // Capture the full parts array before resetting
-      const finalParts = streamingPartsRef.current
+      const finalParts = closeOpenParts(streamingPartsRef.current)
 
       if (hadSpawnAgent && !hadInlineResult) {
         // Genuine fire-and-forget spawn: master ended its turn without waiting,

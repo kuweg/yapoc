@@ -91,6 +91,10 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
 // Default model for cost estimation — overridden at runtime by masterModel state
 const DEFAULT_MODEL = 'kimi-k2.6'
 
+// How long to wait for a fire-and-forget background notification before giving
+// up and finalizing the task group (so "Task running" never sticks forever).
+const NOTIFICATION_TIMEOUT_MS = 150_000
+
 // ── Animated send/stop button ──────────────────────────────────────
 // Loading / typing indicator (spec §5). Drives the ASCII wave via the spinner
 // module so the interval handle is owned and cleared on unmount (rule #5);
@@ -569,6 +573,32 @@ export function ChatPanel() {
     clearLastOrphanNotification()
   }, [awaitingNotification, lastOrphanNotification, clearLastOrphanNotification, persistTaskGroupToHistory])
 
+  // Safety net: a fire-and-forget spawn whose completion notification never
+  // arrives (lost/mis-routed) would otherwise leave "Task running" stuck
+  // forever. After a grace period with no resolution, finalize any running
+  // groups so the UI never lies about a task still running.
+  useEffect(() => {
+    if (!awaitingNotification) return
+    const timer = setTimeout(() => {
+      setTaskGroups((prev) => {
+        if (!prev.some((g) => g.status === 'running')) return prev
+        for (const group of prev) {
+          if (group.status !== 'running') continue
+          const completedGroup: TaskGroup = {
+            ...group,
+            finalText: group.finalText || '_Task finished — no result notification received._',
+            status: 'done',
+          }
+          setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+        }
+        return prev.filter((g) => g.status !== 'running')
+      })
+      setAwaitingNotification(false)
+      setBackgroundActivity('')
+    }, NOTIFICATION_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [awaitingNotification, persistTaskGroupToHistory])
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
@@ -681,6 +711,8 @@ export function ChatPanel() {
     let assembledText = ''
     // Track whether any sub-agents were spawned — if so, poll for background results
     let hadSpawnAgent = false
+    // Did master resolve the delegation inline (wait/read) in this same turn?
+    let hadInlineResult = false
 
     try {
       for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds)) {
@@ -691,6 +723,18 @@ export function ChatPanel() {
           enqueueStreamEvent({ kind: 'text_delta', text: event.text })
         } else if (event.type === 'tool_start') {
           if (event.name === 'spawn_agent') hadSpawnAgent = true
+          // If master waits for / reads the child's result in THIS turn, the
+          // result is already in its response — there is no separate background
+          // notification coming, so we must not arm awaitingNotification (which
+          // would leave "Task running" stuck forever).
+          if (
+            event.name === 'wait_for_agent' ||
+            event.name === 'wait_for_agents' ||
+            event.name === 'read_task_result' ||
+            event.name === 'execute_dag'
+          ) {
+            hadInlineResult = true
+          }
           enqueueStreamEvent({
             kind: 'tool_start',
             id: crypto.randomUUID(),
@@ -742,8 +786,10 @@ export function ChatPanel() {
       // Capture the full parts array before resetting
       const finalParts = streamingPartsRef.current
 
-      if (hadSpawnAgent) {
-        // Preserve the execution trace as a task group (collapsible, live-updating)
+      if (hadSpawnAgent && !hadInlineResult) {
+        // Genuine fire-and-forget spawn: master ended its turn without waiting,
+        // so the child completes later → a background notification will resolve
+        // this. Render the trace as a live task group meanwhile.
         setTaskGroups((prev) => [
           ...prev,
           {
@@ -754,6 +800,18 @@ export function ChatPanel() {
           },
         ])
         setAwaitingNotification(true)
+      } else if (hadSpawnAgent && hadInlineResult) {
+        // master spawned AND waited/read the result in this turn — it's already
+        // in `assembledText`. Show the delegation trace as a COMPLETED task group
+        // and persist it; do NOT wait for a notification that will never come.
+        const doneGroup: TaskGroup = {
+          id: crypto.randomUUID(),
+          parts: finalParts,
+          finalText: assembledText,
+          status: 'done',
+        }
+        setTaskGroups((prev) => [...prev, doneGroup])
+        setTimeout(() => persistTaskGroupToHistory(doneGroup), 0)
       } else {
         // Save both the structured parts AND the final assembled text into history.
         // On page refresh, MessageBubble will render the parts as the execution trace.

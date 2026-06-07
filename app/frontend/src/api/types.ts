@@ -81,10 +81,21 @@ export type TaskPart =
       done: boolean
     }
 
+export interface Attachment {
+  id?: string          // server upload id (present after upload)
+  name: string
+  mime: string
+  size?: number
+  width?: number
+  height?: number
+  previewUrl?: string  // object-URL (session-only) for instant preview
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
-  parts?: TaskPart[]  // execution trace for structured assistant messages
+  parts?: TaskPart[]         // execution trace for structured assistant messages
+  attachments?: Attachment[] // files attached to a user message
 }
 
 // Client-side session (localStorage)

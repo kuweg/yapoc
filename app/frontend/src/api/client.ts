@@ -132,14 +132,52 @@ export async function getChannelSessions(): Promise<ChannelsResponse> {
   return res.json() as Promise<ChannelsResponse>
 }
 
-// ── Image upload ─────────────────────────────────────────────────────────────
+// ── File upload (images + text files) ────────────────────────────────────────
 
-export async function uploadImage(file: File): Promise<{ path: string }> {
+export interface FileUploadResult {
+  path: string
+  type?: string
+  content?: string
+}
+
+export async function uploadFile(file: File): Promise<FileUploadResult> {
   const form = new FormData()
   form.append('file', file)
   const res = await fetch('/api/files/upload', { method: 'POST', body: form })
   if (!res.ok) throw new Error(`POST /files/upload: ${res.status}`)
-  return res.json() as Promise<{ path: string }>
+  return res.json() as Promise<FileUploadResult>
+}
+
+// Legacy alias — old import paths still reference uploadImage
+export const uploadImage = uploadFile
+
+// ── Multi-file attachment upload (two-phase: upload → ids → chat) ─────────────
+export interface UploadedAttachment {
+  id: string
+  name: string
+  mime: string
+  size: number
+  hash: string
+  width?: number
+  height?: number
+  is_duplicate?: boolean
+}
+
+export async function uploadFiles(
+  files: File[],
+): Promise<{ files: UploadedAttachment[]; errors: { name: string; error: string }[] }> {
+  const form = new FormData()
+  files.forEach((f) => form.append('files', f, f.name || 'paste.png'))
+  const res = await fetch('/api/upload', { method: 'POST', body: form })
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      detail = body.detail || body.error || detail
+    } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  return res.json()
 }
 
 export async function getChannelSessionMessages(source: string, sessionId: string): Promise<ChannelSessionMessagesResponse> {

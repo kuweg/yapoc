@@ -4,7 +4,7 @@ import { useSessionStore } from '../store/session'
 import { useWsStore } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
-import { handleCommand, synthesizeSpeech, getAgents, uploadImage } from '../api/client'
+import { handleCommand, synthesizeSpeech, getAgents, uploadFiles } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -15,7 +15,7 @@ import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
 import { startAsciiWave, ASCII_WAVE_FRAMES } from './spinner'
-import type { UsageEvent, TaskPart } from '../api/types'
+import type { UsageEvent, TaskPart, Attachment } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
 type Part = TaskPart
@@ -588,24 +588,30 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatInput])
 
-  const sendMessage = useCallback(async (rawText: string, imageFile?: File) => {
-    let text = rawText.trim()
-    let displayText = text
-    if (!text && !imageFile) return
+  const sendMessage = useCallback(async (rawText: string, files: File[] = []) => {
+    const text = rawText.trim()
+    const displayText = text
+    if (!text && files.length === 0) return
     if (isStreaming) return
 
-    // Upload image if provided, append marker to text and show preview inline
-    if (imageFile) {
-      const localPreviewUrl = URL.createObjectURL(imageFile)
+    // Two-phase: upload staged files first, then send the message carrying only
+    // their IDs. The server resolves IDs (owner-scoped) and injects image_read
+    // markers + inline text — the chat request never carries file bytes.
+    let attachmentIds: string[] = []
+    let attachments: Attachment[] | undefined
+    if (files.length > 0) {
       try {
-        const { path } = await uploadImage(imageFile)
-        text = text ? `${text} [📎 photo attached: ${path}]` : `[📎 photo attached: ${path}]`
-        displayText = text
-        URL.revokeObjectURL(localPreviewUrl)
+        const { files: uploaded, errors } = await uploadFiles(files)
+        attachmentIds = uploaded.map((u) => u.id)
+        attachments = uploaded.map((u) => ({
+          id: u.id, name: u.name, mime: u.mime, size: u.size, width: u.width, height: u.height,
+        }))
+        if (errors.length) {
+          appendMessage('assistant', `_Some files were rejected: ${errors.map((e) => `${e.name}: ${e.error}`).join('; ')}_`)
+        }
       } catch (e) {
-        URL.revokeObjectURL(localPreviewUrl)
-        appendMessage('user', rawText)
-        appendMessage('assistant', `_Failed to upload image: ${(e as Error).message}_`)
+        appendMessage('user', rawText || '(attachments)')
+        appendMessage('assistant', `_Failed to upload attachments: ${(e as Error).message}_`)
         return
       }
     }
@@ -651,7 +657,7 @@ export function ChatPanel() {
     // Capture history BEFORE appending the new user message
     const apiHistory = useSessionStore.getState().history
 
-    appendMessage('user', displayText)
+    appendMessage('user', displayText, undefined, attachments)
     const sessionId = useSessionStore.getState().activeId
     setLaunchTick((t) => t + 1) // fire the send-button launch (spec §4)
     setStreamingParts([])
@@ -667,7 +673,7 @@ export function ChatPanel() {
     let hadSpawnAgent = false
 
     try {
-      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId)) {
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds)) {
         if (event.type === 'thinking') {
           enqueueStreamEvent({ kind: 'thinking_delta', text: event.text })
         } else if (event.type === 'text') {
@@ -811,6 +817,7 @@ export function ChatPanel() {
               <MessageBubble
                 role={msg.role}
                 content={msg.content}
+                attachments={msg.attachments}
                 agentName={msg.role === 'assistant' ? 'master' : undefined}
                 agentModel={msg.role === 'assistant' ? masterModel : undefined}
                 onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
@@ -892,7 +899,7 @@ export function ChatPanel() {
         <div className="flex flex-wrap gap-2 items-end">
           <ChatInput
             ref={chatInputRef}
-            onSubmit={(text, img) => sendMessage(text, img)}
+            onSubmit={(text, files) => sendMessage(text, files)}
             disabled={isStreaming}
           />
           {sttSupported && voiceEnabled && (

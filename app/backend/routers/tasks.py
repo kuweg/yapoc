@@ -112,10 +112,22 @@ async def submit_task_stream(request: TaskRequest):
     history = _parse_history(request.history)
     session_id = request.session_id or str(_uuid.uuid4())
 
+    # Resolve attachment IDs (owner-scoped) and append their content to the user
+    # message: image_read markers for images, inline text for text/docx. The
+    # resolved metadata is emitted up-front over SSE so the UI can upgrade
+    # previews and (later) show the vision model used.
+    attach_meta: list[dict] = []
+    attach_suffix = ""
+    if request.attachments:
+        from app.backend.services import uploads as _uploads
+        attach_suffix, attach_meta = _uploads.build_attachment_injection(
+            request.attachments, owner="local"
+        )
+
     # Collect completed background agent results and inject as system context
     # rather than concatenating into the user task string.
     finished = await collect_agent_results(session_id=session_id)
-    task = request.task
+    task = request.task + attach_suffix if attach_suffix else request.task
     if finished:
         notifications_text = build_result_injection(finished)
         if history is None:
@@ -128,6 +140,11 @@ async def submit_task_stream(request: TaskRequest):
         history = history + [Message(role="user", content=task)]
 
     merged: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    # Surface resolved attachment metadata to the UI first so it can upgrade
+    # the optimistic previews to server-backed ones.
+    if attach_meta:
+        await merged.put({"type": "attachments", "data": attach_meta})
 
     async def drain_agent() -> None:
         try:

@@ -1,24 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentStatus } from '../api/types'
 import { useAgentChatStore } from '../store/agentChatStore'
-
-const STATUS_DOT: Record<string, string> = {
-  running: 'bg-amber-400 animate-pulse',
-  busy: 'bg-amber-400',
-  idle: 'bg-emerald-400',
-  terminated: 'bg-zinc-500',
-  error: 'bg-red-400',
-  spawning: 'bg-amber-400 animate-pulse',
-}
-
-const STATUS_TEXT: Record<string, string> = {
-  running: 'text-amber-400',
-  busy: 'text-amber-400',
-  idle: 'text-emerald-400',
-  terminated: 'text-zinc-500',
-  error: 'text-red-400',
-  spawning: 'text-amber-400',
-}
+import { AgentAvatar, getAgentDisplayName } from '../lib/agentIdentity'
+import { AgentPresenceIndicator } from './AgentPresence'
 
 const MAX_SPARKLINE = 20
 
@@ -68,8 +52,6 @@ interface AgentCardProps {
 
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
   const state = agent.status || agent.process_state || 'idle'
-  const dotColor = STATUS_DOT[state] ?? 'bg-zinc-500'
-  const textColor = STATUS_TEXT[state] ?? 'text-zinc-500'
   const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
 
   const setSelectedLogAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
@@ -111,11 +93,11 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
         selected ? 'bg-zinc-800' : ''
       }`}
     >
-      {/* Row 1: dot + name + status */}
+      {/* Row 1: identity avatar + name + live presence */}
       <div className="flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full flex-shrink-0 ${dotColor}`} />
-        <span className="text-sm text-zinc-200 truncate flex-1">{agent.name}</span>
-        <span className={`text-xs ${textColor}`}>{state}</span>
+        <AgentAvatar name={agent.name} size={18} />
+        <span className="text-sm text-zinc-200 truncate flex-1">{getAgentDisplayName(agent.name)}</span>
+        <AgentPresenceIndicator name={agent.name} status={state} />
       </div>
 
       {/* Row 2: pid / task summary */}

@@ -54,9 +54,10 @@ interface AgentCardProps {
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
   const state = agent.status || agent.process_state || 'idle'
   const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
-  // Killable = a live subprocess exists (busy OR idle-but-alive). You can stop
-  // any running process, not just one actively working a task.
-  const killable = agent.pid != null || isRunning
+  // Killable = a live subprocess exists (busy OR idle-but-alive). EXCLUDE master:
+  // it runs in-process, so its STATUS pid IS the backend (uvicorn) pid — killing
+  // it would SIGTERM the whole backend. The UI must never do that.
+  const killable = (agent.pid != null || isRunning) && agent.name !== 'master'
 
   const setSelectedLogAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
 

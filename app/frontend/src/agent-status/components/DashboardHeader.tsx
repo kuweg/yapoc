@@ -2,6 +2,7 @@ import { useAgentStore } from '../store/agentStore'
 import { useSystemHealth } from '../store/selectors'
 import { HealthIndicator } from './shared/HealthIndicator'
 import { ThemeToggle } from '../../components/ThemeToggle'
+import { YapocControls } from './YapocControls'
 
 export function DashboardHeader() {
   const { densityMode, setDensityMode } = useAgentStore()
@@ -32,6 +33,9 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex-1" />
+
+      {/* YAPOC lifecycle controls — Start backend / Stop all agents */}
+      <YapocControls />
 
       {/* Theme toggle */}
       <ThemeToggle />

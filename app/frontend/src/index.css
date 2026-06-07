@@ -1500,3 +1500,30 @@ body.sidebar-auto-railed aside {
     animation: none !important;
   }
 }
+
+/* ── Context-compaction marker (spec #7) ──────────────────────────────── */
+@keyframes compact-sweep {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes compact-wave {
+  to { transform: translateX(100%); }
+}
+.compact-marker {
+  position: relative;
+  overflow: hidden;
+  animation: compact-sweep 0.45s ease-out both;
+}
+.compact-marker::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.18), transparent);
+  transform: translateX(-100%);
+  animation: compact-wave 0.9s ease-out 1;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .compact-marker { animation: none; }
+  .compact-marker::after { display: none; }
+}

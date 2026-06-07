@@ -35,6 +35,19 @@ export interface QueuedTask {
   updated_at?: string
 }
 
+// Start the YAPOC backend manually. Hits a dev-server middleware (NOT /api, so
+// it is not proxied to the backend) — the Vite dev server is always up, so this
+// works even when the backend is down. Dev-only (no-op in a built/prod deploy).
+export async function startBackend(): Promise<{ status: string; detail?: string }> {
+  const res = await fetch('/__yapoc/start', { method: 'POST' })
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try { detail = (await res.json()).error || detail } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
 export async function getTasks(limit = 50, status?: string): Promise<QueuedTask[]> {
   const qs = new URLSearchParams({ limit: String(limit) })
   if (status) qs.set('status', status)

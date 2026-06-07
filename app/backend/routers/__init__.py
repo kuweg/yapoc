@@ -18,6 +18,7 @@ from .commands import router as commands_router
 from .concilium import concilium_router
 from .graph import router as graph_router
 from .observability import router as observability_router
+from .uploads import router as uploads_router
 
 __all__ = [
     "health_router",
@@ -40,4 +41,5 @@ __all__ = [
     "concilium_router",
     "graph_router",
     "observability_router",
+    "uploads_router",
 ]

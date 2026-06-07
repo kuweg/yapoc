@@ -219,6 +219,12 @@ class Settings(BaseSettings):
         return self.project_root / "app" / "memory" / "agents"
 
     @property
+    def upload_dir(self) -> Path:
+        """Root for chat attachment uploads (date-sharded), plus the uploads.json
+        index, .thumbs/ and .vision/ caches. Created lazily by the upload store."""
+        return self.project_root / "data" / "uploads"
+
+    @property
     def base_url(self) -> str:
         return f"http://localhost:{self.port}"
 

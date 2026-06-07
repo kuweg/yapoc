@@ -18,6 +18,31 @@ export async function killAgent(name: string): Promise<{ status: string; name: s
   return res.json() as Promise<{ status: string; name: string }>
 }
 
+// ── Task queue (live task tracking) ──────────────────────────────────────────
+export interface QueuedTask {
+  id: string
+  prompt: string
+  status: string // pending | running | done | error | blocked | cancelled
+  source?: string
+  session_id?: string
+  assigned_agent?: string | null
+  result?: string | null
+  error?: string | null
+  cost_usd?: number
+  created_at?: string
+  started_at?: string | null
+  completed_at?: string | null
+  updated_at?: string
+}
+
+export async function getTasks(limit = 50, status?: string): Promise<QueuedTask[]> {
+  const qs = new URLSearchParams({ limit: String(limit) })
+  if (status) qs.set('status', status)
+  const res = await fetch(`/api/tasks?${qs.toString()}`)
+  if (!res.ok) throw new Error(`GET /tasks: ${res.status}`)
+  return res.json() as Promise<QueuedTask[]>
+}
+
 export async function getMasterResult(): Promise<{ name: string; content: string }> {
   const res = await fetch('/api/agents/master/result')
   if (!res.ok) throw new Error(`GET /agents/master/result: ${res.status}`)

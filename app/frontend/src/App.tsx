@@ -9,6 +9,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
 import { SessionsPanel } from './components/SessionsPanel'
+import { TasksPanel } from './components/TasksPanel'
 import { ObservabilityTab } from './components/ObservabilityTab'
 import { ConciliumTab } from './components/ConciliumTab'
 import { ChannelsDashboard } from './components/ChannelsDashboard'
@@ -52,6 +53,7 @@ export default function App() {
         <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5">
           <NavButton id="chat" label="Chat" />
           <NavButton id="agents" label="Agents" />
+          <NavButton id="tasks" label="Tasks" />
           <NavButton id="observability" label="Obs" />
           <NavButton id="concilium" label="Concilium" />
           <NavButton id="graph" label="Memory" />
@@ -93,6 +95,7 @@ export default function App() {
           <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5">
             <NavButton id="chat" label="Chat" />
             <NavButton id="agents" label="Agents" />
+            <NavButton id="tasks" label="Tasks" />
             <NavButton id="observability" label="Obs" />
             <NavButton id="concilium" label="Concilium" />
             <NavButton id="graph" label="Memory" />
@@ -170,6 +173,14 @@ export default function App() {
         style={{ display: tab === 'sessions' ? 'flex' : 'none', minHeight: 0 }}
       >
         <SessionsPanel />
+      </div>
+
+      {/* ── Tasks tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'tasks' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <TasksPanel />
       </div>
 
       {/* ── Channels tab ── */}

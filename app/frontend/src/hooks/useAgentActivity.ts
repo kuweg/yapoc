@@ -83,6 +83,29 @@ function eventToActivity(event: AgentEvent): AgentActivityLog | null {
 
 const MAX_ACTIVITY = 200
 
+// Streaming LLM output arrives as many tiny deltas (one per word/token), each
+// mapped to an `llm_output` entry. Merge consecutive llm_output entries from the
+// same agent into one so the flow panel shows readable messages instead of a
+// separate bubble per word. A tool_call / system / turn boundary naturally ends
+// the run (different type) and starts a fresh message.
+function appendCoalesced(prev: AgentActivityLog[], incoming: AgentActivityLog[]): AgentActivityLog[] {
+  const out = prev.slice()
+  for (const a of incoming) {
+    const last = out[out.length - 1]
+    if (last && a.type === 'llm_output' && last.type === 'llm_output' && last.agent_name === a.agent_name) {
+      const merged = last.content + a.content
+      out[out.length - 1] = {
+        ...last,
+        content: merged.length > 4000 ? merged.slice(merged.length - 4000) : merged,
+        timestamp: a.timestamp,
+      }
+    } else {
+      out.push(a)
+    }
+  }
+  return out
+}
+
 /**
  * Hook that provides agent activity events as typed AgentActivityLog[].
  * Sources from both the WebSocket push events and an initial HTTP snapshot.
@@ -98,6 +121,17 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
 
   // Subscribe to real-time agent events from WebSocket
   const wsEvents = useWsStore((s) => s.agentEvents[agentName])
+  const subscribeAgent = useWsStore((s) => s.subscribeAgent)
+  const unsubscribeAgent = useWsStore((s) => s.unsubscribeAgent)
+
+  // Tell the backend to stream THIS agent's events while the consumer (e.g. the
+  // agent-flow panel) is mounted. Without this the panel only shows the initial
+  // HTTP snapshot and never updates live — agentEvents[agentName] stays empty.
+  useEffect(() => {
+    if (!agentName) return
+    subscribeAgent(agentName)
+    return () => unsubscribeAgent(agentName)
+  }, [agentName, subscribeAgent, unsubscribeAgent])
 
   // Hydrate from HTTP snapshot once on mount
   useEffect(() => {
@@ -109,7 +143,7 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
           .map(eventToActivity)
           .filter((a): a is AgentActivityLog => a !== null)
         if (converted.length > 0) {
-          setActivities(converted)
+          setActivities(appendCoalesced([], converted))
           setHasRealData(true)
           hydratedRef.current = true
         }
@@ -136,7 +170,7 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
     setHasRealData(true)
     hydratedRef.current = true
     setActivities((prev) => {
-      const next = [...prev, ...converted]
+      const next = appendCoalesced(prev, converted)
       return next.length > MAX_ACTIVITY ? next.slice(next.length - MAX_ACTIVITY) : next
     })
   }, [wsEvents])

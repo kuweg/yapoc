@@ -199,6 +199,13 @@
       "temperature": 0.3,
       "max_tokens": 4096,
       "tools": [
+        "file_read",
+        "file_write",
+        "file_list",
+        "memory_append",
+        "notify_parent",
+        "notes_read",
+        "concilium_deliberate",
         "grep"
       ],
       "delegation_targets": [],

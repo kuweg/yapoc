@@ -101,3 +101,17 @@
 - **Action:** All memory/settings path resolution must be anchored to project_root (or __file__), never to a bare relative path like Path("app/memory/..."). Before writing any migration/one-off script that constructs paths, use the absolute settings path. Audit one-off scripts in app/tmp/ for bare relative path literals.
 - **Confidence:** high
 
+
+## Rule: Route complexity>=9 tasks through concilium first (Option A), execute only on approved verdict
+- **Observed:** 2026-09-02
+- **Context:** User confirmed routing model 2026-09: complexity < 9 -> master -> planning -> builder; complexity >= 9 -> master -> concilium -> builder, where concilium DECIDES and master EXECUTES (concilium does not spawn builder). 'should_deliberate' gate in app/utils/concilium_router.py uses COMPLEXITY_THRESHOLD=9, aligning exactly.
+- **Action:** When I receive a task with complexity >= 9: (1) delegate it to the concilium agent FIRST via spawn_agent('concilium', task=<plan_text>); (2) read its structured result via read_task_result/wait_for_agent; (3) if status==approved, drive implementation MYSELF using planning->builder or direct builder from result.approved_plan (do NOT ask the user, do NOT treat concilium as advisory); (4) if escalated/rejected, surface result.escalation_summary to the user and do not auto-execute. For complexity < 9, keep using planning->builder as before. Never treat concilium as an optional add-on on top of planning for the >=9 tier.
+- **Confidence:** high
+
+
+## Rule: Check builder max_turns before delegating large code-gen tasks
+- **Observed:** 2026-09-02
+- **Context:** Two consecutive builder runs to append a ~700-line engine + swap into app/utils/concilium.py both self-terminated at turn 15 (runner.max_turns=15 in app/agents/builder/CONFIG.yaml) right at the write step — the ~14-turn reconnaissance alone exhausted the budget. Third run with the SAME task failed identically. Fixed only by temp-raising max_turns 15→45, killing the doomed run, and re-spawning.
+- **Action:** Before delegating ANY task likely to need >12 tool-call turns (large multi-hundred-line code-gen, complex rewrites, deep investigation), read app/agents/builder/CONFIG.yaml runner.max_turns. If the task needs more than that budget, either (a) raise max_turns for that one job then revert after, or (b) chunk into small idempotent sub-tasks. NEVER re-send an over-budget task unchanged — a task that died once at a mechanical cap will die the same way every time.
+- **Confidence:** high
+

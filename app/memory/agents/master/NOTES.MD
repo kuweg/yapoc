@@ -65,3 +65,46 @@ Genuinely NEW angles beyond the existing Phase 1–5 Hermes-derived plan:
 
 ## Lesson
 DAG/async-planning produced truncated no-op results. Working pattern = synchronous spawn_agent(builder) + wait_for_agent + DIRECT verification (used for #8). Gate blocks only base-layer; utils/tools + utils/* are fair game.
+
+## Night-mode deliberation 1ecc01d0
+## Night-mode deliberation outcome (Concilium session 1ecc01d0)
+- STATUS: ESCALATED after 3 rounds (all 5 counselors voted "revise" each round; peak weighted score 0.449 vs 0.80 approval threshold).
+- Cost: $0.00, 27s, 3 rounds, ~90 critique issues produced.
+- Plan file preserved: app/agents/master/plans/night_mode_deliberation_plan.md
+- Full result: app/agents/concilium/1ecc01d0/result.json
+
+### The 6 blocker gaps (unanimous across counselors) that prevented approval:
+1. **Worker execution model underspecified** — needs explicit supervision (systemd/pm2) OR stateful cron with idempotency + overlap prevention / crash recovery.
+2. **Milestone dependency resolution undefined** — how depends_on is resolved, parallelized, and cycle-detected.
+3. **Acceptance-criteria derivation undefined** — how testable criteria are generated from a vague "make prototype of X" request (else verify gate = false pass / endless fix loops).
+4. **No explicit token/$ budget** — per-goal + per-night caps, AND an LLM-call estimate per milestone (planning/impl/verify/fix).
+5. **Secrets/exposure not guarded** — worker + fix agents could read .env/credentials; no secure secret handling; journal-file permissions undefined.
+6. **Constraint contradiction** — "no project/data mutation" vs milestones that must modify project files. Sandbox boundary left ambiguous.
+
+### Consensus-adjacent themes (all counselors flagged):
+- **D1 (worker home): nobody approved either "new agent" OR "hardened cron" as-is** — both need supervision/concurrency details before either is viable.
+- **Verify-gate cost multiplier**: up to 3 fix agents × evaluator per milestone is expensive; recommend cheaper model tiers for evaluator/fix, bound total LLM calls.
+- **Safety of reverting failed fixes**: wants git-checkpoint integration so failed fix agents can be rolled back.
+
+
+## Master routing model (Option A)
+## Master routing model (user-confirmed 2026-09) — OPTION A
+
+The user confirmed the final routing model for complexity-based delegation, in plain chain form:
+
+- `complexity < 9` → **master → planning → builder**
+- `complexity >= 9` → **master → concilium → builder**  (Option A: concilium DECIDES, master EXECUTES)
+
+Key semantics (Option A, user-confirmed):
+- Concilium is the **decision authority** for the ≥9 tier. When I (master) receive a ≥9 task, I delegate it to the concilium agent FIRST. Concilium runs `concilium_deliberate` (gate + deliberation) and returns a structured result.
+- On `approved` → I use `result.approved_plan` (or the deliberation-refined plan) and drive execution MYSELF downstream — that is, hand the approved plan to planning's decompose→builder pipeline OR directly to builder for implementation. I am the executor; concilium does not spawn builder.
+- On `escalated`/`rejected` → surface `result.escalation_summary` (recommendation + top unresolved issues) to the user. Do not auto-execute.
+- Concilium does NOT take on the executor role. It stays a deliberator/router. The `>=9 → concilium → builder` chain does NOT mean concilium physically spawns builder — it means concilium gates the plan and I build from its verdict.
+
+Implementation status:
+- ✅ concilium agent fully built & registered: `app/agents/concilium/PROMPT.MD` + CONFIG.yaml, `concilium_deliberate` tool in registry, agent-settings.json entry {adapter deepseek, deepseek-chat, fallbacks}, gate read from `app/utils/concilium_router.py`.
+- ✅ Gate already uses `COMPLEXITY_THRESHOLD = 9` and triggers deliberation at `complexity >= 9` → aligns exactly with user's model.
+- ✅ `should_deliberate` returns `(True, ["complexity N >= 9"])` at ≥9; `(False, [])` below.
+- ✅ Concilium engine `app/utils/concilium.py` has `ConciliumOrchestrator.deliberate()` returning `{status, approved_plan|escalation_summary}`; full record per session under `app/agents/concilium/<session_id>/`.
+- ⚠️ The one gap was MASTER's behavior: I kept treating concilium as advisory-on-top-of-planning and asking the user to decide, instead of enforcing the ≥9 hard-routing rule myself. Fixed by this policy note + auto-injected learned rule: complexity>=9 → delegate to concilium first, execute only on approved plan.
+

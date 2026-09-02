@@ -1,4 +1,16 @@
-"""Delegation tools — spawn, ping, kill sub-agents and check task results."""
+"""Delegation tools — spawn, ping, kill sub-agents and check task results.
+
+Token budget enforcement contract: the ``token_limit`` param on
+``SpawnAgentTool`` / ``DelegateTaskTool`` is RECORDED in the child task's
+TASK.MD frontmatter (``token_limit: N``) before the runner reads the task,
+and SURFACED to the parent on completion via a ``[TOKEN BUDGET: N]`` line in
+the ``WaitForAgentTool`` / ``WaitForAgentsTool`` result. We do NOT hard-stop
+a mid-run agent when a budget is exceeded — that would require a base-layer
+(``app/agents/base/``) hook that is gate-protected and refused. The contract
+here is therefore best-effort accounting + visibility, not runtime
+enforcement, so callers should treat an exceeded budget as an advisory signal
+and handle overrun at the orchestration layer.
+"""
 
 import asyncio
 import json
@@ -204,6 +216,43 @@ def _parse_delegation_targets(agent_name: str) -> list[str]:
 _UNRESTRICTED_SPAWNERS = {"master"}
 
 
+def _prepend_structured_result(msg: str) -> str:
+    """Surface the typed result contract when a child emitted one.
+
+    ``app/agents/base/result.py`` defines {status, summary, files, artifacts}
+    but nothing consumed it, so a parent still had to read prose to find out
+    what happened. Parsing here makes the contract real on the consuming side
+    without touching the gate-protected base layer: a child that emits the JSON
+    shape gets a deterministic header, and free text is returned untouched.
+    """
+    try:
+        from app.agents.base.result import parse_result
+
+        parsed = parse_result(msg)
+    except Exception:
+        return msg
+
+    # parse_result degrades free text to status="done" + the raw text; only
+    # annotate when the child genuinely used the contract.
+    structured = bool(parsed.files or parsed.artifacts or parsed.details) or (
+        parsed.summary.strip() != msg.strip()
+    )
+    if not structured:
+        return msg
+
+    header = [f"[RESULT status={parsed.status}]"]
+    if parsed.summary:
+        header.append(parsed.summary.strip())
+    if parsed.files:
+        header.append(f"files: {', '.join(parsed.files[:20])}")
+    if parsed.artifacts:
+        names = [str(a.get("name", a)) for a in parsed.artifacts[:10]]
+        header.append(f"artifacts: {', '.join(names)}")
+    if parsed.details:
+        header.append(parsed.details.strip())
+    return "\n".join(header)
+
+
 async def _resolve_checkpoint(agent_name: str, status: str, summary: str) -> str:
     """Verify+commit (status=done) or rollback (status=error/done-broken) the
     checkpoint stored at spawn time. Returns a banner string to prepend to the
@@ -285,6 +334,7 @@ class SpawnAgentTool(BaseTool):
         agent_name = params["agent_name"]
         task = params["task"]
         context = params.get("context", "")
+        token_limit = params.get("token_limit")
 
         agent_dir = settings.agents_dir / agent_name
         if not agent_dir.is_dir():
@@ -373,6 +423,7 @@ class SpawnAgentTool(BaseTool):
         # half-written content.
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         task_id = str(uuid.uuid4())
+        token_line = f"token_limit: {int(token_limit)}\n" if isinstance(token_limit, int) and token_limit > 0 else ""
         task_content = (
             f"---\n"
             f"status: pending\n"
@@ -381,6 +432,7 @@ class SpawnAgentTool(BaseTool):
             f"assigned_by: {self._caller}\n"
             f"assigned_at: {now}\n"
             f"completed_at:\n"
+            f"{token_line}"
             f"---\n\n"
             f"## Task\n{task}\n\n"
             f"## Context\n{context}\n\n"
@@ -414,6 +466,20 @@ class SpawnAgentTool(BaseTool):
             _spawn_log.bind(parent=self._caller, child=agent_name).warning(
                 "Spawn registry update failed (continuing): {}", _reg_exc
             )
+
+        # Light the edge in the live topology the moment the handoff happens.
+        # Tools run in the backend process, so the in-memory bus is reachable
+        # here (the agent runner itself is a subprocess and is not).
+        try:
+            from app.backend.services.graph_events import graph_event_bus
+            await graph_event_bus.emit_task_assigned(
+                source=self._caller,
+                target=agent_name,
+                task_id=task_id,
+            )
+        except Exception as _graph_exc:
+            from loguru import logger as _graph_log
+            _graph_log.debug("graph_event emit_task_assigned failed (non-fatal): {}", _graph_exc)
 
         # Publish task_assign to target agent's Redis inbox stream
         try:
@@ -599,6 +665,37 @@ class CheckTaskStatusTool(BaseTool):
         return ", ".join(parts)
 
 
+async def _publish_wait_heartbeat(
+    caller: str,
+    waiting_on: list[str],
+    status: str,
+    polls: int,
+    elapsed_s: float,
+) -> None:
+    """Publish a heartbeat to the caller's per-agent activity channel while it
+    is blocked in a wait loop. The Agents-tab live feed (agent:<name>:activity)
+    consumes this so a caller sitting in a long wait_for_agent no longer reads
+    as idle/stuck. Failures are swallowed — the heartbeat must never break a wait.
+    """
+    try:
+        from app.backend.message_bus import bus
+        await bus.publish(
+            f"agent:{caller}:activity",
+            {
+                "type": "heartbeat",
+                "agent": caller,
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "waiting_on": waiting_on,
+                "status": status,
+                "polls": polls,
+                "since_s": round(elapsed_s, 1),
+            },
+            agent_name=caller,
+        )
+    except Exception:
+        pass
+
+
 class WaitForAgentTool(BaseTool):
     name = "wait_for_agent"
     description = (
@@ -627,6 +724,15 @@ class WaitForAgentTool(BaseTool):
         "required": ["agent_name"],
     }
 
+    def __init__(
+        self,
+        agent_dir: "Path | None" = None,
+        session_id: str | None = None,
+    ) -> None:
+        self._agent_dir = agent_dir
+        self._caller = agent_dir.name if agent_dir else "master"
+        self._session_id = session_id
+
     async def execute(self, **params: Any) -> str:
         agent_name = params["agent_name"]
         timeout = params.get("timeout", 900)
@@ -639,6 +745,7 @@ class WaitForAgentTool(BaseTool):
         deadline = time.monotonic() + timeout
         polls = 0
         last_status = "unknown"
+        _wait_started_at = time.monotonic()
 
         while time.monotonic() < deadline:
             polls += 1
@@ -649,16 +756,41 @@ class WaitForAgentTool(BaseTool):
             if fields:
                 last_status = fields.get("status", "unknown")
 
+                if last_status in ("done", "error"):
+                    # Close the edge out in the live topology so the node stops
+                    # reading as busy the moment the child finishes.
+                    try:
+                        from app.backend.services.graph_events import graph_event_bus
+                        # WaitForAgentTool takes no agent_dir, so it has no
+                        # _caller of its own — the parent is whoever is waiting.
+                        await graph_event_bus.emit_task_completed(
+                            source=getattr(self, "_caller", "master"),
+                            target=agent_name,
+                            task_id=fields.get("task_id", ""),
+                            status=last_status,
+                        )
+                    except Exception as _graph_exc:
+                        from loguru import logger as _graph_log
+                        _graph_log.debug("graph_event emit_task_completed failed (non-fatal): {}", _graph_exc)
+
                 if last_status == "done":
                     # Extract ## Result section
                     rm = re.search(r"## Result\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
                     result = rm.group(1).strip() if rm else ""
                     msg = result if result else f"Agent '{agent_name}' finished but ## Result is empty."
+                    # Structured result contract: if the child emitted the typed
+                    # JSON shape, surface it deterministically so the parent does
+                    # not have to infer status/files from prose. Free text parses
+                    # to status=done and is passed through unchanged.
+                    msg = _prepend_structured_result(msg)
                     # Resolve git checkpoint: verify → commit on pass, rollback on fail.
                     # Banner is prepended so master sees the outcome in its tool result.
                     banner = await _resolve_checkpoint(agent_name, "done", summary=msg)
                     if banner:
                         msg = banner + msg
+                    token_limit = fields.get("token_limit")
+                    if token_limit:
+                        msg += f"\n[TOKEN BUDGET: {token_limit}]"
                     if _is_temporary_agent(agent_name):
                         msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
                     return truncate_tool_output(
@@ -676,6 +808,9 @@ class WaitForAgentTool(BaseTool):
                     banner = await _resolve_checkpoint(agent_name, "error", summary=error[:60])
                     if banner:
                         msg = banner + msg
+                    token_limit = fields.get("token_limit")
+                    if token_limit:
+                        msg += f"\n[TOKEN BUDGET: {token_limit}]"
                     if _is_temporary_agent(agent_name):
                         msg += f"\n[{_cleanup_temporary_agent(agent_name)}]"
                     return truncate_tool_output(
@@ -696,6 +831,15 @@ class WaitForAgentTool(BaseTool):
                             f"Check app/agents/{agent_name}/CRASH.MD or OUTPUT.MD for details."
                         )
 
+            # Heartbeat: keep the caller's activity channel fresh while blocking
+            # on this wait so the UI doesn't read the caller as idle/stuck.
+            await _publish_wait_heartbeat(
+                caller=self._caller,
+                waiting_on=[agent_name],
+                status=last_status,
+                polls=polls,
+                elapsed_s=time.monotonic() - _wait_started_at,
+            )
             await asyncio.sleep(poll_interval)
 
         return (
@@ -771,6 +915,11 @@ class WaitForAgentsTool(BaseTool):
         "required": ["agent_names"],
     }
 
+    def __init__(self, agent_dir=None, session_id=None) -> None:
+        self._agent_dir = agent_dir
+        self._caller = agent_dir.name if agent_dir else "master"
+        self._session_id = session_id
+
     async def execute(self, **params: Any) -> str:
         agent_names: list[str] = params["agent_names"]
         timeout: int = params.get("timeout", 900)
@@ -786,6 +935,7 @@ class WaitForAgentsTool(BaseTool):
         done: set[str] = set()
         deadline = time.monotonic() + timeout
         polls = 0
+        _wait_started_at = time.monotonic()
 
         async def poll_one(agent_name: str) -> tuple[str, str, str, str]:
             path = _task_path(agent_name)
@@ -843,6 +993,14 @@ class WaitForAgentsTool(BaseTool):
             if not [name for name in agent_names if name not in done]:
                 break
 
+            # Heartbeat for the multi-wait loop (same intent as singleton wait).
+            await _publish_wait_heartbeat(
+                caller=getattr(self, "_caller", "master"),
+                waiting_on=sorted(pending),
+                status=", ".join(sorted({str(r["status"]) for r in results.values()})),
+                polls=polls,
+                elapsed_s=time.monotonic() - _wait_started_at,
+            )
             await asyncio.sleep(poll_interval)
 
         for name in agent_names:
@@ -886,6 +1044,36 @@ def _toposort_kahn(nodes: list[dict]) -> tuple[list[list[str]], str | None]:
                 if child in remaining:
                     remaining[child] -= 1
     return batches, None
+
+
+def _split_batch_by_agent(batch: list[str], by_id: dict[str, dict]) -> list[list[str]]:
+    """Split one topological batch so no agent appears twice in a sub-batch.
+
+    An agent owns exactly ONE directory and ONE TASK.MD, so two nodes targeting
+    the same agent cannot run concurrently. Before this split they did two bad
+    things at once:
+
+    * ``_wait_agent_not_running`` serialized the spawns anyway, so the promised
+      parallelism was a lie; and
+    * the wait phase polled ``TASK.MD`` once per node — by agent name — so every
+      node sharing an agent read back the LAST writer's result. A two-builder
+      batch reported "2 done, 0 error" with both nodes carrying the same output,
+      silently discarding the first node's real result.
+
+    Splitting preserves true parallelism across distinct agents while running
+    same-agent nodes in sequence, capturing each result before the next spawn
+    overwrites the file. Node order within the batch is preserved.
+    """
+    sub_batches: list[list[str]] = []
+    for nid in batch:
+        agent = by_id[nid]["agent"]
+        for sub in sub_batches:
+            if all(by_id[o]["agent"] != agent for o in sub):
+                sub.append(nid)
+                break
+        else:
+            sub_batches.append([nid])
+    return sub_batches
 
 
 async def _poll_one_dag(agent_name: str) -> tuple[str, str, str]:
@@ -1085,6 +1273,30 @@ class ExecuteDagTool(BaseTool):
         if err:
             return f"ERROR: execute_dag — {err}"
 
+        by_id_pre: dict[str, dict] = {n["id"]: n for n in nodes}
+        # One agent = one TASK.MD, so same-agent nodes must not share a batch.
+        # Expand each topological batch into agent-unique sub-batches.
+        expanded: list[list[str]] = []
+        serialized_agents: list[str] = []
+        for _b in batches:
+            _subs = _split_batch_by_agent(_b, by_id_pre)
+            if len(_subs) > 1:
+                _seen: dict[str, int] = {}
+                for _nid in _b:
+                    _a = by_id_pre[_nid]["agent"]
+                    _seen[_a] = _seen.get(_a, 0) + 1
+                serialized_agents.extend(a for a, c in _seen.items() if c > 1)
+            expanded.extend(_subs)
+        batches = expanded
+        serialized_note = ""
+        if serialized_agents:
+            _uniq = sorted(set(serialized_agents))
+            serialized_note = (
+                f"{', '.join(_uniq)} appear(s) more than once in a batch; those nodes ran "
+                "SEQUENTIALLY, not in parallel (one agent owns one TASK.MD). "
+                "Use different agents for genuine parallelism."
+            )
+
         by_id: dict[str, dict] = {n["id"]: n for n in nodes}
 
         # Per-node result state
@@ -1216,12 +1428,14 @@ class ExecuteDagTool(BaseTool):
                 results[nid]["status"] = "running"
 
             while pending_in_batch and time.monotonic() < deadline:
+                # Materialise the order ONCE: gather results are positional, and
+                # iterating the set twice to build the calls and then zip them
+                # back would rely on incidental ordering to map result→node.
+                poll_ids = list(pending_in_batch)
                 poll_outcomes = await asyncio.gather(
-                    *[_poll_one_dag(by_id[nid]["agent"]) for nid in pending_in_batch]
+                    *[_poll_one_dag(by_id[nid]["agent"]) for nid in poll_ids]
                 )
-                for nid, (status, result, error) in zip(
-                    list(pending_in_batch), poll_outcomes
-                ):
+                for nid, (status, result, error) in zip(poll_ids, poll_outcomes):
                     if status == "done":
                         _agent_n = by_id[nid]["agent"]
                         _banner = await _resolve_checkpoint(_agent_n, "done", summary=result[:60])
@@ -1290,9 +1504,10 @@ class ExecuteDagTool(BaseTool):
             f"DAG complete: {done_n} done, {err_n} error, "
             f"{int_n} interrupted, {to_n} timeout (of {len(ids)} nodes)"
         )
-        return truncate_tool_output(
-            json.dumps({"summary": summary, "nodes": compact}, indent=2)
-        )
+        payload: dict[str, Any] = {"summary": summary, "nodes": compact}
+        if serialized_note:
+            payload["note"] = serialized_note
+        return truncate_tool_output(json.dumps(payload, indent=2))
 
 
 _NOTIFY_TRIGGER_TASK = (
@@ -1557,5 +1772,103 @@ class ReadTaskResultTool(BaseTool):
             note=f"read file://app/agents/{agent_name}/TASK.MD for full result",
         )
         return msg
+
+
+class DelegateTaskTool(BaseTool):
+    name = "delegate_task"
+    description = (
+        "Delegate ONE subtask to a peer agent and await its result inline. "
+        "Any agent (not just master) may call this to spawn a subtask and "
+        "block until it completes, receiving the peer's full result or error "
+        "in the return value. Peer delegation is enforced against the caller's "
+        "CONFIG.yaml 'delegation_targets' list (master is always allowed). "
+        "An optional 'allowed_tools' whitelist restricts which tools the "
+        "delegated agent may use; if omitted or empty, the target's normal "
+        "config tool list applies."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "agent_name": {
+                "type": "string",
+                "description": "Name of the peer agent to delegate to (must be in your delegation_targets, or master)",
+            },
+            "task": {
+                "type": "string",
+                "description": "The subtask to delegate",
+            },
+            "context": {
+                "type": "string",
+                "description": "Optional context for the subtask",
+            },
+            "allowed_tools": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional whitelist of tool names the delegated agent may use. If omitted/empty, the target's normal config tool list applies.",
+            },
+            "token_limit": {
+                "type": "integer",
+                "description": "Optional token budget for the delegated agent. Recorded in the child's TASK.MD frontmatter so the parent is informed on completion. Not a hard runtime stop (that would require a gate-protected base-layer hook).",
+            },
+        },
+        "required": ["agent_name", "task"],
+    }
+
+    def __init__(
+        self,
+        agent_dir: "Path | None" = None,
+        session_id: str | None = None,
+    ) -> None:
+        self._agent_dir = agent_dir
+        self._caller = agent_dir.name if agent_dir else "master"
+        self._session_id = session_id
+
+    async def execute(self, **params: Any) -> str:
+        agent_name = params["agent_name"]
+        task = params["task"]
+        context = params.get("context", "")
+        allowed_tools = params.get("allowed_tools") or []
+        token_limit = params.get("token_limit")
+
+        # ── Validate target agent exists ──────────────────────────────────
+        agent_dir = settings.agents_dir / agent_name
+        if not agent_dir.is_dir():
+            return f"Error: agent directory not found: {agent_dir}"
+
+        # ── Enforce peer delegation gate (mirror of SpawnAgentTool) ──────
+        if self._caller not in _UNRESTRICTED_SPAWNERS:
+            allowed = _parse_delegation_targets(self._caller)
+            if not allowed:
+                return (
+                    f"Error: agent '{self._caller}' has no delegation_targets in CONFIG.yaml. "
+                    "Only master can delegate to any agent without explicit delegation_targets."
+                )
+            if agent_name not in allowed:
+                return (
+                    f"Error: agent '{self._caller}' is not authorized to delegate to '{agent_name}'. "
+                    f"Allowed targets: {allowed}. Add '{agent_name}' to delegation_targets in "
+                    f"app/agents/{self._caller}/CONFIG.yaml to enable this delegation."
+                )
+
+        # ── Spawn the subtask via the existing spawn tool ─────────────────
+        spawn_tool = SpawnAgentTool(
+            agent_dir=self._agent_dir,
+            session_id=self._session_id,
+        )
+        spawn_msg = await spawn_tool.execute(
+            agent_name=agent_name,
+            task=task,
+            context=context,
+            token_limit=token_limit,
+        )
+
+        if _spawn_response_indicates_failure(spawn_msg):
+            return spawn_msg
+
+        # ── Await the result inline via the existing wait tool ────────────
+        wait_tool = WaitForAgentTool(
+            agent_dir=self._agent_dir,
+        )
+        return await wait_tool.execute(agent_name=agent_name)
 
 

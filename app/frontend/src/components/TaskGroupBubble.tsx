@@ -6,6 +6,7 @@ import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts } from './groupParts'
 import { AgentAvatar, getAgentColor, getAgentDisplayName, withAlpha } from '../lib/agentIdentity'
 import { CompactionMarker } from './ContextGauge'
+import { SubAgentActivity } from './SubAgentActivity'
 import type { TaskPart } from '../api/types'
 
 export type { TaskPart }
@@ -14,6 +15,8 @@ export interface TaskGroup {
   parts: TaskPart[]
   finalText: string
   status: 'running' | 'done' | 'error'
+  /** Session this group was started in, so late results persist to it. */
+  sessionId?: string | null
 }
 
 interface TaskGroupBubbleProps {
@@ -68,8 +71,14 @@ function DelegationNode({ d, idx }: { d: Delegation; idx: number }) {
         ) : (
           <span className="text-green-400 text-xs flex-shrink-0">✓</span>
         )}
-        <span className="text-zinc-600 text-[10px] flex-shrink-0">{open ? '▲' : '▼'}</span>
+        <span className="text-zinc-600 text-[12px] flex-shrink-0">{open ? '▲' : '▼'}</span>
       </button>
+
+      {/* What the child is doing right now — files being edited, steps being
+          planned. Shown without expanding, because "is it doing anything" is
+          the question a running delegation actually raises. */}
+      <SubAgentActivity agentName={d.agent} running={!d.done} compact />
+
       {open && (
         <div className="pl-6 pb-2 pr-1 text-xs whitespace-pre-wrap break-words" key={`del-body-${idx}`}>
           {d.task && (
@@ -89,7 +98,13 @@ function DelegationNode({ d, idx }: { d: Delegation; idx: number }) {
 }
 
 export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
-  const [expanded, setExpanded] = useState(true)
+  // Master's answer is rendered below, outside this trace. When we have an
+  // answer to show, the trace starts collapsed so the reply is what the reader
+  // sees — the execution log is supporting detail, not the message. With no
+  // answer yet (still running, or master returned nothing) the trace is the
+  // only content there is, so it stays open.
+  const hasAnswer = Boolean(group.finalText?.trim()) && group.status !== 'running'
+  const [expanded, setExpanded] = useState(!hasAnswer)
 
   const stepCount = group.parts.length
   const delegations = extractDelegations(group.parts)
@@ -121,7 +136,7 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
             {delegations.slice(0, 4).map((d, i) => (
               <AgentAvatar key={`hdr-${group.id}-${i}`} name={d.agent} size={15} />
             ))}
-            {delegations.length > 4 && <span className="text-[10px] text-zinc-500 pl-1.5">+{delegations.length - 4}</span>}
+            {delegations.length > 4 && <span className="text-[12px] text-zinc-500 pl-1.5">+{delegations.length - 4}</span>}
           </span>
         )}
         <span className="text-xs text-zinc-500 ml-1">({stepCount} steps)</span>
@@ -132,7 +147,7 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
         <div className="px-4 pb-3 space-y-1 border-t border-zinc-700/50 pt-2">
           {delegations.length > 0 && (
             <div className="mb-2 rounded-lg bg-zinc-900/50 border border-zinc-800 p-1.5">
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-0.5 pl-1">
+              <div className="text-[12px] uppercase tracking-wide text-zinc-500 mb-0.5 pl-1">
                 Delegated to {delegations.length} agent{delegations.length > 1 ? 's' : ''}
               </div>
               {delegations.map((d, i) => (
@@ -183,17 +198,23 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
               <span>Waiting for background agents to finish…</span>
             </div>
           )}
+        </div>
+      )}
 
-          {group.finalText && group.status !== 'running' && (
-            <div className="pt-2 border-t border-zinc-700/30 mt-2">
-              <MessageBubble
-                role="assistant"
-                content={group.finalText}
-                agentName="master"
-                agentModel={masterModel}
-              />
-            </div>
-          )}
+      {/* Master's reply — always visible, outside the collapsible trace.
+          It used to live inside it, so collapsing the trace hid the answer
+          entirely and expanding buried it under the whole tool log. */}
+      {hasAnswer && (
+        <div
+          className="px-1 pb-1 border-t border-zinc-700/50"
+          data-testid="task-group-answer"
+        >
+          <MessageBubble
+            role="assistant"
+            content={group.finalText}
+            agentName="master"
+            agentModel={masterModel}
+          />
         </div>
       )}
     </div>

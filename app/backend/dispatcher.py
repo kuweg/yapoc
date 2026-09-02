@@ -80,14 +80,27 @@ async def _execute_task(task_id: str) -> None:
 
     # Parse history from metadata if present
     history: list[Message] | None = None
+    # Silent flag — suppress user-facing completion notifications when set
+    # (set by _cron_tick in main.py for jobs with `silent: true` or a
+    # [SILENT] task tag). Quiet watchdogs should not fire task_complete or
+    # morning-report notifications.
+    silent = False
+    # Cron escalation: if this task is cron-sourced (source=="cron" or the
+    # metadata carries a cron_job_id), its success/failure feeds the cron
+    # failure-escalation ladder.
+    cron_job_id: str | None = None
     if task_row.get("metadata"):
         try:
             meta = json.loads(task_row["metadata"])
             raw_history = meta.get("history")
             if raw_history:
                 history = [Message(role=m["role"], content=m["content"]) for m in raw_history]
+            silent = bool(meta.get("silent"))
+            cjid = meta.get("cron_job_id")
+            if cjid:
+                cron_job_id = str(cjid)
         except (json.JSONDecodeError, KeyError):
-            pass
+            silent = False
 
     # Append user message to history (matches CLI + SSE patterns)
     if history is not None:
@@ -187,6 +200,15 @@ async def _execute_task(task_id: str) -> None:
                     pass
 
         result_text = "".join(response_parts)
+        # Never substitute the prompt for the result. Echoing the task back at
+        # the user reads as "the resume produced nothing useful" even when it
+        # succeeded, and the old `len < 25` threshold actively destroyed valid
+        # short answers — a correct "RESUME_OK" (9 chars) was replaced by the
+        # prompt. If there is genuinely no text, say exactly that.
+        if not result_text.strip():
+            result_text = (
+                "_Task finished with no text output — check the agent trace for what ran._"
+            )
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         update_queued_task(
             task_id,
@@ -194,27 +216,43 @@ async def _execute_task(task_id: str) -> None:
             result=result_text,
             completed_at=completed_at,
         )
-        await ws_manager.push_event("task_complete", {
-            "task_id": task_id,
-            "status": "done",
-            "result": result_text,
-            "completed_at": completed_at,
-            "session_id": session_id,
-            "source": source,
-        })
-        try:
-            from app.backend.message_bus import bus as _bus2
-            await _bus2.publish("system:tasks", {
-                "type": "task_complete",
+        # Cron escalation: a successful cron-sourced run feeds the
+        # failure-escalation ladder — resets failures, clears any disable.
+        if cron_job_id:
+            try:
+                from app.utils.cron_parser import record_cron_success
+                record_cron_success(cron_job_id)
+            except Exception as exc:
+                logger.warning(f"Cron success record failed for {cron_job_id}: {exc}")
+        # Suppress user-facing completion notifications for silent jobs.
+        # The task is still recorded as done above so last-run tracking and
+        # context chaining work; only the external notifications are skipped.
+        if not silent:
+            await ws_manager.push_event("task_complete", {
                 "task_id": task_id,
                 "status": "done",
                 "result": result_text,
                 "completed_at": completed_at,
                 "session_id": session_id,
                 "source": source,
+                "prompt": prompt,
+                "agent": "master",
             })
-        except Exception:
-            pass
+            try:
+                from app.backend.message_bus import bus as _bus2
+                await _bus2.publish("system:tasks", {
+                    "type": "task_complete",
+                    "task_id": task_id,
+                    "status": "done",
+                    "result": result_text,
+                    "completed_at": completed_at,
+                    "session_id": session_id,
+                    "source": source,
+                    "prompt": prompt,
+                    "agent": "master",
+                })
+            except Exception:
+                pass
         logger.info(f"Task {task_id[:8]}… completed ({len(result_text)} chars)")
 
         # Event-driven indexer: every 20 turns
@@ -248,7 +286,7 @@ async def _execute_task(task_id: str) -> None:
         # belt-and-suspenders. Both writes go through asyncio.to_thread so
         # the synchronous I/O inside write_morning_report (file reads + SQLite +
         # git log subprocess) can never starve this fire-and-forget task.
-        if (source or "").lower() in ("cron", "goal", "doctor", "webhook"):
+        if (source or "").lower() in ("cron", "goal", "doctor", "webhook") and not silent:
             try:
                 from app.backend.morning_report import write_morning_report
                 asyncio.create_task(asyncio.to_thread(
@@ -263,9 +301,11 @@ async def _execute_task(task_id: str) -> None:
                 pass
 
         # Telegram notification on task completion (user preference)
-        # Skip for telegram-sourced tasks — the Telegram bot already handles
-        # result delivery by editing the "Processing..." acknowledgment.
-        if (source or "").lower() != "telegram":
+        # Fire only for user-submitted (UI) tasks. Automated/notification-source
+        # tasks (resume, notification, etc.) do NOT trigger a Telegram ping —
+        # they were not submitted by the user in the UI. Telegram-sourced tasks
+        # are already handled by the bot's "Processing..." edit.
+        if (source or "").lower() == "ui" and not silent:
             try:
                 from app.backend.telegram_bot import get_telegram_bot_instance
 
@@ -311,6 +351,8 @@ async def _execute_task(task_id: str) -> None:
             "completed_at": completed_at,
             "session_id": session_id,
             "source": source,
+            "prompt": prompt,
+            "agent": "master",
         })
         try:
             from app.backend.message_bus import bus as _bus3
@@ -322,6 +364,8 @@ async def _execute_task(task_id: str) -> None:
                 "completed_at": completed_at,
                 "session_id": session_id,
                 "source": source,
+                "prompt": prompt,
+                "agent": "master",
             })
         except Exception:
             pass
@@ -329,8 +373,34 @@ async def _execute_task(task_id: str) -> None:
         partial = "".join(response_parts)
         if partial:
             update_queued_task(task_id, result=f"[PARTIAL] {partial}")
-        # Telegram notification on task timeout (skip for telegram-sourced tasks)
-        if (source or "").lower() != "telegram":
+        # Cron escalation: a timed-out cron-sourced run counts toward the
+        # failure-escalation ladder. Notify only on the disable transition.
+        if cron_job_id:
+            try:
+                from app.utils.cron_parser import record_cron_failure, get_failure_count
+                if record_cron_failure(cron_job_id):
+                    fail_count = get_failure_count(cron_job_id)
+                    logger.warning(
+                        f"Cron job {cron_job_id} auto-disabled after "
+                        f"{fail_count} consecutive failures (timeout)"
+                    )
+                    await ws_manager.push_event("task_error", {
+                        "task_id": task_id,
+                        "status": "cron_disabled",
+                        "error": (
+                            f"Cron job {cron_job_id} auto-disabled after "
+                            f"{fail_count} consecutive failures"
+                        ),
+                        "completed_at": completed_at,
+                        "session_id": session_id,
+                        "source": source,
+                        "prompt": prompt,
+                        "agent": "master",
+                    })
+            except Exception as exc:
+                logger.warning(f"Cron failure record failed for {cron_job_id}: {exc}")
+        # Telegram notification on task timeout (only for user-submitted UI tasks)
+        if (source or "").lower() == "ui":
             try:
                 from app.backend.telegram_bot import get_telegram_bot_instance
 
@@ -374,6 +444,8 @@ async def _execute_task(task_id: str) -> None:
             "completed_at": completed_at,
             "session_id": session_id,
             "source": source,
+            "prompt": prompt,
+            "agent": "master",
         })
         try:
             from app.backend.message_bus import bus as _bus4
@@ -385,11 +457,39 @@ async def _execute_task(task_id: str) -> None:
                 "completed_at": completed_at,
                 "session_id": session_id,
                 "source": source,
+                "prompt": prompt,
+                "agent": "master",
             })
         except Exception:
             pass
-        # Telegram notification on task error (skip for telegram-sourced tasks)
-        if (source or "").lower() != "telegram":
+        # Cron escalation: a failed cron-sourced run counts toward the
+        # failure-escalation ladder. Notify only on the disable transition.
+        if cron_job_id:
+            try:
+                from app.utils.cron_parser import record_cron_failure, get_failure_count
+                if record_cron_failure(cron_job_id):
+                    fail_count = get_failure_count(cron_job_id)
+                    logger.warning(
+                        f"Cron job {cron_job_id} auto-disabled after "
+                        f"{fail_count} consecutive failures (error)"
+                    )
+                    await ws_manager.push_event("task_error", {
+                        "task_id": task_id,
+                        "status": "cron_disabled",
+                        "error": (
+                            f"Cron job {cron_job_id} auto-disabled after "
+                            f"{fail_count} consecutive failures"
+                        ),
+                        "completed_at": completed_at,
+                        "session_id": session_id,
+                        "source": source,
+                        "prompt": prompt,
+                        "agent": "master",
+                    })
+            except Exception as exc:
+                logger.warning(f"Cron failure record failed for {cron_job_id}: {exc}")
+        # Telegram notification on task error (only for user-submitted UI tasks)
+        if (source or "").lower() == "ui":
             try:
                 from app.backend.telegram_bot import get_telegram_bot_instance
 

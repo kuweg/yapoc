@@ -9,9 +9,13 @@ import { useWsStore } from '../store/wsStore'
 import { useSessionStore } from '../store/session'
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
-const MAX_RETRIES = 10
-const BASE_DELAY_MS = 1_000
-const MAX_DELAY_MS = 30_000
+// The backend is local and restarts often (server_restart, deploys). The old
+// 1s→30s backoff burned its early retries while the port was still down, then
+// waited ~11s — long enough for a whole post-restart resume task to run and
+// finish unseen, which is why the chat looked idle while the agent panel filled
+// up. Localhost reconnects are cheap: retry quickly, cap low, and never stop.
+const BASE_DELAY_MS = 400
+const MAX_DELAY_MS = 3_000
 
 export function useWebSocket() {
   const activeSessionId = useSessionStore((s) => s.activeId)
@@ -115,12 +119,28 @@ export function useWebSocket() {
 
     function scheduleReconnect() {
       if (unmountedRef.current) return
-      if (retryRef.current >= MAX_RETRIES) return
-
+      // No retry ceiling: giving up leaves the chat permanently deaf to task
+      // and session events until a manual page reload, with no visible cause.
       const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryRef.current), MAX_DELAY_MS)
       retryRef.current++
+      if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(connect, delay)
     }
+
+    // Coming back to the tab (or back online) is a strong hint the backend may
+    // be reachable again — retry now instead of waiting out the backoff.
+    function retryNow() {
+      if (unmountedRef.current) return
+      if (wsRef.current?.readyState === WebSocket.OPEN) return
+      retryRef.current = 0
+      if (timerRef.current) clearTimeout(timerRef.current)
+      connect()
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') retryNow()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', retryNow)
 
     connect()
 
@@ -134,6 +154,8 @@ export function useWebSocket() {
     return () => {
       unmountedRef.current = true
       clearInterval(pingInterval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', retryNow)
       if (timerRef.current) clearTimeout(timerRef.current)
       wsRef.current?.close()
     }

@@ -109,6 +109,22 @@ class AgentRunner:
         # commit to running it lets the second delivery skip cleanly instead
         # of double-executing or aborting with a noisy "task_id mismatch".
         self._recent_task_ids: deque[str] = deque(maxlen=64)
+        # child-task-ids that have already produced a "[Process incoming result]"
+        # trigger TASK.MD in this process lifetime. Parallel to _recent_task_ids
+        # but keyed on the CHILD's task_id carried by a task_result inbox message
+        # (which lives in a different id-space than the parent's own tasks).
+        #
+        # Why this exists (deep-chain echo bug): a sub-agent ALWAYS publishes a
+        # task_result to its parent's inbox, even when the parent consumed the
+        # result inline via wait_for_agent. That message then sits unread while
+        # the parent is mid-turn, and after the parent goes idle its runner reads
+        # the inbox, sees the stale task_result, and writes a spurious
+        # "[Process incoming result]" trigger — making the parent run a redundant
+        # second task that echoes content already folded into its own result.
+        # Recording each child task_id the moment we write a trigger for it lets
+        # a re-delivered duplicate (Redis PEL replay, double-publish, or watchdog
+        # re-scan of a still-final TASK.MD) skip cleanly instead of echoing.
+        self._recent_child_task_ids: deque[str] = deque(maxlen=128)
 
     def _load_temporary_flag(self) -> bool:
         """Check CONFIG.yaml for lifecycle.temporary flag."""
@@ -461,6 +477,22 @@ class AgentRunner:
                 # Write task body into TASK.MD for the agent's run loop to pick up
                 await self._run_task(task_body)
                 return True
+            # status: pending with an empty ## Task section — a truncated or
+            # half-written spawn. Leaving it pending means every later poll
+            # re-reads the same unusable file forever and the agent looks
+            # permanently assigned. Retire it so the next spawn starts clean.
+            _log.bind(agent=self._name).warning(
+                "TASK.MD is pending with an empty body — retiring the stale task"
+            )
+            try:
+                await self._agent.set_task_status(
+                    "error", error="Task was pending with an empty ## Task section."
+                )
+                await self._agent.mark_task_consumed()
+            except Exception as _clear_exc:
+                _log.bind(agent=self._name).warning(
+                    "failed to retire empty pending task: {}", _clear_exc
+                )
         return False
 
     # ── Redis inbox ────────────────────────────────────────────────────
@@ -620,12 +652,34 @@ class AgentRunner:
                 await self._ack_inbox(msg_id)
                 return False
 
-            # Child agent completed — write a trigger TASK.MD so the next
-            # iteration picks it up and processes it via the normal notification pipeline.
             child = str(data.get("child_agent", "unknown"))
             status = str(data.get("status", "done"))
             result = str(data.get("result", ""))
             session_id = str(data.get("session_id", ""))
+            # The child's task_id (NOT the parent's). Dedup on this so a
+            # re-delivered task_result — Redis PEL replay, double-publish, or a
+            # slow producer re-scanning a still-final TASK.MD — cannot write a
+            # second "[Process incoming result]" trigger for the same completion.
+            # This is the deep-chain echo shield: without it, a child result the
+            # parent already folded in via wait_for_agent (or already surfaced)
+            # gets re-surfaced as a spurious extra task after the parent idles.
+            _child_task_id = str(data.get("task_id", "") or "")
+            if _child_task_id:
+                if _child_task_id in self._recent_child_task_ids:
+                    _log.bind(
+                        agent=self._name,
+                        child=child,
+                        child_task_id=_child_task_id[:8],
+                        msg_id=msg_id,
+                    ).info(
+                        "task_result for child task {} already surfaced — "
+                        "acking and skipping duplicate trigger",
+                        _child_task_id[:8],
+                    )
+                    await self._ack_inbox(msg_id)
+                    return False
+                self._recent_child_task_ids.append(_child_task_id)
+
             await self._ack_inbox(msg_id)
             fm = self._parse_task_frontmatter()
             parent = fm.get("assigned_by", "master")
@@ -643,6 +697,7 @@ class AgentRunner:
             trigger = (
                 f"---\n"
                 f"status: pending\n"
+                f"task_id: {_child_task_id}\n"
                 f"session_id: {session_id or fm.get('session_id', '')}\n"
                 f"assigned_by: {parent}\n"
                 f"assigned_at: {ts}\n"
@@ -653,7 +708,6 @@ class AgentRunner:
                 "Redis inbox: task_result from {} ({}) result_len={} — trigger written",
                 child, status, len(result),
             )
-            return False
             return False
 
         elif msg_type == "ping":

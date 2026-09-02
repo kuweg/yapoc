@@ -111,7 +111,7 @@ function AgentLabel({ name, model }: { name: string; model?: string }) {
       <AgentAvatar name={name} size={16} />
       <span className="text-xs font-semibold uppercase tracking-wide" style={{ color }}>
         {getAgentDisplayName(name)}
-        {model && <span className="text-[10px] font-normal text-zinc-500 lowercase ml-1.5">[{model}]</span>}
+        {model && <span className="text-[12px] font-normal text-zinc-500 lowercase ml-1.5">[{model}]</span>}
       </span>
     </div>
   )

@@ -33,10 +33,11 @@ tools:
   - notes_write
   - notes_append
   - health_log
-  - add_task_trace
   - search_memory
   - learnings_append
   - shared_knowledge_append
+  - delegate_task
+  - search_negative_knowledge
 delegation_targets:
   - builder
   - keeper

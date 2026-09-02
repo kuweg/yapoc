@@ -51,7 +51,7 @@ export function TaskDetail({ task }: Props) {
       {/* Task text */}
       {task.task_text && (
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-[#484F58] mb-1">Task</p>
+          <p className="text-[12px] uppercase tracking-widest text-[#484F58] mb-1">Task</p>
           <pre className="text-xs text-[#E6EDF3] bg-[#0D1117] border border-[#21262D] rounded p-3
             whitespace-pre-wrap break-words font-mono leading-relaxed">
             {task.task_text}
@@ -62,7 +62,7 @@ export function TaskDetail({ task }: Props) {
       {/* Result */}
       {task.result_text && (
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-[#484F58] mb-1">Result</p>
+          <p className="text-[12px] uppercase tracking-widest text-[#484F58] mb-1">Result</p>
           <pre className="text-xs text-[#3FB950] bg-[#0D1117] border border-[#1A3A2A] rounded p-3
             whitespace-pre-wrap break-words font-mono leading-relaxed max-h-48 overflow-y-auto">
             {task.result_text}
@@ -73,7 +73,7 @@ export function TaskDetail({ task }: Props) {
       {/* Error */}
       {task.error_text && (
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-[#484F58] mb-1">Error</p>
+          <p className="text-[12px] uppercase tracking-widest text-[#484F58] mb-1">Error</p>
           <pre className="text-xs text-[#F85149] bg-[#0D1117] border border-[#3D1A1A] rounded p-3
             whitespace-pre-wrap break-words font-mono leading-relaxed max-h-48 overflow-y-auto">
             {task.error_text}

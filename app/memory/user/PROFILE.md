@@ -2,6 +2,7 @@
 
 ## Identity
 - Name: kuweg
+- Gender: male
 - Location: Serbia, Belgrade
 - Timezone: Europe/Belgrade
 - Project: YAPOC (Yet Another Python OpenClaw)

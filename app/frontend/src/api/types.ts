@@ -7,6 +7,9 @@ export type MessageBoundaryEvent = {
   type: 'message_boundary'
 }
 
+/** Emitted when a chat turn is queued behind master's background work. */
+export type StatusEvent = { type: 'status'; state: string; text: string }
+
 export type ErrorEvent = {
   type: 'error'
   error: string
@@ -33,6 +36,7 @@ export type StreamEvent =
   | UsageEvent
   | CompactEvent
   | MessageBoundaryEvent
+  | StatusEvent
 
 export interface AgentStatus {
   name: string
@@ -99,11 +103,25 @@ export interface Attachment {
   previewUrl?: string  // object-URL (session-only) for instant preview
 }
 
+export interface TaskCompletionMeta {
+  status?: string
+  prompt?: string
+  result?: string
+  error?: string
+  agent?: string
+  source?: string
+  session_id?: string
+  created_at?: string
+  started_at?: string
+  completed_at?: string
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
   parts?: TaskPart[]         // execution trace for structured assistant messages
   attachments?: Attachment[] // files attached to a user message
+  taskCompletion?: TaskCompletionMeta // rich "what just finished" card metadata
 }
 
 // Client-side session (localStorage)

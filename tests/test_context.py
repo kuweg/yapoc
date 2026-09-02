@@ -40,6 +40,24 @@ def _run(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
+def _make_agent(root: Path, name: str = "testagent", **files: str) -> Path:
+    """Lay out an agent the way the runtime does.
+
+    PROMPT.MD / CONFIG.yaml live in the agent dir; MEMORY, NOTES, HEALTH and
+    LEARNINGS live in the parallel memory tree that build_system_context reads
+    (``agent_dir.parent.parent / "memory" / "agents" / agent_dir.name``).
+    """
+    agent_dir = root / "agents" / name
+    agent_dir.mkdir(parents=True, exist_ok=True)
+    memory_dir = agent_dir.parent.parent / "memory" / "agents" / name
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    memory_files = {"MEMORY.MD", "NOTES.MD", "HEALTH.MD", "LEARNINGS.MD"}
+    for fname, content in files.items():
+        target = memory_dir if fname in memory_files else agent_dir
+        (target / fname).write_text(content)
+    return agent_dir
+
+
 def test_build_system_context_with_prompt():
     with tempfile.TemporaryDirectory() as tmpdir:
         agent_dir = Path(tmpdir)
@@ -54,14 +72,18 @@ def test_build_system_context_with_prompt():
 
 def test_build_system_context_memory_limit():
     with tempfile.TemporaryDirectory() as tmpdir:
-        agent_dir = Path(tmpdir)
-        (agent_dir / "PROMPT.MD").write_text("Agent prompt.")
         lines = [f"[2026-04-{i:02d} 10:00] task {i}" for i in range(1, 21)]
-        (agent_dir / "MEMORY.MD").write_text("\n".join(lines))
-        (agent_dir / "NOTES.MD").write_text("")
-        (agent_dir / "HEALTH.MD").write_text("")
         config_text = "runner:\n  context_memory_limit: 5\n"
-        (agent_dir / "CONFIG.md").write_text(config_text)
+        agent_dir = _make_agent(
+            Path(tmpdir),
+            **{
+                "PROMPT.MD": "Agent prompt.",
+                "MEMORY.MD": "\n".join(lines),
+                "NOTES.MD": "",
+                "HEALTH.MD": "",
+                "CONFIG.yaml": config_text,
+            },
+        )
 
         ctx = _run(build_system_context(agent_dir, config_text=config_text))
         assert "task 20" in ctx
@@ -73,16 +95,23 @@ def test_build_system_context_memory_limit():
 
 def test_build_system_context_notes_limit():
     with tempfile.TemporaryDirectory() as tmpdir:
-        agent_dir = Path(tmpdir)
-        (agent_dir / "PROMPT.MD").write_text("Agent prompt.")
-        (agent_dir / "MEMORY.MD").write_text("")
-        (agent_dir / "NOTES.MD").write_text("A" * 5000)
-        (agent_dir / "HEALTH.MD").write_text("")
         config_text = "runner:\n  context_notes_limit: 100\n"
-        (agent_dir / "CONFIG.md").write_text(config_text)
+        agent_dir = _make_agent(
+            Path(tmpdir),
+            **{
+                "PROMPT.MD": "Agent prompt.",
+                "MEMORY.MD": "",
+                "NOTES.MD": "A" * 5000,
+                "HEALTH.MD": "",
+                "CONFIG.yaml": config_text,
+            },
+        )
 
         ctx = _run(build_system_context(agent_dir, config_text=config_text))
-        assert "notes truncated" in ctx
+        # The context no longer appends a "…truncated" marker, but the cap is
+        # still applied — 5000 A's must not survive whole.
+        assert "A" * 5000 not in ctx
+        assert "A" * 100 in ctx
 
 
 def test_build_system_context_preloaded_config():

@@ -20,6 +20,7 @@ import fcntl
 import json
 import logging
 import os
+import re
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,6 +73,16 @@ def _is_duplicate(
         return False
     if existing["child_agent"] != child_agent:
         return False
+    # task_id is the authoritative dedup key when both sides carry it: three
+    # independent producers (NotificationPoller, the Redis master-watcher, and
+    # startup reconcile) can enqueue the SAME task completion but disagree on
+    # session_id — one path passes the real session id while another passes ""
+    # (e.g. a RESUME.MD replay or a poller that didn't propagate the session).
+    # Checking session_id FIRST defeated task_id dedup: a session-mismatched
+    # duplicate returned False here and got enqueued again → the double/echo
+    # message after restart. Session_id must only gate when task_id is absent.
+    if task_id and existing.get("task_id"):
+        return existing.get("task_id", "") == task_id
     if existing.get("session_id", "") != (session_id or ""):
         return False
     if task_id:
@@ -280,7 +291,70 @@ class NotificationQueue:
                 session_id=n.get("session_id", ""),
                 completed_at=n.get("completed_at", ""),
             )
+            # The queue's `consumed=True` flag alone is NOT a durable shield:
+            # it lives only in this queue file, which dedup only consults for
+            # UNCONSUMED entries, and the poller's `_notified` set is evictable
+            # (capped at 2000). Stamp `consumed_at` back into the child's
+            # TASK.MD so the poller's `if consumed_at: continue` guard — a
+            # permanent, non-evictable record on the source of truth — finally
+            # prevents the same terminal TASK.MD from being re-enqueued and
+            # re-surfaced to master as a duplicate/echo notification.
+            self._stamp_consumed_at(n.get("child_agent", ""))
         return pending
+
+    def _stamp_consumed_at(self, child_agent: str) -> None:
+        """Stamp ``consumed_at`` into the child's TASK.MD so the poller's
+        ``if consumed_at: continue`` guard authoritatively prevents re-emission.
+
+        Two independent result-consumption paths exist:
+         1. ``collect_agent_results()`` (CLI REPL / HTTP streaming) — stamps
+            ``consumed_at`` via ``BaseAgent.mark_task_consumed()``.
+         2. The watcher + queue drain path (master woken by a sub-agent
+            completion) — only set the queue's ``consumed`` flag.
+
+        Path 2 never touched TASK.MD, so the child stayed ``status: done``
+        with empty ``consumed_at`` forever. The only thing preventing the
+        poller from re-enqueueing that completion was the evictable
+        ``_notified`` set (capped at 2000); once it aged out, the next poll
+        re-detected the still-terminal TASK.MD and re-enqueued the same
+        result → master re-processed already-surfaced work → the user saw
+        duplicate/echo notifications. Stamping TASK.MD fixes this permanantly.
+
+        Format matches ``BaseAgent.mark_task_consumed`` (UTC, ``Z`` suffix).
+        """
+        try:
+            task_path = settings.agents_dir / child_agent / "TASK.MD"
+            if not task_path.exists():
+                return
+            content = task_path.read_text(encoding="utf-8")
+            if not content.strip():
+                return
+            existing: dict[str, str] = {}
+            body = content
+            m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
+            if m:
+                for line in m.group(1).splitlines():
+                    if ":" in line:
+                        key, _, val = line.partition(":")
+                        existing[key.strip()] = val.strip()
+                body = content[m.end():]
+            if existing.get("consumed_at"):
+                return  # idempotent — already consumed
+            existing["consumed_at"] = datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            fm_lines = [f"{k}: {v}" for k, v in existing.items()]
+            task_path.write_text(
+                "---\n" + "\n".join(fm_lines) + "\n---\n" + body,
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            # Never let a metadata stamp break notification delivery.
+            logger.warning(
+                "NotificationQueue: failed to stamp consumed_at for %s: %s",
+                child_agent,
+                exc,
+            )
 
     def pending_count(self, parent_agent: str, session_id: str | None = None) -> int:
         """Return count of unconsumed notifications for parent_agent.

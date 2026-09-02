@@ -206,9 +206,11 @@ install_redis() {
             fi
             ;;
         linux-pacman)
-            info "redis-server not found. Will install via: sudo pacman -S redis"
-            if confirm "Run sudo pacman -S redis?"; then
-                run sudo pacman -S --noconfirm redis
+            # Arch dropped the `redis` package in favour of `valkey`, which is a
+            # drop-in fork and still ships redis-server / redis-cli.
+            info "redis-server not found. Will install via: sudo pacman -S valkey"
+            if confirm "Run sudo pacman -S valkey?"; then
+                run sudo pacman -S --noconfirm --needed valkey
             else
                 return
             fi

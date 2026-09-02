@@ -33,6 +33,11 @@ export async function pingAgent(name: string): Promise<PingResult> {
   return res.json()
 }
 
+export async function nudgeAgent(name: string): Promise<void> {
+  const res = await fetch(`/api/agents/${name}/nudge`, { method: 'POST' })
+  if (!res.ok) throw new Error(`nudge ${res.status}`)
+}
+
 export interface AgentCpuMetrics {
   agent_name: string
   pid: number | null

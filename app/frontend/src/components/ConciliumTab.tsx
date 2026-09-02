@@ -89,7 +89,7 @@ function fmtDuration(s: number): string {
 function StatusBadge({ status }: { status: string }) {
   const color = STATUS_COLORS[status] ?? STATUS_COLORS.pending
   return (
-    <span className={`inline-block px-1.5 py-0.5 text-[10px] border font-mono ${color}`}>
+    <span className={`inline-block px-1.5 py-0.5 text-[12px] border font-mono ${color}`}>
       {status}
     </span>
   )
@@ -99,7 +99,7 @@ function RoleTag({ role }: { role: string }) {
   const info = COUNSELOR_ROLES.find((r) => r.key === role)
   return (
     <span
-      className={`inline-block px-1.5 py-0.5 text-[10px] border border-zinc-700 font-mono ${roleColor(role)}`}
+      className={`inline-block px-1.5 py-0.5 text-[12px] border border-zinc-700 font-mono ${roleColor(role)}`}
       title={info?.focus ?? ''}
     >
       {info?.label ?? role}
@@ -135,16 +135,17 @@ function NewDeliberationForm({
 
   return (
     <div className="border border-zinc-800 bg-zinc-900/40 p-4 space-y-4">
-      <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono">
+      <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
         New Deliberation
       </h3>
 
       {/* Plan text area */}
       <div>
-        <label className="text-[10px] font-mono text-zinc-500 block mb-1">
+        <label className="text-[12px] font-mono text-zinc-500 block mb-1">
           Plan to evaluate
         </label>
         <textarea
+            aria-label="Deliberation plan"
           value={planText}
           onChange={(e) => setPlanText(e.target.value)}
           placeholder="Paste the plan text here..."
@@ -156,7 +157,7 @@ function NewDeliberationForm({
 
       {/* Role selection */}
       <div>
-        <label className="text-[10px] font-mono text-zinc-500 block mb-1">
+        <label className="text-[12px] font-mono text-zinc-500 block mb-1">
           Counselors ({selectedRoles.length}/{COUNSELOR_ROLES.length})
         </label>
         <div className="flex flex-wrap gap-2">
@@ -169,7 +170,7 @@ function NewDeliberationForm({
                 title={role.focus}
                 data-testid={`concilium-role-${role.key}`}
                 data-active={active}
-                className={`px-2 py-1 text-[10px] font-mono border ${
+                className={`px-2 py-1 text-[12px] font-mono border ${
                   active
                     ? 'border-[#FFB633] text-[#FFB633] bg-[#FFB633]/10'
                     : 'border-zinc-700 text-zinc-500'
@@ -184,14 +185,14 @@ function NewDeliberationForm({
 
       {/* Max rounds */}
       <div className="flex items-center gap-3">
-        <label className="text-[10px] font-mono text-zinc-500">
+        <label className="text-[12px] font-mono text-zinc-500">
           Max rounds
         </label>
         <select
           value={maxRounds}
           onChange={(e) => setMaxRounds(Number(e.target.value))}
           data-testid="concilium-max-rounds"
-          className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] font-mono px-2 py-1"
+          className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-[13px] font-mono px-2 py-1"
         >
           {[1, 2, 3, 5].map((n) => (
             <option key={n} value={n}>{n}</option>
@@ -204,7 +205,7 @@ function NewDeliberationForm({
         onClick={handleSubmit}
         disabled={loading || !planText.trim() || selectedRoles.length === 0}
         data-testid="concilium-submit"
-        className="px-4 py-2 text-[11px] font-mono uppercase tracking-wider border border-[#FFB633] text-[#FFB633] hover:bg-[#FFB633]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="px-4 py-2 text-[13px] font-mono uppercase tracking-wider border border-[#FFB633] text-[#FFB633] hover:bg-[#FFB633]/10 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {loading ? 'Deliberating...' : 'Start Deliberation'}
       </button>
@@ -230,13 +231,13 @@ function SessionList({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono">
+        <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
           Sessions ({sessions.length})
         </h3>
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-[#FFB633] hover:border-[#FFB633] disabled:opacity-40"
+          className="px-2 py-1 text-[12px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-[#FFB633] hover:border-[#FFB633] disabled:opacity-40"
         >
           {loading ? '...' : 'Refresh'}
         </button>
@@ -263,7 +264,7 @@ function SessionList({
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-zinc-200">{s.session_id}</span>
                     <StatusBadge status={s.status} />
-                    <span className="text-zinc-600 ml-auto text-[10px]">
+                    <span className="text-zinc-600 ml-auto text-[12px]">
                       {shortTimestamp(s.started_at)}
                     </span>
                   </div>
@@ -287,7 +288,7 @@ function SessionList({
 function LogViewer({ events }: { events: DeliberationLogEvent[] }) {
   return (
     <div>
-      <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-mono">
+      <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-2 font-mono">
         Event log ({events.length})
       </h3>
       <div className="border border-zinc-800 bg-zinc-900/40 max-h-80 overflow-y-auto">
@@ -298,7 +299,7 @@ function LogViewer({ events }: { events: DeliberationLogEvent[] }) {
         ) : (
           <ul className="divide-y divide-zinc-800">
             {events.map((ev, i) => (
-              <li key={`${ev.timestamp}-${i}`} className="px-3 py-1.5 text-[10px] font-mono">
+              <li key={`${ev.timestamp}-${i}`} className="px-3 py-1.5 text-[12px] font-mono">
                 <span className="text-zinc-600">{shortTimestamp(ev.timestamp)}</span>{' '}
                 <span className="text-zinc-400">[{ev.type}]</span>{' '}
                 <span className="text-zinc-300">
@@ -489,10 +490,10 @@ export function ConciliumTab() {
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800 flex-shrink-0">
-        <h2 className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono">Concilium</h2>
+        <h2 className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">Concilium</h2>
         <button
           onClick={() => setShowNewForm(!showNewForm)}
-          className={`px-2 py-1 text-[11px] font-mono uppercase tracking-wider border ${
+          className={`px-2 py-1 text-[13px] font-mono uppercase tracking-wider border ${
             showNewForm ? 'border-[#FFB633] text-[#FFB633]' : 'border-zinc-700 text-zinc-400'
           } hover:border-[#FFB633] hover:text-[#FFB633]`}
         >
@@ -501,12 +502,12 @@ export function ConciliumTab() {
         <button
           onClick={loadSessions}
           disabled={loading}
-          className="px-2 py-1 text-[11px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633] disabled:opacity-40"
+          className="px-2 py-1 text-[13px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633] disabled:opacity-40"
         >
           {loading ? '...' : 'Refresh'}
         </button>
         {selectedSession && (
-          <span className="text-[11px] text-zinc-500 font-mono ml-auto">
+          <span className="text-[13px] text-zinc-500 font-mono ml-auto">
             Session: {selectedSession}
           </span>
         )}
@@ -528,23 +529,23 @@ export function ConciliumTab() {
         {result && (
           <div data-testid="concilium-result" className="border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
             <div className="flex items-center gap-3">
-              <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono">
+              <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
                 Result
               </h3>
               <span data-testid="concilium-result-status">
                 <StatusBadge status={result.status} />
               </span>
-              <span data-testid="concilium-result-meta" className="text-[10px] text-zinc-500 font-mono">
+              <span data-testid="concilium-result-meta" className="text-[12px] text-zinc-500 font-mono">
                 {result.rounds_completed} round(s) · {fmtDuration(result.duration_s)}
               </span>
             </div>
 
             {result.approved_plan && (
               <div>
-                <label className="text-[10px] font-mono text-zinc-500 block mb-1">
+                <label className="text-[12px] font-mono text-zinc-500 block mb-1">
                   Approved Plan
                 </label>
-                <pre className="bg-zinc-950 border border-zinc-800 p-3 text-[11px] text-zinc-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+                <pre className="bg-zinc-950 border border-zinc-800 p-3 text-[13px] text-zinc-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
                   {result.approved_plan}
                 </pre>
               </div>
@@ -552,10 +553,10 @@ export function ConciliumTab() {
 
             {result.escalation_summary && (
               <div>
-                <label className="text-[10px] font-mono text-zinc-500 block mb-1">
+                <label className="text-[12px] font-mono text-zinc-500 block mb-1">
                   Escalation Summary
                 </label>
-                <pre className="bg-zinc-950 border border-zinc-800 p-3 text-[11px] text-yellow-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
+                <pre className="bg-zinc-950 border border-zinc-800 p-3 text-[13px] text-yellow-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto">
                   {JSON.stringify(result.escalation_summary, null, 2)}
                 </pre>
               </div>
@@ -577,7 +578,7 @@ export function ConciliumTab() {
 
         {/* Counselor roles reference */}
         <div>
-          <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2 font-mono">
+          <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-2 font-mono">
             Counselor Roles
           </h3>
           <div className="border border-zinc-800 bg-zinc-900/40">

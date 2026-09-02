@@ -1,17 +1,19 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { streamTask, ServerRestartError } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
-import { useWsStore } from '../store/wsStore'
+import { useWsStore, type BackgroundTask } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
 import { handleCommand, synthesizeSpeech, getAgents, uploadFiles } from '../api/client'
 import { MessageBubble } from './MessageBubble'
+import { TaskCompletionCard } from './TaskCompletionCard'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { CompactionMarker } from './ContextGauge'
 import { groupParts } from './groupParts'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
+import { SubAgentActivity } from './SubAgentActivity'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
@@ -288,6 +290,41 @@ export function ChatPanel() {
   const [usage, setUsage] = useState<UsageEvent | null>(null)
   const [masterModel, setMasterModel] = useState<string>('')
   const [awaitingNotification, setAwaitingNotification] = useState(false)
+  /** Set when master is busy and this turn is waiting for its lock. */
+  const [queuedNotice, setQueuedNotice] = useState('')
+  const queuedNoticeRef = useRef(false)
+  /** Completions already rendered in this session — the store dedupes its own
+   *  replay, but this guards the append site itself (React StrictMode invokes
+   *  effects twice, and the clear is an async state update). */
+  const appendedCompletionsRef = useRef<Set<string>>(new Set())
+
+  // Tasks the backend started without a user turn in this chat. `resume` is the
+  // one users hit most (server_restart → RESUME.MD → startup dispatch).
+  const backgroundTasks = useWsStore((s) => s.backgroundTasks)
+  // Every agent master has spawned this turn. Deliberately NOT filtered by
+  // `p.done`: spawn_agent resolves the moment the child is dispatched — it is
+  // wait_for_agent that takes the minutes — so filtering on it unmounted the
+  // activity card about a second in, before the child had done any work.
+  const liveDelegations = useMemo(() => {
+    const out: string[] = []
+    for (const p of streamingParts) {
+      if (p.kind !== 'tool' || p.name !== 'spawn_agent') continue
+      const input = (p.input || {}) as Record<string, unknown>
+      const name = String(input.agent_name ?? input.name ?? '')
+      if (name && !out.includes(name)) out.push(name)
+    }
+    return out
+  }, [streamingParts])
+
+  const autonomousRunning = useMemo(
+    () =>
+      backgroundTasks.filter(
+        (t) =>
+          t.status === 'running' &&
+          ['resume', 'goal', 'cron', 'notification'].includes((t.source ?? '').toLowerCase()),
+      ),
+    [backgroundTasks],
+  )
   const [backgroundActivity, setBackgroundActivity] = useState<string>('')
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
@@ -495,16 +532,55 @@ export function ChatPanel() {
   const persistTaskGroupToHistory = useCallback((group: TaskGroup) => {
     const text = group.finalText || '_Task completed_'
     const partsToSave = group.parts.length > 0 ? group.parts : undefined
-    appendMessage('assistant', text, partsToSave)
+    // Bind to the session the group started in — the user may have switched
+    // chats while the delegation was still running.
+    appendMessage('assistant', text, partsToSave, undefined, group.sessionId)
     setTaskGroups((prev) => prev.filter((g) => g.id !== group.id))
   }, [appendMessage])
 
   // WebSocket notification: when a background task completes, persist to history
   useEffect(() => {
-    if (!awaitingNotification || !lastCompletedTask || !activeId) return
-    if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
+    if (!lastCompletedTask || !activeId) return
     const result = lastCompletedTask.result?.trim()
     const hasError = Boolean(lastCompletedTask.error)
+
+    // Same completion delivered twice (live event + a state_sync replay after a
+    // reconnect) previously rendered two "Task completed" cards.
+    const completionId = lastCompletedTask.task_id
+    if (completionId) {
+      if (appendedCompletionsRef.current.has(completionId)) {
+        clearLastCompletedTask()
+        return
+      }
+      appendedCompletionsRef.current.add(completionId)
+    }
+
+    if (!awaitingNotification) {
+      // Automated/background completion (source: resume, notification, goal…)
+      // with no active task group. These belong to a SYNTHETIC service session
+      // (e.g. a resume task's own ID, a notification channel session) the user
+      // has never opened — routing to it would silently drop the message
+      // (appendMessage returns early for an unknown session). Always surface
+      // them in the ACTIVE chat, regardless of the completion's session_id.
+      const finalText = result || (hasError ? '_Background task failed_' : '_Task completed_')
+      // When the completion carried structured metadata (which agent finished,
+      // a real prompt description, an error), persist it so the history renders
+      // a rich <TaskCompletionCard>. Fall back to bare text otherwise.
+      const hasMeta = Boolean(
+        (lastCompletedTask.prompt && lastCompletedTask.prompt.trim()) ||
+          (lastCompletedTask.agent && lastCompletedTask.agent.trim()) ||
+          lastCompletedTask.task_id ||
+          lastCompletedTask.error,
+      )
+      const snapshot = hasMeta ? lastCompletedTask : undefined
+      appendMessage('assistant', finalText, undefined, undefined, activeId, snapshot)
+      clearLastCompletedTask()
+      return
+    }
+
+    // Interactive delegation: only drop a result whose session genuinely isn't
+    // this chat's (i.e. the user switched chats mid-delegation).
+    if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
 
     setTaskGroups((prev) => {
       const idx = findLastIndex(prev, (g) => g.status === 'running')
@@ -528,7 +604,7 @@ export function ChatPanel() {
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastCompletedTask()
-  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask, persistTaskGroupToHistory])
+  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask, persistTaskGroupToHistory, appendMessage])
 
   useEffect(() => {
     if (!awaitingNotification || !lastSessionEvent || !activeId) return
@@ -748,9 +824,18 @@ export function ChatPanel() {
             result: event.result,
             isError: event.is_error,
           })
+        } else if (event.type === 'status') {
+          // Master serializes turns on one lock. This arrives when the chat
+          // turn is queued behind autonomous work — without it the composer
+          // shows a bare "Thinking…" for however long that takes while the
+          // agent-flow panel visibly streams something else, which reads as a
+          // hung chat.
+          queuedNoticeRef.current = true
+          setQueuedNotice(String((event as { text?: string }).text || ''))
         } else if (event.type === 'usage_stats') {
           setUsage(event)
         } else if (event.type === 'compact') {
+          setQueuedNotice('')
           enqueueStreamEvent({
             kind: 'compact',
             tokensBefore: event.tokens_before,
@@ -803,6 +888,7 @@ export function ChatPanel() {
             parts: finalParts,
             finalText: assembledText,
             status: 'running',
+            sessionId,
           },
         ])
         setAwaitingNotification(true)
@@ -815,6 +901,7 @@ export function ChatPanel() {
           parts: finalParts,
           finalText: assembledText,
           status: 'done',
+          sessionId,
         }
         setTaskGroups((prev) => [...prev, doneGroup])
         setTimeout(() => persistTaskGroupToHistory(doneGroup), 0)
@@ -822,7 +909,7 @@ export function ChatPanel() {
         // Save both the structured parts AND the final assembled text into history.
         // On page refresh, MessageBubble will render the parts as the execution trace.
         const partsToSave = finalParts.length > 0 ? finalParts : undefined
-        appendMessage('assistant', assembledText, partsToSave)
+        appendMessage('assistant', assembledText, partsToSave, undefined, sessionId)
         // Auto-speak response if voice auto-speak is enabled
         if (assembledText) {
           const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
@@ -842,7 +929,7 @@ export function ChatPanel() {
           : `\n\n_Error: ${(e as Error).message}_`
         setStreamingParts((prev) => [...prev, { kind: 'text', text: errText }])
         const full = (assembledText + errText).trim()
-        if (full) appendMessage('assistant', full)
+        if (full) appendMessage('assistant', full, undefined, undefined, sessionId)
       }
     } finally {
       // Drop any pending buffered events and cancel the scheduled flush —
@@ -890,7 +977,12 @@ export function ChatPanel() {
 
         {history.map((msg, i) => (
           <div key={i} className="group relative">
-            {msg.role === 'assistant' && msg.parts && msg.parts.length > 0 ? (
+            {msg.role === 'assistant' && msg.taskCompletion ? (
+              // A "what just finished" card: the backend completed a background
+              // task (resume/notification/goal/cron) that carried structured
+              // metadata. Show the rich card instead of the old bare text.
+              <TaskCompletionCard task={msg.taskCompletion} />
+            ) : msg.role === 'assistant' && msg.parts && msg.parts.length > 0 ? (
               // Render the saved step chain exactly as it streamed (no collapse
               // into a single block, no duplicated final-text blob).
               <PartsChain parts={msg.parts} content={msg.content} masterModel={masterModel} />
@@ -933,12 +1025,43 @@ export function ChatPanel() {
         {isStreaming && streamingParts.length === 0 && (
           <div className="flex items-center gap-2 text-zinc-500 text-sm pl-1">
             <TypingIndicator />
-            <span>Thinking…</span>
+            <span>{queuedNotice || 'Thinking…'}</span>
           </div>
         )}
 
         {isStreaming && streamingParts.length > 0 && (
           <PartsChain parts={streamingParts} masterModel={masterModel} streaming />
+        )}
+
+        {/* Children master has spawned in this turn and not yet collected.
+            The delegation trace only becomes a task group once the turn ends,
+            so without this the most interesting moment — the sub-agent actually
+            working — has nothing on screen but a spinner. */}
+        {liveDelegations.map((agent) => (
+          <SubAgentActivity key={`live-${agent}`} agentName={agent} running />
+        ))}
+
+        {/* Autonomous work the server started on its own (a post-restart
+            resume, a cron tick, a goal). Its output streams to the agent panel,
+            not this chat's SSE, so without this the chat looks idle while
+            master is visibly working elsewhere — then a result appears from
+            nowhere. Show it running here, in the chat the user is actually
+            looking at. */}
+        {autonomousRunning.length > 0 && !awaitingNotification && (
+          <div className="space-y-1" data-testid="autonomous-running">
+            {autonomousRunning.map((t: BackgroundTask) => (
+              <div
+                key={t.task_id}
+                className="flex items-center gap-2 text-zinc-500 text-sm pl-1"
+              >
+                <TypingIndicator />
+                <span>
+                  {t.source === 'resume' ? 'Resuming after restart' : `Running ${t.source ?? 'background'} task`}
+                  {t.prompt ? ` — ${t.prompt.replace(/^\[Resume\]\s*/, '').slice(0, 80)}` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
 
         {awaitingNotification && (
@@ -957,7 +1080,7 @@ export function ChatPanel() {
             </button>
             </div>
             {backgroundActivity && (
-              <div className="pl-6 text-[11px] text-zinc-400 font-mono">
+              <div className="pl-6 text-[13px] text-zinc-400 font-mono">
                 {backgroundActivity}
               </div>
             )}

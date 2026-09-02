@@ -71,18 +71,18 @@ function GroupedToolCallBlockImpl({ name, calls }: GroupedToolCallBlockProps) {
           <span className="text-xs font-mono font-medium" style={{ color: color.hex }}>
             {name}
           </span>
-          <span className="text-[11px] text-zinc-500 font-mono">(×{totalCount})</span>
+          <span className="text-[13px] text-zinc-500 font-mono">(×{totalCount})</span>
 
           {/* expand indicator */}
           <span
-            className="text-zinc-600 text-[10px] transition-transform duration-150"
+            className="text-zinc-600 text-[12px] transition-transform duration-150"
             style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
           >
             ▸
           </span>
 
           {/* aggregate status */}
-          <span className="ml-auto text-[11px] font-mono">
+          <span className="ml-auto text-[13px] font-mono">
             {allDone ? (
               errorCount > 0 ? (
                 <span>
@@ -106,10 +106,10 @@ function GroupedToolCallBlockImpl({ name, calls }: GroupedToolCallBlockProps) {
             {calls.map((call, i) => (
               <div key={call.id} className="space-y-0.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-zinc-500 font-mono w-5 flex-shrink-0">[{i + 1}]</span>
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wide">input</span>
+                  <span className="text-[12px] text-zinc-500 font-mono w-5 flex-shrink-0">[{i + 1}]</span>
+                  <span className="text-[12px] text-zinc-500 uppercase tracking-wide">input</span>
                   {call.done && (
-                    <span className="ml-auto text-[10px] font-mono">
+                    <span className="ml-auto text-[12px] font-mono">
                       {call.isError ? (
                         <span className="text-red-400">✗</span>
                       ) : (
@@ -118,19 +118,19 @@ function GroupedToolCallBlockImpl({ name, calls }: GroupedToolCallBlockProps) {
                     </span>
                   )}
                   {!call.done && (
-                    <span className="ml-auto text-[10px] text-zinc-500">…</span>
+                    <span className="ml-auto text-[12px] text-zinc-500">…</span>
                   )}
                 </div>
-                <pre className="overflow-x-auto text-zinc-300 whitespace-pre-wrap break-words text-[11px] leading-relaxed ml-6">
+                <pre className="overflow-x-auto text-zinc-300 whitespace-pre-wrap break-words text-[13px] leading-relaxed ml-6">
                   {JSON.stringify(call.input, null, 2)}
                 </pre>
                 {call.done && call.result && (
                   <>
                     <div className="flex items-center gap-1.5 ml-6 mt-1">
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wide">result</span>
+                      <span className="text-[12px] text-zinc-500 uppercase tracking-wide">result</span>
                     </div>
                     <pre
-                      className={`overflow-x-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed ml-6 ${
+                      className={`overflow-x-auto whitespace-pre-wrap break-words text-[13px] leading-relaxed ml-6 ${
                         call.isError ? 'text-red-400' : 'text-zinc-300'
                       }`}
                     >

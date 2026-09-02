@@ -23,7 +23,7 @@ export function AgentTable() {
               <th
                 key={col}
                 role="columnheader"
-                className={`px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-[#484F58]
+                className={`px-4 py-2 text-[12px] font-semibold uppercase tracking-widest text-[#484F58]
                   ${i === 3 ? 'hidden xl:table-cell' : ''}`}
               >
                 {col}

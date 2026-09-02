@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { restartAgent, pingAgent, type PingResult } from '../../api/agentStatusClient'
+import { restartAgent, pingAgent, nudgeAgent, type PingResult } from '../../api/agentStatusClient'
 
 interface Props {
   agentName: string
@@ -14,6 +14,8 @@ export function AgentActions({ agentName, state, onRefresh }: Props) {
   const [isPinging, setIsPinging] = useState(false)
   const [pingResult, setPingResult] = useState<PingResult | null>(null)
   const [pingError, setPingError] = useState<string | null>(null)
+
+  const [nudging, setNudging] = useState(false)
 
   async function handleRestart() {
     if (!confirm(`Restart agent "${agentName}"?`)) return
@@ -43,6 +45,18 @@ export function AgentActions({ agentName, state, onRefresh }: Props) {
     }
   }
 
+  async function handleNudge() {
+    setNudging(true)
+    try {
+      await nudgeAgent(agentName)
+      onRefresh?.()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setNudging(false)
+    }
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
@@ -54,6 +68,16 @@ export function AgentActions({ agentName, state, onRefresh }: Props) {
             disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {restarting ? 'Restarting…' : 'Restart'}
+        </button>
+
+        <button
+          onClick={handleNudge}
+          disabled={nudging}
+          className="px-3 py-1.5 text-xs rounded-md bg-[#21262D] border border-[#30363D]
+            text-[#8B949E] hover:text-[#E6EDF3] hover:border-[#484F58]
+            disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {nudging ? '↻ Nudge…' : '↻ Nudge'}
         </button>
 
         <button

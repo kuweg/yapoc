@@ -94,3 +94,10 @@
 - **Action:** When creating or updating any agent's PROMPT.MD, ensure total token count stays under 4000. If a prompt exceeds this, trim instructions, consolidate rules, or move detailed guidelines to NOTES.MD with a reference in PROMPT.MD.
 - **Confidence:** high
 
+
+## Rule: Never create memory paths relative to CWD
+- **Observed:** 2026-08-31
+- **Context:** The app/backend/app/memory/ duplicate was created by migrate_base.py injecting `Path("app/memory/agents")` (CWD-relative). When process CWD was app/backend/, it resolved to app/backend/app/memory/agents instead of app/memory/agents, polluting a shadow tree with stale agent memory. Verified via git history that all committed code now uses the absolute project_root-anchored path.
+- **Action:** All memory/settings path resolution must be anchored to project_root (or __file__), never to a bare relative path like Path("app/memory/..."). Before writing any migration/one-off script that constructs paths, use the absolute settings path. Audit one-off scripts in app/tmp/ for bare relative path literals.
+- **Confidence:** high
+

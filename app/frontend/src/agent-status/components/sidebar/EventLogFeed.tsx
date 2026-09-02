@@ -18,7 +18,7 @@ export function EventLogFeed() {
 
   return (
     <div className="flex flex-col h-full">
-      <h3 className="text-[10px] uppercase tracking-widest text-[#484F58] px-3 py-2 border-b border-[#21262D]">
+      <h3 className="text-[12px] uppercase tracking-widest text-[#484F58] px-3 py-2 border-b border-[#21262D]">
         Live Events
       </h3>
       <div className="flex-1 overflow-y-auto py-1">

@@ -61,7 +61,7 @@ export function YapocControls() {
         ■ {busy === 'stop' ? 'Stopping…' : 'Stop all'}{killable.length > 0 ? ` (${killable.length})` : ''}
       </button>
       {(msg || backendDown) && (
-        <span className="text-[11px] font-mono text-[#8B949E] truncate max-w-[14rem]">
+        <span className="text-[13px] font-mono text-[#8B949E] truncate max-w-[14rem]">
           {msg || (backendDown ? 'backend down' : '')}
         </span>
       )}

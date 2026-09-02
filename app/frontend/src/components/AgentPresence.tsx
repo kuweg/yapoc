@@ -6,6 +6,8 @@ import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIde
 export type AgentPresence = 'idle' | 'thinking' | 'calling-tool' | 'streaming' | 'waiting' | 'offline'
 
 const RECENT_MS = 15_000
+/** Freshness window for heartbeat activity events (used by the master progress pill). */
+export const HEARTBEAT_FRESH_MS = 45_000
 
 const PRESENCE_LABEL: Record<AgentPresence, string> = {
   idle: 'idle',
@@ -55,7 +57,7 @@ function PresenceSpinner({ color }: { color: string }) {
     const handle = startAsciiWave(el, 120)
     return () => handle.stop()
   }, [])
-  return <span ref={ref} className="font-mono text-[10px] leading-none w-5 inline-block" style={{ color }} aria-hidden />
+  return <span ref={ref} className="font-mono text-[12px] leading-none w-5 inline-block" style={{ color }} aria-hidden />
 }
 
 /**
@@ -98,7 +100,7 @@ export function AgentPresenceIndicator({
           style={{ backgroundColor: presence === 'offline' ? '#6b7280' : presence === 'waiting' ? color : '#34d399' }}
         />
       )}
-      <span className="text-[10px] uppercase tracking-wide" style={{ color: active ? color : '#71717a' }}>
+      <span className="text-[12px] uppercase tracking-wide" style={{ color: active ? color : '#71717a' }}>
         {PRESENCE_LABEL[presence]}
       </span>
     </span>

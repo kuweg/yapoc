@@ -1,50 +1,67 @@
-## Prompt Audit 2026-05-18 19:42
+# Session 2026-09-01 — Feature audit corrections
 
-Audited 9 agent PROMPT.MD files (excluded: security, master). One rough edge identified per agent.
+## What happened
+User asked: (1) what I thought about "YAPOC 2.0" (I needed the plan/doc — unanswered), (2) steal something useful from chebupelka.py, (3) how memory works, (4) what features YAPOC lacks from Master's perspective, (5) build the 3 features I proposed. Then "compress dialogue".
 
-### 1. Builder — References non-existent tools `create_agent` and `delete_agent`
-- **File:** `app/agents/builder/PROMPT.MD`
-- **Rough edge:** The prompt says "Scaffold new agents using the `create_agent` tool" and "Delete dynamic agents using the `delete_agent` tool" — but neither tool exists in Builder's actual tool list. Builder can only create files via `file_write`/`file_edit` and delete via `file_delete`. This instruction is misleading and would cause Builder to hallucinate tool calls.
-- **Fix:** Replace with "Create agent directory scaffolding (TASK.MD, MEMORY.MD, NOTES.MD) using file_write" and "Delete agent directories by deleting individual files with file_delete."
+## Key result: all 3 proposed "gaps" already exist.
+Verified by reading actual code — my gap analysis was WRONG. Over-claimed twice, corrected both times by repo reads. Did NOT delegate redundant builder work.
 
-### 2. Cron — Missing peer delegation constraints
-- **File:** `app/agents/cron/PROMPT.MD`
-- **Rough edge:** The prompt says "spawn the appropriate agents to execute recurring work" but doesn't specify which agents Cron can spawn. It references `spawn_agent(agent_name=job.assign_to, ...)` without any guardrails on which agents are allowed. Cron's CONFIG.md `delegation_targets` may restrict this, but the prompt itself should mention the constraint.
-- **Fix:** Add a constraint line: "Only spawn agents listed in your CONFIG.md delegation_targets. Currently: builder, keeper, doctor, master."
+- **#1 Webhook inbound** — EXISTS. `app/backend/routers/webhook.py`: Bearer-token auth (`settings.webhook_secret`), task queueing, `callback_url`, wired into `main.py`.
+- **#4 Observability dashboard** — EXISTS. `observability.py` router + frontend `ObservabilityTab.tsx`: per-agent HEALTH.MD → error counts (1h/24h), last error, recent errors, recent task durations/status.
+- **#6 Live per-tool-call streaming** — EXISTS, full granularity. `BaseAgent._emit_event()` in `app/agents/base/__init__.py` pushes live Redis events: `turn_start` → `thinking_delta` → `message_delta` → `tool_call` (ToolStart, name+input) → `tool_result` (completion, name/result/is_error) → `turn_done`. Channels: `agent:{name}:activity` (Agents tab, always on) + `session:{id}:events` (Chat tab), relayed by `app/backend/websocket.py`. tool_result emit confirmed at lines ~1652-1657.
 
-### 3. Doctor — Response Actions table references `spawn_agent planning` but Planning may not be a delegation target
-- **File:** `app/agents/doctor/PROMPT.MD`
-- **Rough edge:** The "Response Actions" table says "Spawn planning to investigate" (`spawn_agent planning`) but Doctor's `delegation_targets` may not include Planning. If the sandbox enforces delegation_targets, this action would fail silently. The prompt assumes Doctor can spawn any agent.
-- **Fix:** Either add Planning to Doctor's delegation_targets, or change the action to "Create a task for Master to investigate via memory_append" since Master can spawn Planning.
+## Other findings
+- `runner.py` "corruption" (byte 0x94 @ pos 0) was a TOOL READ ARTIFACT — reads fine with `start_line=1`. Not a real bug. Don't chase.
+- Memory architecture: markdown source (MEMORY/NOTES/LEARNINGS/HEALTH per agent + user PROFILE/HISTORY + project + shared KNOWLEDGE) + embedding indexer (`indexer.py`, all-MiniLM-L6-v2, 384-dim, local) + SQLite hybrid retrieval (`db.py`: memory_entries + memory_fts FTS5, RRF fusion k=60). 3rd-party options ranked: sqlite-vec (best cheap upgrade, brute-force→ANN), Qdrant/Weaviate, pgvector, Pinecone. Current weakness = brute-force vector scan.
+- chebupelka.py — nothing worth copying; the 3 "useful" ideas (500-char truncation preview, unknown-tool→graceful error string, content-or-None in tool_call msgs) all already handled in YAPOC.
 
-### 4. Evaluator — References non-existent tool `get_recent_signals()`
-- **File:** `app/agents/evaluator/PROMPT.MD`
-- **Rough edge:** The entire methodology is built around calling `get_recent_signals()` which returns "unified observability snapshot" — but this tool does not exist in Evaluator's tool list. The prompt was written for a tool that was never implemented. Every proposal is supposed to "cite at least one specific signal" from this tool, making the entire workflow impossible.
-- **Fix:** Either implement `get_recent_signals` as a real tool, or rewrite the methodology to use available tools (file_read on HEALTH.MD files, search_memory, etc.).
+## Lesson (strengthened)
+VERIFY against repo before proposing gaps. Presented 3 features as missing; all existed. Never build on a wrong foundation — the correct move was honest correction + no delegation.
 
-### 5. Keeper — Sandbox loophole in file access rules
-- **File:** `app/agents/keeper/PROMPT.MD`
-- **Rough edge:** The "Sandboxed File Access" section lists specific paths (.env, settings.py, pyproject.toml, .env.example) but then adds "Any file explicitly listed in your task" — this is a loophole that could allow a task to bypass the sandbox by simply listing any file. The sandbox should be enforced at the tool level, not the prompt level.
-- **Fix:** Remove the "Any file explicitly listed in your task" exception, or clarify that it only applies to files within the same config domain.
+## Possible real follow-ups (none attempted; user picked "1" then dialogue compressed)
+- Is Observability tab surfacing/usable in UI?
+- Webhook API-status surface / callback-retry display?
+- Cost/latency time-series metrics (beyond HEALTH.MD)?
+- Audit a different layer (e.g. AgentFlowPane rendering these events).
 
-### 6. Librarian — Hardcodes "ONE turn" assumption that may not hold
-- **File:** `app/agents/librarian/PROMPT.MD`
-- **Rough edge:** The prompt repeatedly states "Due to system limitations, you only get ONE turn" and "After calling file_read, the tool result is provided to you. Your output (the ## Result section) IS your final answer" — this hardcodes a runtime constraint that may not be true for all deployments. If the agent gets multiple turns, this instruction actively prevents it from doing proper work.
-- **Fix:** Replace with a soft constraint: "Prefer single-turn execution. Read the document, then output your summary. If you need a second turn, use it sparingly."
+## 2026-09 — Beyond-Hermes feature additions (not in hermes_multiagent_features.md)
 
-### 7. Model Manager — References non-existent tools `update_agent_config`, `check_model_availability`, `list_models`
-- **File:** `app/agents/model_manager/PROMPT.MD`
-- **Rough edge:** The prompt references three tools (`update_agent_config`, `check_model_availability`, `list_models`) that do not appear in Model Manager's actual tool list. The entire workflow section ("When asked to audit or optimize agents") depends on these tools. Without them, the agent cannot execute its core responsibilities.
-- **Fix:** Either implement these tools, or rewrite the workflow to use available tools (file_read on agent-settings.json, file_edit for config changes, web_search for model info).
+Genuinely NEW angles beyond the existing Phase 1–5 Hermes-derived plan:
 
-### 8. Planning — References non-existent tool `add_task_trace`
-- **File:** `app/agents/planning/PROMPT.MD`
-- **Rough edge:** The prompt says "call `add_task_trace` BEFORE spawning sub-agents" and "call `add_task_trace` with a 1-sentence rationale BEFORE executing" — but `add_task_trace` is not in Planning's tool list. This instruction would cause the agent to hallucinate a tool call or waste a turn trying to use it.
-- **Fix:** Replace with `memory_append` for decision logging, or remove the instruction entirely.
+1. **`delegate_task` as a real tool** — today spawning is master-side primitive only. Give sub-agents a runtime `delegate_task(goal, context, allowed_tools)` tool so any agent fans out work mid-turn without TASK.MD plumbing. Biggest missing primitive.
+2. **Child-side token budget** — parent sets token cap per child; child hard-stops + returns partial results when exhausted. Prevents runaway agents.
+3. **Structured result contract** — typed result schema `{status, summary, files[], artifacts[]}` downstream agents parse deterministically instead of free-text.
+4. **Time-based memory decay** — auto-archive MEMORY.md entries older than N days to cold store; keeps hot memory dense. YAPOC has compaction but no aging-out.
+5. **Per-session working context that survives restart** — CONVERSATION.md frozen + restored, beyond RESUME.md resume triggers.
+6. **Negative knowledge** — documented "things we tried that didn't work" list to prevent re-litigating rejected approaches.
+7. **Budget-aware autonomous mode** — global daily token/$ cap shared across cron+doctor+goals; scheduler checks remaining budget per goal before spawning.
+8. **Escalation ladder on repeated failure** — N consecutive failures → auto-disable job + page user, not silent infinite retry.
+9. **Planned-downtime queue** — jobs firing during maintenance window get queued, run on next tick instead of dropped.
+10. **Cost/latency time-series** — per-agent per-task $$ + ms stored & graphed, feeds model_manager downgrade decisions (HEALTH.MD only has error counts today).
+11. **Skill verification** — feedback loop: "did the skill produce expected outcome" auto-demotes bad procedures. (Manual version already exists via self-improvement loop.)
 
-### 9. Researcher — References non-existent tool `fetch_page`
-- **File:** `app/agents/researcher/PROMPT.MD`
-- **Rough edge:** The prompt lists `fetch_page` as an available tool ("Fetch and read a specific URL, returns extracted main content as markdown") but this tool does not exist in Researcher's actual tool list. The research methodology depends on it ("Read Multiple Sources: Fetch the 2–4 most relevant pages"). Without it, Researcher can only see search snippets.
-- **Fix:** Either implement `fetch_page` as a real tool, or remove references to it and adjust the methodology to work with search snippets only.
 
-[test-2026-05-18] direct-edit-verified
+## 8-feature batch — verified status (2026-09-01)
+## Feature batch status — ALL 8 verified against code this session
+
+| # | Feature | Status | Where / blocker |
+|---|---------|--------|-----------------|
+| 1 | delegate_task runtime tool | ✅ DONE | `DelegateTaskTool` in `app/utils/tools/delegation.py` (~L1420); allowed_tools whitelist enforced; registered in registry |
+| 2 | Child token budget | ⛔ NOT DONE | `token_limit` in delegate_task schema is "accepted for forward-compat and ignored"; `# (params.get("token_limit"))` commented out at ~L1490 |
+| 3 | Structured result contract | ✅ DONE | `app/agents/base/result.py` (AgentResult/parse_result/to_result_json), backward-compatible coercion |
+| 4 | Memory decay to cold store | ⛔ NOT DONE | no `data/memory_archive/` dir; needs base-layer runtime hook (PROTECTED) |
+| 5 | Survivable CONVERSATION.md | ⛔ NOT DONE | no CONVERSATION.md anywhere; restore logic needs base-layer (PROTECTED) |
+| 6 | Negative knowledge store | 🟡 PARTIAL | `app/agents/shared/NEGATIVE_KNOWLEDGE.md` + librarian PROMPT.MD routing rule (L42-56) LANDED. Context INJECTION BLOCKED — `app/agents/base/context.py` + `__init__.py` are gate-protected |
+| 7 | Budget-aware autonomy | 🟡 PRE-EXISTING | `app/utils/cost_governor.py` + `daily_autonomous_budget_usd` (settings) existed BEFORE batch. No new unified-cap work layered on |
+| 8 | Cron escalation ladder | ✅ DONE | dispatcher L218 record_cron_success (success), L365/L455 record_cron_failure+disable-notify (timeout/error). helpers in cron_parser.py |
+
+## Core blocker
+`app/agents/base/` entire dir is gate-protected (context.py, __init__.py, runner.py — core orchestration). Builder + shell both blocked. Features needing base-layer runtime hook for context INJECTION (4, 5, and the injection-half of 6) cannot be wired there.
+
+## Non-protected landing spots (viable)
+- Feature 2: `app/utils/tools/delegation.py` (NOT protected) — child token budget enforced in DelegateTaskTool/WaitForAgentTool
+- Feature 7: `app/utils/cost_governor.py` (NOT protected) — unify to one daily cap
+- Features 4/5/6 "record but don't inject": standalone maintenance helpers called by librarian/cron at runtime on non-protected paths. Context-injection into prompt stays blocked unless base/ gate is opened for a carefully-scoped edit.
+
+## Lesson
+DAG/async-planning produced truncated no-op results. Working pattern = synchronous spawn_agent(builder) + wait_for_agent + DIRECT verification (used for #8). Gate blocks only base-layer; utils/tools + utils/* are fair game.

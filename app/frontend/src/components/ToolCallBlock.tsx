@@ -130,7 +130,7 @@ function ToolCallBlockImpl({ id: _id, name, input, result, isError, done }: Tool
             </span>
 
             {/* expand indicator */}
-            <span className="text-zinc-600 text-[10px] transition-transform duration-150" style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+            <span className="text-zinc-600 text-[12px] transition-transform duration-150" style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>
               ▸
             </span>
 
@@ -154,16 +154,16 @@ function ToolCallBlockImpl({ id: _id, name, input, result, isError, done }: Tool
           {open && (
             <div className="animate-slide-down border-l border-zinc-700 ml-1 pl-3 py-1 space-y-1.5">
               <div>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wide mb-0.5">input</div>
-                <pre className="overflow-x-auto text-zinc-300 whitespace-pre-wrap break-words text-[11px] leading-relaxed">
+                <div className="text-[12px] text-zinc-500 uppercase tracking-wide mb-0.5">input</div>
+                <pre className="overflow-x-auto text-zinc-300 whitespace-pre-wrap break-words text-[13px] leading-relaxed">
                   {JSON.stringify(input, null, 2)}
                 </pre>
               </div>
               {done && result && (
                 <div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wide mb-0.5">result</div>
+                  <div className="text-[12px] text-zinc-500 uppercase tracking-wide mb-0.5">result</div>
                   <pre
-                    className={`overflow-x-auto whitespace-pre-wrap break-words text-[11px] leading-relaxed ${
+                    className={`overflow-x-auto whitespace-pre-wrap break-words text-[13px] leading-relaxed ${
                       isError ? 'text-red-400' : 'text-zinc-300'
                     }`}
                   >

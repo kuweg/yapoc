@@ -65,24 +65,24 @@ export function StaleTasksPanel() {
             Stale Tasks
           </span>
           {hasStale && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F8514920] text-[#F85149]">
+            <span className="px-1.5 py-0.5 rounded text-[12px] font-bold bg-[#F8514920] text-[#F85149]">
               {tasks.length}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[#8B949E]">
+          <span className="text-[12px] text-[#8B949E]">
             threshold: {formatElapsed(threshold)}
           </span>
           {lastUpdated && (
-            <span className="text-[10px] text-[#484F58]">
+            <span className="text-[12px] text-[#484F58]">
               &middot; {lastUpdated.toLocaleTimeString()}
             </span>
           )}
           <button
             onClick={fetchStaleTasks}
             disabled={loading}
-            className="text-[10px] text-[#8B949E] hover:text-[#E6EDF3] transition-colors disabled:opacity-40"
+            className="text-[12px] text-[#8B949E] hover:text-[#E6EDF3] transition-colors disabled:opacity-40"
             title="Refresh now"
           >
             &#8635;
@@ -128,11 +128,11 @@ export function StaleTasksPanel() {
                       {formatElapsed(t.elapsed_seconds)}
                     </span>
                   </td>
-                  <td className="py-1.5 pr-3 text-[#8B949E] font-mono text-[10px]">
+                  <td className="py-1.5 pr-3 text-[#8B949E] font-mono text-[12px]">
                     {t.assigned_at ? new Date(t.assigned_at).toLocaleString() : '\u2014'}
                   </td>
                   <td className="py-1.5">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#D2992220] text-[#D29922]">
+                    <span className="px-1.5 py-0.5 rounded text-[12px] font-medium bg-[#D2992220] text-[#D29922]">
                       {t.status}
                     </span>
                   </td>
@@ -144,7 +144,7 @@ export function StaleTasksPanel() {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-1.5 border-t border-[#21262D] text-[10px] text-[#484F58]">
+      <div className="px-4 py-1.5 border-t border-[#21262D] text-[12px] text-[#484F58]">
         Polls every 30s &middot; Threshold from agent-settings.json
       </div>
     </div>

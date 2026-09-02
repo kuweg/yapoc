@@ -149,6 +149,7 @@ from .telegram import SendTelegramMessageTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
     CheckTaskStatusTool,
+    DelegateTaskTool,
     ExecuteDagTool,
     KillAgentTool,
     NotifyParentTool,
@@ -162,10 +163,10 @@ from .agent_mgmt import CreateAgentTool, DeleteAgentTool
 from .agent_settings_tool import HealAgentSettingsTool, ShowAgentSettingsTool
 from .config_update import UpdateConfigTool
 from .model_manager import CheckModelAvailabilityTool, ListModelsTool, UpdateAgentConfigTool
-from .search import SearchMemoryTool
+from .search import SearchMemoryTool, SearchNegativeKnowledgeTool
 from .evaluator_signals import GetRecentSignalsTool
 from .grep import GrepTool
-from .skills import CreateSkillTool, LoadSkillsTool
+from .skills import CreateSkillTool, DeleteSkillTool, LoadSkillsTool, UpdateSkillTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
@@ -187,6 +188,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "fetch_page": FetchPageTool,
     "fetch_page_js": FetchPageJsTool,
     "spawn_agent": SpawnAgentTool,
+    "delegate_task": DelegateTaskTool,
     "ping_agent": PingAgentTool,
     "kill_agent": KillAgentTool,
     "check_task_status": CheckTaskStatusTool,
@@ -205,6 +207,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "heal_agent_settings": HealAgentSettingsTool,
     "show_agent_settings": ShowAgentSettingsTool,
     "search_memory": SearchMemoryTool,
+    "search_negative_knowledge": SearchNegativeKnowledgeTool,
     "get_recent_signals": GetRecentSignalsTool,
     "shared_knowledge_append": SharedKnowledgeAppendTool,
     "image_read": ImageReadTool,
@@ -212,6 +215,8 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "send_telegram_message": SendTelegramMessageTool,
     "load_skills": LoadSkillsTool,
     "create_skill": CreateSkillTool,
+    "update_skill": UpdateSkillTool,
+    "delete_skill": DeleteSkillTool,
     "grep": GrepTool,
 }
 
@@ -225,6 +230,7 @@ _AGENT_DIR_TOOLS = {
     "learnings_append",
     "update_config",
     "spawn_agent",
+    "delegate_task",
     "execute_dag",
     "notify_parent",
     "shared_knowledge_append",
@@ -258,7 +264,7 @@ def build_tools(
         kwargs: dict[str, Any] = {}
         if name in _AGENT_DIR_TOOLS:
             kwargs["agent_dir"] = agent_dir
-            if name in ("spawn_agent", "execute_dag"):
+            if name in ("spawn_agent", "delegate_task", "execute_dag"):
                 kwargs["session_id"] = session_id
         if name in _SANDBOX_TOOLS:
             kwargs["sandbox"] = policy

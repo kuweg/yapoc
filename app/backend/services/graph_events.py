@@ -11,10 +11,20 @@ Exports:
 from __future__ import annotations
 
 import json
+import os
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+
+from loguru import logger
+
+# Redis pub/sub channel carrying graph events between processes.
+GRAPH_CHANNEL = "yapoc:graph_events"
+# Identifies this process on the wire so a subscriber can drop the events
+# it published itself (otherwise every local emit is delivered twice).
+_ORIGIN = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
 
 @dataclass
@@ -118,6 +128,55 @@ class GraphEventBus:
                 await listener(payload)
             except Exception:
                 pass  # isolated listener failures
+        await self._fanout(payload)
+
+    async def _fanout(self, payload: dict[str, Any]) -> None:
+        """Mirror the event onto Redis so other processes can see it.
+
+        Sub-agents (planning, builder, …) run as their own processes, so a
+        `spawn_agent` inside planning emits into *that* process's bus and never
+        reaches the backend's WebSocket clients. Without this, the live topology
+        only ever shows master's own delegations and the rest of the chain is
+        invisible. `_relayed` marks events that arrived *from* Redis so a relay
+        can't echo them back into a loop.
+        """
+        if payload.get("_relayed"):
+            return
+        try:
+            from app.backend.message_bus import bus
+
+            await bus.publish(GRAPH_CHANNEL, {**payload, "_relayed": True, "_origin": _ORIGIN})
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("graph event fanout to Redis failed (non-fatal): {}", exc)
+
+    async def ingest_relayed(self, payload: dict[str, Any]) -> None:
+        """Feed an event that arrived over Redis to local listeners only.
+
+        Events this process published are skipped — they already went to the
+        local listeners at emit time, and re-ingesting them delivers every
+        event to the UI twice.
+        """
+        if payload.get("_origin") == _ORIGIN:
+            return
+        event = GraphEvent(
+            event_type=str(payload.get("event_type", "")),
+            source=str(payload.get("source", "")),
+            timestamp=str(payload.get("timestamp", "")),
+            target=str(payload.get("target", "")),
+            task_id=str(payload.get("task_id", "")),
+            status=str(payload.get("status", "")),
+            level=str(payload.get("level", "")),
+            message=str(payload.get("message", "")),
+            old_status=str(payload.get("old_status", "")),
+            new_status=str(payload.get("new_status", "")),
+        )
+        self._push(event)
+        out = event.to_dict()
+        for listener in self._listeners:
+            try:
+                await listener(out)
+            except Exception:
+                pass
 
     # ── Events ───────────────────────────────────────────────────────────
 
@@ -205,11 +264,16 @@ class GraphEventBus:
 
         from app.config import settings
 
+        # agent-settings.json is read through app.utils.agent_settings — there
+        # is no `settings.agent_settings` attribute, and the broad except below
+        # used to swallow the AttributeError, so every snapshot came back empty.
         agents_cfg: dict[str, Any] = {}
         try:
-            agents_cfg = settings.agent_settings  # dict from agent-settings.json
+            from app.utils.agent_settings import _agents_map, _read
+
+            agents_cfg = _agents_map(_read())
         except Exception:
-            pass
+            logger.exception("graph snapshot: could not read agent-settings.json")
 
         nodes: list[dict[str, Any]] = []
         edges: list[dict[str, Any]] = []

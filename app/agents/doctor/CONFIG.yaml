@@ -33,6 +33,8 @@ tools:
   - spawn_agent
   - kill_agent
   - check_task_status
+  - notify_parent
+  - grep
 delegation_targets:
   - builder
   - planning

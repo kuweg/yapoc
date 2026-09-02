@@ -114,7 +114,7 @@ export function ChannelsDashboard() {
           <div className="flex items-center gap-3 mb-4">
             <button
               onClick={handleBack}
-              className="px-2 py-1 text-[11px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-[#FFB633] hover:border-[#FFB633]"
+              className="px-2 py-1 text-[13px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-[#FFB633] hover:border-[#FFB633]"
             >
               ← Back
             </button>
@@ -137,16 +137,16 @@ export function ChannelsDashboard() {
                     <div className="text-sm font-mono truncate text-zinc-200">
                       {s.name || '(unnamed)'}
                     </div>
-                    <div className="text-[11px] text-zinc-500 font-mono">
+                    <div className="text-[13px] text-zinc-500 font-mono">
                       {s.messageCount} msg{s.messageCount === 1 ? '' : 's'} · {fmtDate(s.createdAt)}
                     </div>
                     {s.preview && (
-                      <div className="text-[11px] text-zinc-600 font-mono truncate mt-1">
+                      <div className="text-[13px] text-zinc-600 font-mono truncate mt-1">
                         {s.preview}
                       </div>
                     )}
                   </div>
-                  <span className="text-[11px] font-mono text-[#FFB633] uppercase tracking-wider">
+                  <span className="text-[13px] font-mono text-[#FFB633] uppercase tracking-wider">
                     Open →
                   </span>
                 </li>
@@ -168,7 +168,7 @@ export function ChannelsDashboard() {
           </h2>
           <button
             onClick={loadChannels}
-            className="px-2 py-1 text-[11px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-[#FFB633] hover:border-[#FFB633]"
+            className="px-2 py-1 text-[13px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-400 hover:text-[#FFB633] hover:border-[#FFB633]"
           >
             Refresh
           </button>
@@ -189,11 +189,11 @@ export function ChannelsDashboard() {
                   {channel.count}
                 </span>
               </div>
-              <div className="text-[11px] font-mono text-zinc-500">
+              <div className="text-[13px] font-mono text-zinc-500">
                 {channel.count === 1 ? '1 session' : `${channel.count} sessions`}
               </div>
               {channel.sessions.length > 0 && (
-                <div className="mt-2 text-[11px] font-mono text-zinc-600 truncate">
+                <div className="mt-2 text-[13px] font-mono text-zinc-600 truncate">
                   Latest: {channel.sessions[0].name || '(unnamed)'}
                 </div>
               )}

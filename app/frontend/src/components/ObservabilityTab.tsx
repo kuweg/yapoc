@@ -103,9 +103,12 @@ function chartColor(name: string): string {
 }
 
 function fmtCost(n: number): string {
+  // Zero is "—", not $0.000000; sub-cent collapses to a threshold rather than
+  // six decimal places of noise.
+  if (!n) return '—'
   if (n >= 1) return `$${n.toFixed(2)}`
-  if (n >= 0.01) return `$${n.toFixed(4)}`
-  return `$${n.toFixed(6)}`
+  if (n >= 0.01) return `$${n.toFixed(2)}`
+  return '<$0.01'
 }
 
 function fmtTokens(n: number): string {
@@ -126,7 +129,9 @@ function fmtTimestamp(iso: string): string {
   if (!iso) return '—'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleString()
+  return d.toLocaleString([], {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
 }
 
 function shortTimestamp(iso: string): string {
@@ -169,7 +174,7 @@ function CostChart({ points }: { points: CostDataPoint[] }) {
   const sortedTs = [...byTime.keys()].sort()
   const maxCost = Math.max(...sortedTs.map((ts) => byTime.get(ts)!.total), 0.001)
 
-  const W = 600
+  const W = 1200
   const H = 180
   const PAD = { top: 10, right: 10, bottom: 20, left: 50 }
   const chartW = W - PAD.left - PAD.right
@@ -186,7 +191,7 @@ function CostChart({ points }: { points: CostDataPoint[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <svg width={W} height={H} className="font-mono">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="xMinYMid meet" className="font-mono w-full">
         {/* Y-axis gridlines + labels */}
         {Array.from({ length: yTicks + 1 }, (_, i) => {
           const val = yStep * i
@@ -194,7 +199,7 @@ function CostChart({ points }: { points: CostDataPoint[] }) {
           return (
             <g key={i}>
               <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#27272a" strokeWidth={1} />
-              <text x={PAD.left - 4} y={y + 3} textAnchor="end" fill="#71717a" fontSize={9}>
+              <text x={PAD.left - 4} y={y + 3} textAnchor="end" fill="#71717a" fontSize={14}>
                 {fmtCost(val)}
               </text>
             </g>
@@ -240,7 +245,7 @@ function CostChart({ points }: { points: CostDataPoint[] }) {
                   y={H - 4}
                   textAnchor="end"
                   fill="#71717a"
-                  fontSize={8}
+                  fontSize={13}
                   transform={`rotate(-45, ${x + barW / 2}, ${H - 4})`}
                 >
                   {shortTimestamp(ts)}
@@ -254,7 +259,7 @@ function CostChart({ points }: { points: CostDataPoint[] }) {
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mt-2 px-1">
         {allAgents.map((agent) => (
-          <div key={agent} className="flex items-center gap-1.5 text-[10px] font-mono">
+          <div key={agent} className="flex items-center gap-1.5 text-[12px] font-mono">
             <span
               className="inline-block w-2 h-2 rounded-sm"
               style={{ backgroundColor: chartColor(agent) }}
@@ -312,15 +317,15 @@ function LiveTraceViewer({ agent, onClose }: { agent: string; onClose: () => voi
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800">
         <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-        <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-mono">
+        <span className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
           Live trace: {agent}
         </span>
-        <span className="text-[10px] text-zinc-600 font-mono">
+        <span className="text-[12px] text-zinc-600 font-mono">
           {events.length} events
         </span>
         <button
           onClick={onClose}
-          className="ml-auto px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+          className="ml-auto px-2 py-0.5 text-[12px] font-mono border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
         >
           Close
         </button>
@@ -329,12 +334,12 @@ function LiveTraceViewer({ agent, onClose }: { agent: string; onClose: () => voi
       {/* Event feed */}
       <div ref={scrollRef} className="max-h-80 overflow-y-auto p-2 space-y-1">
         {events.length === 0 && (
-          <div className="text-zinc-500 text-[10px] font-mono text-center py-4">
+          <div className="text-zinc-500 text-[12px] font-mono text-center py-4">
             {connected ? 'Waiting for activity...' : 'Connecting...'}
           </div>
         )}
         {events.map((ev, i) => (
-          <div key={i} className="text-[10px] font-mono">
+          <div key={i} className="text-[12px] font-mono">
             <span className="text-zinc-600">{shortTimestamp(ev.timestamp)}</span>{' '}
             <span className={agentColor(ev.agent)}>[{ev.agent}]</span>{' '}
             <span className="text-zinc-300 whitespace-pre-wrap line-clamp-3">
@@ -366,12 +371,12 @@ function AgentDetailPanel({
         <span className={`text-sm font-mono font-bold ${agentColor(agent.name)}`}>
           {agent.name}
         </span>
-        <span className={`inline-block px-1.5 py-0.5 text-[10px] border ${badge.cls}`}>
+        <span className={`inline-block px-1.5 py-0.5 text-[12px] border ${badge.cls}`}>
           {badge.label}
         </span>
         <button
           onClick={onClose}
-          className="ml-auto px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+          className="ml-auto px-2 py-0.5 text-[12px] font-mono border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
         >
           Close
         </button>
@@ -393,7 +398,7 @@ function AgentDetailPanel({
       <div className="px-3 py-2">
         <button
           onClick={() => setTraceOpen(!traceOpen)}
-          className="px-3 py-1 text-[10px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633]"
+          className="px-3 py-1 text-[12px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633]"
         >
           {traceOpen ? 'Hide live trace' : 'Show live trace'}
         </button>
@@ -411,7 +416,7 @@ function AgentDetailPanel({
 function DetailStat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="px-3 py-2 bg-zinc-900/60">
-      <div className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono">{label}</div>
+      <div className="text-[12px] uppercase tracking-wider text-zinc-500 font-mono">{label}</div>
       <div className={`mt-0.5 text-xs font-mono truncate ${accent ?? 'text-zinc-200'}`}>{value}</div>
     </div>
   )
@@ -496,7 +501,7 @@ export function ObservabilityTab() {
       <button
         onClick={() => setSortKey(k)}
         className={[
-          'px-1 py-0.5 text-[10px] font-mono uppercase tracking-wider',
+          'px-1 py-0.5 text-[12px] font-mono uppercase tracking-wider',
           active ? 'text-[#FFB633]' : 'text-zinc-500 hover:text-zinc-300',
         ].join(' ')}
       >
@@ -510,17 +515,17 @@ export function ObservabilityTab() {
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800 flex-shrink-0">
-        <h2 className="text-[10px] uppercase tracking-widest text-zinc-500">Observability</h2>
+        <h2 className="text-[12px] uppercase tracking-widest text-zinc-500">Observability</h2>
         <button
           onClick={() => { load(); loadCostHistory(); }}
           disabled={loading}
-          className="px-2 py-1 text-[11px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-2 py-1 text-[13px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
         <button
           onClick={() => setShowCostChart(!showCostChart)}
-          className={`px-2 py-1 text-[11px] font-mono uppercase tracking-wider border ${
+          className={`px-2 py-1 text-[13px] font-mono uppercase tracking-wider border ${
             showCostChart ? 'border-[#FFB633] text-[#FFB633]' : 'border-zinc-700 text-zinc-400'
           } hover:border-[#FFB633] hover:text-[#FFB633]`}
         >
@@ -528,14 +533,14 @@ export function ObservabilityTab() {
         </button>
         <button
           onClick={() => setShowLiveTrace(!showLiveTrace)}
-          className={`px-2 py-1 text-[11px] font-mono uppercase tracking-wider border ${
+          className={`px-2 py-1 text-[13px] font-mono uppercase tracking-wider border ${
             showLiveTrace ? 'border-[#FFB633] text-[#FFB633]' : 'border-zinc-700 text-zinc-400'
           } hover:border-[#FFB633] hover:text-[#FFB633]`}
         >
           {showLiveTrace ? 'Hide trace' : 'Live trace'}
         </button>
         {data && (
-          <span className="text-[11px] text-zinc-500 font-mono ml-auto">
+          <span className="text-[13px] text-zinc-500 font-mono ml-auto">
             generated {fmtTimestamp(data.generated_at)}
           </span>
         )}
@@ -571,7 +576,7 @@ export function ObservabilityTab() {
             {/* Cost chart */}
             {showCostChart && (
               <div>
-                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">
+                <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-2">
                   Cost over time (72h)
                   {costLoading && <span className="text-zinc-600 ml-2 animate-pulse">loading…</span>}
                 </h3>
@@ -584,14 +589,14 @@ export function ObservabilityTab() {
             {/* Live trace */}
             {showLiveTrace && (
               <div>
-                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">
+                <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-2">
                   Live agent trace
                 </h3>
                 <div className="flex items-center gap-2 mb-2">
                   <select
                     value={traceAgent}
                     onChange={(e) => setTraceAgent(e.target.value)}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-[11px] font-mono px-2 py-1"
+                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-[13px] font-mono px-2 py-1"
                   >
                     <option value="">All agents</option>
                     {agents.map((a) => (
@@ -609,11 +614,11 @@ export function ObservabilityTab() {
             {/* Agent leaderboard */}
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500">
+                <h3 className="text-[12px] uppercase tracking-widest text-zinc-500">
                   Agent leaderboard ({agents.length})
                 </h3>
                 <span className="text-zinc-700">·</span>
-                <span className="text-[10px] text-zinc-500 font-mono">sort:</span>
+                <span className="text-[12px] text-zinc-500 font-mono">sort:</span>
                 <SortButton k="cost" label="cost" />
                 <SortButton k="tokens" label="tokens" />
                 <SortButton k="tasks" label="tasks" />
@@ -649,7 +654,7 @@ export function ObservabilityTab() {
                         >
                           <td className={`px-3 py-2 ${agentColor(a.name)}`}>{a.name}</td>
                           <td className="px-3 py-2">
-                            <span className={`inline-block px-1.5 py-0.5 text-[10px] border ${badge.cls}`}>
+                            <span className={`inline-block px-1.5 py-0.5 text-[12px] border ${badge.cls}`}>
                               {badge.label}
                             </span>
                           </td>
@@ -689,7 +694,7 @@ export function ObservabilityTab() {
             {/* Recent errors + recent tasks side-by-side on wide screens */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">
+                <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-2">
                   Recent errors ({data.recent_errors.length})
                 </h3>
                 <div className="border border-zinc-800 bg-zinc-900/40 max-h-96 overflow-y-auto">
@@ -699,7 +704,7 @@ export function ObservabilityTab() {
                     <ul className="divide-y divide-zinc-800">
                       {data.recent_errors.map((e, i) => (
                         <li key={`${e.agent}-${e.timestamp}-${i}`} className="px-3 py-2 text-xs font-mono">
-                          <div className="flex items-center gap-2 mb-1 text-[10px]">
+                          <div className="flex items-center gap-2 mb-1 text-[12px]">
                             <span className={agentColor(e.agent)}>{e.agent}</span>
                             <span className={
                               e.level === 'ERROR' ? 'text-red-400' :
@@ -717,7 +722,7 @@ export function ObservabilityTab() {
               </div>
 
               <div>
-                <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">
+                <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-2">
                   Recent tasks ({data.recent_tasks.length})
                 </h3>
                 <div className="border border-zinc-800 bg-zinc-900/40 max-h-96 overflow-y-auto">
@@ -727,7 +732,7 @@ export function ObservabilityTab() {
                     <ul className="divide-y divide-zinc-800">
                       {data.recent_tasks.map((t, i) => (
                         <li key={`${t.task_id}-${i}`} className="px-3 py-2 text-xs font-mono">
-                          <div className="flex items-center gap-2 mb-1 text-[10px]">
+                          <div className="flex items-center gap-2 mb-1 text-[12px]">
                             <span className={agentColor(t.agent)}>{t.agent}</span>
                             <span className="text-zinc-500">←</span>
                             <span className="text-zinc-400">{t.assigned_by || '—'}</span>
@@ -764,7 +769,7 @@ export function ObservabilityTab() {
 function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="px-3 py-2 border border-zinc-800 bg-zinc-900/40">
-      <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">{label}</div>
+      <div className="text-[12px] uppercase tracking-wider text-zinc-500 font-mono">{label}</div>
       <div className={`mt-1 text-lg font-mono ${accent ?? 'text-zinc-100'}`}>{value}</div>
     </div>
   )

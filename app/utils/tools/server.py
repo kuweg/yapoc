@@ -125,9 +125,59 @@ def _schedule_deferred_restart(old_pid: int, cmd: list[str], delay: float = 3.0)
     )
 
 
+def _resolve_resume_session(session_id: str) -> str:
+    """Pick the session the resumed task should stream into.
+
+    A blank session here is not harmless: `_startup_resume` falls back to
+    ``session_id = task_id``, so the resumed turn runs on a synthetic session
+    the browser has never opened and is not subscribed to. Its output then goes
+    only to the per-agent activity channel — the user sees the agent-flow panel
+    fill up while the chat stays empty.
+
+    So when the caller has no session (or carries a synthetic one that is not a
+    real chat), fall back to the most recently used UI session, which is the
+    conversation the user was in when they asked for the restart.
+    """
+    from app.cli.sessions import latest_session_id, session_path
+
+    candidate = (session_id or "").strip()
+    if candidate:
+        try:
+            if session_path(candidate).exists():
+                return candidate  # a real chat session — keep it
+        except Exception:
+            pass
+
+    # The chat's own last session, recorded by /task/stream. This is the only
+    # signal that reliably identifies a session the BROWSER has open —
+    # latest_session_id() sees CLI logs, and the newest events/ directory is
+    # usually a previous synthetic resume session.
+    fallback = ""
+    try:
+        marker = settings.project_root / "data" / "last_ui_session"
+        if marker.exists():
+            fallback = marker.read_text(encoding="utf-8").strip()
+    except Exception:
+        fallback = ""
+    if not fallback:
+        try:
+            fallback = latest_session_id() or ""
+        except Exception:
+            fallback = ""
+    if fallback:
+        from loguru import logger as _sess_log
+        _sess_log.info(
+            "resume: no usable session on the restart call ({!r}) — binding to "
+            "latest UI session {} so the resumed turn streams into the chat",
+            candidate, fallback[:8],
+        )
+    return fallback
+
+
 async def _save_resume_state(reason: str = "", next_action: str = "", session_id: str = "") -> str:
     """Gather agent state and write a structured RESUME.MD for post-restart continuity."""
     agents_dir = settings.agents_dir
+    session_id = _resolve_resume_session(session_id)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     active: list[str] = []
@@ -278,7 +328,16 @@ class ServerRestartTool(BaseTool):
             return (
                 f"Server self-restart scheduled (fires in ~3 s). "
                 f"RESUME.MD saved with {reason!r}. "
-                f"Sub-agents notified. New backend will be at http://{settings.host}:{settings.port}."
+                f"Sub-agents notified. New backend will be at http://{settings.host}:{settings.port}.\n\n"
+                "STOP HERE. The restart has NOT happened yet — this process is "
+                "about to be killed mid-turn. Do not answer the user's request "
+                "now, and do not describe the restart as complete or claim to "
+                "have verified anything about the new process: nothing you say "
+                "after this point survives, and saying it produces a reply that "
+                "contradicts what actually happened. End your turn with one "
+                "short line telling the user the server is restarting. Your "
+                f"next_action ({next_action!r}) is dispatched automatically "
+                "once the new backend is up, and you will answer them there."
             )
 
         # Normal restart (CLI-initiated). Wait for the old uvicorn to fully

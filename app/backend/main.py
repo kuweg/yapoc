@@ -799,6 +799,24 @@ async def _startup_resume() -> None:
                     next_action = fm.get("next_action", "")
                     resume_session_id = fm.get("session_id", "")
 
+            # Belt-and-braces: a RESUME.MD written by an older build (or by a
+            # path that never had a session) leaves this blank, and
+            # create_queued_task below then defaults session_id to the task's
+            # own id — a synthetic session no browser is subscribed to, so the
+            # resumed turn streams to nobody and the chat looks dead.
+            if not resume_session_id:
+                try:
+                    from app.cli.sessions import latest_session_id
+                    resume_session_id = latest_session_id() or ""
+                    if resume_session_id:
+                        logger.info(
+                            "Startup resume: RESUME.MD had no session — binding to "
+                            "latest UI session {}",
+                            resume_session_id[:8],
+                        )
+                except Exception as _sess_exc:
+                    logger.debug("Startup resume: session fallback failed ({})", _sess_exc)
+
             if next_action:
                 # Session checkpointing: if this resume belongs to a session
                 # that was compacted before the crash, hydrate the prompt with
@@ -869,8 +887,26 @@ async def _startup_resume() -> None:
                     resume_session_id[:8] if resume_session_id else "<none>",
                 )
 
-            # Clear RESUME.MD after consuming
-            resume_path.write_text("")
+            # Mark RESUME.MD consumed rather than blanking it. The resumed
+            # task starts moments later and master reads this file as its first
+            # move — finding it EMPTY made it narrate "RESUME.MD is empty, no
+            # pending work" in the same turn whose prompt is "[Resume] <action>",
+            # contradicting itself to the user. A consumed marker answers the
+            # read honestly without re-triggering on the next boot (the parser
+            # above only acts on a `next_action:` field, which this omits).
+            consumed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            resume_path.write_text(
+                "---\n"
+                f"consumed_at: {consumed_at}\n"
+                f"consumed_by_task: {task_id if next_action else ''}\n"
+                "---\n\n"
+                "## Already consumed\n"
+                "This resume was dispatched at startup and is the task you are "
+                "running now. There is no *additional* pending work here — your "
+                "current task IS the resume action. Do not report this file as "
+                "empty or as evidence that nothing was pending.\n"
+                + (f"\nResumed action: {next_action}\n" if next_action else "")
+            )
 
     # 2. Check Redis for pending task_result messages in master's inbox
     #    (agents that finished during shutdown/downtime)

@@ -146,6 +146,20 @@ async def submit_task_stream(request: TaskRequest):
     if history is not None:
         history = history + [Message(role="user", content=task)]
 
+    # Remember which session the CHAT is using. A restart wipes in-memory
+    # state, and RESUME.MD may carry no session at all — without this the
+    # resumed turn lands on a synthetic session the browser never subscribed
+    # to, and its output is invisible in the chat. Persisted, so it survives
+    # the very restart it exists to serve.
+    if session_id:
+        try:
+            from app.config import settings as _s
+            _marker = _s.project_root / "data" / "last_ui_session"
+            _marker.parent.mkdir(parents=True, exist_ok=True)
+            _marker.write_text(session_id, encoding="utf-8")
+        except Exception:
+            pass  # best-effort; resume falls back to its other heuristics
+
     merged: asyncio.Queue[dict | None] = asyncio.Queue()
 
     # Surface resolved attachment metadata to the UI first so it can upgrade

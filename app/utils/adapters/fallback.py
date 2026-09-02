@@ -58,6 +58,13 @@ except Exception:  # pragma: no cover — anthropic is a hard dep, but be safe
 
 
 # Exceptions that indicate "try the next fallback" rather than "fail hard".
+try:
+    from google.genai.errors import ClientError as _GoogleClientError
+    _GOOGLE_ERRORS: tuple[type[BaseException], ...] = (_GoogleClientError,)
+except Exception:
+    _GOOGLE_ERRORS = ()
+
+
 _FALLOVER_ERRORS: tuple[type[BaseException], ...] = (
     ValueError,  # missing API key at constructor time
     TypeError,  # SDK auth validation (some raise TypeError not ValueError)
@@ -68,6 +75,7 @@ _FALLOVER_ERRORS: tuple[type[BaseException], ...] = (
     asyncio.TimeoutError,
     KeyError,
     *_ANTHROPIC_ERRORS,
+    *_GOOGLE_ERRORS,
 )
 
 

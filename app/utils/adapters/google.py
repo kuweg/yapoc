@@ -224,11 +224,36 @@ class GoogleAdapter(BaseLLMAdapter):
             tools=gemini_tools,
         )
 
-        if settings.enable_thinking:
-            config.thinking_config = types.ThinkingConfig(
-                thinking_level="LOW",
-                thinking_budget=settings.thinking_budget_tokens,
-            )
+        if settings.enable_thinking and self._config.model:
+            # Gemini 2.5 models use different thinking config fields:
+            #   - gemini-2.5-pro-*  → thinking_budget (token budget, 24000)
+            #   - gemini-2.5-flash-* → thinking_level (enum: "low"/"medium"/"high")
+            # The google-genai SDK v2 ThinkingConfig Python class serialises
+            # BOTH fields to the wire even when the constructor only receives
+            # one — the missing field gets its protobuf default.  Gemini
+            # rejects every request that carries both (400: "You can only
+            # set only one of thinking budget and thinking level").
+            #
+            # We bypass the typed wrapper by writing the underlying proto
+            # field directly so only the intended field is serialised.
+            model = self._config.model
+            is_pro = "pro" in model and "flash" not in model
+            tc = types.ThinkingConfig()
+            pb = getattr(tc, "_pb", None)  # protobuf message, or None on SDK update
+            if pb is not None:
+                # Proto-level write — exact field, no defaults leaked.
+                if is_pro:
+                    pb.thinking_budget = settings.thinking_budget_tokens
+                else:
+                    pb.thinking_level = "low"
+                config.thinking_config = tc
+            elif is_pro:
+                # SDK changed — fall back to typed wrapper for Pro models.
+                config.thinking_config = types.ThinkingConfig(
+                    thinking_budget=settings.thinking_budget_tokens,
+                )
+            # flash models without _pb proto access → skip thinking config
+            # entirely (Gemini 2.5 Flash thinks by default without config).
 
         t_start = time.perf_counter()
         input_tokens = 0

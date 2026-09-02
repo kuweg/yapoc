@@ -30,6 +30,8 @@ tools:
   - spawn_agent
   - wait_for_agent
   - check_task_status
+  - delegate_task
+  - search_negative_knowledge
 delegation_targets:
   - builder
   - keeper

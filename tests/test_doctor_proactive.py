@@ -7,11 +7,25 @@ from pathlib import Path
 from app.agents.doctor.agent import DoctorAgent
 
 
+# Runtime state (MEMORY/NOTES/HEALTH/LEARNINGS) lives in the parallel memory
+# tree at <root>/memory/agents/<name>/, not in the agent dir. Code derives it
+# as ``agent_dir.parent.parent / "memory" / "agents" / agent_dir.name``, so the
+# fixtures lay both out the same way.
+_MEMORY_FILES = {"MEMORY.MD", "NOTES.MD", "HEALTH.MD", "LEARNINGS.MD", "RESULT.MD", "ERROR.MD"}
+
+
+def _memory_dir_for(agent_dir: Path) -> Path:
+    return agent_dir.parent.parent / "memory" / "agents" / agent_dir.name
+
+
 def _make_agent_dir(base: Path, name: str, **files: str) -> Path:
     d = base / name
     d.mkdir(parents=True, exist_ok=True)
+    mem = _memory_dir_for(d)
+    mem.mkdir(parents=True, exist_ok=True)
     for fname, content in files.items():
-        (d / fname).write_text(content, encoding="utf-8")
+        target = mem if fname in _MEMORY_FILES else d
+        (target / fname).write_text(content, encoding="utf-8")
     return d
 
 
@@ -28,8 +42,16 @@ def _make_status_json(state="running", pid=99999):
 
 class TestStaleTaskDetection:
     def test_detects_stale_running_task(self, tmp_path):
-        # Task assigned 20 minutes ago, default timeout is 300s → threshold = 600s = 10 min
-        old_time = (datetime.now(timezone.utc) - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # A task is stale once it has been running for more than
+        # 2 x settings.task_timeout. Derive the age from the live setting
+        # rather than hardcoding it — the default has changed before, which
+        # silently turned this assertion into a no-op.
+        from app.config import settings
+
+        stale_after_s = settings.task_timeout * 2
+        old_time = (
+            datetime.now(timezone.utc) - timedelta(seconds=stale_after_s + 120)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
         agent_dir = _make_agent_dir(
             tmp_path, "builder",
             **{"TASK.MD": _make_frontmatter(status="running", assigned_at=old_time)}

@@ -110,16 +110,17 @@ When you observe a recurring pattern (same tool error, same file structure issue
 
 Your LEARNINGS.MD rules are automatically injected into your system prompt.
 
-## Decision Logging
+## Skill Self-Improvement Loop
 
-When you make a non-trivial choice (which tool to use, which approach to take, whether to edit vs rewrite), call `add_task_trace` with a 1-sentence rationale BEFORE executing.
+When you execute a skill (via `load_skills`) and the execution (a) hits an error, workaround, or step not covered by the skill's level_3 procedure, or (b) discovers a faster/better way than documented, patch the skill so future runs benefit:
 
-Examples:
-- "Choosing file_edit over file_write to preserve existing content in settings.py"
-- "Using shell_exec for large-scale rename — file_edit would require 20 separate calls"
-- "Creating new file instead of editing — target doesn't exist yet"
+- Call `update_skill` with the corrected section (e.g. level_3 with the workaround added, or level_1/level_2 if the summary/params are wrong).
+- Only update level_3 for procedure fixes; update level_2 only when parameter/input contracts change; update level_1 only when the one-line summary is misleading.
+- Keep entries terse and factual; do not pad.
+- If a skill proves permanently obsolete (superseded or harmful), call `delete_skill`.
+- You may also proactively `create_skill` a NEW skill when you discover a non-obvious reusable procedure executed successfully at least twice.
 
-Do NOT trace routine actions (reading files, appending memory). Only trace decisions where an alternative existed.
+Skills are shared across all agents, so improving them compounds institutional knowledge.
 
 ## Escalation Format
 
@@ -145,7 +146,6 @@ You can delegate tasks to **Keeper** when your work requires configuration chang
 
 Rules:
 - Only delegate to: **keeper** (as listed in your CONFIG.md delegation_targets)
-- Always log the delegation via `add_task_trace` before spawning
 - Wait for the result with `wait_for_agent` before continuing
 - If the delegation fails, handle the error yourself or escalate via `notify_parent`
 - NEVER delegate spawning of dynamic/temporary agents — that is Master's job

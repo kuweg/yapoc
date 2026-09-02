@@ -150,7 +150,7 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
       {/* Row 3: model info (when selected) */}
       {selected && (
         <div className="pl-4 mt-0.5">
-          <span className="text-[10px] text-zinc-500">{agent.adapter}/{agent.model}</span>
+          <span className="text-[12px] text-zinc-500">{agent.adapter}/{agent.model}</span>
         </div>
       )}
 
@@ -158,7 +158,7 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
       {isRunning && (tps != null || outTokens != null) && (
         <div className="pl-4 mt-1 flex items-center gap-3">
           {/* Counts */}
-          <div className="flex flex-col gap-0.5 text-[10px] text-zinc-500 tabular-nums">
+          <div className="flex flex-col gap-0.5 text-[12px] text-zinc-500 tabular-nums">
             {inTokens != null && (
               <span>in&nbsp;<span className="text-zinc-400">{inTokens.toLocaleString()}</span></span>
             )}
@@ -180,12 +180,17 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
       {/* "Agent flow" button — opens the side panel */}
       {(isRunning || selected) && (
         <div className="pl-4 mt-1.5">
-          <button
+          {/* span, not button: the whole card is already a <button> and
+              nesting one inside another is invalid HTML (React warns about
+              the hydration risk). Same pattern as the stop control above. */}
+          <span
+            role="button"
+            tabIndex={0}
             onClick={openAgentFlow}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
+            className="text-[12px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors cursor-pointer"
           >
             Agent flow →
-          </button>
+          </span>
         </div>
       )}
     </button>

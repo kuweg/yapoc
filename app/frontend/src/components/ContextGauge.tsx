@@ -54,7 +54,7 @@ export function ContextGauge({
       <span className="h-1 rounded-full bg-zinc-700/60 overflow-hidden" style={{ width }}>
         <span className="block h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, backgroundColor: color }} />
       </span>
-      {showPct && <span className="text-[9px] font-mono tabular-nums leading-none" style={{ color }}>{pct.toFixed(0)}%</span>}
+      {showPct && <span className="text-[12px] font-mono tabular-nums leading-none" style={{ color }}>{pct.toFixed(0)}%</span>}
     </span>
   )
 }
@@ -77,11 +77,11 @@ export function CompactionMarker({
   const saved = tokensBefore > 0 ? Math.round((1 - tokensAfter / tokensBefore) * 100) : 0
   return (
     <div
-      className="compact-marker flex items-center gap-2 my-1 px-2.5 py-1 rounded-md border border-purple-500/30 bg-purple-500/5 text-[11px] font-mono text-purple-300/90"
+      className="compact-marker flex items-center gap-2 my-1 px-2.5 py-1 rounded-md border border-purple-500/30 bg-purple-500/5 text-[13px] font-mono text-purple-300/90"
       title={`Context compacted (${reason || 'auto'}) — the agent summarized older turns to free room`}
     >
       <span className="text-purple-400">⊟</span>
-      <span className="uppercase tracking-wide text-[10px]">context compacted</span>
+      <span className="uppercase tracking-wide text-[12px]">context compacted</span>
       {tokensBefore > 0 && (
         <span className="text-zinc-400 tabular-nums">
           {(tokensBefore / 1000).toFixed(0)}k → {(tokensAfter / 1000).toFixed(0)}k

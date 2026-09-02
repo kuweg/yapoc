@@ -1,0 +1,15 @@
+name: frontend_build
+summary: Build the YAPOC frontend production bundle via npm run build (tsc -b && vite build)
+description: |
+  Rebuild the YAPOC frontend production bundle after any change to app/frontend/src. Runs the TypeScript type-check and Vite production build, producing a new hashed bundle in app/frontend/dist/assets/. Use whenever a frontend source change needs to reach the served dist bundle. Note: 'cd' and 'pnpm' are NOT in the builder shell allowlist — use 'npm --prefix app/frontend' or the cwd parameter instead.
+level_1: "Run `npm run build` (tsc -b && vite build) from app/frontend to regenerate the production bundle in dist/assets/."
+level_2: |
+  Command: `npm --prefix app/frontend run build` (or use cwd=app/frontend). Build = `tsc -b && vite build`. Output: new hashed bundle dist/assets/index-*.js. Frontend-only change → no server restart needed; user must hard-refresh. Verify exit 0 and new bundle hash.
+level_3: |
+  1. Confirm the change is frontend-only (files under app/frontend/src/). If backend files changed too, a server restart is also required.
+  2. Run the build: `npm --prefix app/frontend run build` (cd is not allowlisted; use --prefix or the cwd parameter). Do NOT use pnpm — it is not available in the shell allowlist.
+  3. Wait for completion. Success = exit code 0 with output like "built in Xs" and no tsc type errors.
+  4. Verify the new bundle: list app/frontend/dist/assets/ and confirm a new hashed index-*.js file replaced the previous one.
+  5. Note the new bundle hash in your report (e.g. index-ZhOLRCwL.js).
+  6. Frontend-only changes do NOT require a backend/server restart — the user must hard-refresh the browser to pick up the new bundle.
+  7. Caveat: do not grep the dist bundle for source function identifiers (e.g. findRecoverableCompletion) — Vite minifies/renames them in production, so they will not survive literally. Verify via the bundle hash instead.

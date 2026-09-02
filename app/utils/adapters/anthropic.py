@@ -245,7 +245,7 @@ class AnthropicAdapter(BaseLLMAdapter):
         temperature = 1.0 if thinking_enabled else self._config.temperature
         extra_kw: dict[str, Any] = {}
         if thinking_enabled:
-            extra_kw["thinking"] = {"type": "enabled", "budget_tokens": settings.thinking_budget_tokens}
+            extra_kw["thinking"] = {"budget_tokens": settings.thinking_budget_tokens}
             extra_kw["extra_headers"] = {"anthropic-beta": "interleaved-thinking-2025-05-14"}
 
         async with self._client.messages.stream(

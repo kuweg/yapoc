@@ -42,7 +42,7 @@ The "error" badge now only fires when the most recent task itself ended in error
 
 ---
 
-## ⚠️ Bug 3 (NEW, OPEN) — Runner subprocess gets stuck at `STATUS.json state: running` after a compaction failure
+## ✅ Bug 3 (FIXED) — Runner subprocess gets stuck at `STATUS.json state: running` after a compaction failure
 
 **Symptom.** Builder's `STATUS.json` showed `state: running` indefinitely (5+ minutes observed) after a task already completed. `TASK.MD` was correctly at `status: done`, but `STATUS.json` was never written back to `idle`. Subsequent same-agent spawns hit the soft-reject path until a manual restart.
 
@@ -66,7 +66,7 @@ This is raised in `app/agents/base/__init__.py:640` inside `_compact_messages`, 
 
 ---
 
-## ⚠️ Bug 4 (NEW, MINOR) — DAG upstream-context injection ignored by downstream agent
+## ✅ Bug 4 (FIXED) — DAG upstream-context injection ignored by downstream agent
 
 **Symptom.** In the test DAG, the downstream `second` node was told *"your final message must be `BETA_2_SAW_ALPHA_2`, where ALPHA_2 should be replaced with whatever the first node's result was"*. The first node correctly returned `ALPHA_2`. The second node received `ALPHA_2` in its `## Context` section (via `ExecuteDagTool`'s upstream-result injection) — but its final message was `...ALPHA_2`, not `BETA_2_SAW_ALPHA_2`. The agent apparently confused its own task instruction with the injected context.
 
@@ -95,7 +95,96 @@ This text includes the upstream agent's *thinking* ("The task is clear — my fi
 |---|---|---|---|---|
 | 1 | ✅ FIXED | Medium | S — done | execute_dag soft-reject detection + pre-wait |
 | 2 | ✅ FIXED | Low (UX) | S — done | Stop deriving sidebar state from historical health log |
-| 3 | ⚠️ OPEN | Medium | S | Runner stuck at state=running after compaction error |
-| 4 | ⚠️ OPEN | Low | S | DAG upstream-context injection format confuses downstream agents |
+| 3 | ✅ FIXED | Medium | S — done | Runner forces an idle write when `_check_task` raises; compact model is adapter-aware |
+| 4 | ✅ FIXED | Low | S — done | Upstream results injected as labelled REFERENCE DATA with reasoning stripped |
+| 5 | ✅ FIXED | **High** | S — done | Compaction split tool_use/tool_result pairs → provider 400 killed the task |
+| 6 | ✅ FIXED | Medium | S — done | Late results leaked into whichever chat session was open |
+| 7 | ✅ FIXED | Low | S — done | Agent card rendered a `<button>` inside a `<button>` |
 
-Bugs 3 and 4 were discovered during the verification of Bug 1's fix. Both are independent of Bug 1 and worth their own targeted fix passes.
+Bugs 3 and 4 were discovered during the verification of Bug 1's fix. Bugs 5-7 were
+found on 2026-08-31 while verifying that 3 and 4 were closed out.
+
+---
+
+## ✅ Bug 5 (FIXED) — Compaction orphaned `tool_result` blocks and killed the task
+
+**Symptom.** Long runs died shortly after an auto-compact. The visible error came
+from the provider, not from YAPOC, so it read as a flaky API rather than a bug here.
+
+**Root cause.** `BaseAgent._compact_messages` preserved the tail with a blind
+`messages[-tail_n:]` slice. Conversations alternate `assistant` (holding `tool_use`
+blocks) and `user` (holding the matching `tool_result` blocks), so whenever the
+distance from a pair to the end of the list was odd — the common case, since a run
+usually ends with a plain assistant answer — the slice began *on* a `tool_result`
+whose `tool_use` was in the discarded middle. The next request then carried a
+`tool_result` with no matching `tool_use`: a hard 400 from Anthropic, and the same
+via `normalize.py` for the OpenAI-compatible adapters.
+
+Note this is a *different* cause from Bug 3, which blamed the compact model name.
+That fix was correct but incomplete — compaction stayed fragile for a second reason.
+
+**Fix.** `_safe_tail_start()` walks the tail boundary backwards while it would land
+on a `tool_result` message, pulling the owning assistant message into the tail.
+Used by `_compact_messages` and by the new `_deterministic_trim` fallback.
+
+**Also hardened.** The `_compact_messages` call site is now wrapped: if compaction
+raises for any reason (e.g. the compact adapter cannot be constructed), the run
+degrades to `_deterministic_trim` — anchor + marker + tool-pair-safe tail — instead
+of aborting a task that was otherwise healthy. The failure is logged to HEALTH.MD.
+
+**Verified.** Repro across uniform pairs, an assistant text turn mid-conversation,
+an injected `[SYSTEM]` nudge, and a trailing assistant answer. Only the last
+orphaned before the fix (`tu_5`); all four are clean after, and the below-threshold
+and no-user-message cases are passed through untouched.
+
+**Files:** `app/agents/base/__init__.py` — `_has_tool_result`, `_safe_tail_start`,
+`_deterministic_trim`, `_compact_messages`, and the auto-compact call site.
+
+---
+
+## ✅ Bug 6 (FIXED) — Late results leaked into whichever session was open
+
+**Symptom.** Start a delegation, hit **+ NEW** before it finishes, and the previous
+session's assistant messages appear in the brand-new empty chat — with no user
+message above them.
+
+**Root cause.** `useSessionStore.appendMessage` always wrote to `activeId` *at call
+time*. Any message that arrives after the user switches chats — a stream finishing,
+a delegation completing, an orphan notification — was therefore persisted into the
+wrong session. `ChatPanel` already guarded the `lastCompletedTask` and
+`lastSessionEvent` paths by session id, but the guards could not help: the write
+itself had no notion of which session the message belonged to.
+
+**Fix.** `appendMessage` takes an optional `sessionId`; when it names a different
+session, the message is appended to that session's stored history and the visible
+`history` is left alone. `TaskGroup` carries the `sessionId` it was started in, and
+the stream-completion, stream-error, and task-group persist paths all pass it.
+
+**Verified.** Switch away 4s into a delegation: the new session stays empty through
+completion, and the result lands in the originating session (store shows the new
+session with 0 messages, the origin with `roles: "ua"`). The result is routed, not
+dropped.
+
+**Files:** `app/frontend/src/store/session.ts`,
+`app/frontend/src/components/ChatPanel.tsx`,
+`app/frontend/src/components/TaskGroupBubble.tsx`.
+
+---
+
+## ✅ Bug 7 (FIXED) — `<button>` nested inside a `<button>` on the agent card
+
+**Symptom.** Two React console errors on every run: *"In HTML, `<button>` cannot be
+a descendant of `<button>`. This will cause a hydration error."*
+
+**Root cause.** The whole agent card in `AgentCard.tsx` is a `<button>`, and the
+"Agent flow →" control inside it was also a `<button>`. Click behaviour was already
+correct (`openAgentFlow` calls `stopPropagation`), so this was invalid markup and a
+hydration hazard rather than a broken interaction.
+
+**Fix.** The inner control is now `<span role="button" tabIndex={0}>` — the same
+pattern the card's own stop control already uses.
+
+**Verified.** `document.querySelectorAll('button button')` is empty during a live
+streaming turn, and the run logs zero console errors.
+
+**File:** `app/frontend/src/components/AgentCard.tsx`.

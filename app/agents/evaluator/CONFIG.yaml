@@ -33,6 +33,7 @@ tools:
 # All other paths are forbidden. This is the safety boundary that makes
 # a read-only evaluator possible: even if the LLM tries to apply a
 # proposal it shouldn't, the file_write sandbox blocks it.
+  - search_negative_knowledge
 sandbox:
   forbidden:
     - app/agents/master/

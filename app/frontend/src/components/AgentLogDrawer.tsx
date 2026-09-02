@@ -231,7 +231,7 @@ export function AgentLogDrawer({ agentName, state, onClose }: Props) {
         </div>
 
         {/* Footer status bar */}
-        <div className="flex items-center gap-3 px-4 py-1.5 border-t border-zinc-800 text-[10px] text-zinc-600 flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 py-1.5 border-t border-zinc-800 text-[12px] text-zinc-600 flex-shrink-0">
           {isRunning && (
             <span className="text-amber-400/70 animate-pulse">● generating</span>
           )}

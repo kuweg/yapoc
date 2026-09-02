@@ -26,6 +26,7 @@ tools:
   - notes_write
   - health_log
   - shared_knowledge_append
+  - notify_parent
 runner:
   max_turns: 15
   task_timeout: 120

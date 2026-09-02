@@ -170,6 +170,25 @@ async def _save_resume_state(reason: str = "", next_action: str = "", session_id
 
     _RESUME_FILE.parent.mkdir(parents=True, exist_ok=True)
     _RESUME_FILE.write_text(content)
+
+    # Freeze the session's working transcript alongside RESUME.MD. RESUME.MD
+    # carries only the next action; without this the actual conversation
+    # working-set is lost across the restart.
+    if session_id:
+        try:
+            from app.cli.sessions import load_session
+            from app.utils.conversation_store import snapshot
+
+            msgs = load_session(session_id) or []
+            if msgs:
+                transcript = "\n\n".join(
+                    f"### {m.get('role', '?')}\n{m.get('content', '')}" for m in msgs
+                )
+                snapshot(session_id, transcript)
+        except Exception as _snap_exc:
+            from loguru import logger as _snap_log
+            _snap_log.warning("conversation snapshot failed (continuing): {}", _snap_exc)
+
     return content
 
 

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk — keys are always resolved from the environment via app.config.settings at runtime. Per-agent optional fields: temperature, max_tokens, fallbacks, task_timeout (seconds, default 300), idle_timeout (seconds, default 900).",
+  "description": "Central agent -> model binding with cross-provider fallbacks. No API keys are stored on disk \u2014 keys are always resolved from the environment via app.config.settings at runtime. Per-agent optional fields: temperature, max_tokens, fallbacks, task_timeout (seconds, default 300), idle_timeout (seconds, default 900).",
   "default_n_fallbacks_models": 3,
   "stale_task_threshold_seconds": 600,
   "agents": {
@@ -16,10 +16,8 @@
         "file_delete",
         "file_list",
         "show_agent_settings",
-        "shell_exec",
         "web_search",
         "fetch_page",
-        "fetch_page_js",
         "spawn_agent",
         "ping_agent",
         "kill_agent",
@@ -46,7 +44,12 @@
         "send_telegram_message",
         "load_skills",
         "create_skill",
-        "grep"
+        "update_skill",
+        "delete_skill",
+        "grep",
+        "shell_exec",
+        "delegate_task",
+        "search_negative_knowledge"
       ],
       "max_tokens": 8192,
       "fallbacks": [
@@ -55,8 +58,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -91,18 +94,19 @@
         "notes_write",
         "notes_append",
         "health_log",
-        "add_task_trace",
         "search_memory",
         "learnings_append",
-        "shared_knowledge_append"
+        "shared_knowledge_append",
+        "delegate_task",
+        "search_negative_knowledge"
       ],
       "temperature": 1,
       "max_tokens": 8096,
       "task_timeout": 600,
       "fallbacks": [
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "google",
@@ -119,10 +123,17 @@
         "file_edit",
         "file_delete",
         "file_list",
+        "notify_parent",
         "shell_exec",
         "load_skills",
         "create_skill",
-        "grep"
+        "update_skill",
+        "delete_skill",
+        "grep",
+        "spawn_agent",
+        "wait_for_agent",
+        "check_task_status",
+        "search_negative_knowledge"
       ],
       "temperature": 1,
       "max_tokens": 8096,
@@ -133,8 +144,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -153,9 +164,13 @@
         "file_read",
         "file_write",
         "file_edit",
+        "notify_parent",
         "file_delete",
         "file_list",
-        "grep"
+        "grep",
+        "spawn_agent",
+        "wait_for_agent",
+        "check_task_status"
       ],
       "temperature": 0.2,
       "max_tokens": 4096,
@@ -165,8 +180,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -183,7 +198,9 @@
       "model": "deepseek-chat",
       "temperature": 0.3,
       "max_tokens": 4096,
-      "tools": ["grep"],
+      "tools": [
+        "grep"
+      ],
       "delegation_targets": [],
       "fallbacks": [
         {
@@ -191,8 +208,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -231,8 +248,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -266,6 +283,7 @@
         "spawn_agent",
         "kill_agent",
         "check_task_status",
+        "notify_parent",
         "grep"
       ],
       "temperature": 0.2,
@@ -280,8 +298,8 @@
           "model": "gemini-2.5-flash"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         }
       ]
     },
@@ -297,6 +315,7 @@
         "list_models",
         "check_model_availability",
         "update_agent_config",
+        "notify_parent",
         "grep"
       ],
       "temperature": 0.2,
@@ -315,8 +334,8 @@
           "model": "gemini-2.5-flash-lite"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         }
       ]
     },
@@ -333,7 +352,10 @@
         "file_list",
         "memory_append",
         "notify_parent",
-        "grep"
+        "grep",
+        "search_memory",
+        "create_skill",
+        "load_skills"
       ],
       "delegation_targets": [],
       "fallbacks": [
@@ -342,8 +364,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -368,7 +390,8 @@
         "notify_parent",
         "shared_knowledge_append",
         "learnings_append",
-        "grep"
+        "grep",
+        "search_negative_knowledge"
       ],
       "temperature": 0.2,
       "max_tokens": 8096,
@@ -378,8 +401,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -390,7 +413,9 @@
     "security": {
       "adapter": "deepseek",
       "model": "deepseek-chat",
-      "tools": ["grep"],
+      "tools": [
+        "grep"
+      ],
       "temperature": 0.0,
       "max_tokens": 256,
       "fallbacks": [
@@ -399,8 +424,8 @@
           "model": "deepseek-v4-pro"
         },
         {
-          "adapter": "anthropic",
-          "model": "claude-haiku-4-5-20251001"
+          "adapter": "openai",
+          "model": "gpt-5.4-nano"
         },
         {
           "adapter": "openai",
@@ -428,14 +453,16 @@
         "spawn_agent",
         "wait_for_agent",
         "check_task_status",
-        "grep"
+        "grep",
+        "delegate_task",
+        "search_negative_knowledge"
       ],
       "temperature": 0.3,
       "max_tokens": 8096,
       "fallbacks": [
         {
-          "adapter": "anthropic",
-          "model": "claude-sonnet-4-6"
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
         },
         {
           "adapter": "openai",

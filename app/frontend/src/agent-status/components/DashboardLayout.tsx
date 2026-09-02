@@ -29,7 +29,7 @@ export function DashboardLayout() {
           <button
             onClick={() => setShowCpuChart((v) => !v)}
             aria-expanded={showCpuChart}
-            className="w-full flex items-center gap-2 px-4 py-2 text-[10px] uppercase tracking-widest
+            className="w-full flex items-center gap-2 px-4 py-2 text-[12px] uppercase tracking-widest
               text-[#484F58] hover:text-[#8B949E] hover:bg-[#161B22] transition-colors text-left"
           >
             <span

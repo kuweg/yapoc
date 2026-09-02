@@ -50,6 +50,8 @@ tools:
   - shared_knowledge_append
   - image_read
   - send_telegram_message
+  - delegate_task
+  - search_negative_knowledge
 sandbox:
   # Master can read anything but writes must go through a sub-agent.
   forbidden:

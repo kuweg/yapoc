@@ -94,6 +94,8 @@ class MessageBusRelay:
         """Forward session:*:events to WebSocket per-session subscribers."""
         last_event = time.monotonic()
         _delta_last_push: dict[str, float] = {}  # per-session throttle for text/thinking deltas
+        # (session, event_type) -> partially accumulated delta awaiting flush.
+        _delta_pending: dict[tuple[str, str], dict[str, Any]] = {}
 
         async def _heartbeat() -> None:
             while not self._shutdown.is_set():
@@ -138,13 +140,32 @@ class MessageBusRelay:
                                     session_id[:8],
                                     ev_type,
                                 )
-                            # Throttle per-token deltas to 10/sec max (reduce render churn)
+                            # Coalesce per-token deltas to 10/sec (see the
+                            # agent-activity relay below for the full rationale):
+                            # accumulate and flush merged, never drop tokens.
                             if ev_type in ("thinking_delta", "message_delta"):
+                                key = (session_id, ev_type)
+                                pending = _delta_pending.get(key)
+                                if pending is None:
+                                    pending = {**event_data, "text": ""}
+                                    _delta_pending[key] = pending
+                                pending["text"] = str(pending.get("text", "")) + str(
+                                    event_data.get("text", "")
+                                )
                                 now_t = time.monotonic()
                                 last_t = _delta_last_push.get(session_id, 0)
                                 if now_t - last_t < 0.1:
                                     continue
                                 _delta_last_push[session_id] = now_t
+                                event_data = _delta_pending.pop(key)
+                            elif _delta_pending:
+                                for pkey in [k for k in _delta_pending if k[0] == session_id]:
+                                    stranded = _delta_pending.pop(pkey)
+                                    if str(stranded.get("text", "")).strip():
+                                        try:
+                                            await ws_manager.push_session_event(session_id, stranded)
+                                        except Exception:
+                                            pass
                             try:
                                 await ws_manager.push_session_event(session_id, event_data)
                             except Exception as _ws_exc:
@@ -227,6 +248,8 @@ class MessageBusRelay:
         """
         last_event = time.monotonic()
         _delta_last_push: dict[str, float] = {}
+        # (agent, event_type) -> partially accumulated delta awaiting flush.
+        _delta_pending: dict[tuple[str, str], dict[str, Any]] = {}
 
         async def _heartbeat() -> None:
             while not self._shutdown.is_set():
@@ -273,12 +296,56 @@ class MessageBusRelay:
                         # long thinking turn doesn't evict milestones from the
                         # ring buffer or flood the WS. Milestone events
                         # (turn_*, tool_*, status_*) always pass.
+                        #
+                        # Deltas are COALESCED, never dropped. The previous
+                        # implementation `continue`d on any delta arriving
+                        # within 100ms of the last push — but models stream
+                        # 30-60 tokens/sec, so that discarded roughly four out
+                        # of every five tokens. The agent-flow panel showed
+                        # real tokens with the words between them missing
+                        # ("I'veaskcompleted metadata for-to pending"), which
+                        # reads as corruption and made the panel useless for
+                        # following what an agent was doing.
+                        #
+                        # Now the text accumulates and is flushed as ONE merged
+                        # delta at the same 10/sec rate: identical push volume,
+                        # no lost characters.
                         if ev_type in ("thinking_delta", "message_delta"):
+                            key = (agent_name, ev_type)
+                            pending = _delta_pending.get(key)
+                            if pending is None:
+                                pending = {**event_data, "text": ""}
+                                _delta_pending[key] = pending
+                            pending["text"] = str(pending.get("text", "")) + str(
+                                event_data.get("text", "")
+                            )
+                            pending["timestamp"] = event_data.get(
+                                "timestamp", pending.get("timestamp")
+                            )
+
                             now_t = time.monotonic()
                             last_t = _delta_last_push.get(agent_name, 0.0)
                             if now_t - last_t < 0.1:
-                                continue
+                                continue  # keep accumulating; nothing lost
                             _delta_last_push[agent_name] = now_t
+                            event_data = _delta_pending.pop(key)
+
+                        # A milestone means the turn moved on — flush whatever
+                        # text is still accumulating first, so the tail of a
+                        # response is never stranded in the buffer.
+                        elif _delta_pending:
+                            for pkey in [k for k in _delta_pending if k[0] == agent_name]:
+                                stranded = _delta_pending.pop(pkey)
+                                if not str(stranded.get("text", "")).strip():
+                                    continue
+                                sbuf = self._agent_activity.setdefault(
+                                    agent_name, deque(maxlen=_AGENT_ACTIVITY_BUFFER)
+                                )
+                                sbuf.append(stranded)
+                                try:
+                                    await ws_manager.push_agent_event(agent_name, stranded)
+                                except Exception:
+                                    pass
 
                         buf = self._agent_activity.get(agent_name)
                         if buf is None:

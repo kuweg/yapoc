@@ -153,6 +153,33 @@ async def submit_task_stream(request: TaskRequest):
     if attach_meta:
         await merged.put({"type": "attachments", "data": attach_meta})
 
+    # Master serializes every turn on a single `_run_lock`. If autonomous work
+    # (a cron sweep, an evaluator round, a resumed task) already holds it, this
+    # chat turn blocks inside handle_task_stream and streams NOTHING until that
+    # finishes — the chat sits on "Thinking…" for minutes while the agent-flow
+    # panel visibly streams the background turn. That looks like a broken chat.
+    # Say what is actually happening instead.
+    if master_agent.is_busy():
+        from app.config import settings
+
+        busy_with = ""
+        try:
+            status = json.loads(
+                (settings.agents_dir / "master" / "STATUS.json").read_text(encoding="utf-8")
+            )
+            busy_with = str(status.get("task_summary") or "").strip().replace("\n", " ")[:120]
+        except Exception:
+            busy_with = ""
+        await merged.put({
+            "type": "status",
+            "state": "queued",
+            "text": (
+                "Master is finishing background work — your message is queued and "
+                "will start automatically."
+                + (f" (current: {busy_with}…)" if busy_with else "")
+            ),
+        })
+
     async def drain_agent() -> None:
         try:
             async for event in master_agent.handle_task_stream(

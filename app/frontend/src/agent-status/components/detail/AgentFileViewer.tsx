@@ -154,7 +154,7 @@ function TurnGroup({ block, expanded, onToggle, isLive }: { block: TurnBlock; ex
       <button
         type="button"
         onClick={onToggle}
-        className="text-[11px] text-lime-300 hover:text-lime-200 font-mono"
+        className="text-[13px] text-lime-300 hover:text-lime-200 font-mono"
       >
         <span className="text-[#484F58] mr-1">{expanded ? '▾' : '▸'}</span>
         {label}
@@ -170,10 +170,10 @@ function TurnGroup({ block, expanded, onToggle, isLive }: { block: TurnBlock; ex
       {expanded && hasContent && (
         <div className="mt-1 space-y-1">
           {block.thinking && (
-            <pre className="text-[11px] text-[#6E7681] whitespace-pre-wrap break-words">[thinking] {block.thinking}</pre>
+            <pre className="text-[13px] text-[#6E7681] whitespace-pre-wrap break-words">[thinking] {block.thinking}</pre>
           )}
           {block.text && (
-            <pre className="text-[11px] text-[#C9D1D9] whitespace-pre-wrap break-words">{block.text}</pre>
+            <pre className="text-[13px] text-[#C9D1D9] whitespace-pre-wrap break-words">{block.text}</pre>
           )}
         </div>
       )}
@@ -233,14 +233,14 @@ function LiveFeed({ agentName }: { agentName: string }) {
 
   return (
     <div className="max-h-60 overflow-auto p-3 space-y-1">
-      {!hydrated && <div className="text-[#484F58] italic text-[11px]">Hydrating…</div>}
+      {!hydrated && <div className="text-[#484F58] italic text-[13px]">Hydrating…</div>}
       {hydrated && entries.length === 0 && (
-        <div className="text-[#484F58] italic text-[11px]">(no activity yet)</div>
+        <div className="text-[#484F58] italic text-[13px]">(no activity yet)</div>
       )}
       {entries.map((entry, idx) => {
         if (entry.kind === 'milestone') {
           return (
-            <div key={idx} className="text-[11px] font-mono">
+            <div key={idx} className="text-[13px] font-mono">
               <MilestoneLine event={entry.event} />
             </div>
           )
@@ -297,7 +297,7 @@ export function AgentFileViewer({ agentName }: Props) {
         <button
           key={LIVE_TAB}
           onClick={() => setSelected((s) => (s === LIVE_TAB ? null : LIVE_TAB))}
-          className={`px-2 py-0.5 text-[11px] font-mono rounded border transition-colors ${
+          className={`px-2 py-0.5 text-[13px] font-mono rounded border transition-colors ${
             selected === LIVE_TAB
               ? `${LIVE_TAB_COLOR} bg-[#21262D]`
               : 'border-[#30363D] text-[#484F58] hover:text-[#8B949E] hover:border-[#484F58]'
@@ -312,7 +312,7 @@ export function AgentFileViewer({ agentName }: Props) {
             <button
               key={f}
               onClick={() => setSelected((s) => (s === f ? null : f))}
-              className={`px-2 py-0.5 text-[11px] font-mono rounded border transition-colors ${
+              className={`px-2 py-0.5 text-[13px] font-mono rounded border transition-colors ${
                 isActive
                   ? `${color} bg-[#21262D]`
                   : 'border-[#30363D] text-[#484F58] hover:text-[#8B949E] hover:border-[#484F58]'
@@ -328,7 +328,7 @@ export function AgentFileViewer({ agentName }: Props) {
       {selected === LIVE_TAB && (
         <div className="bg-[#0D1117] border border-[#21262D] rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#21262D]">
-            <span className="text-[11px] font-mono text-lime-400">Live activity (push)</span>
+            <span className="text-[13px] font-mono text-lime-400">Live activity (push)</span>
           </div>
           <LiveFeed agentName={agentName} />
         </div>
@@ -336,7 +336,7 @@ export function AgentFileViewer({ agentName }: Props) {
       {selected && selected !== LIVE_TAB && (
         <div className="bg-[#0D1117] border border-[#21262D] rounded-lg overflow-hidden">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#21262D]">
-            <span className="text-[11px] font-mono text-[#8B949E]">{selected}</span>
+            <span className="text-[13px] font-mono text-[#8B949E]">{selected}</span>
             <button
               onClick={() => {
                 setLoading(true)
@@ -345,13 +345,13 @@ export function AgentFileViewer({ agentName }: Props) {
                   .catch((e) => setContent(`Error: ${e instanceof Error ? e.message : String(e)}`))
                   .finally(() => setLoading(false))
               }}
-              className="text-[10px] text-[#484F58] hover:text-[#8B949E] transition-colors"
+              className="text-[12px] text-[#484F58] hover:text-[#8B949E] transition-colors"
             >
               {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
           <div className="max-h-60 overflow-auto p-3">
-            <pre className="text-[11px] font-mono text-[#8B949E] whitespace-pre-wrap break-words leading-relaxed">
+            <pre className="text-[13px] font-mono text-[#8B949E] whitespace-pre-wrap break-words leading-relaxed">
               {content || <span className="text-[#484F58] italic">(empty)</span>}
             </pre>
           </div>

@@ -55,7 +55,6 @@ You can delegate tasks to **Builder** when your work requires file changes outsi
 
 Rules:
 - Only delegate to: **builder** (as listed in your CONFIG.md delegation_targets)
-- Always log the delegation via `add_task_trace` before spawning (if available)
 - Wait for the result with `wait_for_agent` before continuing
 - If the delegation fails, handle the error yourself or escalate via `notify_parent`
 - NEVER delegate to agents not in your `delegation_targets` list

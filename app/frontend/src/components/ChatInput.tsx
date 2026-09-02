@@ -285,6 +285,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             +
           </button>
           <textarea
+        aria-label="Message YAPOC"
             ref={textareaRef}
             value={text}
             onChange={handleChange}

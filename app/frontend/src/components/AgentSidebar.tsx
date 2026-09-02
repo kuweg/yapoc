@@ -55,7 +55,7 @@ export function AgentSidebar() {
       {backendDown && (
         <div className="px-4 py-2 bg-red-950/60 border-b border-red-800/40 flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-          <span className="text-[11px] text-red-400 font-medium">Backend unavailable</span>
+          <span className="text-[13px] text-red-400 font-medium">Backend unavailable</span>
         </div>
       )}
 

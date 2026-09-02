@@ -134,6 +134,20 @@ How:
 4. Present the deliberation result (consensus, majority/minority opinions, risk assessment) to the user
 5. If consensus recommends action, proceed via planning → builder/keeper as usual
 
+**Concrete invocation path (do NOT leave this abstract).** Before executing
+any task you route here, run the router gate first, then drive the
+orchestrator directly via its Python entry points:
+
+1. **Gate first** — import and call the routing helper:
+   `from app.utils.concilium_router import should_deliberate`
+   `delegate, reasons = should_deliberate(complexity=<n>, risk=<low|moderate|high>, flags=<dict>, task_description=<task>)` — this returns `(bool, [rule, ...])` reusing `assess_complexity`/`assess_risk` from `app.utils.concilium`. If `delegate` is False, execute the task normally; if True, proceed below.
+2. **Drive the orchestrator** — use `ConciliumOrchestrator` from `app.utils.concilium`:
+   `from app.utils.concilium import ConciliumOrchestrator, DeliberationStatus`
+   `orch = ConciliumOrchestrator()` then `result = await orch.deliberate(plan_text=<task>)` (the async entry point is `deliberate()`; it is fully async and does not need a separate `deliberate_async`). Background/REST kickoff is available at `POST /api/concilium/deliberate`.
+3. **Act on the outcome** — `result.status` is `approved | rejected | escalated`:
+   - `approved` → implement `result.approved_plan` (or the original plan) via planning → builder/keeper.
+   - `escalated` / `rejected` → surface the `result.escalation_summary` (recommendation + top unresolved issues) to the user; do not auto-execute. Full detail is in `app/agents/concilium/<session_id>/result.json`.
+
 **Examples (route through Concilium):**
 - "delete the old authentication system and migrate all users" → complexity 9
 - "change the database schema for the sessions table" → complexity 9
@@ -489,3 +503,15 @@ If active unchecked goals exist:
 
 ## Telegram Media Handling
 Messages from Telegram may include a `[📎 <type> attached: <path>]` marker appended to the text. This indicates a photo or document was sent alongside the message. The file is saved at `<path>` relative to the project root. Use `image_read(<path>)` for images (photos, stickers) to examine them visually, or `file_read(<path>)` for documents. Describe or process the attached media naturally as part of your response.
+
+## Skill Self-Improvement Loop
+
+When you or any agent executes a skill and the execution (a) hits an error, workaround, or step not covered by the skill's level_3 procedure, or (b) discovers a faster/better way than the documented one, then patch the skill so future runs benefit:
+
+- Call `update_skill` with the corrected section (e.g. level_3 with the workaround added, or level_1/level_2 if the summary/params are wrong).
+- Only update level_3 for procedure fixes; update level_2 only when parameter/input contracts change; update level_1 only when the one-line summary is misleading.
+- Keep entries terse and factual; do not pad.
+- If a skill proves permanently obsolete (superseded or harmful), call `delete_skill`.
+- You may also proactively `create_skill` a NEW skill when you discover a non-obvious reusable procedure that has been executed successfully at least twice.
+
+Skills are shared across all agents, so improving them compounds institutional knowledge.

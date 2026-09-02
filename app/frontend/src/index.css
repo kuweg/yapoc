@@ -1527,3 +1527,69 @@ body.sidebar-auto-railed aside {
   .compact-marker { animation: none; }
   .compact-marker::after { display: none; }
 }
+
+/* ── Live topology HUD ──────────────────────────────────────────────────────
+   Rail dots breathe while their agent is running. The graph's own motion is
+   SVG SMIL inside LiveTopologyHUD; this covers the collapsed rail. */
+@keyframes yapoc-topo-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.45); opacity: 0.65; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="topology-hud"] * { animation: none !important; }
+}
+
+/* ── Nav overflow ───────────────────────────────────────────────────────────
+   Below ~1100px the ten top-level tabs no longer fit. They used to clip, which
+   made the last tab unreachable; scroll instead, with a thin unobtrusive bar. */
+.nav-scroll { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+.nav-scroll::-webkit-scrollbar { height: 3px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+.nav-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Live sub-agent activity card ───────────────────────────────────────────
+   Same family as the compaction marker: a tinted card that sweeps in once, a
+   pulse while the child is working, and rows that stagger in as the agent
+   actually does the work — so a delegation reads as motion, not a spinner. */
+@keyframes subagent-enter {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes subagent-sweep {
+  to { transform: translateX(100%); }
+}
+@keyframes subagent-row-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes subagent-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(1.5); }
+}
+
+.subagent-card {
+  position: relative;
+  animation: subagent-enter 0.35s ease-out both;
+}
+.subagent-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  transform: translateX(-100%);
+  animation: subagent-sweep 1.1s ease-out 1;
+  pointer-events: none;
+}
+.subagent-row {
+  animation: subagent-row-in 0.3s ease-out both;
+}
+.subagent-pulse {
+  animation: subagent-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-card,
+  .subagent-row,
+  .subagent-pulse { animation: none !important; }
+  .subagent-card::after { display: none; }
+}

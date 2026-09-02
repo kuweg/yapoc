@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.backend.models import AgentStatus, AgentDetail
+from app.backend.message_bus import bus
 from app.backend.services import AgentService, _read_status_json, _pid_alive, _is_stale_status
 from app.backend.services.graph_events import graph_event_bus
 from app.config import settings
@@ -176,6 +177,32 @@ async def spawn_agent(name: str):
     return {"status": "spawned", "name": name, "pid": proc.pid}
 
 
+async def perform_nudge(name: str):
+    """Inject a nudge (activity pulse + harmless inbox message) so a busy agent
+    surfaces in the UI and its runner ACKs/signals presence."""
+    agent_dir = settings.agents_dir / name
+    if not agent_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    await bus.publish(
+        f"agent:{name}:activity",
+        {
+            "type": "nudge",
+            "agent": name,
+            "waiting_on": [],
+            "status": "nudged",
+            "timestamp": now_iso,
+        },
+        agent_name=name,
+    )
+    await bus.stream_add(
+        f"agent:{name}:inbox",
+        {"type": "nudge", "agent": name, "timestamp": now_iso},
+        agent_name=name,
+    )
+    return {"status": "ok", "name": name}
+
+
 @router.post("/{name}/kill")
 async def kill_agent(name: str):
     agent_dir = settings.agents_dir / name
@@ -196,6 +223,11 @@ async def kill_agent(name: str):
         return {"status": "killed", "name": name, "pid": pid}
     except ProcessLookupError:
         return {"status": "not_running", "name": name, "pid": pid}
+
+
+@router.post("/{name}/nudge")
+async def nudge_agent(name: str):
+    return await perform_nudge(name)
 
 
 # --- New endpoints ---

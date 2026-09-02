@@ -1,0 +1,14 @@
+name: create_exact_file
+summary: Create a file with byte-exact content and verify no trailing newline/whitespace
+description: |
+  When a task requires creating a file whose content must match a specified string EXACTLY (often for verification/probe/chain-test files), write the content precisely and then verify byte-exactness. This is the most frequently repeated builder procedure (15+ occurrences: pw_verify.txt, pw_leak*.txt, pw_suite.txt, chain_test step files, chat_probe.txt, anim_probe files). Use when the task specifies exact content and/or "no trailing newline/whitespace".
+level_1: "Create a file with byte-exact content and verify no trailing newline/whitespace via file_read + wc -c/od -c."
+level_2: |
+  Inputs: target path (e.g. app/projects/pw_verify.txt), exact content string (e.g. "VERIFY_OK"), and whether trailing newline is allowed (default: none). Output: confirmation of byte count and exact content match.
+level_3: |
+  1. Write the file with the exact content string using file_write (do NOT append a trailing newline unless the task explicitly requires one).
+  2. Verify content via file_read — confirm it returns exactly the expected string.
+  3. Verify byte count via `wc -c <path>` (shell_exec) — the byte count must equal the character count of the expected string (e.g. "VERIFY_OK" = 9 bytes). If wc -c is unavailable, use `od -c <path>` to confirm no trailing `\n` or whitespace byte.
+  4. Confirm no trailing newline/whitespace: the byte count must match exactly the string length (a trailing newline would add 1 byte).
+  5. Report: "Created <path> containing exactly <content> (<N> bytes, no trailing newline/whitespace). Verified via file_read and wc -c/od -c."
+  Note: if the shell blocks `cd`, use the tool's cwd parameter or absolute paths. If shell_exec is unavailable, file_read alone (showing exact content) is acceptable but byte-count verification is preferred.

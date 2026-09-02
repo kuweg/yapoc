@@ -10,9 +10,9 @@
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 
-adapter: codex
-model: gpt-5.3-codex
-temperature: 0.2
+adapter: deepseek
+model: deepseek-chat
+temperature: 1.0
 tools:
   - file_read
   - file_write
@@ -20,25 +20,13 @@ tools:
   - file_delete
   - file_list
   - shell_exec
-  - web_search
-  - create_agent
-  - delete_agent
-  - notify_parent
   - memory_append
   - notes_read
   - notes_write
   - notes_append
   - health_log
-  - add_task_trace
-  - search_memory
-  - learnings_append
-  - shared_knowledge_append
-  - image_read
-  - parse_csv
-  # ── Peer delegation ────────────────────────────────────────────────────
-  - spawn_agent
-  - wait_for_agent
-  - check_task_status
+  - grep
+  - search_negative_knowledge
 delegation_targets:
   - keeper
 sandbox:

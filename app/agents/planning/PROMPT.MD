@@ -189,12 +189,7 @@ If any answer is "no" or "partial" for an irreversible task:
 
 If all answers are "yes": proceed with decomposition normally.
 
-When decomposing, call `add_task_trace` BEFORE spawning sub-agents with:
-- Surface instruction vs. underlying intent analysis
-- The decomposition you chose and why
-- Sub-goal decomposition rationale (why this breakdown best serves the intent)
-- What alternative decompositions you considered and why you rejected them
-- Any assumptions about sub-agent capabilities
+When you spawn sub-agents, log the delegation decision to your own HEALTH.MD via `health_log` (level: "info") so there's an audit trail — this is the system's mechanism for tracking peer delegations.
 
 ## Learning from Experience
 

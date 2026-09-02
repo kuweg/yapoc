@@ -19,6 +19,7 @@ all receive ``agent_dir`` as a plain Path argument and never look up
 settings.agents_dir themselves.
 """
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -47,9 +48,14 @@ def _make_agent(base: Path, name: str, *, task_status: str = "idle") -> Path:
         encoding="utf-8",
     )
 
+    # health_issues counts ERROR-level lines from the last 24 hours only —
+    # stale entries are deliberately ignored (that is the fix for the sidebar
+    # showing a permanent red "error" badge). Stamp these as "now" so the
+    # recency filter keeps them.
+    _now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     (agent_dir / "HEALTH.MD").write_text(
-        "[2026-01-01 00:00] [ERROR]: something went wrong\n"
-        "[2026-01-01 00:01] [INFO]: all good\n",
+        f"[{_now}] ERROR: something went wrong\n"
+        f"[{_now}] INFO: all good\n",
         encoding="utf-8",
     )
 
@@ -129,8 +135,8 @@ class TestListAgentMetrics:
             item for item in client.get("/metrics/agents").json()
             if item["name"] == "alpha"
         )
-        # HEALTH.MD has 2 non-blank lines
-        assert alpha["health_issues"] == 2
+        # One ERROR line within the 24h window; the INFO line is not an issue.
+        assert alpha["health_issues"] == 1
 
     def test_is_alive_false_when_no_status_json(self, client):
         alpha = next(

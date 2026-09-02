@@ -62,7 +62,7 @@ class NotesWriteTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = Path("app/memory/agents") / agent_dir.name / "NOTES.MD"
+        self._path = settings.project_root / "app" / "memory" / "agents" / agent_dir.name / "NOTES.MD"
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:
@@ -92,7 +92,7 @@ class NotesAppendTool(BaseTool):
     }
 
     def __init__(self, agent_dir: Path) -> None:
-        self._path = Path("app/memory/agents") / agent_dir.name / "NOTES.MD"
+        self._path = settings.project_root / "app" / "memory" / "agents" / agent_dir.name / "NOTES.MD"
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def execute(self, **params: Any) -> str:

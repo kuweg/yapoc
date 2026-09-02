@@ -3,6 +3,13 @@ export type TextEvent = { type: 'text'; text: string }
 export type ThinkingEvent = { type: 'thinking'; text: string }
 export type ToolStartEvent = { type: 'tool_start'; name: string; input: Record<string, unknown> }
 export type ToolDoneEvent = { type: 'tool_done'; name: string; result: string; is_error: boolean }
+export type MessageBoundaryEvent = {
+  type: 'message_boundary'
+}
+
+/** Emitted when a chat turn is queued behind master's background work. */
+export type StatusEvent = { type: 'status'; state: string; text: string }
+
 export type ErrorEvent = {
   type: 'error'
   error: string
@@ -14,6 +21,12 @@ export type UsageEvent = {
   tokens_per_second: number
   context_window: number
 }
+export type CompactEvent = {
+  type: 'compact'
+  reason: string
+  tokens_before: number
+  tokens_after: number
+}
 export type StreamEvent =
   | TextEvent
   | ThinkingEvent
@@ -21,6 +34,9 @@ export type StreamEvent =
   | ToolDoneEvent
   | ErrorEvent
   | UsageEvent
+  | CompactEvent
+  | MessageBoundaryEvent
+  | StatusEvent
 
 export interface AgentStatus {
   name: string
@@ -62,9 +78,50 @@ export interface ModelsResponse {
   adapters: AdapterInfo[]
 }
 
+// A single part inside a structured assistant message
+export type TaskPart =
+  | { kind: 'text'; text: string }
+  | { kind: 'thinking'; id: string; text: string; done: boolean }
+  | {
+      kind: 'tool'
+      id: string
+      name: string
+      input: Record<string, unknown>
+      result?: string
+      isError?: boolean
+      done: boolean
+    }
+  | { kind: 'compact'; id: string; tokensBefore: number; tokensAfter: number; reason: string }
+
+export interface Attachment {
+  id?: string          // server upload id (present after upload)
+  name: string
+  mime: string
+  size?: number
+  width?: number
+  height?: number
+  previewUrl?: string  // object-URL (session-only) for instant preview
+}
+
+export interface TaskCompletionMeta {
+  status?: string
+  prompt?: string
+  result?: string
+  error?: string
+  agent?: string
+  source?: string
+  session_id?: string
+  created_at?: string
+  started_at?: string
+  completed_at?: string
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
+  parts?: TaskPart[]         // execution trace for structured assistant messages
+  attachments?: Attachment[] // files attached to a user message
+  taskCompletion?: TaskCompletionMeta // rich "what just finished" card metadata
 }
 
 // Client-side session (localStorage)

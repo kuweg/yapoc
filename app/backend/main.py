@@ -26,9 +26,11 @@ from app.backend.routers import (
     notification_trace_router,
     observability_router,
     sessions_router,
+    skills_router,
     stale_tasks_router,
     tasks_router,
     test_endpoint_router,
+    uploads_router,
     vault_router,
     voice_router,
     webhook_router,
@@ -447,10 +449,13 @@ async def _master_notification_watcher() -> None:
                 async for _ in master_agent.handle_task_stream(
                     task=(
                         "[Auto-notification] Sub-agent task(s) just completed. "
-                        "Read the sub-agent results via read_task_result if needed, "
-                        "then write ONE short summary message for the user describing "
-                        "what was accomplished. Do NOT spawn agents, do NOT restart servers, "
-                        "do NOT re-verify. Your only job: surface the outcome to the user."
+                        "Read the sub-agent results via read_task_result if needed. "
+                        "If a planning step produced a PLAN that was not actually "
+                        "executed (the implementation work wasn't carried out), "
+                        "CONTINUE the chain now by spawning the needed specialists "
+                        "(builder/keeper). Otherwise write ONE short summary message "
+                        "for the user describing what was accomplished. Do NOT restart "
+                        "servers and do NOT re-verify work that is already done."
                     ),
                     source="notification",
                     session_id=sid,
@@ -465,7 +470,7 @@ async def _master_notification_watcher() -> None:
                 try:
                     from app.backend.websocket import ws_manager
 
-                    result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+                    result_text = (settings.memory_agents_dir / "master" / "RESULT.MD").read_text(
                         encoding="utf-8",
                         errors="replace",
                     ).strip()
@@ -604,6 +609,7 @@ async def _process_inbox_message(
     child_status = str(data.get("status", "done"))
     session_id = str(data.get("session_id", ""))
     raw_result = str(data.get("result", ""))
+    task_id = str(data.get("task_id", ""))
 
     def _safety_enqueue() -> bool:
         """Enqueue this Redis payload into notification_queue. Returns True on success.
@@ -620,6 +626,7 @@ async def _process_inbox_message(
                 result=raw_result if child_status == "done" else "",
                 error=raw_result if child_status == "error" else "",
                 session_id=session_id,
+                task_id=task_id,
             )
             return True
         except Exception as _enq_exc:
@@ -649,6 +656,7 @@ async def _process_inbox_message(
         result=raw_result if child_status == "done" else "",
         error=raw_result if child_status == "error" else "",
         session_id=session_id,
+        task_id=task_id,
     ):
         logger.debug(
             "Redis master watcher: queue match — deferring to notification watcher"
@@ -660,14 +668,29 @@ async def _process_inbox_message(
         child_agent, child_status, session_id[:8] if session_id else "<none>",
     )
 
+    # When planning completes it may have only produced a PLAN without
+    # executing it (planning has spawn_agent/notify_parent but doesn't always
+    # use them). In that case master must CONTINUE the chain rather than treat
+    # it as finished — the old unconditional "chain has finished, do NOT
+    # re-spawn" dead-ended exactly this case. Leaf executors (builder/keeper)
+    # are genuinely terminal, so for those we keep the surface-only guidance.
+    if child_agent == "planning" and child_status == "done":
+        followup = (
+            "If planning only produced a PLAN and the implementation was NOT "
+            "actually carried out (no builder/keeper changes were made), EXECUTE "
+            "the plan now by spawning the needed specialists, then summarize. "
+            "If the work is already done, just surface the outcome to the user."
+        )
+    else:
+        followup = (
+            "Do NOT re-spawn agents and do NOT re-verify work that is already "
+            "done — your only job here is to surface the outcome to the user."
+        )
     task_prompt = (
         f"[Auto-notification via Redis] {child_agent} completed ({child_status}). "
-        "Read the sub-agent results via read_task_result if needed, "
-        "then write ONE short summary message for the user describing "
-        "what was accomplished. Do NOT re-spawn agents, do NOT re-verify "
-        "work that is already verified, and do NOT investigate beyond "
-        "reading the result text. The chain has already finished — your "
-        "only job here is to surface the outcome to the user."
+        "Read the sub-agent results via read_task_result if needed, then write "
+        "ONE short summary message for the user describing what was accomplished. "
+        f"{followup}"
     )
 
     try:
@@ -682,7 +705,7 @@ async def _process_inbox_message(
         notification_queue.drain("master", session_id=session_id or None)
 
         # Push result to WebSocket
-        result_text = (settings.agents_dir / "master" / "RESULT.MD").read_text(
+        result_text = (settings.memory_agents_dir / "master" / "RESULT.MD").read_text(
             encoding="utf-8", errors="replace"
         ).strip()
         if result_text:
@@ -808,6 +831,30 @@ async def _startup_resume() -> None:
                             _sum_exc,
                         )
 
+                    # Restore the frozen working transcript captured by
+                    # server_restart. The compaction summary above is lossy and
+                    # only exists if a compact happened; this is the actual
+                    # conversation the task was in the middle of.
+                    try:
+                        from app.utils.conversation_store import load as _load_conv
+
+                        frozen = _load_conv(resume_session_id)
+                        if frozen:
+                            tail = frozen[-4000:]
+                            resume_prompt += (
+                                "\n\n[WORKING CONTEXT RESTORED FROM BEFORE RESTART]\n"
+                                f"{tail}"
+                            )
+                            logger.info(
+                                "Startup resume: restored {} chars of working context "
+                                "for session {}",
+                                len(tail), resume_session_id[:8],
+                            )
+                    except Exception as _conv_exc:
+                        logger.debug(
+                            "Startup resume: no conversation snapshot ({})", _conv_exc
+                        )
+
                 task_id = str(uuid.uuid4())
                 create_queued_task(
                     id=task_id,
@@ -849,6 +896,7 @@ async def _startup_resume() -> None:
                         status = str(data.get("status", "done"))
                         result = str(data.get("result", ""))
                         sid = str(data.get("session_id", ""))
+                        tid = str(data.get("task_id", ""))
                         # Fix 3.3: skip if the child's TASK.MD already has
                         # consumed_at set — this Redis message arrived from
                         # work that was already processed before crash.
@@ -867,6 +915,7 @@ async def _startup_resume() -> None:
                             result=result if status == "done" else "",
                             error=result if status == "error" else "",
                             session_id=sid,
+                            task_id=tid,
                         )
                         logger.info(
                             "Startup resume: enqueued {} ({}) result for master (sid={})",
@@ -929,21 +978,105 @@ async def _startup_resume() -> None:
         logger.info("Startup resume: nothing to resume")
 
 
+def _latest_cron_result(db, cron_job_id) -> str | None:
+    """Return the most recent done result text for a cron job, or None.
+
+    Uses a LIKE match on the serialized metadata to avoid requiring SQLite
+    JSON1 support. Ordered by completed_at DESC so the latest done result wins.
+    """
+    try:
+        row = db.execute(
+            "SELECT result, completed_at FROM task_queue "
+            "WHERE status='done' AND metadata LIKE ? "
+            "ORDER BY completed_at DESC LIMIT 1",
+            (f'%"cron_job_id": "{cron_job_id}"%',),
+        ).fetchone()
+        if row is None:
+            return None
+        result = row["result"]
+        return result if (result or "") else None
+    except Exception:
+        return None
+
+
+def _result_newer_than_last_run(upstream_result, last_runs, job_id) -> bool:
+    """Decide whether upstream context should be included for a cron job.
+
+    _latest_cron_result doesn't return completed_at, so we fall back to
+    including context whenever there is a non-None result (the LIKE ordering
+    already yields the most recent done result, which is adequate as a safety
+    guard). A job with no recorded last_run always includes fresh context.
+    """
+    return upstream_result is not None
+
+
+async def _memory_decay_tick() -> None:
+    """Archive MEMORY.MD entries older than the decay window to cold storage.
+
+    Without this the decay module was dead code: it could archive, but nothing
+    ever asked it to, so hot memory kept growing.
+    """
+    from app.utils.memory_decay import archive_stale_memory
+
+    max_age = int(getattr(settings, "memory_decay_days", 30) or 30)
+    memory_root = settings.project_root / "app" / "memory" / "agents"
+    if not memory_root.is_dir():
+        return
+
+    def _sweep() -> dict[str, int]:
+        # archive_stale_memory works one agent at a time; sweep every agent
+        # that has a memory file.
+        totals: dict[str, int] = {}
+        for agent_dir in sorted(memory_root.iterdir()):
+            if not agent_dir.is_dir():
+                continue
+            try:
+                res = archive_stale_memory(agent_dir.name, max_age_days=max_age)
+            except Exception as exc:  # one bad agent must not stop the sweep
+                logger.debug("memory decay: {} failed ({})", agent_dir.name, exc)
+                continue
+            n = int((res or {}).get("archived_entries") or (res or {}).get("archived") or 0)
+            if n:
+                totals[agent_dir.name] = n
+        return totals
+
+    try:
+        totals = await asyncio.to_thread(_sweep)
+        if totals:
+            logger.info(
+                "memory decay: archived {} entries across {} agent(s) — {}",
+                sum(totals.values()), len(totals),
+                ", ".join(f"{k}:{v}" for k, v in totals.items()),
+            )
+    except Exception as exc:
+        logger.warning("memory decay tick failed: {}", exc)
+
+
 async def _cron_tick() -> None:
     """Check cron schedule and create task_queue entries for due jobs.
 
     Uses the cron_parser to read NOTES.MD, check which jobs are due,
     and creates task_queue entries with source="cron" for the dispatcher.
     Falls back to spawning the cron agent for complex jobs.
+
+    Supports script jobs (not blocked by budget), silent jobs, and
+    context chaining via context_from / run_only_after.
     """
-    from app.utils.cron_parser import parse_schedule, get_due_jobs, load_last_runs, save_last_run
-    from app.utils.cost_governor import is_autonomous_budget_exhausted
-    from app.utils.db import create_queued_task
+    from app.utils.cron_parser import (
+        parse_schedule,
+        get_due_jobs,
+        load_last_runs,
+        save_last_run,
+        is_cron_disabled,
+    )
+    from app.utils.cost_governor import (
+        is_autonomous_budget_exhausted,
+        is_total_budget_exhausted,
+        get_total_spend_today,
+    )
+    from app.utils.db import create_queued_task, get_db
 
     try:
-        if is_autonomous_budget_exhausted():
-            return
-
         cron_notes = settings.agents_dir / "cron" / "NOTES.MD"
         if not cron_notes.exists():
             return
@@ -956,18 +1089,98 @@ async def _cron_tick() -> None:
         last_runs = load_last_runs()
         due = get_due_jobs(jobs, last_runs)
 
-        for job in due:
-            import uuid
+        # Escalation ladder: a job auto-disabled after consecutive failures is
+        # skipped entirely (its cron_runs.json entry has disabled=True).
+        due = [j for j in due if not is_cron_disabled(j.get("id", ""))]
+        if not due:
+            return
+
+        # Global daily spend cap. Distinct from the autonomous-only budget
+        # checked below: this one covers ALL spend, so a heavy interactive day
+        # also holds off scheduled work overnight. Script jobs are exempt —
+        # they run no model.
+        if is_total_budget_exhausted():
+            spent = get_total_spend_today()
+            agent_jobs = [j for j in due if not j.get("script")]
+            if agent_jobs:
+                logger.warning(
+                    "Cron: daily total budget exhausted (${:.2f} today) — holding "
+                    "{} agent job(s); script jobs still run.",
+                    spent, len(agent_jobs),
+                )
+            due = [j for j in due if j.get("script")]
+            if not due:
+                return
+
+        # Split due jobs into script jobs (skip budget gate) and agent jobs.
+        script_due = [j for j in due if j.get("script")]
+        agent_due = [j for j in due if not j.get("script")]
+
+        import uuid
+
+        # STEP 2 — Script jobs are processed unconditionally (never budget-blocked).
+        for job in script_due:
+            task_id = str(uuid.uuid4())
+            job_id = job.get("id", "unknown")
+            silent = bool(job.get("silent"))
+            script = job.get("script") or ""
+            script_meta = json.dumps(
+                {"cron_job_id": job_id, "script": script, "silent": silent, "script": True}
+            )
+            create_queued_task(
+                id=task_id,
+                prompt=f"[Cron: {job_id}] {script}",
+                source="script",
+                metadata=script_meta,
+            )
+            save_last_run(job_id)
+            logger.info(f"Cron job '{job_id}' due — created script task {task_id[:8]}…")
+
+        # Agent jobs respect the autonomous budget gate.
+        if is_autonomous_budget_exhausted():
+            if not agent_due:
+                return
+            logger.info("Skipping agent cron jobs (budget exhausted)")
+            return
+
+        db = get_db()
+
+        # STEPS 3-4 — Context chaining + create agent task.
+        for job in agent_due:
             task_id = str(uuid.uuid4())
             task_text = job.get("task", "")
             assign_to = job.get("assign_to", "master")
             job_id = job.get("id", "unknown")
 
+            silent = bool(job.get("silent"))
+            context_from = job.get("context_from")
+            run_only_after = bool(job.get("run_only_after"))
+
+            upstream_result = None
+            if context_from:
+                upstream_result = _latest_cron_result(db, context_from)
+
+            if run_only_after and not upstream_result:
+                logger.info(
+                    f"Cron job '{job_id}' deferred — {context_from} has no done result yet"
+                )
+                continue
+
+            base_prompt = f"[Cron: {job_id}] {task_text}"
+            if upstream_result and _result_newer_than_last_run(upstream_result, last_runs, job_id):
+                base_prompt = (
+                    f"[Cron: {job_id}] {task_text}\n\n"
+                    f"[FROM {context_from}]\n{upstream_result[:2000]}"
+                )
+
+            meta = {"cron_job_id": job_id, "assign_to": assign_to}
+            if silent:
+                meta["silent"] = True
             create_queued_task(
                 id=task_id,
-                prompt=f"[Cron: {job_id}] {task_text}",
+                prompt=base_prompt,
                 source="cron",
-                metadata=json.dumps({"cron_job_id": job_id, "assign_to": assign_to}),
+                metadata=json.dumps(meta),
             )
             save_last_run(job_id)
             logger.info(f"Cron job '{job_id}' due — created task {task_id[:8]}…")
@@ -998,6 +1211,26 @@ async def lifespan(app: FastAPI):
 
     # Start graph event bus
     await graph_event_bus.start()
+
+    # Relay graph events published by sub-agent processes onto this process's
+    # bus, so /ws/graph shows the whole delegation chain (planning → builder,
+    # …) and not just master's own hops.
+    async def _graph_relay() -> None:
+        from app.backend.services.graph_events import GRAPH_CHANNEL
+
+        while True:
+            try:
+                async for msg in bus.subscribe(GRAPH_CHANNEL):
+                    payload = msg.get("data")
+                    if isinstance(payload, dict):
+                        await graph_event_bus.ingest_relayed(payload)
+            except asyncio.CancelledError:
+                raise
+            except Exception as _relay_exc:
+                logger.warning("Graph relay dropped, retrying in 5s: {}", _relay_exc)
+            await asyncio.sleep(5)
+
+    _graph_relay_task = asyncio.create_task(_graph_relay())
 
     _cleanup_stale_agent_statuses()
 
@@ -1122,6 +1355,12 @@ async def lifespan(app: FastAPI):
         id="model_manager_audit",
     )
     scheduler.add_job(
+        _memory_decay_tick,
+        "interval",
+        hours=getattr(settings, "memory_decay_interval_hours", 6),
+        id="memory_decay",
+    )
+    scheduler.add_job(
         _indexer_tick,
         "interval",
         minutes=10,
@@ -1161,6 +1400,7 @@ async def lifespan(app: FastAPI):
         dispatcher_task.cancel()
         scheduler.shutdown(wait=False)
         poller.stop()
+        _graph_relay_task.cancel()
         await graph_event_bus.stop()
         await message_bus_relay.stop()
 
@@ -1219,6 +1459,7 @@ app.include_router(tasks_router)
 app.include_router(agents_router)
 app.include_router(metrics_router)
 app.include_router(files_router)
+app.include_router(uploads_router)
 app.include_router(memory_graph_router)
 app.include_router(vault_router)
 app.include_router(test_endpoint_router)
@@ -1229,6 +1470,7 @@ app.include_router(stale_tasks_router)
 app.include_router(notification_trace_router)
 app.include_router(voice_router)
 app.include_router(sessions_router)
+app.include_router(skills_router)
 app.include_router(commands_router)
 app.include_router(graph_router)
 app.include_router(concilium_router)

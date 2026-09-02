@@ -133,3 +133,64 @@ class SearchMemoryTool(BaseTool):
             return "Error: sentence-transformers not installed. Run: poetry add sentence-transformers"
         except Exception as exc:
             return f"Search error: {exc}"
+
+
+class SearchNegativeKnowledgeTool(BaseTool):
+    """Read side of the negative-knowledge store.
+
+    The librarian routes rejected approaches INTO
+    ``app/agents/shared/NEGATIVE_KNOWLEDGE.md``, but until now nothing could
+    read them back, so the store could not actually stop anyone re-litigating a
+    dead end. This is that read path.
+    """
+
+    name = "search_negative_knowledge"
+    description = (
+        "Check the negative-knowledge store before proposing an approach. "
+        "Returns previously rejected/failed approaches matching your query, with "
+        "the reason each was abandoned. Call this when a task resembles something "
+        "that may have been tried before — it prevents re-litigating dead ends. "
+        "Call with an empty query to list every recorded entry."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "What you are about to try (e.g. 'route all work through planning')",
+                "default": "",
+            },
+            "top_k": {
+                "type": "integer",
+                "description": "Max entries to return (default 5)",
+                "default": 5,
+            },
+        },
+        "required": [],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        from app.utils.negative_knowledge import load_entries, search
+
+        query = str(params.get("query", "") or "").strip()
+        top_k = int(params.get("top_k", 5) or 5)
+
+        entries = search(query, top_k=top_k) if query else load_entries()[:top_k]
+        if not entries:
+            total = len(load_entries())
+            if total == 0:
+                return "Negative-knowledge store is empty — nothing recorded yet."
+            return f"No recorded dead end matches {query!r} ({total} entries in the store)."
+
+        lines = [f"{len(entries)} recorded dead end(s):"]
+        for e in entries:
+            lines.append(f"\n## {e.get('topic', '?')}")
+            if e.get("status"):
+                lines.append(f"- status: {e['status']}")
+            if e.get("decision"):
+                lines.append(f"- tried: {e['decision']}")
+            lines.append(f"- why not: {e.get('lesson', '')}")
+            if e.get("date"):
+                by = e.get("by")
+                lines.append(f"- recorded: {e['date']}" + (f" by {by}" if by else ""))
+        return "\n".join(lines)

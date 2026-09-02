@@ -31,6 +31,7 @@ from loguru import logger
 
 from app.config import settings
 from app.utils.adapters import AgentConfig, get_adapter
+from app.utils.agent_settings import resolve_agent
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -40,8 +41,7 @@ from app.utils.adapters import AgentConfig, get_adapter
 # whatever directory uvicorn happened to launch from (e.g. it picked up
 # `app/frontend/app/agents/concilium/` after a frontend toolchain ran in
 # that dir), breaking the router's session list and the UI's history.
-from app.config import settings as _concilium_settings
-CONCILIUM_DIR = _concilium_settings.agents_dir / "concilium"
+CONCILIUM_DIR = settings.agents_dir / "concilium"
 MAX_ROUNDS = 3
 CONSENSUS_THRESHOLD = 0.8  # 80% weighted score required
 
@@ -295,7 +295,6 @@ def _write_status(
 
 
 def _persist_result(session_id: str, result: "DeliberationResult", plan_text: str) -> None:
-    """Snapshot the final DeliberationResult to result.json so the UI can re-load it later."""
     log_dir = CONCILIUM_DIR / session_id
     log_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -323,6 +322,8 @@ def _persist_result(session_id: str, result: "DeliberationResult", plan_text: st
                     }
                     for role, c in r.critiques.items()
                 },
+                "synthesis": r.synthesis,
+                "revised_plan": r.revised_plan,
             }
             for r in result.rounds
         ],
@@ -447,6 +448,9 @@ class ConciliumOrchestrator:
             active_roles=self.active_roles,
         )
 
+        # Preserve the input plan so ``_build_round_revision`` can reconstruct
+        # the base text for round 1's revision (before any prior round exists).
+        self._plan_input = plan_text
         current_plan = plan_text
 
         for round_num in range(1, self.max_rounds + 1):
@@ -484,6 +488,7 @@ class ConciliumOrchestrator:
                         total_cost_usd=self.total_cost,
                     )
                     _persist_result(self.session_id, result, plan_text)
+                    self._record_metrics(result, plan_text)
                     _write_status(
                         self.session_id, "approved",
                         current_round=round_num, max_rounds=self.max_rounds,
@@ -516,6 +521,7 @@ class ConciliumOrchestrator:
                     escalation_summary=self._build_escalation_summary(),
                 )
                 _persist_result(self.session_id, result, plan_text)
+                self._record_metrics(result, plan_text)
                 _write_status(
                     self.session_id, "rejected",
                     current_round=round_num, max_rounds=self.max_rounds,
@@ -547,6 +553,7 @@ class ConciliumOrchestrator:
             escalation_summary=self._build_escalation_summary(),
         )
         _persist_result(self.session_id, result, plan_text)
+        self._record_metrics(result, plan_text)
         _write_status(
             self.session_id, "escalated",
             current_round=len(self.rounds),
@@ -621,31 +628,137 @@ class ConciliumOrchestrator:
             v.value: sum(1 for c in round_obj.critiques.values() if c.vote == v)
             for v in Vote
         }
+
+        # Phase 2 fix: derive a *revised* plan (and its synthesis) from the
+        # counselors' feedback so the next round evaluates an improved plan
+        # rather than re-reviewing the same unchanged one. Previously
+        # ``revised_plan`` was never populated, so the score stalled (~0.36)
+        # and the session escalated with zero improvement. The revision is
+        # derived strictly from counselor issues/synthesis — nothing invented.
+        self._build_round_revision(round_obj)
+
         _log_event(self.session_id, f"round_{round_num}_completed", {
             "critiques_count": len(round_obj.critiques),
             "score": round_obj.weighted_score,
             "votes": vote_distribution,
+            "revised": bool(round_obj.revised_plan),
+            "revision_chars": len(round_obj.revised_plan),
         })
         _write_live_md(
             self.session_id,
             f"ROUND_{round_num}",
-            f"completed: score={round_obj.weighted_score:.2f} votes={vote_distribution}",
+            f"completed: score={round_obj.weighted_score:.2f} votes={vote_distribution} "
+            f"revised={bool(round_obj.revised_plan)}",
         )
         return round_obj
+
+    def _build_round_revision(self, round_obj: DeliberationRound) -> None:
+        """Synthesize the counselors' non-approval feedback into a revised plan.
+
+        Phase 2 of the deliberaion loop. Called at the end of every round
+        (after critiques are gathered). It:
+
+          - collects issues from every counselor who did NOT approve,
+            grouped under a "Concilium revision notes" section,
+          - reports which issues are NEW versus already-addressed, and only
+            carries forward the unresolved ones so the plan converges instead
+            of re-flagging the same concerns forever,
+          - appends that synthesis-derived revision block to the prior plan
+            text so round N+1 evaluates a genuinely improved plan whose score
+            can move (fixing the stall where every round re-reviewed the same
+            ~0.36 plan and escalated without progress).
+
+        The revision text is derived ONLY from the counselors' own
+        ``issues`` (severity + description + suggestion) — never invented by
+        the orchestrator. If there is nothing to revise (all approve) the
+        round's ``revised_plan`` stays empty and ``synthesis`` reads
+        "No changes required".
+        """
+        if not round_obj.critiques:
+            return
+
+        non_approving = [
+            c for c in round_obj.critiques.values()
+            if c.vote != Vote.APPROVE
+        ]
+        if not non_approving:
+            round_obj.synthesis = "All counselors approved. No revision required."
+            return
+
+        # Track which concern texts were already addressed in a prior round so
+        # we don't re-append the same unresolved issue every round as NEW —
+        # previously this made the revised plan grow unboundedly. We only
+        # re-include a concern if its text hasn't already appeared verbatim.
+        addressed = set()
+        for prior in self.rounds:
+            for c in prior.critiques.values():
+                for issue in (c.issues or []):
+                    text = issue.get("description") or issue.get("suggestion") or ""
+                    if text:
+                        addressed.add(text.strip().lower())
+
+        blocks: list[str] = []
+        for c in non_approving:
+            role_lines: list[str] = []
+            for issue in (c.issues or [])[:6]:
+                text = str(issue.get("description") or issue.get("suggestion") or "").strip()
+                if not text:
+                    continue
+                marker = "unresolved" if text.lower() in addressed else "new"
+                sev = str(issue.get("severity") or "minor").strip()
+                role_lines.append(f"  - [{sev}/{marker}] {text}")
+            if role_lines:
+                blocks.append(f"**{c.role}** (vote: {c.vote.value}, conf: {c.confidence:.2f}):\n"
+                              + "\n".join(role_lines))
+
+        if not blocks:
+            round_obj.synthesis = "Counselors requested changes but provided no actionable issue text."
+            return
+
+        header = (
+            f"## Concilium revision notes (round {round_obj.round_number})\n"
+            "Incorporated counselor feedback for the next round. Items marked "
+            "`[new]` are newly raised; `[unresolved]` persisted from an earlier "
+            "round and still need addressing before approval:\n"
+        )
+        synthesis_text = header + "\n\n".join(blocks)
+        round_obj.synthesis = synthesis_text
+
+        # Carry the previous plan forward and append the revision block so the
+        # next round reviews a plan that actually reflects the feedback.
+        # ``_plan_input`` is the original plan (set in ``deliberate()``); for
+        # round N>1 the plan under review is the previous round's revised_plan,
+        # which was already appended to ``self.rounds`` before this helper runs
+        # for the NEXT round. Dedupe above prevents identical blocks stacking.
+        prior = self.rounds[-1] if self.rounds else None
+        base = prior.revised_plan if (prior and prior.revised_plan) else self._plan_input
+        base = base or ""
+        separator = "" if base.endswith("\n") else "\n"
+        round_obj.revised_plan = f"{base}{separator}\n{synthesis_text}\n"
 
     async def _invoke_counselor(self, role: str, plan_text: str) -> CounselorCritique:
         """Call a single counselor with the role prompt + plan, parse the JSON response."""
         role_cfg = COUNSELOR_ROLES[role]
         system_prompt = role_cfg["prompt"] + _COUNSELOR_OUTPUT_CONTRACT
 
-        # Use the deployment's configured default adapter/model. The
-        # role-level "model" in COUNSELOR_ROLES is advisory; deferring to
-        # settings keeps the feature usable on whichever provider the user
-        # configured via `yapoc init`.
+        # Resolve the adapter/model from concilium's entry in agent-settings.json.
+        # Concilium is configured for deepseek-chat (cheap deliberation); falling
+        # back to deepseek-chat hardcoded ensures counselors never inherit the
+        # deployment's expensive default (e.g. anthropic/claude-sonnet-4-6).
+        concilium_cfg = resolve_agent("concilium")
+        if concilium_cfg:
+            adapter_name = concilium_cfg["adapter"]
+            model_name = concilium_cfg["model"]
+            temperature = float(concilium_cfg.get("temperature", role_cfg["temperature"]))
+        else:
+            adapter_name = "deepseek"
+            model_name = "deepseek-chat"
+            temperature = float(role_cfg["temperature"])
+
         config = AgentConfig(
-            adapter=settings.default_adapter,
-            model=settings.default_model,
-            temperature=float(role_cfg["temperature"]),
+            adapter=adapter_name,
+            model=model_name,
+            temperature=temperature,
             max_tokens=2048,
         )
         adapter = get_adapter(config)
@@ -773,6 +886,47 @@ class ConciliumOrchestrator:
                     "concern": f"{role} did not approve (vote: {critique.vote.value})",
                 })
         return disagreements
+
+    def _record_metrics(self, result: DeliberationResult, plan_text: str) -> None:
+        """Append one metrics line per terminal session to concilium_metrics.md.
+
+        Tracks plan revision rate, defect catch rate, rounds, score progression
+        and escalation flag.
+        """
+        try:
+            rounds = self.rounds
+            n_rounds = len(rounds)
+            first_score = rounds[0].weighted_score if rounds else 0.0
+            last_score = rounds[-1].weighted_score if rounds else 0.0
+            revisions_changed = sum(
+                1 for i in range(1, n_rounds)
+                if rounds[i].revised_plan and rounds[i].revised_plan != rounds[i-1].revised_plan
+            )
+            transitions = max(1, n_rounds - 1)
+            revision_rate = revisions_changed / transitions if n_rounds > 1 else 0.0
+            total_issues = 0
+            hard_issues = 0
+            for r in rounds:
+                for c in r.critiques.values():
+                    for i in (c.issues or []):
+                        total_issues += 1
+                        sev = str(i.get("severity", "")).lower()
+                        if sev in ("blocker", "major"):
+                            hard_issues += 1
+            defect_catch = hard_issues / total_issues if total_issues else 0.0
+            line = (
+                f"{datetime.now(timezone.utc).isoformat()} | "
+                f"session={self.session_id} status={result.status.value} "
+                f"rounds={n_rounds} first_score={first_score:.2f} last_score={last_score:.2f} "
+                f"delta={last_score - first_score:+.2f} revision_rate={revision_rate:.2f} "
+                f"defect_catch={defect_catch:.2f} issues={total_issues}\n"
+            )
+            metrics_path = CONCILIUM_DIR / "concilium_metrics.md"
+            metrics_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(metrics_path, "a") as f:
+                f.write(line)
+        except Exception as exc:
+            _log_event(self.session_id, "metrics_write_failed", {"error": str(exc)})
 
     def get_round_logs(self, round_number: int | None = None) -> list[dict]:
         """Read logged events for a specific round or all rounds."""

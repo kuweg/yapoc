@@ -14,11 +14,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import signal
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
 
+from app.backend.message_bus import bus
+from app.backend.services import _read_status_json
+from app.config import settings
 from app.utils.db import recent_tasks_queue
 
 
@@ -205,6 +211,38 @@ async def websocket_endpoint(ws: WebSocket) -> None:
                     if name:
                         await ws_manager.unsubscribe_agent(ws, name)
                         await ws.send_text(json.dumps({"type": "agent_unsubscribed", "agent": name}))
+                elif msg_type == "agent_action":
+                    action = msg.get("action", "")
+                    name = msg.get("agent", "")
+                    try:
+                        if action == "nudge":
+                            from app.backend.routers.agents import perform_nudge
+                            await perform_nudge(name)
+                        elif action == "kill":
+                            if not name:
+                                raise ValueError("missing agent name")
+                            agent_dir = settings.agents_dir / name
+                            if not agent_dir.is_dir():
+                                raise ValueError(f"Agent '{name}' not found")
+                            status = _read_status_json(agent_dir)
+                            if not status or not status.get("pid"):
+                                raise ValueError(f"Agent '{name}' has no known PID")
+                            pid = status["pid"]
+                            try:
+                                os.kill(pid, signal.SIGTERM)
+                                from app.backend.services.graph_events import graph_event_bus
+                                await graph_event_bus.emit_agent_died(source="ws", target=name)
+                            except ProcessLookupError:
+                                raise ValueError(f"Agent '{name}' already not running")
+                        else:
+                            raise ValueError(f"unknown action '{action}'")
+                        await ws.send_text(json.dumps(
+                            {"type": "agent_action_result", "agent": name, "action": action, "status": "ok"}
+                        ))
+                    except Exception as exc:
+                        await ws.send_text(json.dumps(
+                            {"type": "agent_action_result", "agent": name, "action": action, "status": "error", "detail": str(exc)}
+                        ))
             except json.JSONDecodeError:
                 pass
     except WebSocketDisconnect:

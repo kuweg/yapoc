@@ -38,7 +38,7 @@ export function EntryModal({ entry, onClose }: Props) {
         </pre>
 
         {/* Footer */}
-        <div className="mt-3 text-[10px] text-zinc-600">
+        <div className="mt-3 text-[12px] text-zinc-600">
           entry #{entry.id} · cluster {entry.cluster}
         </div>
       </div>

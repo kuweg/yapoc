@@ -1,24 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentStatus } from '../api/types'
-import { AgentLogDrawer } from './AgentLogDrawer'
-
-const STATUS_DOT: Record<string, string> = {
-  running: 'bg-amber-400 animate-pulse',
-  busy: 'bg-amber-400',
-  idle: 'bg-emerald-400',
-  terminated: 'bg-zinc-500',
-  error: 'bg-red-400',
-  spawning: 'bg-amber-400 animate-pulse',
-}
-
-const STATUS_TEXT: Record<string, string> = {
-  running: 'text-amber-400',
-  busy: 'text-amber-400',
-  idle: 'text-emerald-400',
-  terminated: 'text-zinc-500',
-  error: 'text-red-400',
-  spawning: 'text-amber-400',
-}
+import { useAgentChatStore } from '../store/agentChatStore'
+import { killAgent } from '../api/client'
+import { AgentAvatar, getAgentDisplayName } from '../lib/agentIdentity'
+import { AgentPresenceIndicator } from './AgentPresence'
+import { ContextGauge, contextWindowForModel } from './ContextGauge'
 
 const MAX_SPARKLINE = 20
 
@@ -67,21 +53,22 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
-  // `status` combines process state + task state (running > busy > error > idle).
-  // `process_state` is raw STATUS.json which can be "idle" even when a task is active.
   const state = agent.status || agent.process_state || 'idle'
-  const dotColor = STATUS_DOT[state] ?? 'bg-zinc-500'
-  const textColor = STATUS_TEXT[state] ?? 'text-zinc-500'
   const isRunning = state === 'running' || state === 'spawning' || state === 'busy'
+  const ctxUsed = (agent.input_tokens || 0) + (agent.output_tokens || 0)
+  // Killable = a live subprocess exists (busy OR idle-but-alive). EXCLUDE master:
+  // it runs in-process, so its STATUS pid IS the backend (uvicorn) pid — killing
+  // it would SIGTERM the whole backend. The UI must never do that.
+  const killable = (agent.pid != null || isRunning) && agent.name !== 'master'
 
-  // Accumulate TPS history locally
+  const setSelectedLogAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
+
+  // TPS sparkline history
   const tpsHistoryRef = useRef<number[]>([])
   const [tpsHistory, setTpsHistory] = useState<number[]>([])
-  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useEffect(() => {
     if (!isRunning) {
-      // Fade out: clear history when agent goes idle
       tpsHistoryRef.current = []
       setTpsHistory([])
       return
@@ -101,88 +88,111 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
     onClick()
   }
 
-  function openDrawer(e: React.MouseEvent) {
+  function openAgentFlow(e: React.MouseEvent) {
     e.stopPropagation()
-    setDrawerOpen(true)
+    setSelectedLogAgent(agent.name)
+  }
+
+  const [killing, setKilling] = useState(false)
+  async function handleStop(e: React.MouseEvent) {
+    e.stopPropagation()
+    setKilling(true)
+    try {
+      await killAgent(agent.name)
+    } catch {
+      /* error surfaced by the sidebar refresh / next poll */
+    } finally {
+      setKilling(false)
+    }
   }
 
   return (
-    <>
-      <button
-        onClick={handleClick}
-        className={`w-full text-left px-4 py-2.5 hover:bg-zinc-800 transition-colors ${
-          selected ? 'bg-zinc-800' : ''
-        }`}
-      >
-        {/* Row 1: dot + name + status */}
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${dotColor}`} />
-          <span className="text-sm text-zinc-200 truncate flex-1">{agent.name}</span>
-          <span className={`text-xs ${textColor}`}>{state}</span>
-        </div>
+    <button
+      onClick={handleClick}
+      className={`w-full text-left px-4 py-2.5 hover:bg-zinc-800 transition-colors ${
+        selected ? 'bg-zinc-800' : ''
+      }`}
+    >
+      {/* Row 1: identity avatar + name + live presence + per-agent stop */}
+      <div className="flex items-center gap-2">
+        <AgentAvatar name={agent.name} size={18} />
+        <span className="text-sm text-zinc-200 truncate flex-1">{getAgentDisplayName(agent.name)}</span>
+        <AgentPresenceIndicator name={agent.name} status={state} />
+        {killable && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleStop}
+            aria-disabled={killing}
+            title={`Stop ${agent.name}`}
+            className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-red-400/70 hover:text-red-300 hover:bg-red-500/15 transition-colors ${killing ? 'opacity-40 pointer-events-none' : ''}`}
+          >
+            <svg width="8" height="8" viewBox="0 0 10 10"><rect width="10" height="10" rx="1.5" fill="currentColor" /></svg>
+          </span>
+        )}
+      </div>
 
-        {/* Row 2: pid / task summary */}
-        {(agent.pid != null || agent.task_summary) && (
-          <div className="pl-4 mt-0.5">
+      {/* Row 2: pid / context gauge / task summary */}
+      {(agent.pid != null || agent.task_summary || ctxUsed > 0) && (
+        <div className="pl-4 mt-0.5">
+          <div className="flex items-center gap-2">
             {agent.pid != null && (
-              <span className="text-xs text-zinc-600">pid {agent.pid}</span>
+              <span className="text-xs text-zinc-600 flex-shrink-0">pid {agent.pid}</span>
             )}
-            {agent.task_summary && (
-              <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>
-            )}
+            <ContextGauge used={ctxUsed} window={contextWindowForModel(agent.model)} />
           </div>
-        )}
-
-        {/* Row 3: model info (when selected) */}
-        {selected && (
-          <div className="pl-4 mt-0.5">
-            <span className="text-[10px] text-zinc-500">{agent.adapter}/{agent.model}</span>
-          </div>
-        )}
-
-        {/* Row 4: token stats (only when running) */}
-        {isRunning && (tps != null || outTokens != null) && (
-          <div className="pl-4 mt-1 flex items-center gap-3">
-            {/* Counts */}
-            <div className="flex flex-col gap-0.5 text-[10px] text-zinc-500 tabular-nums">
-              {inTokens != null && (
-                <span>in&nbsp;<span className="text-zinc-400">{inTokens.toLocaleString()}</span></span>
-              )}
-              {outTokens != null && (
-                <span>out&nbsp;<span className="text-zinc-400">{outTokens.toLocaleString()}</span></span>
-              )}
-              {tps != null && (
-                <span className="text-amber-400/80">{tps.toFixed(1)}&thinsp;t/s</span>
-              )}
-            </div>
-
-            {/* Sparkline */}
-            {tpsHistory.length > 1 && (
-              <TpsSparkline values={tpsHistory} />
-            )}
-          </div>
-        )}
-
-        {/* Row 4: "View logs" button when running or selected */}
-        {(isRunning || selected) && (
-          <div className="pl-4 mt-1.5">
-            <button
-              onClick={openDrawer}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
-            >
-              View logs →
-            </button>
-          </div>
-        )}
-      </button>
-
-      {drawerOpen && (
-        <AgentLogDrawer
-          agentName={agent.name}
-          state={state}
-          onClose={() => setDrawerOpen(false)}
-        />
+          {agent.task_summary && (
+            <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>
+          )}
+        </div>
       )}
-    </>
+
+      {/* Row 3: model info (when selected) */}
+      {selected && (
+        <div className="pl-4 mt-0.5">
+          <span className="text-[12px] text-zinc-500">{agent.adapter}/{agent.model}</span>
+        </div>
+      )}
+
+      {/* Row 4: token stats (only when running) */}
+      {isRunning && (tps != null || outTokens != null) && (
+        <div className="pl-4 mt-1 flex items-center gap-3">
+          {/* Counts */}
+          <div className="flex flex-col gap-0.5 text-[12px] text-zinc-500 tabular-nums">
+            {inTokens != null && (
+              <span>in&nbsp;<span className="text-zinc-400">{inTokens.toLocaleString()}</span></span>
+            )}
+            {outTokens != null && (
+              <span>out&nbsp;<span className="text-zinc-400">{outTokens.toLocaleString()}</span></span>
+            )}
+            {tps != null && (
+              <span className="text-amber-400/80">{tps.toFixed(1)}&thinsp;t/s</span>
+            )}
+          </div>
+
+          {/* Sparkline */}
+          {tpsHistory.length > 1 && (
+            <TpsSparkline values={tpsHistory} />
+          )}
+        </div>
+      )}
+
+      {/* "Agent flow" button — opens the side panel */}
+      {(isRunning || selected) && (
+        <div className="pl-4 mt-1.5">
+          {/* span, not button: the whole card is already a <button> and
+              nesting one inside another is invalid HTML (React warns about
+              the hydration risk). Same pattern as the stop control above. */}
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={openAgentFlow}
+            className="text-[12px] text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors cursor-pointer"
+          >
+            Agent flow →
+          </span>
+        </div>
+      )}
+    </button>
   )
 }

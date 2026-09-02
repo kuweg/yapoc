@@ -233,6 +233,18 @@ def _agents_map(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {}
 
 
+def agent_tools(agent_name: str) -> list[str]:
+    """Return the explicit ``tools`` list for an agent from agent-settings.json.
+
+    This is only a *fallback* — the authoritative tool source is the agent's
+    ``CONFIG.yaml`` ``tools:`` block (see ``BaseAgent._load_tool_names``). Used
+    when an agent has no CONFIG.yaml tools block. Returns ``[]`` if absent.
+    """
+    entry = _agents_map(_read()).get(agent_name, {})
+    tools = entry.get("tools", [])
+    return list(tools) if isinstance(tools, list) else []
+
+
 def resolve_agent(agent_name: str) -> dict[str, Any] | None:
     """Return ``{adapter, model, temperature, max_tokens, fallbacks}`` for one agent.
 

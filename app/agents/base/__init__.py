@@ -75,6 +75,69 @@ _FACT_AGENT_NAMES = frozenset({
 _FACT_STRING_CAP = 200
 
 
+def _has_tool_result(message: dict[str, Any]) -> bool:
+    """True if ``message`` carries one or more ``tool_result`` blocks.
+
+    Such a message is only valid immediately after the assistant message
+    holding the matching ``tool_use`` blocks, so compaction must never begin
+    a preserved tail on one.
+    """
+    content = message.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(block, dict) and block.get("type") == "tool_result"
+        for block in content
+    )
+
+
+def _safe_tail_start(
+    messages: list[dict[str, Any]], middle_start: int, tail_n: int
+) -> int:
+    """Index where a preserved tail of ``tail_n`` messages can safely begin.
+
+    Walks the boundary backwards while it would land on a ``tool_result``
+    message, so the assistant message owning the matching ``tool_use`` is
+    pulled into the tail with it. Never walks past ``middle_start``.
+    """
+    tail_start = len(messages) - tail_n if tail_n else len(messages)
+    while tail_start > middle_start and _has_tool_result(messages[tail_start]):
+        tail_start -= 1
+    return tail_start
+
+
+def _deterministic_trim(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Shrink ``messages`` without an LLM call — the compaction fallback.
+
+    Keeps the anchor (first user message) and a tool-pair-safe tail, replacing
+    the middle with a marker so the agent knows history was dropped rather
+    than silently losing it. Returns the input unchanged when there is nothing
+    meaningful to drop.
+    """
+    tail_n = max(0, getattr(settings, "compact_preserve_tail_n", 8))
+    if len(messages) <= 1 + tail_n:
+        return messages
+    anchor_idx = 0
+    for i, m in enumerate(messages):
+        if m.get("role") == "user":
+            anchor_idx = i
+            break
+    middle_start = anchor_idx + 1
+    tail_start = _safe_tail_start(messages, middle_start, tail_n)
+    if tail_start <= middle_start:
+        return messages
+    marker = {
+        "role": "user",
+        "content": (
+            "[Context trimmed — summarization was unavailable, so "
+            f"{tail_start - middle_start} intermediate messages were dropped. "
+            "The original task above and the most recent turns below are intact. "
+            "Re-read any files or results you still need.]"
+        ),
+    }
+    return [messages[anchor_idx], marker, *messages[tail_start:]]
+
+
 def _extract_facts_deterministic(messages: list[dict[str, Any]]) -> dict[str, Any]:
     """Pull structured facts from a slice of messages without an LLM call.
 
@@ -392,7 +455,15 @@ class BaseAgent:
 
     @staticmethod
     def _is_memory_file(filename: str) -> bool:
-        return filename in {"MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD"}
+        # RESULT.MD / ERROR.MD are result-transport files written by
+        # _write_result / _write_error via _write_memory_file (memory dir).
+        # They MUST be listed here so the runner's _read_file("RESULT.MD")
+        # resolves to the SAME memory dir — otherwise it reads a stale/empty
+        # app/agents/<name>/RESULT.MD and emits the "Task completed." fallback.
+        return filename in {
+            "MEMORY.MD", "NOTES.MD", "LEARNINGS.MD", "HEALTH.MD",
+            "RESULT.MD", "ERROR.MD",
+        }
 
     async def _read_file(self, filename: str, dir: Path | None = None) -> str:
         target_dir = dir or (self._memory_dir if self._is_memory_file(filename) else self._dir)
@@ -801,7 +872,14 @@ class BaseAgent:
     # ── Tool helpers ────────────────────────────────────────────────────────
 
     async def _load_tool_names(self, config_raw: str | None = None) -> list[str]:
-        """Parse tool names from CONFIG.yaml tools: block, falling back to agent-settings.json.
+        """Parse tool names for this agent.
+
+        Authoritative source is the agent's ``CONFIG.yaml`` ``tools:`` block.
+        ``agent-settings.json`` is consulted ONLY as a fallback when CONFIG.yaml
+        has no tools block (note: this is the opposite of model/adapter
+        resolution, which is agent-settings.json-first). The ``tools`` arrays in
+        agent-settings.json are therefore NOT authoritative — keep them in sync
+        with CONFIG.yaml or an audit reading the JSON will be misled.
 
         Tolerates blank lines and ``#`` comments between list items so
         that agents can annotate their tool lists without breaking the
@@ -837,14 +915,13 @@ class BaseAgent:
                         break
 
         # Fallback: check agent-settings.json when CONFIG.yaml has no tools:
+        # block. (Previously imported a non-existent ``load_agent_settings``,
+        # so this fallback silently never fired — an agent with an empty
+        # CONFIG.yaml tools block got ZERO tools.)
         if not names:
             try:
-                from app.utils.agent_settings import load_agent_settings
-                settings_json = load_agent_settings()
-                agent_cfg = (settings_json.get("agents") or {}).get(self._name, {})
-                json_tools = agent_cfg.get("tools", [])
-                if json_tools:
-                    names = list(json_tools)
+                from app.utils.agent_settings import agent_tools
+                names = agent_tools(self._name)
             except Exception:
                 pass
 
@@ -978,11 +1055,19 @@ class BaseAgent:
                 break
         anchor = messages[anchor_idx]
 
-        # Tail: last K messages, verbatim.
-        tail = messages[-tail_n:] if tail_n else []
-        # Middle: between anchor and tail, no overlap.
+        # Tail: last K messages, verbatim — but never start the tail on a
+        # user message carrying tool_result blocks. A blind ``messages[-K:]``
+        # slice splits tool_use/tool_result pairs whenever the message count
+        # between them and the end is odd (e.g. a run that ends with a plain
+        # assistant answer). The orphaned tool_result then reaches the
+        # provider with no matching tool_use and the request 400s, killing
+        # the task mid-run. Walk the boundary back to pull the owning
+        # assistant tool_use message into the tail.
         middle_start = anchor_idx + 1
-        middle_end = len(messages) - tail_n if tail_n else len(messages)
+        tail_start = _safe_tail_start(messages, middle_start, tail_n)
+        tail = messages[tail_start:] if tail_n else []
+        # Middle: between anchor and tail, no overlap.
+        middle_end = tail_start if tail_n else len(messages)
         middle = messages[middle_start:middle_end]
         if not middle:
             return messages
@@ -1211,9 +1296,30 @@ class BaseAgent:
                     estimated = _estimate_tokens(messages, system_prompt=system_prompt, tools=tool_defs)
                     if estimated >= threshold_tokens:
                         tokens_before = estimated
-                        messages = await self._compact_messages(
-                            messages, system_prompt, config
-                        )
+                        try:
+                            messages = await self._compact_messages(
+                                messages, system_prompt, config
+                            )
+                        except Exception as _compact_exc:
+                            # Compaction is a best-effort optimisation, not
+                            # part of the task. Letting it raise here aborts a
+                            # run that was otherwise healthy (e.g. the compact
+                            # adapter can't be constructed because its key is
+                            # missing). Degrade to a deterministic drop of the
+                            # middle instead, which still gets us back under
+                            # the context limit so the turn can proceed.
+                            _log.bind(agent=self._name).warning(
+                                "compact failed ({}) — falling back to deterministic trim",
+                                _compact_exc,
+                            )
+                            _ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            await self._append_memory_file(
+                                "HEALTH.MD",
+                                f"[{_ts}] ERROR: compaction failed, trimmed "
+                                f"context instead: {type(_compact_exc).__name__}: "
+                                f"{_compact_exc}\n",
+                            )
+                            messages = _deterministic_trim(messages)
                         tokens_after = _estimate_tokens(messages, system_prompt=system_prompt, tools=tool_defs)
                         # Re-arm the pre-emptive snapshot so the next growth
                         # cycle gets its own fact write.
@@ -1234,18 +1340,25 @@ class BaseAgent:
                         and len(messages) != _preemptive_snapshot_msg_count
                     ):
                         # Pre-emptive: between 70% and 85% of context, snapshot
-                        # the structured facts to MEMORY.MD so they survive a
-                        # later full compact even if the LLM summary paraphrases.
+                        # the structured facts to a dedicated NON-injected
+                        # sidecar (compaction_facts.jsonl in the memory dir) so
+                        # they survive a later full compact even if the LLM
+                        # summary paraphrases. They must NOT go into MEMORY.MD —
+                        # that file is tail-injected into the system prompt
+                        # every turn, so a giant JSON dump would be re-fed as
+                        # JSON noise on every future turn (unbounded token
+                        # growth, bypassing _MEMORY_RESPONSE_CHAR_CAP).
                         # No LLM call — pure deterministic extraction.
                         _preemptive_snapshot_msg_count = len(messages)
                         try:
                             _facts = _extract_facts_deterministic(messages)
                             if any(_facts.values()):
                                 _ts = _time.strftime("%Y-%m-%d %H:%M", _time.localtime())
-                                _facts_line = json.dumps(_facts, default=str)[:1800]
+                                _facts_json = json.dumps(_facts, default=str)
                                 await self._append_file(
-                                    "MEMORY.MD",
-                                    f"[{_ts}] [compaction:facts:preemptive] {_facts_line}\n",
+                                    "compaction_facts.jsonl",
+                                    f"[{_ts}] {_facts_json}\n",
+                                    dir=self._memory_dir,
                                 )
                                 _log.bind(
                                     agent=self._name, event="compact_preemptive", turn=_turn,

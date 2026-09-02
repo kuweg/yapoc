@@ -59,7 +59,7 @@ class Settings(BaseSettings):
 
     # ── Runner defaults ──────────────────────────────────────────────────────
     max_turns: int = 99999
-    task_timeout: int = 300
+    task_timeout: int = 900
 
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
@@ -114,19 +114,19 @@ class Settings(BaseSettings):
 
     # ── Context management ─────────────────────────────────────────────
     context_compact_threshold: float = (
-        0.95  # fraction of context window before full auto-compact fires
+        0.85  # fraction of context window before full auto-compact fires
     )
     context_compact_threshold_preemptive: float = (
         0.70  # earlier threshold: extract facts only (no lossy summarize)
     )
     context_compact_model: str = (
-        "claude-haiku-4-5-20251001"  # cheap model for compaction
+        "deepseek-chat"  # cheap model for compaction (was dead claude-haiku-4-5-20251001)
     )
     # Smart-compact tunables. The compact preserves the first user message
     # (the anchor / original task) and the last N messages verbatim, then
     # summarizes everything in between. Setting N too low loses recent
     # context; too high leaves little room for the summary to land.
-    compact_preserve_tail_n: int = 8
+    compact_preserve_tail_n: int = 5
     compact_extract_facts: bool = True
     # Hard cap on per-session SUMMARY.json size to keep a runaway compact
     # loop from filling disk. Each compact write rotates the prior file to
@@ -155,7 +155,7 @@ class Settings(BaseSettings):
     budget_per_agent_usd: float = 0.0    # 0 = no limit; per-agent lifetime cap
     cost_runaway_multiplier: float = 5.0 # pause if agent cost > multiplier x median agent cost
     daily_autonomous_budget_usd: float = 100.0 # daily cap for autonomous tasks (cron, goal, doctor)
-    max_tool_calls_per_turn: int = 200   # per-turn tool call limit; prevents infinite loops
+    max_tool_calls_per_turn: int = 500   # per-turn tool call limit; prevents infinite loops
     max_spawn_depth: int = 20            # max agent spawn chain depth
 
     # ── Supervisor (`yapoc supervise`) ────────────────────────────────
@@ -195,7 +195,15 @@ class Settings(BaseSettings):
     # Snapshot HEAD before each sub-agent task spawn; verify (smoke test +
     # JSON sanity) on terminal status; commit or roll back. Per-sub-agent-task
     # granularity. Disable to skip entirely (snapshot returns a no-op handle).
-    git_autocheckpoint_enabled: bool = True
+    #
+    # DEFAULT OFF: the checkpoint attributes every path that became dirty after
+    # its snapshot to the agent (commit_checkpoint: `current - baseline`). It
+    # therefore CANNOT distinguish the agent's edits from any concurrent edit —
+    # a human (or a parallel agent) working at the same time has their new files
+    # swept into a `yapoc:agent:*:done` commit on the shared branch, racing
+    # manual commits. Only safe for fully-autonomous, single-writer runs. Opt in
+    # explicitly via GIT_AUTOCHECKPOINT_ENABLED=true when no human is editing.
+    git_autocheckpoint_enabled: bool = False
     git_verify_smoke_test: bool = True
     git_checkpoint_label_prefix: str = "yapoc"
 
@@ -207,6 +215,22 @@ class Settings(BaseSettings):
     @property
     def agents_dir(self) -> Path:
         return self.project_root / "app" / "agents"
+
+    @property
+    def memory_agents_dir(self) -> Path:
+        """Runtime per-agent memory dir (MEMORY/HEALTH/NOTES/RESULT/ERROR.MD).
+
+        Distinct from ``agents_dir`` (source: PROMPT/CONFIG/TASK.MD). Result
+        transport files (RESULT.MD, ERROR.MD) are written here by BaseAgent;
+        readers MUST resolve them here, not under ``agents_dir``.
+        """
+        return self.project_root / "app" / "memory" / "agents"
+
+    @property
+    def upload_dir(self) -> Path:
+        """Root for chat attachment uploads (date-sharded), plus the uploads.json
+        index, .thumbs/ and .vision/ caches. Created lazily by the upload store."""
+        return self.project_root / "data" / "uploads"
 
     @property
     def base_url(self) -> str:

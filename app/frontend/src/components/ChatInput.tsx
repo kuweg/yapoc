@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo, useEffect } from 'react'
 
 export interface ChatInputHandle {
   setText: (text: string) => void
@@ -8,10 +8,12 @@ export interface ChatInputHandle {
 }
 
 interface ChatInputProps {
-  onSubmit: (text: string, imageFile?: File) => void
+  onSubmit: (text: string, files: File[]) => void
   disabled?: boolean
   placeholder?: string
 }
+
+const MAX_FILES = 10
 
 // Slash commands for autocomplete
 const SLASH_COMMANDS = [
@@ -33,54 +35,115 @@ const SLASH_COMMANDS = [
   { cmd: '/exit', desc: 'No-op in web UI' },
 ]
 
+const IMG_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
+function isImage(file: File): boolean {
+  return file.type.startsWith('image/') || IMG_RE.test(file.name)
+}
+
 /**
- * Isolated chat input. Owns its own text state so keystrokes do NOT
- * re-render the parent (and therefore do not re-render the message list,
- * which is the dominant cost on long conversations). The parent interacts
- * with the input imperatively via the ref handle (setText / clear / focus /
- * submit) — never by passing the text down as a controlled prop.
+ * Isolated chat input with multi-file attachment staging (spec: a dedicated
+ * fileHandler). Files can be added via the picker, drag-drop onto the chat
+ * input, or clipboard paste. Each staged file gets an object-URL preview that
+ * is always revoked on removal to avoid leaks. The parent interacts via the ref
+ * handle and receives the staged File[] on submit.
  */
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   function ChatInput({ onSubmit, disabled, placeholder }, ref) {
     const [text, setText] = useState('')
     const [showAutocomplete, setShowAutocomplete] = useState(false)
     const [selectedIndex, setSelectedIndex] = useState(0)
-    const [imageFile, setImageFile] = useState<File | null>(null)
-    const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [pending, setPending] = useState<File[]>([])
+    const [expanded, setExpanded] = useState(false)
+    const [dragOver, setDragOver] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const autocompleteRef = useRef<HTMLDivElement>(null)
+    // File -> object URL (preview). WeakMap so URLs are reclaimable with files.
+    const previews = useRef<WeakMap<File, string>>(new WeakMap())
 
-    // Filter commands based on current text
+    const previewFor = useCallback((file: File): string | null => {
+      if (!isImage(file)) return null
+      let url = previews.current.get(file)
+      if (!url) {
+        url = URL.createObjectURL(file)
+        previews.current.set(file, url)
+      }
+      return url
+    }, [])
+
+    const revoke = useCallback((file: File) => {
+      const url = previews.current.get(file)
+      if (url) {
+        URL.revokeObjectURL(url)
+        previews.current.delete(file)
+      }
+    }, [])
+
     const filteredCommands = useMemo(() => {
       if (!text.startsWith('/')) return []
       const typed = text.toLowerCase()
       return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(typed))
     }, [text])
 
-    const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      setImageFile(file)
-      const url = URL.createObjectURL(file)
-      setImagePreview(url)
-      e.target.value = '' // reset so same file can be reselected
+    const addFiles = useCallback((files: FileList | File[]) => {
+      const incoming = Array.from(files)
+      if (!incoming.length) return
+      setPending((prev) => {
+        const room = MAX_FILES - prev.length
+        if (room <= 0) return prev
+        return [...prev, ...incoming.slice(0, room)]
+      })
     }, [])
 
-    const clearImage = useCallback(() => {
-      setImageFile(null)
-      if (imagePreview) URL.revokeObjectURL(imagePreview)
-      setImagePreview(null)
-    }, [imagePreview])
+    const removePending = useCallback((idx: number) => {
+      setPending((prev) => {
+        const f = prev[idx]
+        if (f) revoke(f)
+        return prev.filter((_, i) => i !== idx)
+      })
+    }, [revoke])
+
+    const clearPending = useCallback(() => {
+      setPending((prev) => { prev.forEach(revoke); return [] })
+      setExpanded(false)
+    }, [revoke])
+
+    const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) addFiles(e.target.files)
+      e.target.value = '' // allow re-selecting the same file
+    }, [addFiles])
+
+    // Clipboard paste of files/images anywhere on the page.
+    useEffect(() => {
+      const onPaste = (e: ClipboardEvent) => {
+        const items = e.clipboardData?.items
+        if (!items) return
+        const files: File[] = []
+        for (const it of items) {
+          if (it.kind === 'file') {
+            const f = it.getAsFile()
+            if (f) {
+              // Name pasted images so the server has an extension.
+              files.push(f.name ? f : new File([f], 'paste.png', { type: f.type || 'image/png' }))
+            }
+          }
+        }
+        if (files.length) { e.preventDefault(); addFiles(files) }
+      }
+      window.addEventListener('paste', onPaste)
+      return () => window.removeEventListener('paste', onPaste)
+    }, [addFiles])
 
     const doSubmit = useCallback(() => {
       const trimmed = text.trim()
-      if ((!trimmed && !imageFile) || disabled) return
-      onSubmit(trimmed, imageFile ?? undefined)
+      if ((!trimmed && pending.length === 0) || disabled) return
+      onSubmit(trimmed, pending)
       setText('')
       setShowAutocomplete(false)
-      clearImage()
-    }, [text, disabled, onSubmit, imageFile, clearImage])
+      // Keep object URLs valid for the optimistic bubble; the parent owns them now.
+      setPending([])
+      setExpanded(false)
+    }, [text, disabled, onSubmit, pending])
 
     useImperativeHandle(ref, () => ({
       setText,
@@ -90,7 +153,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     }), [setText, doSubmit])
 
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-      // Autocomplete navigation
       if (showAutocomplete && filteredCommands.length > 0) {
         if (e.key === 'ArrowDown') {
           e.preventDefault()
@@ -118,12 +180,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           return
         }
       }
-
-      // Enter to submit (without shift)
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         doSubmit()
-        return
       }
     }
 
@@ -139,34 +198,57 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       }
     }
 
-    function handleAutocompleteClick(cmd: string) {
-      setText(cmd + ' ')
-      setShowAutocomplete(false)
-      setSelectedIndex(0)
-      textareaRef.current?.focus()
-    }
+    const collapsed = pending.length > 3 && !expanded
 
     return (
-      <div className="relative flex flex-col flex-1 min-w-[12rem]">
-        {/* Hidden file input for image selection */}
+      <div
+        className={`relative flex flex-col flex-1 min-w-[12rem] ${dragOver ? 'ring-2 ring-[#FFB633] rounded-lg' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={(e) => { e.preventDefault(); setDragOver(false) }}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files) }}
+      >
         <input
           type="file"
           ref={fileInputRef}
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          onChange={handleImageSelect}
+          multiple
+          onChange={handleFileSelect}
           className="hidden"
         />
 
-        {/* Image preview */}
-        {imagePreview && (
-          <div className="relative mb-1 inline-block">
-            <img src={imagePreview} alt="preview" className="max-h-24 rounded-lg" />
-            <button
-              onClick={clearImage}
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-red-600"
-            >
-              ×
-            </button>
+        {/* Attach strip */}
+        {pending.length > 0 && (
+          <div id="attach-strip" className="mb-1 flex flex-wrap gap-1.5">
+            {collapsed ? (
+              <button
+                onClick={() => setExpanded(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700"
+              >
+                📎 {pending.length} files
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); clearPending() }}
+                  className="w-4 h-4 rounded-full bg-zinc-700 hover:bg-red-600 flex items-center justify-center"
+                >×</span>
+              </button>
+            ) : (
+              pending.map((file, idx) => {
+                const url = previewFor(file)
+                return (
+                  <div key={idx} className="relative inline-flex items-center gap-2 rounded-lg bg-zinc-800 px-2 py-1.5 max-w-[180px]">
+                    {url ? (
+                      <img src={url} alt={file.name} className="max-h-12 max-w-[80px] rounded object-cover" />
+                    ) : (
+                      <span className="text-zinc-400 text-xs font-mono truncate">📄 {file.name}</span>
+                    )}
+                    <button
+                      onClick={() => removePending(idx)}
+                      className="w-4 h-4 rounded-full bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-red-600 flex-shrink-0"
+                      title="Remove"
+                    >×</button>
+                  </div>
+                )
+              })
+            )}
           </div>
         )}
 
@@ -179,12 +261,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             {filteredCommands.map((cmd, i) => (
               <button
                 key={cmd.cmd}
-                onClick={() => handleAutocompleteClick(cmd.cmd)}
+                onClick={() => { setText(cmd.cmd + ' '); setShowAutocomplete(false); setSelectedIndex(0); textareaRef.current?.focus() }}
                 onMouseEnter={() => setSelectedIndex(i)}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
-                  i === selectedIndex
-                    ? 'bg-zinc-700 text-zinc-100'
-                    : 'text-zinc-300 hover:bg-zinc-800'
+                  i === selectedIndex ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800'
                 }`}
               >
                 <span className="font-mono text-[#FFB633] font-semibold">{cmd.cmd}</span>
@@ -194,21 +274,18 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           </div>
         )}
 
-        {/* Note: the autocomplete dropdown's parent .relative div is the outer
-            container, so the dropdown still positions relative to the whole block.
-            The textarea + attach button are wrapped in a flex row below. */}
-
         <div className="flex items-end gap-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-50 text-lg"
-            title="Attach image"
+            title="Attach files (drag-drop or paste too)"
           >
             +
           </button>
           <textarea
+        aria-label="Message YAPOC"
             ref={textareaRef}
             value={text}
             onChange={handleChange}

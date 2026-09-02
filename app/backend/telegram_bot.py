@@ -241,6 +241,9 @@ class TelegramBot:
         self._streaming_active: set[str] = set()  # task_ids where streaming editor has kicked in
         # Load persisted tracked messages so /clear works across restarts
         TelegramBot._load_tracked_messages()
+        # Load persisted offset + processed update IDs so a post-restart
+        # instance resumes where the previous one stopped (duplicate-message fix)
+        self._load_telegram_state()
 
     # ── Message tracking for /clear ─────────────────────────────────────────
 
@@ -267,6 +270,57 @@ class TelegramBot:
             path = cls._get_tracked_messages_path()
             path.parent.mkdir(parents=True, exist_ok=True)
             data = {str(k): v for k, v in cls._chat_message_ids.items()}
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+    # ── Offset / processed-update persistence (restart duplicate fix) ──────
+    #
+    # Telegram's getUpdates is at-least-once: updates are only "confirmed" when
+    # you call getUpdates with an offset greater than their update_id. YAPOC
+    # keeps self._offset / _processed_update_ids_global in memory only, so a
+    # full process restart starts a fresh bot with offset=0 and an empty dedup
+    # set — Telegram then re-serves every unconfirmed update (including the
+    # message that triggered the restart), which gets processed AGAIN →
+    # duplicate Telegram responses after restart. This state file lets the new
+    # instance resume exactly where the old one left off.
+
+    _STATE_PATH_NAME = "telegram_state.json"
+
+    @classmethod
+    def _get_state_path(cls):
+        return settings.project_root / "data" / cls._STATE_PATH_NAME
+
+    def _load_telegram_state(self) -> None:
+        """Restore offset + processed update IDs from disk so a new instance
+        resumes where the old one stopped instead of replaying updates with
+        offset=0 (the root cause of duplicate Telegram messages after restart)."""
+        try:
+            path = TelegramBot._get_state_path()
+            if path.exists():
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                stored_offset = int(data.get("offset", 0) or 0)
+                if stored_offset > self._offset:
+                    self._offset = stored_offset
+                TelegramBot._processed_update_ids_global = set(
+                    int(i) for i in data.get("processed_ids", []) if i
+                )
+        except Exception:
+            pass
+
+    def _save_telegram_state(self) -> None:
+        """Persist current offset + processed update IDs to disk."""
+        try:
+            path = TelegramBot._get_state_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "offset": self._offset,
+                # Keep the last 2000 processed IDs — enough to survive any
+                # single restart replay window, bounded for reasonable file size.
+                "processed_ids": sorted(TelegramBot._processed_update_ids_global)[-2000:],
+            }
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f)
         except Exception:
@@ -363,6 +417,11 @@ class TelegramBot:
                 # realistic duplicate window.
                 if len(self._processed_update_ids) > 1000:
                     self._processed_update_ids = set(sorted(self._processed_update_ids)[-500:])
+
+                # Persist offset + processed IDs so a post-restart instance
+                # resumes where we stopped instead of replaying updates (which
+                # would re-process a user's message and send a duplicate reply).
+                self._save_telegram_state()
 
                 # If no updates were returned, brief pause before next poll
                 if not updates:

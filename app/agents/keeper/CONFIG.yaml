@@ -45,10 +45,24 @@ sandbox:
     - docs/
     - scripts/
     - README.md
-  # shell_exec is locked down to poetry-only. Keeper is the dependency
-  # gatekeeper; it has no legitimate reason to run anything else.
+  # shell_exec is locked down to a read-only inspection set + poetry.
+  # Keeper is the config/dependency guardian: it needs to inspect the
+  # project state (ls/cat/pwd/find/grep/wc/head/tail) and manage Poetry,
+  # but has no legitimate reason to run arbitrary destructive commands.
   shell_allowlist:
     - poetry
+    - ls
+    - cat
+    - pwd
+    - find
+    - grep
+    - wc
+    - head
+    - tail
+    - echo
+    - which
+    - python
+    - python3
 runner:
   max_turns: 15
   task_timeout: 300

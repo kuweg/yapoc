@@ -18,6 +18,44 @@ export async function killAgent(name: string): Promise<{ status: string; name: s
   return res.json() as Promise<{ status: string; name: string }>
 }
 
+// ── Task queue (live task tracking) ──────────────────────────────────────────
+export interface QueuedTask {
+  id: string
+  prompt: string
+  status: string // pending | running | done | error | blocked | cancelled
+  source?: string
+  session_id?: string
+  assigned_agent?: string | null
+  result?: string | null
+  error?: string | null
+  cost_usd?: number
+  created_at?: string
+  started_at?: string | null
+  completed_at?: string | null
+  updated_at?: string
+}
+
+// Start the YAPOC backend manually. Hits a dev-server middleware (NOT /api, so
+// it is not proxied to the backend) — the Vite dev server is always up, so this
+// works even when the backend is down. Dev-only (no-op in a built/prod deploy).
+export async function startBackend(): Promise<{ status: string; detail?: string }> {
+  const res = await fetch('/__yapoc/start', { method: 'POST' })
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try { detail = (await res.json()).error || detail } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+export async function getTasks(limit = 50, status?: string): Promise<QueuedTask[]> {
+  const qs = new URLSearchParams({ limit: String(limit) })
+  if (status) qs.set('status', status)
+  const res = await fetch(`/api/tasks?${qs.toString()}`)
+  if (!res.ok) throw new Error(`GET /tasks: ${res.status}`)
+  return res.json() as Promise<QueuedTask[]>
+}
+
 export async function getMasterResult(): Promise<{ name: string; content: string }> {
   const res = await fetch('/api/agents/master/result')
   if (!res.ok) throw new Error(`GET /agents/master/result: ${res.status}`)
@@ -132,14 +170,52 @@ export async function getChannelSessions(): Promise<ChannelsResponse> {
   return res.json() as Promise<ChannelsResponse>
 }
 
-// ── Image upload ─────────────────────────────────────────────────────────────
+// ── File upload (images + text files) ────────────────────────────────────────
 
-export async function uploadImage(file: File): Promise<{ path: string }> {
+export interface FileUploadResult {
+  path: string
+  type?: string
+  content?: string
+}
+
+export async function uploadFile(file: File): Promise<FileUploadResult> {
   const form = new FormData()
   form.append('file', file)
   const res = await fetch('/api/files/upload', { method: 'POST', body: form })
   if (!res.ok) throw new Error(`POST /files/upload: ${res.status}`)
-  return res.json() as Promise<{ path: string }>
+  return res.json() as Promise<FileUploadResult>
+}
+
+// Legacy alias — old import paths still reference uploadImage
+export const uploadImage = uploadFile
+
+// ── Multi-file attachment upload (two-phase: upload → ids → chat) ─────────────
+export interface UploadedAttachment {
+  id: string
+  name: string
+  mime: string
+  size: number
+  hash: string
+  width?: number
+  height?: number
+  is_duplicate?: boolean
+}
+
+export async function uploadFiles(
+  files: File[],
+): Promise<{ files: UploadedAttachment[]; errors: { name: string; error: string }[] }> {
+  const form = new FormData()
+  files.forEach((f) => form.append('files', f, f.name || 'paste.png'))
+  const res = await fetch('/api/upload', { method: 'POST', body: form })
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      detail = body.detail || body.error || detail
+    } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  return res.json()
 }
 
 export async function getChannelSessionMessages(source: string, sessionId: string): Promise<ChannelSessionMessagesResponse> {

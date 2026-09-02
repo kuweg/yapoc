@@ -13,6 +13,8 @@ export interface BackgroundTask {
   status: string
   prompt?: string
   result?: string
+  /** Result split into logical messages on turn boundaries. */
+  messages?: string[]
   error?: string
   source?: string
   agent?: string
@@ -239,6 +241,7 @@ export const useWsStore = create<WsStore>((set) => ({
         task_id: taskId,
         status: 'done',
         result: data.result as string | undefined,
+        messages: Array.isArray(data.messages) ? (data.messages as string[]) : undefined,
         completed_at: data.completed_at as string | undefined,
         source: data.source as string | undefined,
         prompt: data.prompt as string | undefined,

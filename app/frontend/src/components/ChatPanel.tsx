@@ -14,6 +14,7 @@ import { CompactionMarker } from './ContextGauge'
 import { groupParts } from './groupParts'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { SubAgentActivity } from './SubAgentActivity'
+import { LiveAgentTranscript } from './LiveAgentTranscript'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
@@ -563,17 +564,33 @@ export function ChatPanel() {
       // (appendMessage returns early for an unknown session). Always surface
       // them in the ACTIVE chat, regardless of the completion's session_id.
       const finalText = result || (hasError ? '_Background task failed_' : '_Task completed_')
-      // When the completion carried structured metadata (which agent finished,
-      // a real prompt description, an error), persist it so the history renders
-      // a rich <TaskCompletionCard>. Fall back to bare text otherwise.
-      const hasMeta = Boolean(
+      // A completion whose session IS this chat is master talking to the user —
+      // a post-restart resume of something they asked for. Render it as an
+      // ordinary assistant message, not a "task completed" card: a card reads
+      // as a job report and, for longer work, hides master's own words behind a
+      // summary the user must wait for.
+      //
+      // Cards stay for genuinely foreign work (cron sweeps, goals, another
+      // session's delegation) where "which task finished" is the useful frame.
+      const belongsToThisChat = Boolean(
+        lastCompletedTask.session_id && lastCompletedTask.session_id === activeId,
+      )
+      const hasMeta = !belongsToThisChat && Boolean(
         (lastCompletedTask.prompt && lastCompletedTask.prompt.trim()) ||
           (lastCompletedTask.agent && lastCompletedTask.agent.trim()) ||
           lastCompletedTask.task_id ||
           lastCompletedTask.error,
       )
       const snapshot = hasMeta ? lastCompletedTask : undefined
-      appendMessage('assistant', finalText, undefined, undefined, activeId, snapshot)
+      // Multi-turn output arrives pre-split on turn boundaries. Append each
+      // as its own message so the chat reads as a conversation rather than one
+      // concatenated paragraph.
+      const blocks = (lastCompletedTask.messages ?? []).filter((m) => m && m.trim())
+      if (belongsToThisChat && blocks.length > 1) {
+        blocks.forEach((m) => appendMessage('assistant', m, undefined, undefined, activeId))
+      } else {
+        appendMessage('assistant', finalText, undefined, undefined, activeId, snapshot)
+      }
       clearLastCompletedTask()
       return
     }
@@ -1049,6 +1066,10 @@ export function ChatPanel() {
             looking at. */}
         {autonomousRunning.length > 0 && !awaitingNotification && (
           <div className="space-y-1" data-testid="autonomous-running">
+            {/* Show the actual work, not just that work exists. These turns run
+                through the task queue on a synthetic session the browser never
+                subscribed to, so nothing else puts their output in the chat. */}
+            <LiveAgentTranscript agentName="master" sinceIso={autonomousRunning[0]?.started_at} />
             {autonomousRunning.map((t: BackgroundTask) => (
               <div
                 key={t.task_id}

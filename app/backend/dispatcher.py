@@ -160,6 +160,9 @@ async def _execute_task(task_id: str) -> None:
     )
 
     response_parts: list[str] = []
+    # Completed logical messages, split on MessageBoundary.
+    message_blocks: list[str] = []
+    _msg_start = 0
     total_cost = 0.0
 
     # Telegram streaming: push partial text to the bot as it generates
@@ -181,9 +184,17 @@ async def _execute_task(task_id: str) -> None:
                 session_id=session_id,
             ):
                 # Collect text deltas for the final result
-                from app.utils.adapters import TextDelta, UsageStats
+                from app.utils.adapters import MessageBoundary, TextDelta, UsageStats
 
-                if isinstance(event, TextDelta):
+                if isinstance(event, MessageBoundary):
+                    # End of a logical message. Close the current one so
+                    # multi-turn output arrives as SEPARATE messages instead of
+                    # one run-on blob ("…builder agent.Builder completed…").
+                    _chunk = "".join(response_parts[_msg_start:]).strip()
+                    if _chunk:
+                        message_blocks.append(_chunk)
+                    _msg_start = len(response_parts)
+                elif isinstance(event, TextDelta):
                     response_parts.append(event.text)
                     if telegram_bot is not None:
                         telegram_bot.append_streaming_text(task_id, event.text)
@@ -199,7 +210,12 @@ async def _execute_task(task_id: str) -> None:
                     # Accumulate cost if available
                     pass
 
-        result_text = "".join(response_parts)
+        _tail = "".join(response_parts[_msg_start:]).strip()
+        if _tail:
+            message_blocks.append(_tail)
+        # Blank line between blocks so any consumer that only reads `result`
+        # still sees paragraph separation rather than glued sentences.
+        result_text = "\n\n".join(message_blocks) if message_blocks else "".join(response_parts)
         # Never substitute the prompt for the result. Echoing the task back at
         # the user reads as "the resume produced nothing useful" even when it
         # succeeded, and the old `len < 25` threshold actively destroyed valid
@@ -232,6 +248,9 @@ async def _execute_task(task_id: str) -> None:
                 "task_id": task_id,
                 "status": "done",
                 "result": result_text,
+                # Each logical message separately, so the chat can render them
+                # as distinct bubbles rather than one concatenated wall.
+                "messages": message_blocks,
                 "completed_at": completed_at,
                 "session_id": session_id,
                 "source": source,

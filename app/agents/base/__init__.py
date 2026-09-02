@@ -26,6 +26,7 @@ from app.utils.adapters import (
     ToolDone,
     ToolResult,
     ToolStart,
+    MessageBoundary,
     TurnComplete,
     UsageStats,
     get_adapter,
@@ -1373,6 +1374,10 @@ class BaseAgent:
                         agent=self._name, event="turn_start", turn=_turn,
                         model=config.model, in_tokens=estimated,
                     ).info("Turn {} start | model={} est_tokens={}", _turn, config.model, estimated)
+                    # full_text_parts accumulates across the whole run, so
+                    # remember where this turn's prose begins — used below to
+                    # decide whether this turn said anything worth separating.
+                    _turn_text_start = len(full_text_parts)
                     # Lightweight turn boundary for the Agents-tab Live feed —
                     # lets the UI group thinking/message deltas under a
                     # collapsible per-turn block keyed by turn index.
@@ -1560,6 +1565,19 @@ class BaseAgent:
                             )
                         elif isinstance(event, TurnComplete):
                             turn_complete = event
+
+                    # A turn that produced prose and is followed by another turn
+                    # is a complete thought. Signal the boundary so consumers can
+                    # keep them as SEPARATE messages instead of concatenating —
+                    # otherwise a multi-turn run reads as one run-on blob
+                    # ("…builder agent.Builder completed the task."). MessageBoundary
+                    # was defined for exactly this and had no emitter until now.
+                    if (
+                        turn_complete is not None
+                        and getattr(turn_complete, "tool_calls", None)
+                        and "".join(full_text_parts[_turn_text_start:]).strip()
+                    ):
+                        yield MessageBoundary()
 
                     # ── Diagnostic: per-turn loop control state ──
                     # Helps trace the "parallel tools → Turn 1 silent" failure

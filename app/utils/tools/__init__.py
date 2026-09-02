@@ -166,6 +166,7 @@ from .model_manager import CheckModelAvailabilityTool, ListModelsTool, UpdateAge
 from .search import SearchMemoryTool, SearchNegativeKnowledgeTool
 from .evaluator_signals import GetRecentSignalsTool
 from .grep import GrepTool
+from .concilium_deliberate import ConciliumDeliberateTool
 from .skills import CreateSkillTool, DeleteSkillTool, LoadSkillsTool, UpdateSkillTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
@@ -218,6 +219,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "update_skill": UpdateSkillTool,
     "delete_skill": DeleteSkillTool,
     "grep": GrepTool,
+    "concilium_deliberate": ConciliumDeliberateTool,
 }
 
 # Tools that need agent_dir injected

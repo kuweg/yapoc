@@ -7,7 +7,7 @@ interface Props {
 export function ClusterLegend({ clusters }: Props) {
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">
+      <h3 className="text-[12px] uppercase tracking-widest text-zinc-500 mb-1">
         Clusters
       </h3>
       {clusters.map((c) => (

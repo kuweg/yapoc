@@ -1,7 +1,9 @@
 # Health Log
 
-[2026-05-24 11:52] task_id mismatch: expected 4ad00e22, on-disk ddafc9e7. Aborting stale spawn.
-[2026-05-25 21:25] task_id mismatch: expected ddafc9e7, on-disk 2f18fec6. Aborting stale spawn.
-[2026-05-25 23:36] CONFIG_CHANGE: adapter: 'moonshot' -> 'deepseek', model: 'kimi-k2.6' -> 'deepseek-chat'
-[2026-05-25 21:49] task_id mismatch: expected 2f18fec6, on-disk cff432e8. Aborting stale spawn.
-[2026-05-31 18:16] task_id mismatch: expected cff432e8, on-disk d35f1305. Aborting stale spawn.
+[2026-09-01 18:40] INFO: Delegated sequential file-creation probe to builder: step 1 created projects/plan_probe/s1.txt ("ONE"), step 2 created projects/plan_probe/s2.txt ("TWO"). Both verified byte-exact.
+[2026-09-01 19:03] INFO: Delegating Hermes self-evolving skills Phase 1 (skills.py tools + security RISKY_TOOLS) to builder A, Phase 2 backend router to builder B, Phase 2 frontend to builder C — 3 parallel.
+[2026-09-01 20:07] INFO: Delegating Scheduling Polish implementation. Builder A: full code change (cron_parser.py NL converter + new fields; main.py _cron_tick silent/script/context_from/run_only_after; dispatcher.py script branch + silent suppression). Builder B: cron PROMPT.MD docs + heartbeat example + add-job instructions. Tests as separate verify step afterward.
+[2026-09-01 20:09] INFO: Verified builder completion for Scheduling Polish _cron_tick rewrite. main.py now implements: script jobs unconditional (source='script', not budget-blocked), budget gate moved after script processing + split script_due/agent_due, silent metadata, context chaining (context_from/run_only_after) with _latest_cron_result + _result_newer_than_last_run helpers. All spec steps present and correct. Builder TASK.MD result empty/status running but file changes confirmed applied.
+[2026-09-01 21:18] INFO: Delegating Features B+D (UI observability) in 3 parallel builder tasks. Builder A: backend agents.py nudge route + websocket.py agent_action branch. Builder B: frontend nudgeAgent client fn + AgentCard nudge button. Builder C: MasterProgressPill + AgentPresence HEARTBEAT_FRESH_MS export + App.tsx header pill.
+[2026-09-01 21:20] WARNING: Parallel spawns to singleton builder collided — only Task C (MasterProgressPill) landed. Verified via file_read: AgentPresence HEARTBEAT_FRESH_MS export, MasterProgressPill.tsx, App.tsx import+pill all present; build passed (exit 0). Task A (backend nudge) and Task B (AgentCard nudge button/client fn) were LOST. Re-delegating sequentially.
+[2026-09-01 21:21] INFO: Verified sequential re-delegation of Task A (backend nudge route) to builder — SUCCESS. FILE 1 agents.py: perform_nudge helper placed before /{name}/kill route, /{name}/nudge route added after kill route, import added. FILE 2 websocket.py: imports added at top, agent_action branch added to msg_type chain. bus (RedisBus()) has publish + stream_add async methods confirmed matching spec. Import check exit 0, no circular import.

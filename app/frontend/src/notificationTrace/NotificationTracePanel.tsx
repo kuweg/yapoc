@@ -88,18 +88,18 @@ export function NotificationTracePanel() {
           <span className="text-xs font-semibold text-[#E6EDF3] tracking-wide uppercase">
             Notification Trace
           </span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#21262D] text-[#8B949E]">
+          <span className="px-1.5 py-0.5 rounded text-[12px] font-bold bg-[#21262D] text-[#8B949E]">
             {events.length}
           </span>
         </div>
         <div className="flex items-center gap-2">
           {lastUpdated && (
-            <span className="text-[10px] text-[#484F58]">{lastUpdated.toLocaleTimeString()}</span>
+            <span className="text-[12px] text-[#484F58]">{lastUpdated.toLocaleTimeString()}</span>
           )}
           <button
             onClick={fetchTrace}
             disabled={loading}
-            className="text-[10px] text-[#8B949E] hover:text-[#E6EDF3] transition-colors disabled:opacity-40"
+            className="text-[12px] text-[#8B949E] hover:text-[#E6EDF3] transition-colors disabled:opacity-40"
             title="Refresh now"
           >
             &#8635;
@@ -117,7 +117,7 @@ export function NotificationTracePanel() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              className={`px-2 py-0.5 rounded text-[12px] font-medium transition-colors ${
                 active
                   ? styles?.pill ?? 'bg-[#21262D] text-[#E6EDF3]'
                   : 'text-[#8B949E] hover:text-[#E6EDF3]'
@@ -165,11 +165,11 @@ export function NotificationTracePanel() {
                     : e.completed_at ?? ''
                 return (
                   <tr key={`${e.ts}-${idx}`} className="border-b border-[#21262D] last:border-0">
-                    <td className="py-1.5 pr-3 font-mono text-[10px] text-[#8B949E] whitespace-nowrap">
+                    <td className="py-1.5 pr-3 font-mono text-[12px] text-[#8B949E] whitespace-nowrap">
                       {formatTime(e.ts)}
                     </td>
                     <td className="py-1.5 pr-3">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${styles.pill}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[12px] font-medium ${styles.pill}`}>
                         {styles.label}
                       </span>
                     </td>
@@ -189,7 +189,7 @@ export function NotificationTracePanel() {
         )}
       </div>
 
-      <div className="px-4 py-1.5 border-t border-[#21262D] text-[10px] text-[#484F58]">
+      <div className="px-4 py-1.5 border-t border-[#21262D] text-[12px] text-[#484F58]">
         Polls every 5s &middot; Newest first &middot; Source: data/notification_trace.jsonl
       </div>
     </div>

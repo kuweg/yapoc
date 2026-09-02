@@ -202,16 +202,16 @@ export function CpuUsageChart() {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-[10px] uppercase tracking-widest text-[#484F58]">
+          <h3 className="text-[12px] uppercase tracking-widest text-[#484F58]">
             CPU Usage per Agent
           </h3>
           {loading && !data.length && (
-            <span className="text-[10px] text-[#484F58] animate-pulse">Loading…</span>
+            <span className="text-[12px] text-[#484F58] animate-pulse">Loading…</span>
           )}
         </div>
         <div className="flex items-center gap-3">
           {/* Legend */}
-          <div className="flex items-center gap-2 text-[9px] text-[#484F58]">
+          <div className="flex items-center gap-2 text-[12px] text-[#484F58]">
             {[
               { colour: '#3FB950', label: '<10%' },
               { colour: '#FFB633', label: '10–50%' },
@@ -228,7 +228,7 @@ export function CpuUsageChart() {
             ))}
           </div>
           {lastUpdated && (
-            <span className="text-[9px] text-[#484F58]">
+            <span className="text-[12px] text-[#484F58]">
               Updated {lastUpdated}
             </span>
           )}

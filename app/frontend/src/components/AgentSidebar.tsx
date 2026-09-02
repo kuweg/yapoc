@@ -2,11 +2,19 @@ import { useState } from 'react'
 import { AgentCard } from './AgentCard'
 import { useAgents } from '../hooks/useAgents'
 import { spawnAgent, killAgent } from '../api/client'
+import { useWindowsStore } from '../store/windowsStore'
 
 export function AgentSidebar() {
   const { agents, error, backendDown, refresh } = useAgents()
   const [selected, setSelected] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const openAgentLog = useWindowsStore((s) => s.openAgentLog)
+
+  function handleOpenLogs() {
+    if (!selected) return
+    const a = agents.find((x) => x.name === selected)
+    openAgentLog(selected, String(a?.process_state || a?.status || 'idle'))
+  }
 
   async function handleSpawn() {
     if (!selected) return
@@ -21,6 +29,11 @@ export function AgentSidebar() {
 
   async function handleKill() {
     if (!selected) return
+    if (selected === 'master') {
+      // master runs in-process — its pid is the backend's. Killing it stops yapoc.
+      setActionError('Cannot kill master — it runs the backend')
+      return
+    }
     try {
       await killAgent(selected)
       setActionError(null)
@@ -42,7 +55,7 @@ export function AgentSidebar() {
       {backendDown && (
         <div className="px-4 py-2 bg-red-950/60 border-b border-red-800/40 flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-          <span className="text-[11px] text-red-400 font-medium">Backend unavailable</span>
+          <span className="text-[13px] text-red-400 font-medium">Backend unavailable</span>
         </div>
       )}
 
@@ -60,21 +73,31 @@ export function AgentSidebar() {
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-zinc-700 flex gap-2">
+      <div className="px-4 py-3 border-t border-zinc-700 flex flex-col gap-2">
         <button
-          onClick={handleSpawn}
+          onClick={handleOpenLogs}
           disabled={!selected}
-          className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full rounded border border-zinc-600 bg-transparent px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Spawn
+          Open Logs ⊟
         </button>
-        <button
-          onClick={handleKill}
-          disabled={!selected}
-          className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          Kill
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSpawn}
+            disabled={!selected}
+            className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Spawn
+          </button>
+          <button
+            onClick={handleKill}
+            disabled={!selected || selected === 'master'}
+            title={selected === 'master' ? 'master runs the backend — cannot be killed' : undefined}
+            className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Kill
+          </button>
+        </div>
       </div>
     </aside>
   )

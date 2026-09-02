@@ -22,5 +22,9 @@ tools:
   - file_list
   - memory_append
   - notify_parent
+  - create_skill
+  - load_skills
+  - search_memory
+  - grep
 runner:
   task_timeout: 300

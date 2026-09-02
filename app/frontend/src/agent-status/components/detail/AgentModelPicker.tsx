@@ -40,15 +40,15 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
     <div>
       {/* Current model */}
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[11px] text-[#484F58]">Current:</span>
-        <span className="text-[11px] font-mono text-[#E6EDF3]">
+        <span className="text-[13px] text-[#484F58]">Current:</span>
+        <span className="text-[13px] font-mono text-[#E6EDF3]">
           <span className="text-[#FFB633]">{currentAdapter}</span>
           <span className="text-[#484F58]">/</span>
           {currentModel}
         </span>
-        {saving && <span className="text-[10px] text-[#E3B341] animate-pulse">Saving...</span>}
-        {success && <span className="text-[10px] text-[#3FB950]">Saved</span>}
-        {error && <span className="text-[10px] text-[#F85149]">{error}</span>}
+        {saving && <span className="text-[12px] text-[#E3B341] animate-pulse">Saving...</span>}
+        {success && <span className="text-[12px] text-[#3FB950]">Saved</span>}
+        {error && <span className="text-[12px] text-[#F85149]">{error}</span>}
       </div>
 
       {/* Adapter groups */}
@@ -57,7 +57,7 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
           <div key={adapter.name}>
             {/* Adapter header */}
             <div className="flex items-center gap-1.5 px-2 py-1">
-              <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+              <span className={`text-[12px] font-semibold uppercase tracking-wider ${
                 adapter.has_key ? 'text-[#8B949E]' : 'text-[#484F58]'
               }`}>
                 {adapter.name}
@@ -65,7 +65,7 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
               {adapter.has_key ? (
                 <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] flex-shrink-0" />
               ) : (
-                <span className="text-[9px] text-[#484F58]">no key</span>
+                <span className="text-[12px] text-[#484F58]">no key</span>
               )}
             </div>
             {/* Models */}
@@ -78,7 +78,7 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
                     key={`${adapter.name}/${model.id}`}
                     onClick={() => !disabled && handleSelect(adapter.name, model.id)}
                     disabled={disabled || saving}
-                    className={`text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[11px] ${
+                    className={`text-left px-2 py-1 rounded flex items-center gap-2 transition-colors text-[13px] ${
                       disabled
                         ? 'opacity-30 cursor-not-allowed'
                         : isActive
@@ -94,7 +94,7 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
                     }`}>
                       {model.id}
                     </span>
-                    <span className={`text-[9px] tabular-nums flex-shrink-0 ${
+                    <span className={`text-[12px] tabular-nums flex-shrink-0 ${
                       disabled ? 'text-[#30363D]' : 'text-[#484F58]'
                     }`}>
                       {model.context_window >= 1_000_000

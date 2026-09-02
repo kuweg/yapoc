@@ -69,7 +69,7 @@ export function MemoryGraphTab() {
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Controls bar */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800 flex-shrink-0">
-        <h2 className="text-[10px] uppercase tracking-widest text-zinc-500">Memory Graph</h2>
+        <h2 className="text-[12px] uppercase tracking-widest text-zinc-500">Memory Graph</h2>
 
         <select
           value={agent}
@@ -94,7 +94,7 @@ export function MemoryGraphTab() {
 
         <button
           onClick={() => setSearchMode(true)}
-          className="px-2 py-1 text-[11px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633]"
+          className="px-2 py-1 text-[13px] font-mono uppercase tracking-wider border border-zinc-700 text-zinc-300 hover:text-[#FFB633] hover:border-[#FFB633]"
           title="Semantic search over indexed memory"
         >
           ⌕ Search

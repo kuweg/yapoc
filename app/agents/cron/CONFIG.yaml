@@ -31,6 +31,7 @@ tools:
   - health_log
   - notify_parent
   - shared_knowledge_append
+  - grep
 delegation_targets:
   - builder
   - keeper

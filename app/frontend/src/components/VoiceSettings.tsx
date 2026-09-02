@@ -65,7 +65,7 @@ export function VoiceSettings() {
               </button>
             </div>
             {voiceTtsMode === 'backend' && (
-              <p className="mt-2 text-[11px] text-zinc-500">
+              <p className="mt-2 text-[13px] text-zinc-500">
                 Backend mode requires `VOICE_ENABLED=true` on the API server.
               </p>
             )}

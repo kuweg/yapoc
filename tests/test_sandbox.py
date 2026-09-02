@@ -45,7 +45,7 @@ def test_parse_sandbox_policy_from_config():
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        config_path = Path(tmpdir) / "CONFIG.md"
+        config_path = Path(tmpdir) / "CONFIG.yaml"
         config_path.write_text("""adapter: anthropic
 model: test
 tools:

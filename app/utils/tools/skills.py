@@ -230,4 +230,146 @@ class CreateSkillTool(BaseTool):
         return f"Skill '{name}' created at {path}. It is now available to all agents."
 
 
-__all__ = ["LoadSkillsTool", "CreateSkillTool"]
+class UpdateSkillTool(BaseTool):
+    name = "update_skill"
+    description = (
+        "Update an EXISTING skill YAML file in app/skills/. Only the fields "
+        "you provide (non-empty) are overwritten; all other fields are "
+        "preserved. This is the core of skill evolution — call it to patch a "
+        "skill after execution reveals a fix, workaround, or improvement. "
+        "The change is immediately available to all agents."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Name of the skill to update (alphanumeric and underscores only)",
+                "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            },
+            "summary": {
+                "type": "string",
+                "description": "New one-line summary (max 120 chars) — only provided fields are overwritten",
+            },
+            "description": {
+                "type": "string",
+                "description": "New full description of the skill's purpose",
+            },
+            "level_1": {
+                "type": "string",
+                "description": "New Level 1 content — short summary displayed in agent prompts",
+            },
+            "level_2": {
+                "type": "string",
+                "description": "New Level 2 content — parameters, inputs, expected formats",
+            },
+            "level_3": {
+                "type": "string",
+                "description": "New Level 3 content — full step-by-step procedure",
+            },
+        },
+        "required": ["name"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        name: str = params.get("name", "").strip()
+
+        if not _SKILL_NAME_RE.match(name):
+            return (
+                f"Error: Invalid skill name '{name}'. "
+                f"Names must start with a letter or underscore and contain only "
+                f"alphanumeric characters and underscores."
+            )
+
+        path = SKILLS_DIR / f"{name}.yaml"
+        if not path.exists():
+            return (
+                f"Error: Skill '{name}' not found at {path}. "
+                f"Create it first with create_skill."
+            )
+
+        data = await _read_skill(name)
+        if not isinstance(data, dict):
+            return f"Error: Skill file {path} is corrupt. Cannot update."
+
+        # Overwrite only the provided non-empty fields, preserving the rest.
+        preserved = {
+            "summary": data.get("summary") if params.get("summary") is None else params.get("summary", "").strip(),
+            "description": data.get("description") if params.get("description") is None else params.get("description", "").strip(),
+            "level_1": data.get("level_1") if params.get("level_1") is None else params.get("level_1", "").strip(),
+            "level_2": data.get("level_2") if params.get("level_2") is None else params.get("level_2", "").strip(),
+            "level_3": data.get("level_3") if params.get("level_3") is None else params.get("level_3", "").strip(),
+        }
+        summary = preserved["summary"].strip() if isinstance(preserved["summary"], str) else ""
+        if len(summary) > 120:
+            return f"Error: Summary is {len(summary)} chars (max 120). Shorten it."
+
+        lines = [f"name: {name}", f"summary: {summary}"]
+        if preserved["description"]:
+            lines.append("description: |")
+            for dline in str(preserved["description"]).rstrip("\n").split("\n"):
+                lines.append(f"  {dline}")
+        if preserved["level_1"]:
+            lines.append(f"level_1: \"{preserved['level_1']}\"")
+        if preserved["level_2"]:
+            lines.append("level_2: |")
+            for l2_line in str(preserved["level_2"]).rstrip("\n").split("\n"):
+                lines.append(f"  {l2_line}")
+        if preserved["level_3"]:
+            lines.append("level_3: |")
+            for l3_line in str(preserved["level_3"]).rstrip("\n").split("\n"):
+                lines.append(f"  {l3_line}")
+
+        yaml_content = "\n".join(lines)
+        SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(path, "w", encoding="utf-8") as f:
+            await f.write(yaml_content + "\n")
+
+        return f"Skill '{name}' updated at {path}. The change is now available to all agents."
+
+
+class DeleteSkillTool(BaseTool):
+    name = "delete_skill"
+    description = (
+        "Delete a skill YAML file from app/skills/. Use when a skill is "
+        "permanently obsolete, superseded, or harmful. This is irreversible. "
+        "It will NOT delete the skills README."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Name of the skill to delete (alphanumeric and underscores only)",
+                "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            },
+        },
+        "required": ["name"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        name: str = params.get("name", "").strip()
+
+        if not _SKILL_NAME_RE.match(name):
+            return (
+                f"Error: Invalid skill name '{name}'. "
+                f"Names must start with a letter or underscore and contain only "
+                f"alphanumeric characters and underscores."
+            )
+
+        # Resolve and guard against path traversal — ensure target is under SKILLS_DIR.
+        path = (SKILLS_DIR / f"{name}.yaml").resolve()
+        if not str(path).startswith(str(SKILLS_DIR.resolve())):
+            return f"Error: Refusing to delete {path} — outside the skills directory."
+
+        if not path.exists():
+            return f"Error: Skill '{name}' not found. Nothing to delete."
+
+        if path.name.lower() == "readme.yaml":
+            return "Error: Refusing to delete the skills README."
+
+        path.unlink()
+        return f"Skill '{name}' deleted. It is no longer available to agents."
+
+
+__all__ = ["LoadSkillsTool", "CreateSkillTool", "UpdateSkillTool", "DeleteSkillTool"]

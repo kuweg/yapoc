@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getAgentActivity } from '../agent-status/api/agentStatusClient'
 import { useWsStore, type AgentEvent } from '../store/wsStore'
+import { Window } from './Window'
 
 // Stable empty-events reference for the wsStore selector when this agent
 // has no buffered activity yet — avoids a render loop.
@@ -140,61 +141,43 @@ export function AgentLogDrawer({ agentName, state, onClose }: Props) {
   }, [tab])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      onClick={onClose}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" />
-
-      {/* Panel */}
-      <div
-        className="relative w-full max-w-3xl h-[70vh] bg-zinc-900 border border-zinc-700 rounded-t-xl sm:rounded-xl
-          flex flex-col overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-zinc-700 flex-shrink-0">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-              isRunning ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
-            }`} />
-            <span className="font-mono text-sm text-zinc-100 font-semibold">{agentName}</span>
-            <span className="text-xs text-zinc-500">{state}</span>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 bg-zinc-800 rounded-md p-0.5">
-            <button
-              onClick={() => setTab('live')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                tab === 'live' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              {isRunning ? '● Live' : 'Last Output'}
-            </button>
-            <button
-              onClick={() => setTab('output')}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                tab === 'output' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              Logs
-              {outputData?.total_lines != null && (
-                <span className="ml-1 text-zinc-600">{outputData.total_lines}</span>
-              )}
-            </button>
-          </div>
-
+    <Window
+      id={`agentlog-${agentName}`}
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2 min-w-0">
+          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
+            isRunning ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+          }`} />
+          <span className="font-mono text-sm text-zinc-100 font-semibold truncate">{agentName}</span>
+          <span className="text-xs text-zinc-500 flex-shrink-0">{state}</span>
+        </span>
+      }
+      headerControls={
+        <div className="flex gap-1 bg-zinc-800 rounded-md p-0.5">
           <button
-            onClick={onClose}
-            className="ml-2 text-zinc-500 hover:text-zinc-200 text-lg leading-none transition-colors"
-            aria-label="Close"
+            onClick={() => setTab('live')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              tab === 'live' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
+            }`}
           >
-            ×
+            {isRunning ? '● Live' : 'Last Output'}
+          </button>
+          <button
+            onClick={() => setTab('output')}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              tab === 'output' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Logs
+            {outputData?.total_lines != null && (
+              <span className="ml-1 text-zinc-600">{outputData.total_lines}</span>
+            )}
           </button>
         </div>
-
+      }
+    >
+      <div className="flex flex-col h-full">
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           {tab === 'live' && (
@@ -248,7 +231,7 @@ export function AgentLogDrawer({ agentName, state, onClose }: Props) {
         </div>
 
         {/* Footer status bar */}
-        <div className="flex items-center gap-3 px-4 py-1.5 border-t border-zinc-800 text-[10px] text-zinc-600 flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 py-1.5 border-t border-zinc-800 text-[12px] text-zinc-600 flex-shrink-0">
           {isRunning && (
             <span className="text-amber-400/70 animate-pulse">● generating</span>
           )}
@@ -259,6 +242,6 @@ export function AgentLogDrawer({ agentName, state, onClose }: Props) {
           <span>auto-refresh {isRunning ? '1s' : '3s'}</span>
         </div>
       </div>
-    </div>
+    </Window>
   )
 }

@@ -9,13 +9,3 @@ Previous entries cleared after investigation:
 2. **Stuck loop (2026-05-18 09:18)** — `file_read` called with identical params 4 times. One-time occurrence, force-stopped, not recurring.
 
 3. **`get_recent_signals` tool** — Verified: the tool exists at `app/utils/tools/evaluator_signals.py` and is registered in the evaluator's tool list. The prompt audit note about it being "non-existent" was incorrect.
-[2026-05-24 12:05] task_id mismatch: expected 388de77a, on-disk a73ba003. Aborting stale spawn.
-[2026-05-25 15:55] task_id mismatch: expected b6c5ca08, on-disk 78575b8d. Aborting stale spawn.
-[2026-05-25 17:54] task_id mismatch: expected 78575b8d, on-disk e73472ad. Aborting stale spawn.
-[2026-05-25 19:12] task_id mismatch: expected e73472ad, on-disk 4839825c. Aborting stale spawn.
-[2026-05-25 21:33] task_id mismatch: expected 4839825c, on-disk 25475a81. Aborting stale spawn.
-[2026-05-26 07:22] task_id mismatch: expected 25475a81, on-disk 7c02e035. Aborting stale spawn.
-[2026-05-26 07:25] task_id mismatch: expected 7c02e035, on-disk d30cd755. Aborting stale spawn.
-[2026-05-26 07:34] task_id mismatch: expected d30cd755, on-disk 33e1d133. Aborting stale spawn.
-[2026-05-26 07:36] task_id mismatch: expected 33e1d133, on-disk 3ea4ce94. Aborting stale spawn.
-[2026-05-26 12:16] task_id mismatch: expected 3ea4ce94, on-disk 565f3ba9. Aborting stale spawn.

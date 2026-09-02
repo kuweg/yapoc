@@ -34,7 +34,7 @@ export function Sidebar() {
     >
       {/* System Summary */}
       <div className="px-3 py-3 border-b border-[#30363D]">
-        <p className="text-[10px] uppercase tracking-widest text-[#484F58] mb-2">System</p>
+        <p className="text-[12px] uppercase tracking-widest text-[#484F58] mb-2">System</p>
         <div className="flex items-center gap-2 mb-2">
           <HealthIndicator health={systemHealth} size="sm" />
           <span className="text-xs text-[#8B949E]">{agents.length} agent{agents.length !== 1 ? 's' : ''}</span>
@@ -48,7 +48,7 @@ export function Sidebar() {
           ] as const).map(({ key, count, color }) => (
             <div key={key} className="text-center">
               <div className={`text-sm font-semibold tabular-nums ${color}`}>{count}</div>
-              <div className="text-[9px] text-[#484F58] capitalize">{key}</div>
+              <div className="text-[12px] text-[#484F58] capitalize">{key}</div>
             </div>
           ))}
         </div>
@@ -57,7 +57,7 @@ export function Sidebar() {
       {/* Health Overview */}
       {(criticalCount > 0 || warningCount > 0) && (
         <div className="px-3 py-2 border-b border-[#30363D]">
-          <p className="text-[10px] uppercase tracking-widest text-[#484F58] mb-1.5">Health</p>
+          <p className="text-[12px] uppercase tracking-widest text-[#484F58] mb-1.5">Health</p>
           <div className="space-y-1">
             {criticalCount > 0 && (
               <div className="flex items-center justify-between text-xs">
@@ -78,7 +78,7 @@ export function Sidebar() {
       {/* Active Models */}
       {Object.keys(adapterCounts).length > 0 && (
         <div className="px-3 py-2 border-b border-[#30363D]">
-          <p className="text-[10px] uppercase tracking-widest text-[#484F58] mb-1.5">Adapters</p>
+          <p className="text-[12px] uppercase tracking-widest text-[#484F58] mb-1.5">Adapters</p>
           <div className="space-y-1">
             {Object.entries(adapterCounts).map(([adapter, count]) => (
               <div key={adapter} className="flex items-center justify-between text-xs">

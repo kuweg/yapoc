@@ -60,7 +60,7 @@ function ThinkingBlockImpl({ text, done }: ThinkingBlockProps) {
         <span className="ml-auto text-indigo-500">{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && (
-        <pre className="px-3 pb-3 font-mono text-[11px] text-indigo-200/80 whitespace-pre-wrap break-words overflow-x-auto border-t border-indigo-800/30 pt-2">
+        <pre className="px-3 pb-3 font-mono text-[13px] text-indigo-200/80 whitespace-pre-wrap break-words overflow-x-auto border-t border-indigo-800/30 pt-2">
           {displayedText}
           {!done && (
             <span className="inline-block w-1.5 h-3.5 bg-indigo-400/60 ml-0.5 animate-pulse align-middle" />

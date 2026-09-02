@@ -15,7 +15,7 @@ import { AgentModelPicker } from './AgentModelPicker'
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-[10px] uppercase tracking-widest text-[#484F58] mb-2">{title}</h3>
+      <h3 className="text-[12px] uppercase tracking-widest text-[#484F58] mb-2">{title}</h3>
       {children}
     </div>
   )

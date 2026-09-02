@@ -9,6 +9,9 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+import io
+import docx
+
 from app.config import settings
 
 router = APIRouter(prefix="/files")
@@ -44,19 +47,43 @@ FileNode.model_rebuild()
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    allowed_ext = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    allowed_ext = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".txt", ".md", ".docx"}
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in allowed_ext:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {suffix}")
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="File too large (max 5MB)")
+
+    # For text files, extract content inline
+    text_content = None
+    if suffix in {".txt", ".md"}:
+        try:
+            text_content = contents.decode("utf-8")
+        except UnicodeDecodeError:
+            text_content = contents.decode("utf-8", errors="replace")
+        # Cap at 50KB to prevent context overflow
+        if len(text_content) > 50 * 1024:
+            text_content = text_content[:50 * 1024] + f"\n\n[... truncated: {len(text_content) - 50 * 1024} more bytes]"
+    elif suffix == ".docx":
+        try:
+            doc = docx.Document(io.BytesIO(contents))
+            paragraphs = [p.text for p in doc.paragraphs]
+            text_content = "\n".join(paragraphs)
+            if len(text_content) > 50 * 1024:
+                text_content = text_content[:50 * 1024] + f"\n\n[... truncated: {len(text_content) - 50 * 1024} more bytes]"
+        except Exception as e:
+            text_content = f"[Error extracting .docx content: {e}]"
+
     dest_dir = settings.project_root / "data" / "telegram_media"
     dest_dir.mkdir(parents=True, exist_ok=True)
     fname = f"{uuid.uuid4()}_{file.filename}"
     dest = dest_dir / fname
     dest.write_bytes(contents)
-    return {"path": f"data/telegram_media/{fname}"}
+    result = {"path": f"data/telegram_media/{fname}", "type": "text" if text_content else "image"}
+    if text_content:
+        result["content"] = text_content
+    return result
 
 
 @router.get("/image")

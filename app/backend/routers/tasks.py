@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from app.agents.master.agent import master_agent
 from app.backend.models import TaskRequest, TaskResponse
 from app.backend.services.agent_results import build_result_injection, collect_agent_results
-from app.utils.adapters import Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
+from app.utils.adapters import CompactEvent, Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
 from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
 router = APIRouter()
@@ -30,6 +30,13 @@ def _event_to_dict(event: Any) -> dict | None:
         return {"type": "tool_start", "name": event.name, "input": event.input}
     if isinstance(event, ToolDone):
         return {"type": "tool_done", "name": event.name, "result": event.result, "is_error": event.is_error}
+    if isinstance(event, CompactEvent):
+        return {
+            "type": "compact",
+            "reason": event.reason,
+            "tokens_before": event.tokens_before,
+            "tokens_after": event.tokens_after,
+        }
     if isinstance(event, UsageStats):
         return {
             "type": "usage_stats",
@@ -112,10 +119,22 @@ async def submit_task_stream(request: TaskRequest):
     history = _parse_history(request.history)
     session_id = request.session_id or str(_uuid.uuid4())
 
+    # Resolve attachment IDs (owner-scoped) and append their content to the user
+    # message: image_read markers for images, inline text for text/docx. The
+    # resolved metadata is emitted up-front over SSE so the UI can upgrade
+    # previews and (later) show the vision model used.
+    attach_meta: list[dict] = []
+    attach_suffix = ""
+    if request.attachments:
+        from app.backend.services import uploads as _uploads
+        attach_suffix, attach_meta = _uploads.build_attachment_injection(
+            request.attachments, owner="local"
+        )
+
     # Collect completed background agent results and inject as system context
     # rather than concatenating into the user task string.
     finished = await collect_agent_results(session_id=session_id)
-    task = request.task
+    task = request.task + attach_suffix if attach_suffix else request.task
     if finished:
         notifications_text = build_result_injection(finished)
         if history is None:
@@ -128,6 +147,38 @@ async def submit_task_stream(request: TaskRequest):
         history = history + [Message(role="user", content=task)]
 
     merged: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    # Surface resolved attachment metadata to the UI first so it can upgrade
+    # the optimistic previews to server-backed ones.
+    if attach_meta:
+        await merged.put({"type": "attachments", "data": attach_meta})
+
+    # Master serializes every turn on a single `_run_lock`. If autonomous work
+    # (a cron sweep, an evaluator round, a resumed task) already holds it, this
+    # chat turn blocks inside handle_task_stream and streams NOTHING until that
+    # finishes — the chat sits on "Thinking…" for minutes while the agent-flow
+    # panel visibly streams the background turn. That looks like a broken chat.
+    # Say what is actually happening instead.
+    if master_agent.is_busy():
+        from app.config import settings
+
+        busy_with = ""
+        try:
+            status = json.loads(
+                (settings.agents_dir / "master" / "STATUS.json").read_text(encoding="utf-8")
+            )
+            busy_with = str(status.get("task_summary") or "").strip().replace("\n", " ")[:120]
+        except Exception:
+            busy_with = ""
+        await merged.put({
+            "type": "status",
+            "state": "queued",
+            "text": (
+                "Master is finishing background work — your message is queued and "
+                "will start automatically."
+                + (f" (current: {busy_with}…)" if busy_with else "")
+            ),
+        })
 
     async def drain_agent() -> None:
         try:

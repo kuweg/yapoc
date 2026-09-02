@@ -20,6 +20,7 @@ import fcntl
 import json
 import logging
 import os
+import re
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,8 +43,55 @@ class Notification(TypedDict):
     result: str
     error: str
     session_id: str
+    task_id: str
     completed_at: str
     consumed: bool
+
+
+def _is_duplicate(
+    existing: "Notification",
+    *,
+    parent_agent: str,
+    child_agent: str,
+    status: str,
+    result: str,
+    error: str,
+    session_id: str,
+    task_id: str,
+) -> bool:
+    """Return True if ``existing`` is an unconsumed duplicate of this completion.
+
+    When ``task_id`` is known it is the authoritative key: three independent
+    producers (NotificationPoller, the Redis master-watcher, startup reconcile)
+    can each read RESULT.MD at a different instant and enqueue with a different
+    ``result`` payload for the SAME task — keying on task_id collapses them.
+    Falls back to the legacy exact-payload match when no task_id is available.
+    """
+    if existing.get("consumed"):
+        return False
+    if existing["parent_agent"] != parent_agent:
+        return False
+    if existing["child_agent"] != child_agent:
+        return False
+    # task_id is the authoritative dedup key when both sides carry it: three
+    # independent producers (NotificationPoller, the Redis master-watcher, and
+    # startup reconcile) can enqueue the SAME task completion but disagree on
+    # session_id — one path passes the real session id while another passes ""
+    # (e.g. a RESUME.MD replay or a poller that didn't propagate the session).
+    # Checking session_id FIRST defeated task_id dedup: a session-mismatched
+    # duplicate returned False here and got enqueued again → the double/echo
+    # message after restart. Session_id must only gate when task_id is absent.
+    if task_id and existing.get("task_id"):
+        return existing.get("task_id", "") == task_id
+    if existing.get("session_id", "") != (session_id or ""):
+        return False
+    if task_id:
+        return existing.get("task_id", "") == task_id
+    return (
+        existing["status"] == status
+        and existing.get("result", "") == result
+        and existing.get("error", "") == error
+    )
 
 
 class NotificationQueue:
@@ -158,6 +206,7 @@ class NotificationQueue:
         result: str = "",
         error: str = "",
         session_id: str = "",
+        task_id: str = "",
     ) -> None:
         """Add a new notification to the queue."""
         notification: Notification = {
@@ -167,24 +216,27 @@ class NotificationQueue:
             "result": result,
             "error": error,
             "session_id": session_id or "",
+            "task_id": task_id or "",
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "consumed": False,
         }
         with self._lock:
             with self._disk_transaction() as items:
-                # Dedup: skip if an unconsumed notification for this (parent, child) pair exists.
-                # Prevents double-delivery when notify_parent tool and NotificationPoller
-                # both fire for the same completion. Keep multiple distinct completions
-                # from the same child (same parent) by matching the payload too.
+                # Dedup by task_id (authoritative) when available, else by exact
+                # payload. Prevents the 10-30x duplicate delivery seen when the
+                # poller, the Redis master-watcher, and startup reconcile each
+                # enqueue the same completion with a slightly different result
+                # payload (RESULT.MD read at different instants).
                 for existing in items:
-                    if (
-                        existing["parent_agent"] == parent_agent
-                        and existing["child_agent"] == child_agent
-                        and existing["status"] == status
-                        and existing.get("result", "") == result
-                        and existing.get("error", "") == error
-                        and existing.get("session_id", "") == (session_id or "")
-                        and not existing["consumed"]
+                    if _is_duplicate(
+                        existing,
+                        parent_agent=parent_agent,
+                        child_agent=child_agent,
+                        status=status,
+                        result=result,
+                        error=error,
+                        session_id=session_id or "",
+                        task_id=task_id or "",
                     ):
                         self._record_trace(
                             "deduped",
@@ -192,7 +244,8 @@ class NotificationQueue:
                             child_agent=child_agent,
                             status=status,
                             session_id=session_id or "",
-                            reason="unconsumed duplicate payload",
+                            task_id=task_id or "",
+                            reason="unconsumed duplicate (task_id)" if task_id else "unconsumed duplicate payload",
                         )
                         return
                 items.append(notification)
@@ -238,7 +291,70 @@ class NotificationQueue:
                 session_id=n.get("session_id", ""),
                 completed_at=n.get("completed_at", ""),
             )
+            # The queue's `consumed=True` flag alone is NOT a durable shield:
+            # it lives only in this queue file, which dedup only consults for
+            # UNCONSUMED entries, and the poller's `_notified` set is evictable
+            # (capped at 2000). Stamp `consumed_at` back into the child's
+            # TASK.MD so the poller's `if consumed_at: continue` guard — a
+            # permanent, non-evictable record on the source of truth — finally
+            # prevents the same terminal TASK.MD from being re-enqueued and
+            # re-surfaced to master as a duplicate/echo notification.
+            self._stamp_consumed_at(n.get("child_agent", ""))
         return pending
+
+    def _stamp_consumed_at(self, child_agent: str) -> None:
+        """Stamp ``consumed_at`` into the child's TASK.MD so the poller's
+        ``if consumed_at: continue`` guard authoritatively prevents re-emission.
+
+        Two independent result-consumption paths exist:
+         1. ``collect_agent_results()`` (CLI REPL / HTTP streaming) — stamps
+            ``consumed_at`` via ``BaseAgent.mark_task_consumed()``.
+         2. The watcher + queue drain path (master woken by a sub-agent
+            completion) — only set the queue's ``consumed`` flag.
+
+        Path 2 never touched TASK.MD, so the child stayed ``status: done``
+        with empty ``consumed_at`` forever. The only thing preventing the
+        poller from re-enqueueing that completion was the evictable
+        ``_notified`` set (capped at 2000); once it aged out, the next poll
+        re-detected the still-terminal TASK.MD and re-enqueued the same
+        result → master re-processed already-surfaced work → the user saw
+        duplicate/echo notifications. Stamping TASK.MD fixes this permanantly.
+
+        Format matches ``BaseAgent.mark_task_consumed`` (UTC, ``Z`` suffix).
+        """
+        try:
+            task_path = settings.agents_dir / child_agent / "TASK.MD"
+            if not task_path.exists():
+                return
+            content = task_path.read_text(encoding="utf-8")
+            if not content.strip():
+                return
+            existing: dict[str, str] = {}
+            body = content
+            m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
+            if m:
+                for line in m.group(1).splitlines():
+                    if ":" in line:
+                        key, _, val = line.partition(":")
+                        existing[key.strip()] = val.strip()
+                body = content[m.end():]
+            if existing.get("consumed_at"):
+                return  # idempotent — already consumed
+            existing["consumed_at"] = datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+            fm_lines = [f"{k}: {v}" for k, v in existing.items()]
+            task_path.write_text(
+                "---\n" + "\n".join(fm_lines) + "\n---\n" + body,
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            # Never let a metadata stamp break notification delivery.
+            logger.warning(
+                "NotificationQueue: failed to stamp consumed_at for %s: %s",
+                child_agent,
+                exc,
+            )
 
     def pending_count(self, parent_agent: str, session_id: str | None = None) -> int:
         """Return count of unconsumed notifications for parent_agent.
@@ -284,22 +400,24 @@ class NotificationQueue:
         result: str = "",
         error: str = "",
         session_id: str = "",
+        task_id: str = "",
     ) -> bool:
-        """Return True if an unconsumed entry with this exact payload already exists.
+        """Return True if an unconsumed entry for this completion already exists.
 
-        Same field comparison as enqueue's dedup logic.
+        Same dedup logic as enqueue (task_id-keyed when available).
         """
         with self._lock:
             with self._disk_transaction(readonly=True):
                 for existing in self._items:
-                    if (
-                        existing["parent_agent"] == parent_agent
-                        and existing["child_agent"] == child_agent
-                        and existing["status"] == status
-                        and existing.get("result", "") == result
-                        and existing.get("error", "") == error
-                        and existing.get("session_id", "") == (session_id or "")
-                        and not existing["consumed"]
+                    if _is_duplicate(
+                        existing,
+                        parent_agent=parent_agent,
+                        child_agent=child_agent,
+                        status=status,
+                        result=result,
+                        error=error,
+                        session_id=session_id or "",
+                        task_id=task_id or "",
                     ):
                         return True
         return False

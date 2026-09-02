@@ -1,18 +1,24 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { streamTask, ServerRestartError } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
-import { useWsStore } from '../store/wsStore'
+import { useWsStore, type BackgroundTask } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
-import { handleCommand, synthesizeSpeech, getAgents, uploadImage } from '../api/client'
+import { handleCommand, synthesizeSpeech, getAgents, uploadFiles } from '../api/client'
 import { MessageBubble } from './MessageBubble'
+import { TaskCompletionCard } from './TaskCompletionCard'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
-import { TaskGroupBubble, type TaskGroup, type TaskPart } from './TaskGroupBubble'
+import { GroupedToolCallBlock } from './GroupedToolCallBlock'
+import { CompactionMarker } from './ContextGauge'
+import { groupParts } from './groupParts'
+import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
+import { SubAgentActivity } from './SubAgentActivity'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
-import type { UsageEvent } from '../api/types'
+import { startAsciiWave, ASCII_WAVE_FRAMES } from './spinner'
+import type { UsageEvent, TaskPart, Attachment } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
 type Part = TaskPart
@@ -24,6 +30,7 @@ type PendingStreamEvent =
   | { kind: 'text_delta'; text: string }
   | { kind: 'tool_start'; id: string; name: string; input: Record<string, unknown> }
   | { kind: 'tool_done'; name: string; result: string; isError: boolean }
+  | { kind: 'compact'; tokensBefore: number; tokensAfter: number; reason: string }
 
 /** ES2023 findLastIndex polyfill */
 function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
@@ -73,6 +80,11 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
         }
         parts = updated
       }
+    } else if (event.kind === 'compact') {
+      parts = [
+        ...parts,
+        { kind: 'compact', id: crypto.randomUUID(), tokensBefore: event.tokensBefore, tokensAfter: event.tokensAfter, reason: event.reason },
+      ]
     }
   }
   return parts
@@ -81,6 +93,196 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
 // Default model for cost estimation — overridden at runtime by masterModel state
 const DEFAULT_MODEL = 'kimi-k2.6'
 
+// How long to wait for a fire-and-forget background notification before giving
+// up and finalizing the task group (so "Task running" never sticks forever).
+const NOTIFICATION_TIMEOUT_MS = 150_000
+
+// ── Animated send/stop button ──────────────────────────────────────
+// Loading / typing indicator (spec §5). Drives the ASCII wave via the spinner
+// module so the interval handle is owned and cleared on unmount (rule #5);
+// honors prefers-reduced-motion by rendering a static frame.
+function TypingIndicator() {
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduce) {
+      el.textContent = ASCII_WAVE_FRAMES[2]
+      return
+    }
+    const handle = startAsciiWave(el, 120)
+    return () => handle.stop()
+  }, [])
+  return <span ref={ref} className="font-mono text-[#FFB633] w-7 inline-block" aria-hidden />
+}
+
+function SendButton({ isStreaming, launchTick, onSend, onStop }: { isStreaming: boolean; launchTick: number; onSend: () => void; onStop: () => void }) {
+  // `view` is the VISUAL icon state, decoupled from isStreaming so the launch
+  // (arrow flies up & out) completes before the stop icon swaps in (spec §4):
+  //   send --launch--> [animationend] --> streaming(stop) --land--> send
+  const [view, setView] = useState<'send' | 'streaming'>('send')
+  const [phase, setPhase] = useState<'processing' | 'receiving'>('processing')
+  const [animClass, setAnimClass] = useState('')
+  const launching = useRef(false)
+  const firstTick = useRef(true)
+
+  // Launch on every real send (click OR Enter — driven by launchTick), keeping
+  // view='send' so the arrow is mounted to animate. The swap to the stop icon
+  // happens on the launch's animationend.
+  useEffect(() => {
+    if (firstTick.current) {
+      firstTick.current = false
+      return
+    }
+    launching.current = true
+    setAnimClass('anim-launch')
+  }, [launchTick])
+
+  // Drive the streaming phase (processing pulse -> receiving quarter-turn).
+  useEffect(() => {
+    if (view !== 'streaming') return
+    setPhase('processing')
+    const t = setTimeout(() => setPhase('receiving'), 2000)
+    return () => clearTimeout(t)
+  }, [view])
+
+  const prevStreaming = useRef(isStreaming)
+  useEffect(() => {
+    if (prevStreaming.current && !isStreaming) {
+      // Stream ended — arrow returns (land).
+      setView('send')
+      setAnimClass('anim-land')
+    } else if (!prevStreaming.current && isStreaming && !launching.current) {
+      // Streaming started without a launch (e.g. programmatic) — show stop now.
+      setView('streaming')
+    }
+    prevStreaming.current = isStreaming
+  }, [isStreaming])
+
+  const handleClick = () => {
+    if (view === 'send') onSend() // launch is fired by launchTick on the actual send
+    else onStop()
+  }
+
+  const handleAnimEnd = () => {
+    if (animClass === 'anim-launch') {
+      setAnimClass('')
+      launching.current = false
+      if (isStreaming) setView('streaming') // swap to stop icon after the launch
+    } else if (animClass === 'anim-land') {
+      setAnimClass('')
+    }
+  }
+
+  const mode = view
+
+  return (
+    <button
+      onClick={handleClick}
+      onAnimationEnd={handleAnimEnd}
+      data-mode={mode}
+      data-phase={phase}
+      className={`send-btn flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+        mode === 'send'
+          ? animClass === 'anim-launch' ? 'bg-[#FFB633]' : 'bg-[#FFB633] hover:bg-[#ffc84d]'
+          : 'bg-red-700 hover:bg-red-600'
+      } ${animClass}`}
+      title={mode === 'send' ? 'Send message' : 'Stop streaming'}
+    >
+      {mode === 'send' ? (
+        <svg
+          width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke="#0a0a0a" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+          className={animClass === 'anim-launch' ? 'anim-launch' : ''}
+        >
+          <line x1="12" y1="19" x2="12" y2="5" />
+          <polyline points="5 12 12 5 19 12" />
+        </svg>
+      ) : (
+        <svg
+          width="14" height="14" viewBox="0 0 24 24"
+          fill="white" stroke="white" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          className={phase === 'processing' ? 'animate-[siren-icon_1.5s_ease-in-out_infinite]' : 'animate-[quarter-turn_2s_cubic-bezier(0.4,0,0.2,1)_infinite]'}
+        >
+          <rect x="6" y="6" width="12" height="12" rx="1" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
+/**
+ * Renders a TaskPart[] as a vertical CHAIN of steps — each text run is its own
+ * bubble, consecutive same-name tool calls are grouped, thinking blocks inline.
+ * Used identically for the live stream AND the saved message, so a response does
+ * NOT collapse into a single block when it finishes (it just stops updating).
+ *
+ * `content` (the assembled summary text) is only rendered as a trailing bubble
+ * when there are no text parts — otherwise it would duplicate the text already
+ * shown in the chain (e.g. a direct response where the text *is* the answer).
+ */
+function PartsChain({
+  parts,
+  content,
+  masterModel,
+  streaming,
+}: {
+  parts: Part[]
+  content?: string
+  masterModel?: string
+  streaming?: boolean
+}) {
+  const grouped = groupParts(parts)
+  const hasText = parts.some((p) => p.kind === 'text')
+  let labelShown = false // show the agent label once, on the first text bubble
+  return (
+    <div className="space-y-1">
+      {grouped.map((part, i) => {
+        if (part.kind === 'tool_group') {
+          return <GroupedToolCallBlock key={`grp-${part.name}-${i}`} name={part.name} calls={part.calls} />
+        }
+        if (part.kind === 'text') {
+          const showLabel = !labelShown
+          labelShown = true
+          return (
+            <MessageBubble
+              key={`t-${i}`}
+              role="assistant"
+              content={part.text}
+              agentName={showLabel ? 'master' : undefined}
+              agentModel={masterModel}
+              streaming={streaming}
+            />
+          )
+        }
+        if (part.kind === 'thinking') {
+          return <ThinkingBlock key={part.id} text={part.text} done={part.done} />
+        }
+        if (part.kind === 'compact') {
+          return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
+        }
+        return (
+          <ToolCallBlock
+            key={part.id}
+            id={part.id}
+            name={part.name}
+            input={part.input}
+            result={part.result}
+            isError={part.isError}
+            done={part.done}
+          />
+        )
+      })}
+      {content && !hasText && (
+        <MessageBubble role="assistant" content={content} agentName="master" agentModel={masterModel} />
+      )}
+    </div>
+  )
+}
+
 export function ChatPanel() {
   const { activeId, history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
@@ -88,11 +290,55 @@ export function ChatPanel() {
   const [usage, setUsage] = useState<UsageEvent | null>(null)
   const [masterModel, setMasterModel] = useState<string>('')
   const [awaitingNotification, setAwaitingNotification] = useState(false)
+  /** Set when master is busy and this turn is waiting for its lock. */
+  const [queuedNotice, setQueuedNotice] = useState('')
+  const queuedNoticeRef = useRef(false)
+  /** Completions already rendered in this session — the store dedupes its own
+   *  replay, but this guards the append site itself (React StrictMode invokes
+   *  effects twice, and the clear is an async state update). */
+  const appendedCompletionsRef = useRef<Set<string>>(new Set())
+
+  // Tasks the backend started without a user turn in this chat. `resume` is the
+  // one users hit most (server_restart → RESUME.MD → startup dispatch).
+  const backgroundTasks = useWsStore((s) => s.backgroundTasks)
+  // Every agent master has spawned this turn. Deliberately NOT filtered by
+  // `p.done`: spawn_agent resolves the moment the child is dispatched — it is
+  // wait_for_agent that takes the minutes — so filtering on it unmounted the
+  // activity card about a second in, before the child had done any work.
+  const liveDelegations = useMemo(() => {
+    const out: string[] = []
+    for (const p of streamingParts) {
+      if (p.kind !== 'tool' || p.name !== 'spawn_agent') continue
+      const input = (p.input || {}) as Record<string, unknown>
+      const name = String(input.agent_name ?? input.name ?? '')
+      if (name && !out.includes(name)) out.push(name)
+    }
+    return out
+  }, [streamingParts])
+
+  const autonomousRunning = useMemo(
+    () =>
+      backgroundTasks.filter(
+        (t) =>
+          t.status === 'running' &&
+          ['resume', 'goal', 'cron', 'notification'].includes((t.source ?? '').toLowerCase()),
+      ),
+    [backgroundTasks],
+  )
   const [backgroundActivity, setBackgroundActivity] = useState<string>('')
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [backendSpeaking, setBackendSpeaking] = useState(false)
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([])
+  // Bulk-render guard (rule #2): suppress msg-enter while a session's history
+  // is loaded wholesale, so old messages don't all animate in at once.
+  const [noAnimate, setNoAnimate] = useState(true)
+  // Welcome-screen reveal gate (spec §6): hold the splash hidden until after
+  // first paint so the clip-path name reveal doesn't flicker during font load.
+  const [welcomeReady, setWelcomeReady] = useState(false)
+  // Bumped on every real send (click OR Enter) so the send button plays its
+  // launch animation regardless of how the message was submitted (spec §4).
+  const [launchTick, setLaunchTick] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
   const backendAudioRef = useRef<HTMLAudioElement | null>(null)
   const backendAudioUrlRef = useRef<string | null>(null)
@@ -111,6 +357,23 @@ export function ChatPanel() {
   useEffect(() => {
     streamingPartsRef.current = streamingParts
   }, [streamingParts])
+
+  // Rule #2: when a session's history loads in bulk, paint it once with
+  // .no-animate, then drop the class on the next frame so subsequently
+  // appended messages animate normally. Re-runs on session switch.
+  useEffect(() => {
+    setNoAnimate(true)
+    const r1 = requestAnimationFrame(() =>
+      requestAnimationFrame(() => setNoAnimate(false)),
+    )
+    return () => cancelAnimationFrame(r1)
+  }, [activeId])
+
+  // Spec §6: reveal the welcome splash only after first paint.
+  useEffect(() => {
+    const r = requestAnimationFrame(() => setWelcomeReady(true))
+    return () => cancelAnimationFrame(r)
+  }, [])
 
   const flushPendingEvents = useCallback(() => {
     rafHandleRef.current = null
@@ -265,31 +528,83 @@ export function ChatPanel() {
     if (isStreaming) stickToBottomRef.current = true
   }, [isStreaming])
 
-  // WebSocket notification: when a background task completes, update the running task group
+  // Persist a completed task group to history and remove it from taskGroups
+  const persistTaskGroupToHistory = useCallback((group: TaskGroup) => {
+    const text = group.finalText || '_Task completed_'
+    const partsToSave = group.parts.length > 0 ? group.parts : undefined
+    // Bind to the session the group started in — the user may have switched
+    // chats while the delegation was still running.
+    appendMessage('assistant', text, partsToSave, undefined, group.sessionId)
+    setTaskGroups((prev) => prev.filter((g) => g.id !== group.id))
+  }, [appendMessage])
+
+  // WebSocket notification: when a background task completes, persist to history
   useEffect(() => {
-    if (!awaitingNotification || !lastCompletedTask || !activeId) return
-    if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
+    if (!lastCompletedTask || !activeId) return
     const result = lastCompletedTask.result?.trim()
     const hasError = Boolean(lastCompletedTask.error)
+
+    // Same completion delivered twice (live event + a state_sync replay after a
+    // reconnect) previously rendered two "Task completed" cards.
+    const completionId = lastCompletedTask.task_id
+    if (completionId) {
+      if (appendedCompletionsRef.current.has(completionId)) {
+        clearLastCompletedTask()
+        return
+      }
+      appendedCompletionsRef.current.add(completionId)
+    }
+
+    if (!awaitingNotification) {
+      // Automated/background completion (source: resume, notification, goal…)
+      // with no active task group. These belong to a SYNTHETIC service session
+      // (e.g. a resume task's own ID, a notification channel session) the user
+      // has never opened — routing to it would silently drop the message
+      // (appendMessage returns early for an unknown session). Always surface
+      // them in the ACTIVE chat, regardless of the completion's session_id.
+      const finalText = result || (hasError ? '_Background task failed_' : '_Task completed_')
+      // When the completion carried structured metadata (which agent finished,
+      // a real prompt description, an error), persist it so the history renders
+      // a rich <TaskCompletionCard>. Fall back to bare text otherwise.
+      const hasMeta = Boolean(
+        (lastCompletedTask.prompt && lastCompletedTask.prompt.trim()) ||
+          (lastCompletedTask.agent && lastCompletedTask.agent.trim()) ||
+          lastCompletedTask.task_id ||
+          lastCompletedTask.error,
+      )
+      const snapshot = hasMeta ? lastCompletedTask : undefined
+      appendMessage('assistant', finalText, undefined, undefined, activeId, snapshot)
+      clearLastCompletedTask()
+      return
+    }
+
+    // Interactive delegation: only drop a result whose session genuinely isn't
+    // this chat's (i.e. the user switched chats mid-delegation).
+    if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
+
     setTaskGroups((prev) => {
       const idx = findLastIndex(prev, (g) => g.status === 'running')
       if (idx < 0) return prev
-      const updated = [...prev]
+      const group = prev[idx]
       const errorText = lastCompletedTask.error
       const isGenericError = hasError && (!errorText || errorText === 'unknown' || errorText.trim() === '')
-      updated[idx] = {
-        ...updated[idx],
-        finalText: result || (hasError
-          ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
-          : '_Task completed_'),
+      const finalText = result || (hasError
+        ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
+        : '_Task completed_')
+      const completedGroup: TaskGroup = {
+        ...group,
+        finalText,
         status: hasError ? 'error' : 'done',
       }
-      return updated
+      // Schedule persistence via setTimeout to avoid setState-during-render
+      setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+      return prev.filter((g) => g.id !== group.id)
     })
+
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastCompletedTask()
-  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask])
+  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask, persistTaskGroupToHistory, appendMessage])
 
   useEffect(() => {
     if (!awaitingNotification || !lastSessionEvent || !activeId) return
@@ -297,43 +612,68 @@ export function ChatPanel() {
     const eventType = String(lastSessionEvent.event.type ?? '')
     if (eventType === 'notification_result') {
       const text = String(lastSessionEvent.event.text ?? '').trim()
-      if (text) {
-        setTaskGroups((prev) => {
-          const idx = findLastIndex(prev, (g) => g.status === 'running')
-          if (idx < 0) return prev
-          const updated = [...prev]
-          updated[idx] = { ...updated[idx], finalText: text, status: 'done' }
-          return updated
-        })
-      }
+      setTaskGroups((prev) => {
+        const idx = findLastIndex(prev, (g) => g.status === 'running')
+        if (idx < 0) return prev
+        const group = prev[idx]
+        const finalText = text || '_Task completed_'
+        const completedGroup: TaskGroup = { ...group, finalText, status: 'done' }
+        setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+        return prev.filter((g) => g.id !== group.id)
+      })
       setAwaitingNotification(false)
       setBackgroundActivity('')
       return
     }
     const line = formatSessionActivity(lastSessionEvent)
     if (line) setBackgroundActivity(line)
-  }, [awaitingNotification, lastSessionEvent, activeId])
+  }, [awaitingNotification, lastSessionEvent, activeId, persistTaskGroupToHistory])
 
   // Orphan-notification fallback: when the backend couldn't route master's
   // notification result to a specific session (session_id lost upstream),
-  // it broadcasts a top-level notification_result event. Update the running
-  // task group rather than appending a plain message.
+  // it broadcasts a top-level notification_result event. Persist to history.
   useEffect(() => {
     if (!awaitingNotification || !lastOrphanNotification) return
     const text = lastOrphanNotification.text.trim()
-    if (text) {
-      setTaskGroups((prev) => {
-        const idx = findLastIndex(prev, (g) => g.status === 'running')
-        if (idx < 0) return prev
-        const updated = [...prev]
-        updated[idx] = { ...updated[idx], finalText: text, status: 'done' }
-        return updated
-      })
-    }
+    setTaskGroups((prev) => {
+      const idx = findLastIndex(prev, (g) => g.status === 'running')
+      if (idx < 0) return prev
+      const group = prev[idx]
+      const finalText = text || '_Task completed_'
+      const completedGroup: TaskGroup = { ...group, finalText, status: 'done' }
+      setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+      return prev.filter((g) => g.id !== group.id)
+    })
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastOrphanNotification()
-  }, [awaitingNotification, lastOrphanNotification, clearLastOrphanNotification])
+  }, [awaitingNotification, lastOrphanNotification, clearLastOrphanNotification, persistTaskGroupToHistory])
+
+  // Safety net: a fire-and-forget spawn whose completion notification never
+  // arrives (lost/mis-routed) would otherwise leave "Task running" stuck
+  // forever. After a grace period with no resolution, finalize any running
+  // groups so the UI never lies about a task still running.
+  useEffect(() => {
+    if (!awaitingNotification) return
+    const timer = setTimeout(() => {
+      setTaskGroups((prev) => {
+        if (!prev.some((g) => g.status === 'running')) return prev
+        for (const group of prev) {
+          if (group.status !== 'running') continue
+          const completedGroup: TaskGroup = {
+            ...group,
+            finalText: group.finalText || '_Task finished — no result notification received._',
+            status: 'done',
+          }
+          setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+        }
+        return prev.filter((g) => g.status !== 'running')
+      })
+      setAwaitingNotification(false)
+      setBackgroundActivity('')
+    }, NOTIFICATION_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [awaitingNotification, persistTaskGroupToHistory])
 
   // Clean up on unmount
   useEffect(() => {
@@ -364,24 +704,30 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatInput])
 
-  const sendMessage = useCallback(async (rawText: string, imageFile?: File) => {
-    let text = rawText.trim()
-    let displayText = text
-    if (!text && !imageFile) return
+  const sendMessage = useCallback(async (rawText: string, files: File[] = []) => {
+    const text = rawText.trim()
+    const displayText = text
+    if (!text && files.length === 0) return
     if (isStreaming) return
 
-    // Upload image if provided, append marker to text and show preview inline
-    if (imageFile) {
-      const localPreviewUrl = URL.createObjectURL(imageFile)
+    // Two-phase: upload staged files first, then send the message carrying only
+    // their IDs. The server resolves IDs (owner-scoped) and injects image_read
+    // markers + inline text — the chat request never carries file bytes.
+    let attachmentIds: string[] = []
+    let attachments: Attachment[] | undefined
+    if (files.length > 0) {
       try {
-        const { path } = await uploadImage(imageFile)
-        text = text ? `${text} [📎 photo attached: ${path}]` : `[📎 photo attached: ${path}]`
-        displayText = text
-        URL.revokeObjectURL(localPreviewUrl)
+        const { files: uploaded, errors } = await uploadFiles(files)
+        attachmentIds = uploaded.map((u) => u.id)
+        attachments = uploaded.map((u) => ({
+          id: u.id, name: u.name, mime: u.mime, size: u.size, width: u.width, height: u.height,
+        }))
+        if (errors.length) {
+          appendMessage('assistant', `_Some files were rejected: ${errors.map((e) => `${e.name}: ${e.error}`).join('; ')}_`)
+        }
       } catch (e) {
-        URL.revokeObjectURL(localPreviewUrl)
-        appendMessage('user', rawText)
-        appendMessage('assistant', `_Failed to upload image: ${(e as Error).message}_`)
+        appendMessage('user', rawText || '(attachments)')
+        appendMessage('assistant', `_Failed to upload attachments: ${(e as Error).message}_`)
         return
       }
     }
@@ -427,8 +773,9 @@ export function ChatPanel() {
     // Capture history BEFORE appending the new user message
     const apiHistory = useSessionStore.getState().history
 
-    appendMessage('user', displayText)
+    appendMessage('user', displayText, undefined, attachments)
     const sessionId = useSessionStore.getState().activeId
+    setLaunchTick((t) => t + 1) // fire the send-button launch (spec §4)
     setStreamingParts([])
     setIsStreaming(true)
     setBackgroundActivity('')
@@ -440,9 +787,11 @@ export function ChatPanel() {
     let assembledText = ''
     // Track whether any sub-agents were spawned — if so, poll for background results
     let hadSpawnAgent = false
+    // Did master resolve the delegation inline (wait/read) in this same turn?
+    let hadInlineResult = false
 
     try {
-      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId)) {
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds)) {
         if (event.type === 'thinking') {
           enqueueStreamEvent({ kind: 'thinking_delta', text: event.text })
         } else if (event.type === 'text') {
@@ -450,6 +799,18 @@ export function ChatPanel() {
           enqueueStreamEvent({ kind: 'text_delta', text: event.text })
         } else if (event.type === 'tool_start') {
           if (event.name === 'spawn_agent') hadSpawnAgent = true
+          // If master waits for / reads the child's result in THIS turn, the
+          // result is already in its response — there is no separate background
+          // notification coming, so we must not arm awaitingNotification (which
+          // would leave "Task running" stuck forever).
+          if (
+            event.name === 'wait_for_agent' ||
+            event.name === 'wait_for_agents' ||
+            event.name === 'read_task_result' ||
+            event.name === 'execute_dag'
+          ) {
+            hadInlineResult = true
+          }
           enqueueStreamEvent({
             kind: 'tool_start',
             id: crypto.randomUUID(),
@@ -463,8 +824,24 @@ export function ChatPanel() {
             result: event.result,
             isError: event.is_error,
           })
+        } else if (event.type === 'status') {
+          // Master serializes turns on one lock. This arrives when the chat
+          // turn is queued behind autonomous work — without it the composer
+          // shows a bare "Thinking…" for however long that takes while the
+          // agent-flow panel visibly streams something else, which reads as a
+          // hung chat.
+          queuedNoticeRef.current = true
+          setQueuedNotice(String((event as { text?: string }).text || ''))
         } else if (event.type === 'usage_stats') {
           setUsage(event)
+        } else if (event.type === 'compact') {
+          setQueuedNotice('')
+          enqueueStreamEvent({
+            kind: 'compact',
+            tokensBefore: event.tokens_before,
+            tokensAfter: event.tokens_after,
+            reason: event.reason,
+          })
         } else if (event.type === 'error') {
           // Backend emits `{type: "error", error: "..."}` when
           // master_agent.handle_task_stream raises (e.g. budget cap,
@@ -486,27 +863,53 @@ export function ChatPanel() {
       }
       flushPendingEvents()
 
-      // Mark any open thinking parts as done
-      setStreamingParts((prev) =>
-        prev.map((p) => (p.kind === 'thinking' && !p.done ? { ...p, done: true } : p)),
-      )
+      // The turn is over — nothing is still "running". Close out any open
+      // thinking OR tool parts so a tool whose tool_done never arrived (e.g.
+      // wait_for_agent, whose result master surfaced inline) doesn't spin
+      // forever. Applied to BOTH the live view and the captured finalParts
+      // (what gets persisted/grouped), since the ref lags the last flush.
+      const closeOpenParts = (parts: Part[]): Part[] =>
+        parts.map((p) =>
+          (p.kind === 'thinking' || p.kind === 'tool') && !p.done ? { ...p, done: true } : p,
+        )
+      setStreamingParts((prev) => closeOpenParts(prev))
 
-      // If sub-agents were spawned, preserve the execution trace as a task group
-      // instead of flattening it into a single history message.
-      if (hadSpawnAgent) {
-        const currentParts = streamingPartsRef.current
+      // Capture the full parts array before resetting
+      const finalParts = closeOpenParts(streamingPartsRef.current)
+
+      if (hadSpawnAgent && !hadInlineResult) {
+        // Genuine fire-and-forget spawn: master ended its turn without waiting,
+        // so the child completes later → a background notification will resolve
+        // this. Render the trace as a live task group meanwhile.
         setTaskGroups((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
-            parts: currentParts,
+            parts: finalParts,
             finalText: assembledText,
             status: 'running',
+            sessionId,
           },
         ])
         setAwaitingNotification(true)
+      } else if (hadSpawnAgent && hadInlineResult) {
+        // master spawned AND waited/read the result in this turn — it's already
+        // in `assembledText`. Show the delegation trace as a COMPLETED task group
+        // and persist it; do NOT wait for a notification that will never come.
+        const doneGroup: TaskGroup = {
+          id: crypto.randomUUID(),
+          parts: finalParts,
+          finalText: assembledText,
+          status: 'done',
+          sessionId,
+        }
+        setTaskGroups((prev) => [...prev, doneGroup])
+        setTimeout(() => persistTaskGroupToHistory(doneGroup), 0)
       } else {
-        if (assembledText) appendMessage('assistant', assembledText)
+        // Save both the structured parts AND the final assembled text into history.
+        // On page refresh, MessageBubble will render the parts as the execution trace.
+        const partsToSave = finalParts.length > 0 ? finalParts : undefined
+        appendMessage('assistant', assembledText, partsToSave, undefined, sessionId)
         // Auto-speak response if voice auto-speak is enabled
         if (assembledText) {
           const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
@@ -526,7 +929,7 @@ export function ChatPanel() {
           : `\n\n_Error: ${(e as Error).message}_`
         setStreamingParts((prev) => [...prev, { kind: 'text', text: errText }])
         const full = (assembledText + errText).trim()
-        if (full) appendMessage('assistant', full)
+        if (full) appendMessage('assistant', full, undefined, undefined, sessionId)
       }
     } finally {
       // Drop any pending buffered events and cancel the scheduled flush —
@@ -553,24 +956,46 @@ export function ChatPanel() {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+        className={`chat-history flex-1 overflow-y-auto px-4 py-4 space-y-3 ${noAnimate ? 'no-animate' : ''}`}
         style={{ minHeight: 0 }}
       >
         {history.length === 0 && !isStreaming && (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
-            Send a message to get started
+          <div
+            className={`flex flex-col items-center justify-center h-full gap-3 select-none ${
+              welcomeReady ? 'welcome-ready' : 'splash-hidden'
+            }`}
+          >
+            <div
+              className="welcome-name text-4xl font-bold tracking-[0.2em] font-mono"
+              style={{ color: 'var(--color-text-primary, #FFB633)' }}
+            >
+              YAPOC
+            </div>
+            <div className="text-zinc-600 text-sm">Send a message to get started</div>
           </div>
         )}
 
         {history.map((msg, i) => (
           <div key={i} className="group relative">
-            <MessageBubble
-              role={msg.role}
-              content={msg.content}
-              agentName={msg.role === 'assistant' ? 'master' : undefined}
-              agentModel={msg.role === 'assistant' ? masterModel : undefined}
-              onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
-            />
+            {msg.role === 'assistant' && msg.taskCompletion ? (
+              // A "what just finished" card: the backend completed a background
+              // task (resume/notification/goal/cron) that carried structured
+              // metadata. Show the rich card instead of the old bare text.
+              <TaskCompletionCard task={msg.taskCompletion} />
+            ) : msg.role === 'assistant' && msg.parts && msg.parts.length > 0 ? (
+              // Render the saved step chain exactly as it streamed (no collapse
+              // into a single block, no duplicated final-text blob).
+              <PartsChain parts={msg.parts} content={msg.content} masterModel={masterModel} />
+            ) : (
+              <MessageBubble
+                role={msg.role}
+                content={msg.content}
+                attachments={msg.attachments}
+                agentName={msg.role === 'assistant' ? 'master' : undefined}
+                agentModel={msg.role === 'assistant' ? masterModel : undefined}
+                onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
+              />
+            )}
             {msg.role === 'assistant' && voiceEnabled && (
               <button
                 onClick={() => {
@@ -599,30 +1024,43 @@ export function ChatPanel() {
         {/* Streaming assistant response */}
         {isStreaming && streamingParts.length === 0 && (
           <div className="flex items-center gap-2 text-zinc-500 text-sm pl-1">
-            <span className="animate-pulse">●</span>
-            <span>Thinking…</span>
+            <TypingIndicator />
+            <span>{queuedNotice || 'Thinking…'}</span>
           </div>
         )}
 
         {isStreaming && streamingParts.length > 0 && (
-          <div className="space-y-1">
-            {streamingParts.map((part, i) =>
-              part.kind === 'text' ? (
-                <MessageBubble key={`t-${i}`} role="assistant" content={part.text} agentName="master" agentModel={masterModel} />
-              ) : part.kind === 'thinking' ? (
-                <ThinkingBlock key={part.id} text={part.text} done={part.done} />
-              ) : (
-                <ToolCallBlock
-                  key={part.id}
-                  id={part.id}
-                  name={part.name}
-                  input={part.input}
-                  result={part.result}
-                  isError={part.isError}
-                  done={part.done}
-                />
-              ),
-            )}
+          <PartsChain parts={streamingParts} masterModel={masterModel} streaming />
+        )}
+
+        {/* Children master has spawned in this turn and not yet collected.
+            The delegation trace only becomes a task group once the turn ends,
+            so without this the most interesting moment — the sub-agent actually
+            working — has nothing on screen but a spinner. */}
+        {liveDelegations.map((agent) => (
+          <SubAgentActivity key={`live-${agent}`} agentName={agent} running />
+        ))}
+
+        {/* Autonomous work the server started on its own (a post-restart
+            resume, a cron tick, a goal). Its output streams to the agent panel,
+            not this chat's SSE, so without this the chat looks idle while
+            master is visibly working elsewhere — then a result appears from
+            nowhere. Show it running here, in the chat the user is actually
+            looking at. */}
+        {autonomousRunning.length > 0 && !awaitingNotification && (
+          <div className="space-y-1" data-testid="autonomous-running">
+            {autonomousRunning.map((t: BackgroundTask) => (
+              <div
+                key={t.task_id}
+                className="flex items-center gap-2 text-zinc-500 text-sm pl-1"
+              >
+                <TypingIndicator />
+                <span>
+                  {t.source === 'resume' ? 'Resuming after restart' : `Running ${t.source ?? 'background'} task`}
+                  {t.prompt ? ` — ${t.prompt.replace(/^\[Resume\]\s*/, '').slice(0, 80)}` : ''}
+                </span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -642,7 +1080,7 @@ export function ChatPanel() {
             </button>
             </div>
             {backgroundActivity && (
-              <div className="pl-6 text-[11px] text-zinc-400 font-mono">
+              <div className="pl-6 text-[13px] text-zinc-400 font-mono">
                 {backgroundActivity}
               </div>
             )}
@@ -665,56 +1103,45 @@ export function ChatPanel() {
         <div className="flex flex-wrap gap-2 items-end">
           <ChatInput
             ref={chatInputRef}
-            onSubmit={(text, img) => sendMessage(text, img)}
+            onSubmit={(text, files) => sendMessage(text, files)}
             disabled={isStreaming}
           />
-          {isStreaming ? (
+          {sttSupported && voiceEnabled && (
             <button
-              onClick={handleStop}
-              className="px-4 py-2 rounded-lg bg-red-700 text-white text-sm hover:bg-red-600 flex-shrink-0"
+              onClick={() => {
+                if (sttListening) {
+                  sttStop()
+                } else {
+                  sttStart()
+                }
+              }}
+              className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
+                sttListening
+                  ? 'bg-red-700 text-white hover:bg-red-600 animate-pulse'
+                  : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+              }`}
+              title={sttListening ? 'Stop listening' : 'Start listening'}
             >
-              Stop
+              🎤
             </button>
-          ) : (
-            <>
-              {sttSupported && voiceEnabled && (
-                <button
-                  onClick={() => {
-                    if (sttListening) {
-                      sttStop()
-                    } else {
-                      sttStart()
-                    }
-                  }}
-                  className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
-                    sttListening
-                      ? 'bg-red-700 text-white hover:bg-red-600 animate-pulse'
-                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                  }`}
-                  title={sttListening ? 'Stop listening' : 'Start listening'}
-                >
-                  🎤
-                </button>
-              )}
-              <button
-                onClick={() => setShowVoiceSettings((v) => !v)}
-                className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
-                  showVoiceSettings
-                    ? 'bg-zinc-600 text-zinc-100'
-                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                }`}
-                title={showVoiceSettings ? 'Hide voice settings' : 'Show voice settings'}
-              >
-                ⚙ Voice
-              </button>
-              <button
-                onClick={() => chatInputRef.current?.submit()}
-                className="px-4 py-2 rounded-lg bg-[#FFB633] text-[#0a0a0a] text-sm font-semibold hover:bg-[#ffc84d] disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-              >
-                Send ↵
-              </button>
-            </>
           )}
+          <button
+            onClick={() => setShowVoiceSettings((v) => !v)}
+            className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
+              showVoiceSettings
+                ? 'bg-zinc-600 text-zinc-100'
+                : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+            }`}
+            title={showVoiceSettings ? 'Hide voice settings' : 'Show voice settings'}
+          >
+            ⚙ Voice
+          </button>
+          <SendButton
+            isStreaming={isStreaming}
+            launchTick={launchTick}
+            onSend={() => chatInputRef.current?.submit()}
+            onStop={handleStop}
+          />
         </div>
         {usage && (
           <CostBar

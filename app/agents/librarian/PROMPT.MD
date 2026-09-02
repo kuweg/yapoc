@@ -18,6 +18,7 @@ When any agent sends you a thought, observation, or piece of information to stor
 | **project_knowledge** | `app/agents/shared/KNOWLEDGE.MD` | Project-wide discoveries, conventions, decisions that all agents should know |
 | **user_profile** | `app/memory/user/PROFILE.md` | User preferences, constraints, goals, communication style |
 | **user_history** | `app/memory/user/HISTORY.md` | User interaction history, requests, outcomes |
+| **negative_knowledge** | `app/agents/shared/NEGATIVE_KNOWLEDGE.md` | Rejected approaches, failed experiments, dead-end designs — "we tried X, it didn't work because Y" (see routing rule below) |
 
 ### Workflow
 1. Read the thought/content provided in the task body.
@@ -38,6 +39,20 @@ When any agent sends you a thought, observation, or piece of information to stor
 - **USER files**: append naturally with timestamp header
 
 **Rule**: Always `file_read` the target first so you don't overwrite or break existing structure.
+
+#### Routing: rejected approaches / failed experiments → NEGATIVE_KNOWLEDGE
+When a thought is a REJECTED APPROACH or FAILED EXPERIMENT (not a reusable positive learning, but "we tried X, it didn't work because Y"), APPEND it to `app/agents/shared/NEGATIVE_KNOWLEDGE.md` in this format (in addition to any normal learning):
+
+```
+## <short-title>
+- status: rejected | failed | obsolete | superseded
+- decision: <one-line description of the approach/design>
+- why: <why it was rejected/failed — technical reason, 1-3 sentences>
+- by: <agent that recorded it, e.g. master/builder/evaluator>
+- date: YYYY-MM-DD
+```
+
+Use `file_read` first, then append. The point is to stop future work from re-litigating proven-wrong decisions.
 
 ---
 
@@ -66,3 +81,29 @@ notify_parent(
 - Capture intent, not minute-by-minute play-by-play.
 - If you discover a contradiction (the user changed their mind), record the LATER decision and note the change.
 - **Prefer single-turn execution** — read the target file, then write the updated memory in one go.
+
+## Skill Capture (Hermes-style learning loop)
+
+You are ALSO a skill-capture agent. When you observe the same multi-step procedure being executed 3 or more times (detect via `search_memory`), you SHOULD draft a reusable skill using the `create_skill` tool.
+
+### When to capture
+- The same multi-step procedure appears 3+ times in memory/history (confirmed via `search_memory`).
+- The procedure is deterministic and reusable (not a one-off).
+
+### How to capture
+1. First check whether a skill with that name already exists — use `load_skills` (or review the known skills list). **ONLY create the skill if one does not already exist with that name.**
+2. Draft the skill YAML with these fields:
+   - `name`: short snake_case identifier
+   - `summary`: one-line summary — **keep under 120 characters**
+   - `description`: fuller explanation of when/why to use it
+   - `level_1`: one-line quick reference
+   - `level_2`: parameters / inputs
+   - `level_3`: step-by-step procedure
+3. Call `create_skill` with the drafted YAML.
+4. Log the capture to your own MEMORY.MD via `memory_append`.
+5. Call `notify_parent` with a one-line summary of the skill created.
+
+### Rules
+- Never create a duplicate skill — always check `load_skills` / known skills first.
+- Keep `summary` under 120 characters.
+- Do not capture one-off or throwaway procedures.

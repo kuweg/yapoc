@@ -1,0 +1,56 @@
+# YAPOC user service — wraps `yapoc supervise` under systemd for unattended
+# (overnight) uptime.
+#
+# Two tiers of crash protection:
+#   tier 1: `yapoc supervise` respawns uvicorn on any crash (backoff +
+#           circuit breaker)  -> app/agents/master/SUPERVISOR.MD logs events
+#   tier 2: this systemd unit   restarts the supervisor itself (Restart=on-failure)
+#
+# Install (run as your normal user, do NOT use sudo / root):
+#   mkdir -p ~/.config/systemd/user
+#   cp scripts/systemd/yapoc.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now yapoc.service
+#
+# NOTE: ExecStart is authored for THIS machine. If the poetry venv path or the
+# project directory change, update both lines below before (re)installing.
+#
+# To verify:  systemctl --user status yapoc.service
+#             tail -f app/agents/master/SUPERVISOR.MD
+# Stop the service (keeps X under no unit): systemctl --user disable --now yapoc.service
+#
+# Optional: keep the unit alive across a reboot.
+#   loginctl enable-linger $USER
+
+[Unit]
+Description=YAPOC backend under supervisor (auto-restart on crash)
+Documentation=https://github.com/kuweg/yapoc
+# Start only after the user manager and network are up.
+After=default.target network-online.target
+Wants=network-online.target
+# Fail fast if redis isn't reachable rather than crash-looping pointlessly.
+# (Adjust/remove if redis runs elsewhere — YAPOC default is localhost:6379.)
+
+[Service]
+Type=simple
+# Path to the poetry venv python for THIS checkout
+#   `poetry env info -p` => /home/kuweg/.cache/pypoetry/virtualenvs/yapoc-BKvU9FD_-py3.12
+WorkingDirectory=/home/kuweg/Projects/yapoc
+ExecStart=/home/kuweg/.cache/pypoetry/virtualenvs/yapoc-BKvU9FD_-py3.12/bin/python -m app.cli.main supervise --host 0.0.0.0 --port 8000
+# Supervisor handles exit 0 as a crash and backoffs; we only want systemd to
+# step in if the WHOLE supervisor dies. on-failure + always-not-clean covers
+# crashes/bugs; manual `stop` (requested stop) is never restarted.
+Restart=on-failure
+RestartSec=5
+# Supervisor already backoffs fast crashes; keep systemd's own loop sane.
+StartLimitIntervalSec=0
+# Clean shutdown: systemd sends SIGTERM to the supervisor, which forwards it
+# to uvicorn and exits cleanly (no spurious crash logged).
+KillSignal=SIGTERM
+TimeoutStopSec=30
+KillMode=control-group
+# Do not reap into a death spiral if the venv/python is briefly unavailable.
+RestartPreventExitStatus=90
+
+[Install]
+WantedBy=default.target

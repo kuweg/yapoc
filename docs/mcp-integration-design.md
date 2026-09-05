@@ -377,9 +377,9 @@ This capability enables YAPOC to **"manage itself"** by interacting with its own
 |---|---|---|
 | `browser_navigate` | Open YAPOC dashboard pages | `mcp__playwright__browser_navigate` |
 | `browser_click` | Click UI elements (agent status tabs, buttons) | `mcp__playwright__browser_click` |
-| `browser_fill` | Fill forms (submit test tasks) | `mcp__playwright__browser_fill` |
+| `browser_fill_form` | Fill forms (submit test tasks) | `mcp__playwright__browser_fill_form` |
 | `browser_snapshot` | Capture accessibility tree for debugging | `mcp__playwright__browser_snapshot` |
-| `browser_screenshot` | Take screenshots for visual diff | `mcp__playwright__browser_screenshot` |
+| `browser_take_screenshot` | Take screenshots for visual diff | `mcp__playwright__browser_take_screenshot` |
 | `browser_evaluate` | Run JS to hit API endpoints, parse JSON responses | `mcp__playwright__browser_evaluate` |
 
 ### 5.4 Use Cases
@@ -433,7 +433,7 @@ mcp__playwright__browser_evaluate(
 # Step 3-4: Open dashboard and submit task
 mcp__playwright__browser_navigate(url="http://localhost:8000/")
 mcp__playwright__browser_click(selector="button[data-testid='new-task']")
-mcp__playwright__browser_fill(selector="textarea[name='task-input']", value="Test task")
+mcp__playwright__browser_fill_form(fields=[{"element": "task input", "ref": "e12", "value": "Test task"}])
 mcp__playwright__browser_click(selector="button[type='submit']")
 
 # Step 5-7: Verify task lifecycle
@@ -444,7 +444,7 @@ mcp__playwright__browser_snapshot()
 → "Task 'Test task' status: completed"
 
 # Step 8: Evidence
-mcp__playwright__browser_screenshot()
+mcp__playwright__browser_take_screenshot()
 → [saved as evidence.png]
 ```
 
@@ -462,12 +462,12 @@ Detect unintended visual regressions after frontend changes.
 ```
 # Baseline capture (before changes)
 mcp__playwright__browser_navigate(url="http://localhost:8000/agents")
-mcp__playwright__browser_screenshot()
+mcp__playwright__browser_take_screenshot()
 → [save as baseline/agents.png]
 
 # After changes
 mcp__playwright__browser_navigate(url="http://localhost:8000/agents")
-mcp__playwright__browser_screenshot()
+mcp__playwright__browser_take_screenshot()
 → [save as current/agents.png]
 
 # Compare
@@ -507,7 +507,7 @@ Replay user-reported bug sequences step by step to identify where behavior diver
 **Workflow:**
 1. Load the bug report and extract the sequence of UI actions
 2. Navigate to the starting page
-3. Execute each step using `browser_click`, `browser_fill`, `browser_navigate`
+3. Execute each step using `browser_click`, `browser_fill_form`, `browser_navigate`
 4. After each step, call `browser_snapshot` to capture the accessibility tree
 5. Compare with expected state at each step
 6. Identify where behavior diverges from expectations
@@ -554,9 +554,9 @@ The `tester` is a **temporary agent** spawned by Master or Cron for focused E2E 
       "tools": [
         "mcp__playwright__browser_navigate",
         "mcp__playwright__browser_click",
-        "mcp__playwright__browser_fill",
+        "mcp__playwright__browser_fill_form",
         "mcp__playwright__browser_snapshot",
-        "mcp__playwright__browser_screenshot",
+        "mcp__playwright__browser_take_screenshot",
         "mcp__playwright__browser_evaluate",
         "file_write",
         "file_read",
@@ -583,9 +583,9 @@ via Playwright MCP tools.
 ## Your Tools
 - mcp__playwright__browser_navigate — Open URLs
 - mcp__playwright__browser_click — Click elements
-- mcp__playwright__browser_fill — Fill form fields
+- mcp__playwright__browser_fill_form — Fill form fields
 - mcp__playwright__browser_snapshot — Get accessibility tree
-- mcp__playwright__browser_screenshot — Take screenshots
+- mcp__playwright__browser_take_screenshot — Take screenshots
 - mcp__playwright__browser_evaluate — Run JavaScript in browser context
 
 ## Workflow

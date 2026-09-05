@@ -281,6 +281,9 @@ class CodexAdapter(BaseLLMAdapter):
         # Accumulators for function calls
         # Map: item_id → {call_id, name, arguments_parts}
         fc_accum: dict[str, dict[str, Any]] = {}
+        from app.utils.adapters.termination import require_complete, parse_tool_arguments
+        finish_reason = None
+        text_parts: list[str] = []
         text_emitted = False
         input_tokens = 0
         output_tokens = 0
@@ -310,12 +313,15 @@ class CodexAdapter(BaseLLMAdapter):
                         break
                     chunk = json.loads(raw)
                     event_type = chunk.get("type", "")
+                    if event_type in {"error", "response.failed", "response.incomplete"}:
+                        raise RuntimeError(f"Provider response did not complete: {event_type}")
 
                     # Text delta
                     if event_type == "response.output_text.delta":
                         delta = chunk.get("delta", "")
                         if delta:
                             text_emitted = True
+                            text_parts.append(delta)
                             yield TextDelta(delta)
 
                     # Function call argument delta
@@ -348,23 +354,22 @@ class CodexAdapter(BaseLLMAdapter):
 
                     # Response complete — get usage
                     elif event_type == "response.completed":
+                        finish_reason = "completed"
                         resp = chunk.get("response", {})
                         usage = resp.get("usage", {})
                         input_tokens = usage.get("input_tokens", 0)
                         output_tokens = usage.get("output_tokens", 0)
 
+        require_complete(finish_reason)
         elapsed = time.perf_counter() - t_start
 
         # Build tool calls
         tool_calls: list[ToolCall] = []
-        assistant_content: list[dict[str, Any]] = []
+        assistant_content: list[dict[str, Any]] = ([{"type": "text", "text": "".join(text_parts)}] if text_parts else [])
 
         for item_id, acc in fc_accum.items():
             arguments_str = "".join(acc["arguments_parts"])
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError:
-                arguments = {}
+            arguments = parse_tool_arguments(arguments_str)
 
             call_id = acc["call_id"]
             tc = ToolCall(id=call_id, name=acc["name"], input=arguments)

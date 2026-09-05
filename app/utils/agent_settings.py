@@ -245,6 +245,19 @@ def agent_tools(agent_name: str) -> list[str]:
     return list(tools) if isinstance(tools, list) else []
 
 
+def resolve_agent_mcp_servers(agent_name: str) -> list[str]:
+    """Return the agent's declared MCP servers from agent-settings.json.
+
+    Reads the ``mcp_servers`` list field (e.g. ``["playwright", "context7"]``)
+    on the agent's entry, mirroring :func:`agent_tools`. Returns ``[]`` when
+    the entry is absent or the value is not a list, so the caller can safely
+    skip MCP setup for agents that declare none.
+    """
+    entry = _agents_map(_read()).get(agent_name, {})
+    servers = entry.get("mcp_servers", [])
+    return list(servers) if isinstance(servers, list) else []
+
+
 def resolve_agent(agent_name: str) -> dict[str, Any] | None:
     """Return ``{adapter, model, temperature, max_tokens, fallbacks}`` for one agent.
 

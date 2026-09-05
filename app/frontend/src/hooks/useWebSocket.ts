@@ -26,7 +26,6 @@ export function useWebSocket() {
   const subscribedAgentsRef = useRef<Set<string>>(new Set())
   const retryRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const unmountedRef = useRef(false)
 
   useEffect(() => {
     activeSessionRef.current = activeSessionId
@@ -65,16 +64,21 @@ export function useWebSocket() {
   }, [subscribedAgents])
 
   useEffect(() => {
-    unmountedRef.current = false
+    // Each effect owns its callbacks. A shared mounted ref is unsafe when
+    // StrictMode/HMR cleans up and remounts before the old socket closes.
+    let disposed = false
 
     function connect() {
-      if (unmountedRef.current) return
+      if (disposed) return
+      const current = wsRef.current
+      if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) return
 
       try {
         const ws = new WebSocket(WS_URL)
         wsRef.current = ws
 
         ws.onopen = () => {
+          if (disposed || wsRef.current !== ws) return
           retryRef.current = 0
           useWsStore.getState().setConnected(true)
           const sid = activeSessionRef.current
@@ -93,6 +97,7 @@ export function useWebSocket() {
         }
 
         ws.onmessage = (ev) => {
+          if (disposed || wsRef.current !== ws) return
           try {
             const data = JSON.parse(ev.data)
             useWsStore.getState().handleEvent(data)
@@ -102,6 +107,7 @@ export function useWebSocket() {
         }
 
         ws.onclose = () => {
+          if (disposed || wsRef.current !== ws) return
           useWsStore.getState().setConnected(false)
           wsRef.current = null
           subscribedSessionRef.current = null
@@ -118,7 +124,7 @@ export function useWebSocket() {
     }
 
     function scheduleReconnect() {
-      if (unmountedRef.current) return
+      if (disposed) return
       // No retry ceiling: giving up leaves the chat permanently deaf to task
       // and session events until a manual page reload, with no visible cause.
       const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryRef.current), MAX_DELAY_MS)
@@ -130,8 +136,9 @@ export function useWebSocket() {
     // Coming back to the tab (or back online) is a strong hint the backend may
     // be reachable again — retry now instead of waiting out the backoff.
     function retryNow() {
-      if (unmountedRef.current) return
-      if (wsRef.current?.readyState === WebSocket.OPEN) return
+      if (disposed) return
+      const current = wsRef.current
+      if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) return
       retryRef.current = 0
       if (timerRef.current) clearTimeout(timerRef.current)
       connect()
@@ -152,12 +159,21 @@ export function useWebSocket() {
     }, 30_000)
 
     return () => {
-      unmountedRef.current = true
+      disposed = true
       clearInterval(pingInterval)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', retryNow)
       if (timerRef.current) clearTimeout(timerRef.current)
-      wsRef.current?.close()
+      timerRef.current = null
+      const ws = wsRef.current
+      wsRef.current = null
+      subscribedSessionRef.current = null
+      subscribedAgentsRef.current = new Set()
+      if (ws) {
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null
+        ws.close()
+      }
+      useWsStore.getState().setConnected(false)
     }
   }, [])
 }

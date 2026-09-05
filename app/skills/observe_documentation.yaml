@@ -1,0 +1,16 @@
+name: observe_documentation
+summary: Fetch up-to-date library/API docs via the Context7 MCP server (mcp__context7__* tools)
+description: |
+  Uses Context7's remote MCP server (streamable_http, https://mcp.context7.com/mcp) to retrieve current, version-aware documentation for libraries, frameworks, and APIs. Call this whenever the user needs accurate docs, code examples, API signatures, or setup steps that may have changed since an agent was trained. Relevant when working with a specific library/version. The docs are fetched live, not from the agent's training cutoff.
+level_1: "Fetch current library/API documentation on demand through the Context7 MCP server instead of relying on possibly-stale training knowledge."
+level_2: |
+  Inputs:
+  - libraryName: the library, framework, or API to look up (e.g. "httpx").
+  - query: a free-text task or question describing what the user needs (used to resolve the best library version/doc source).
+  - libraryId: the exact resolved ID returned by resolve-library-id, passed to subsequent query-docs calls.
+  Tools: mcp__context7__resolve-library-id, mcp__context7__query-docs.
+level_3: |
+  1. When the user needs current library/API docs, code examples, or setup steps for a specific library/version, use the context7 MCP tools rather than guessing from stale knowledge.
+  2. Call `mcp__context7__resolve-library-id` with libraryName=<lib> and query=<task> to get the exact libraryId for the best documentation source.
+  3. Call `mcp__context7__query-docs` with libraryId=<resolved id> and query=<question> to retrieve the relevant documentation sections.
+  4. If the tools are unavailable (server disconnected), fall back to web_search to get the documentation.

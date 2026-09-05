@@ -1,15 +1,14 @@
 import asyncio
 import json
+import re
 import uuid as _uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from app.agents.master.agent import master_agent
 from app.backend.models import TaskRequest, TaskResponse
-from app.backend.services.agent_results import build_result_injection, collect_agent_results
-from app.utils.adapters import CompactEvent, Message, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
+from app.utils.adapters import CompactEvent, Message, MessageBoundary, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
 from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
 router = APIRouter()
@@ -22,6 +21,8 @@ def _parse_history(raw: list[dict] | None) -> list[Message] | None:
 
 
 def _event_to_dict(event: Any) -> dict | None:
+    if isinstance(event, MessageBoundary):
+        return {"type": "message_boundary"}
     if isinstance(event, ThinkingDelta):
         return {"type": "thinking", "text": event.text}
     if isinstance(event, TextDelta):
@@ -100,6 +101,8 @@ async def get_session_events(
     """Return recent events from a session's event log for playback."""
     from app.config import settings
 
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", session_id):
+        raise HTTPException(400, "Invalid session ID")
     event_file = settings.project_root / "data" / "sessions" / session_id / "events.jsonl"
     if not event_file.exists():
         return []
@@ -114,151 +117,54 @@ async def get_session_events(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_queued_task(task_id: str):
+    from app.backend.dispatcher import cancel_task
+    if not get_queued_task(task_id):
+        raise HTTPException(404, "Task not found")
+    await cancel_task(task_id)
+    return get_queued_task(task_id)
+
+
 @router.post("/task/stream")
 async def submit_task_stream(request: TaskRequest):
-    history = _parse_history(request.history)
-    session_id = request.session_id or str(_uuid.uuid4())
-
-    # Resolve attachment IDs (owner-scoped) and append their content to the user
-    # message: image_read markers for images, inline text for text/docx. The
-    # resolved metadata is emitted up-front over SSE so the UI can upgrade
-    # previews and (later) show the vision model used.
-    attach_meta: list[dict] = []
-    attach_suffix = ""
-    if request.attachments:
-        from app.backend.services import uploads as _uploads
-        attach_suffix, attach_meta = _uploads.build_attachment_injection(
-            request.attachments, owner="local"
-        )
-
-    # Collect completed background agent results and inject as system context
-    # rather than concatenating into the user task string.
-    finished = await collect_agent_results(session_id=session_id)
-    task = request.task + attach_suffix if attach_suffix else request.task
-    if finished:
-        notifications_text = build_result_injection(finished)
-        if history is None:
-            history = []
-        history = history + [Message(role="system", content=notifications_text)]
-
-    # run_stream_with_tools expects history to already contain the current user
-    # message as its last entry (matching CLI behaviour in _send_to_agent).
-    if history is not None:
-        history = history + [Message(role="user", content=task)]
-
-    # Remember which session the CHAT is using. A restart wipes in-memory
-    # state, and RESUME.MD may carry no session at all — without this the
-    # resumed turn lands on a synthetic session the browser never subscribed
-    # to, and its output is invisible in the chat. Persisted, so it survives
-    # the very restart it exists to serve.
-    if session_id:
-        try:
-            from app.config import settings as _s
-            _marker = _s.project_root / "data" / "last_ui_session"
-            _marker.parent.mkdir(parents=True, exist_ok=True)
-            _marker.write_text(session_id, encoding="utf-8")
-        except Exception:
-            pass  # best-effort; resume falls back to its other heuristics
-
-    merged: asyncio.Queue[dict | None] = asyncio.Queue()
-
-    # Surface resolved attachment metadata to the UI first so it can upgrade
-    # the optimistic previews to server-backed ones.
-    if attach_meta:
-        await merged.put({"type": "attachments", "data": attach_meta})
-
-    # Master serializes every turn on a single `_run_lock`. If autonomous work
-    # (a cron sweep, an evaluator round, a resumed task) already holds it, this
-    # chat turn blocks inside handle_task_stream and streams NOTHING until that
-    # finishes — the chat sits on "Thinking…" for minutes while the agent-flow
-    # panel visibly streams the background turn. That looks like a broken chat.
-    # Say what is actually happening instead.
-    if master_agent.is_busy():
-        from app.config import settings
-
-        busy_with = ""
-        try:
-            status = json.loads(
-                (settings.agents_dir / "master" / "STATUS.json").read_text(encoding="utf-8")
-            )
-            busy_with = str(status.get("task_summary") or "").strip().replace("\n", " ")[:120]
-        except Exception:
-            busy_with = ""
-        await merged.put({
-            "type": "status",
-            "state": "queued",
-            "text": (
-                "Master is finishing background work — your message is queued and "
-                "will start automatically."
-                + (f" (current: {busy_with}…)" if busy_with else "")
-            ),
-        })
-
-    async def drain_agent() -> None:
-        try:
-            async for event in master_agent.handle_task_stream(
-                task, history=history,
-                source=request.source,
-                session_id=session_id,
-            ):
-                item = _event_to_dict(event)
-                if item:
-                    await merged.put(item)
-        except Exception as exc:
-            await merged.put({"type": "error", "error": str(exc)})
-        finally:
-            await merged.put(None)  # sentinel
-
-    # Sentinel value used to signal the heartbeat loop to stop
-    _HEARTBEAT_STOP = object()
-    _heartbeat_done = asyncio.Event()
-
-    async def heartbeat() -> None:
-        """Emit SSE keepalive pings every 15 s to prevent proxy/browser timeouts.
-
-        Long agent tasks (sub-agents running for minutes) produce no SSE data
-        during tool execution.  Without periodic data, reverse proxies and
-        browsers drop the connection after 30-120 s of silence, causing the
-        "network error" the user sees.  SSE comment lines (': keepalive') are
-        invisible to the client but reset the idle timer on every intermediary.
-        """
-        try:
-            while True:
-                try:
-                    await asyncio.wait_for(_heartbeat_done.wait(), timeout=15.0)
-                    return  # agent finished — stop heartbeat
-                except asyncio.TimeoutError:
-                    # Queue a keepalive sentinel; event_generator handles it
-                    await merged.put({"type": "keepalive"})
-        except asyncio.CancelledError:
-            pass
-
-    agent_task = asyncio.create_task(drain_agent())
-    heartbeat_task = asyncio.create_task(heartbeat())
+    """SSE is a replayable view of a durable run, not its execution owner."""
+    from app.backend.services.task_runtime import read_events
+    task_id = request.task_id or str(_uuid.uuid4())
+    session_id = request.session_id or task_id
+    row = get_queued_task(task_id)
+    if row and row.get("session_id") != session_id:
+        raise HTTPException(409, "Task ID belongs to another session")
+    if not row:
+        suffix, attachments = "", []
+        if request.attachments:
+            from app.backend.services.uploads import build_attachment_injection
+            suffix, attachments = build_attachment_injection(request.attachments, owner="local")
+        row = create_queued_task(id=task_id, prompt=request.task + suffix,
+                                 source=request.source or "ui", session_id=session_id,
+                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "transport": "sse"}))
+    metadata = json.loads(row.get("metadata") or "{}")
 
     async def event_generator():
-        try:
-            while True:
-                item = await merged.get()
-                if item is None:
-                    # Agent finished — stop heartbeat and send DONE
-                    _heartbeat_done.set()
-                    yield "data: [DONE]\n\n"
-                    return
-                if item.get("type") == "keepalive":
-                    # SSE comment line — keeps connection alive, invisible to client
-                    yield ": keepalive\n\n"
-                    continue
-                yield f"data: {json.dumps(item)}\n\n"
-        except asyncio.CancelledError:
-            pass
-        finally:
-            _heartbeat_done.set()
-            agent_task.cancel()
-            heartbeat_task.cancel()
+        cursor = request.after_seq
+        yield f'data: {json.dumps({"type": "status", "state": "queued", "task_id": task_id, "text": "Queued for master"})}\n\n'
+        if metadata.get("attachments"):
+            yield f'data: {json.dumps({"type": "attachments", "data": metadata["attachments"]})}\n\n'
+        while True:
+            events = read_events(task_id, cursor)
+            for event in events:
+                cursor = event["seq"]
+                yield f"data: {json.dumps(event)}\n\n"
+            state = get_queued_task(task_id)
+            if state and state["status"] not in {"pending", "running"}:
+                if events:
+                    continue  # exhaust the final page before closing
+                if state["status"] != "done":
+                    yield f'data: {json.dumps({"type": "error", "error": state.get("error") or state["status"]})}\n\n'
+                yield "data: [DONE]\n\n"
+                return
+            yield ": keepalive\n\n"
+            await asyncio.sleep(0.25)
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

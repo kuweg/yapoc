@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
+import inspect
 import re
 from typing import Any
 
@@ -168,6 +169,7 @@ from .evaluator_signals import GetRecentSignalsTool
 from .grep import GrepTool
 from .concilium_deliberate import ConciliumDeliberateTool
 from .skills import CreateSkillTool, DeleteSkillTool, LoadSkillsTool, UpdateSkillTool
+from .chart import RenderChartTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
@@ -220,6 +222,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "delete_skill": DeleteSkillTool,
     "grep": GrepTool,
     "concilium_deliberate": ConciliumDeliberateTool,
+    "render_chart": RenderChartTool,
 }
 
 # Tools that need agent_dir injected
@@ -243,6 +246,9 @@ _AGENT_DIR_TOOLS = {
 # tools care; reads and delegation are unaffected.
 _SANDBOX_TOOLS = {"file_write", "file_edit", "file_delete", "shell_exec"}
 
+# Session ownership must survive every tool that starts or resumes work.
+_SESSION_TOOLS = {"spawn_agent", "delegate_task", "execute_dag", "server_restart"}
+
 
 def build_tools(
     names: list[str],
@@ -260,14 +266,20 @@ def build_tools(
     policy = _parse_sandbox_policy(agent_dir)
     tools: list[BaseTool] = []
     for name in names:
-        cls = TOOL_REGISTRY.get(name)
-        if cls is None:
+        entry = TOOL_REGISTRY.get(name)
+        if entry is None:
             continue
+        if not inspect.isclass(entry):
+            # Pre-instantiated tool (e.g. an MCP wrapper bound to a live server).
+            # It is already a fully usable BaseTool instance — append as-is.
+            tools.append(entry)
+            continue
+        cls = entry
         kwargs: dict[str, Any] = {}
         if name in _AGENT_DIR_TOOLS:
             kwargs["agent_dir"] = agent_dir
-            if name in ("spawn_agent", "delegate_task", "execute_dag"):
-                kwargs["session_id"] = session_id
+        if name in _SESSION_TOOLS:
+            kwargs["session_id"] = session_id
         if name in _SANDBOX_TOOLS:
             kwargs["sandbox"] = policy
         try:

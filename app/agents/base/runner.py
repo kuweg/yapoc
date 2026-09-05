@@ -324,11 +324,13 @@ class AgentRunner:
 
         _hb_task = asyncio.create_task(_heartbeat())
 
-        # Drain pending notifications and inject into the LLM system prompt
+        # Snapshot pending notifications; acknowledge only after persisted success
         notifications_context = ""
+        pending = []
         try:
             from app.backend.services.notification_queue import notification_queue as _nq
-            pending = _nq.drain(self._agent._name)
+            pending = [n for n in _nq.pending_entries(self._agent._name)
+                       if n.get("session_id", "") == (self._agent._session_id or "")]
             if pending:
                 lines = ["[SYSTEM NOTIFICATION] The following child agents have completed:"]
                 for n in pending:
@@ -384,6 +386,11 @@ class AgentRunner:
             result_text = result_text.strip()
 
             await self._agent.set_task_status("done", result=result_text or "Task completed.")
+            if pending:
+                try:
+                    _nq.acknowledge(pending)
+                except Exception as exc:
+                    _log.bind(agent=self._name).warning("Notification acknowledgment failed; input retained: {}", exc)
             _done_fm = self._parse_task_frontmatter()
             try:
                 from app.utils.db import init_schema, insert_task
@@ -755,6 +762,7 @@ class AgentRunner:
                             "result": result,
                             "session_id": session_id,
                             "task_id": task_id,
+                            "parent_task_id": fm.get("parent_task_id", ""),
                         },
                         agent_name=self._name,
                     )
@@ -783,6 +791,7 @@ class AgentRunner:
                     error=result if status == "error" else "",
                     session_id=session_id,
                     task_id=task_id,
+                    parent_task_id=fm.get("parent_task_id", ""),
                 )
                 _log.bind(agent=self._name).info(
                     "Queue notify: parent={} result_len={} status={}", parent, len(result), status

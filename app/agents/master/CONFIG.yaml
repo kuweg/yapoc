@@ -21,6 +21,8 @@ tools:
   - file_edit
   - file_delete
   - show_agent_settings
+  - grep
+  - shell_exec
   # ── Delegation ──────────────────────────────────────────────────────
   - spawn_agent
   - ping_agent
@@ -52,6 +54,7 @@ tools:
   - send_telegram_message
   - delegate_task
   - search_negative_knowledge
+  - render_chart
 sandbox:
   # Master can read anything but writes must go through a sub-agent.
   forbidden:

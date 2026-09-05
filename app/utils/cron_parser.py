@@ -218,6 +218,17 @@ def is_due(cron_expr: str, last_run: datetime | None, now: datetime | None = Non
         now = datetime.now(timezone.utc)
 
     try:
+        # Normalize last_run: it may be a naive datetime, an aware datetime,
+        # or a plain ISO string (legacy shape from data/cron_runs.json, e.g.
+        # "2026-05-13T00:32:13Z"). Convert to an aware datetime before any
+        # attribute access so a str no longer triggers AttributeError.
+        if isinstance(last_run, str):
+            if last_run.endswith("Z"):
+                last_run = last_run[:-1] + "+00:00"
+            last_run = datetime.fromisoformat(last_run)
+        elif last_run is not None and last_run.tzinfo is None:
+            last_run = last_run.replace(tzinfo=timezone.utc)
+
         cron = croniter(cron_expr, now)
         prev_match = cron.get_prev(datetime)
 
@@ -227,11 +238,11 @@ def is_due(cron_expr: str, last_run: datetime | None, now: datetime | None = Non
         # Job is due if the previous match time is after the last run
         if prev_match.tzinfo is None:
             prev_match = prev_match.replace(tzinfo=timezone.utc)
-        if last_run.tzinfo is None:
-            last_run = last_run.replace(tzinfo=timezone.utc)
 
         return prev_match > last_run
-    except (ValueError, KeyError):
+    except (ValueError, KeyError, TypeError):
+        # Covers malformed str last_run, invalid cron expr, and any remaining
+        # mismatch — never propagate an exception out of is_due.
         logger.warning(f"Invalid cron expression: {cron_expr}")
         return False
 

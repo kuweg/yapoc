@@ -1,0 +1,25 @@
+{
+  "mcp_servers": [
+    {
+      "name": "playwright",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp"],
+      "tools_allowlist": ["*"],
+      "auth": "none",
+      "timeout_s": 60,
+      "enabled": true,
+      "auto_reconnect": true
+    },
+    {
+      "name": "context7",
+      "transport": "streamable_http",
+      "url": "https://mcp.context7.com/mcp",
+      "tools_allowlist": ["*"],
+      "auth": "none",
+      "timeout_s": 60,
+      "enabled": true,
+      "auto_reconnect": true
+    }
+  ]
+}

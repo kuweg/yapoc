@@ -92,7 +92,12 @@ async def collect_agent_results(
             m = re.search(rf"{section}\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
             result_text = m.group(1).strip() if m else ("(no error)" if is_error else "(no result)")
 
-        await agent.mark_task_consumed()
+        from app.backend.services.notification_queue import notification_queue
+        notification_queue.enqueue(parent_agent=parent_agent, child_agent=agent_dir.name,
+                                   status=status, result=result_text if not is_error else "",
+                                   error=result_text if is_error else "", session_id=fm.get("session_id", ""),
+                                   task_id=fm.get("task_id", ""), parent_task_id=fm.get("parent_task_id", ""))
+        await agent.mark_task_consumed()  # only after durable outbox handoff
 
         results.append((agent_dir.name, result_text, is_error, depth))
 

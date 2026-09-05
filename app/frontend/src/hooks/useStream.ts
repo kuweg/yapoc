@@ -1,37 +1,16 @@
 import type { Message, StreamEvent } from '../api/types'
 
 // Maximum number of reconnect attempts before giving up
-const MAX_RETRIES = 3
+const MAX_RETRIES = 8
 // Base delay for exponential backoff (ms)
 const RETRY_BASE_MS = 1_000
-// How long to wait for /health to come back after a mid-stream drop
-const HEALTH_WAIT_MS = 15_000
-const HEALTH_POLL_MS = 500
-// Idle-detection on the SSE reader. Backend emits `: keepalive` every 15s,
-// so going 25s with zero bytes (not even a comment) means the socket is dead.
-// On Vite's dev proxy a hard-killed upstream can leave the proxied client
-// connection hanging indefinitely with no FIN — without this timeout the
-// reader would block forever and the recovery path below never fires.
+// Bound silent sockets left open by a failed proxy.
 const READ_IDLE_TIMEOUT_MS = 25_000
-
-/**
- * Thrown by streamTask when the SSE response is interrupted mid-stream and
- * the backend looks like it bounced (master's server_restart, deploy, kill).
- * The generator waits for /health to return OK before throwing, so callers
- * can show a friendly "server restarted, please retry" message and know the
- * backend is ready when the user re-sends.
- */
-export class ServerRestartError extends Error {
-  constructor(message = 'Server restarted mid-response. Please send again.') {
-    super(message)
-    this.name = 'ServerRestartError'
-  }
-}
 
 /**
  * Stream a task via SSE with automatic reconnection.
  *
- * The backend emits `: keepalive` comment lines every 15 s to prevent
+ * The backend emits `: keepalive` comment lines regularly to prevent
  * proxy/browser idle-connection timeouts during long agent tasks.  If the
  * connection still drops (network blip, server restart), this generator
  * retries up to MAX_RETRIES times with exponential backoff before throwing.
@@ -45,14 +24,19 @@ export async function* streamTask(
   signal: AbortSignal,
   sessionId?: string | null,
   attachments?: string[],
+  taskId: string = crypto.randomUUID(),
 ): AsyncGenerator<StreamEvent> {
   let attempt = 0
-  let yieldedAny = false
+  let afterSeq = 0
 
   while (true) {
     try {
-      for await (const event of _streamOnce(task, history, signal, sessionId, attachments)) {
-        yieldedAny = true
+      for await (const event of _streamOnce(task, history, signal, sessionId, attachments, taskId, afterSeq)) {
+        const seq = (event as StreamEvent & { seq?: number }).seq
+        if (seq !== undefined) {
+          if (seq <= afterSeq) continue
+          afterSeq = seq
+        }
         yield event
       }
       return // clean finish — no retry needed
@@ -60,86 +44,51 @@ export async function* streamTask(
       // Never retry on user-initiated abort
       if (signal.aborted) throw err
       if ((err as Error).name === 'AbortError') throw err
-      // If the request already started streaming, retrying would replay a
-      // side-effectful POST and can duplicate tool calls/delegations.
-      // Instead, wait for /health to come back so the UI lands in a known-good
-      // state, then surface a typed error so the caller can show a friendly
-      // "server restarted" message rather than a raw NetworkError.
-      if (yieldedAny) {
-        const recovered = await _waitForHealth(signal)
-        if (recovered) throw new ServerRestartError()
-        throw err
-      }
+      // Reattach to the same durable run and ordered cursor. This POST never
+      // creates a second execution, even if the prior response was lost.
 
       attempt++
       if (attempt > MAX_RETRIES) throw err
 
       // Exponential backoff: 1 s, 2 s, 4 s …
-      const delay = RETRY_BASE_MS * Math.pow(2, attempt - 1)
+      const delay = Math.min(5_000, RETRY_BASE_MS * Math.pow(2, attempt - 1))
       await _sleep(delay, signal)
     }
   }
 }
 
-/**
- * Poll /health until it returns 200 OK or HEALTH_WAIT_MS elapses.
- * Used after a mid-stream drop to wait out a server restart so the UI
- * doesn't show "NetworkError" while the backend is mid-boot.
- */
-async function _waitForHealth(signal: AbortSignal): Promise<boolean> {
-  const deadline = Date.now() + HEALTH_WAIT_MS
-  while (Date.now() < deadline) {
-    if (signal.aborted) return false
-    try {
-      const res = await fetch('/health', { signal, cache: 'no-store' })
-      if (res.ok) return true
-    } catch {
-      // backend not back yet — keep polling
-    }
-    try {
-      await _sleep(HEALTH_POLL_MS, signal)
-    } catch {
-      return false
-    }
-  }
-  return false
-}
-
-/**
- * Race reader.read() against an idle timeout. If READ_IDLE_TIMEOUT_MS elapses
- * with no data (including backend keepalives), throw so the outer recovery
- * path can probe /health and surface ServerRestartError. Without this the
- * stream can hang forever when the backend is killed behind a proxy that
- * doesn't propagate the upstream FIN.
- */
 async function _readWithIdleTimeout(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal,
 ): Promise<ReadableStreamReadResult<Uint8Array>> {
-  let timer: ReturnType<typeof setTimeout> | null = null
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let onAbort: () => void = () => {}
   const idle = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error('SSE idle timeout — no data for 25s'))
-    }, READ_IDLE_TIMEOUT_MS)
-    signal.addEventListener('abort', () => {
-      if (timer) clearTimeout(timer)
-      reject(new DOMException('Aborted', 'AbortError'))
-    }, { once: true })
+    timer = setTimeout(() => reject(new Error('SSE idle timeout')), READ_IDLE_TIMEOUT_MS)
+    onAbort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal.addEventListener('abort', onAbort, { once: true })
   })
   try {
     return await Promise.race([reader.read(), idle])
   } finally {
-    if (timer) clearTimeout(timer)
+    clearTimeout(timer)
+    signal.removeEventListener('abort', onAbort)
   }
 }
 
 async function _sleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => {
+    const onAbort = () => {
       clearTimeout(timer)
       reject(new DOMException('Aborted', 'AbortError'))
-    }, { once: true })
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal.addEventListener('abort', onAbort, { once: true })
   })
 }
 
@@ -149,12 +98,16 @@ async function* _streamOnce(
   signal: AbortSignal,
   sessionId?: string | null,
   attachments?: string[],
+  taskId?: string,
+  afterSeq = 0,
 ): AsyncGenerator<StreamEvent> {
   const res = await fetch('/api/task/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       task,
+      task_id: taskId,
+      after_seq: afterSeq,
       history,
       source: 'ui',
       session_id: sessionId || undefined,
@@ -173,7 +126,7 @@ async function* _streamOnce(
   try {
     while (true) {
       const { done, value } = await _readWithIdleTimeout(reader, signal)
-      if (done) break
+      if (done) throw new Error("SSE closed before terminal event")
 
       buffer += decoder.decode(value, { stream: true })
       const parts = buffer.split('\n\n')
@@ -186,15 +139,11 @@ async function* _streamOnce(
         if (line.startsWith(':')) continue
         const dataLine = line.startsWith('data: ') ? line.slice(6) : line
         if (dataLine === '[DONE]') return
-        try {
-          const event = JSON.parse(dataLine) as StreamEvent
-          yield event
-        } catch {
-          // skip malformed frames
-        }
+        yield JSON.parse(dataLine) as StreamEvent
       }
     }
   } finally {
+    await reader.cancel().catch(() => {})
     reader.releaseLock()
   }
 }

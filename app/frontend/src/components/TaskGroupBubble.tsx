@@ -4,6 +4,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts } from './groupParts'
+import ChartBlock from './ChartBlock'
 import { AgentAvatar, getAgentColor, getAgentDisplayName, withAlpha } from '../lib/agentIdentity'
 import { CompactionMarker } from './ContextGauge'
 import { SubAgentActivity } from './SubAgentActivity'
@@ -177,6 +178,9 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
               }
               if (part.kind === 'compact') {
                 return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
+              }
+              if (part.kind === 'chart') {
+                return <ChartBlock key={`tg-${group.id}-chart-${i}`} option={part.option} />
               }
               return (
                 <ToolCallBlock

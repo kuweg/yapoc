@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import platform
 import re as _re
@@ -85,11 +86,11 @@ def _fetch_openrouter_models_sync() -> list[str]:
 # -- Helpers -------------------------------------------------------------------
 
 def _client() -> httpx.Client:
-    return httpx.Client(base_url=settings.base_url, timeout=120)
+    return httpx.Client(base_url=settings.base_url, timeout=120, headers={"Authorization": f"Bearer {settings.backend_api_token}"} if settings.backend_api_token else {})
 
 
 def _async_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(base_url=settings.base_url, timeout=120)
+    return httpx.AsyncClient(base_url=settings.base_url, timeout=120, headers={"Authorization": f"Bearer {settings.backend_api_token}"} if settings.backend_api_token else {})
 
 
 def _read_pid() -> int | None:
@@ -828,7 +829,7 @@ async def _repl(
     session_id: str | None = None, resume: bool = False
 ) -> None:
     """Interactive REPL: prompt -> stream response -> repeat."""
-    global _session_input, _session_output, _session_cost, _voice_input, _voice_mode
+    global _session_input, _session_output, _session_cost, _voice_input, _voice_mode, _active_cli_session
     _session_input = 0
     _session_output = 0
     _session_cost = 0.0
@@ -854,6 +855,7 @@ async def _repl(
     if not session_id:
         session_id = new_session_id()
 
+    _active_cli_session = session_id
     banner_extra = ""
     if resume and history:
         banner_extra = f"  \u2502  resumed {session_id} ({len(history)} msgs)"
@@ -968,6 +970,7 @@ async def _repl(
                         rid = payload or latest_session_id()
                         if rid:
                             session_id = rid
+                            _active_cli_session = rid
                             history = _load_session_history(session_id)
                             console.print(f"[dim]Resumed session {session_id} ({len(history)} messages)[/dim]")
                         else:
@@ -1124,33 +1127,45 @@ def _is_overloaded(exc: Exception) -> bool:
     return "overloaded" in err or "529" in err
 
 
+_active_cli_session: str | None = None
+
+
 async def _stream_once(
     agent, message: str, history: list[Message],
     poll_state: AgentPollState | None = None,
+    task_id: str | None = None,
 ):
-    """Single streaming attempt. Returns (response, renderer) or raises."""
+    """Render a durable backend run. The CLI no longer starts a second master."""
+    import uuid
     renderer = TurnRenderer(console, poll_state=poll_state)
-
-    async with renderer:
-        async for event in agent.handle_task_stream(
-            message, history=history, source="cli"
-        ):
-            if isinstance(event, TextDelta):
-                renderer.on_text_delta(event.text)
-            elif isinstance(event, ToolStart):
-                renderer.on_tool_start(event.name, event.input)
-            elif isinstance(event, ToolDone):
-                renderer.on_tool_done(event.name, event.result, event.is_error)
-            elif isinstance(event, UsageStats):
-                renderer.on_usage(event)
-            elif isinstance(event, CompactEvent):
-                renderer.on_compact(event)
-
-    return renderer.get_response(), renderer
+    task_id = task_id or str(uuid.uuid4())
+    async with renderer, _async_client() as client:
+        async with client.stream("POST", "/task/stream", json={
+            "task_id": task_id, "task": message, "source": "cli",
+            "session_id": _active_cli_session or task_id,
+            "history": [{"role": m.role, "content": m.content} for m in history[:-1]],
+        }, timeout=None) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                if line == "data: [DONE]":
+                    return renderer.get_response(), renderer
+                event = json.loads(line[6:])
+                kind = event.get("type")
+                if kind == "text": renderer.on_text_delta(event["text"])
+                elif kind == "tool_start": renderer.on_tool_start(event["name"], event["input"])
+                elif kind == "tool_done": renderer.on_tool_done(event["name"], event["result"], event["is_error"])
+                elif kind == "usage_stats":
+                    renderer.on_usage(UsageStats(**{k: event[k] for k in ("input_tokens", "output_tokens", "tokens_per_second", "context_window")}))
+                elif kind == "compact":
+                    renderer.on_compact(CompactEvent(**{k: event[k] for k in ("reason", "tokens_before", "tokens_after")}))
+                elif kind == "error": raise RuntimeError(event["error"])
+    raise RuntimeError(f"Connection interrupted. Task {task_id} remains available in the backend.")
 
 
 _MAX_RETRIES = 4
-_RETRY_DELAYS = [5, 15, 30, 60]
+_RETRY_DELAYS = [1, 2, 5, 10]
 
 # Session-level token accumulators
 _session_input = 0
@@ -1165,12 +1180,14 @@ async def _send_to_agent(
     """Stream a message to the agent, display output, return updated history + response."""
     global _session_input, _session_output, _session_cost
 
+    import uuid
+    request_id = str(uuid.uuid4())
     history.append(Message(role="user", content=message))
     console.print()
 
     for attempt in range(_MAX_RETRIES + 1):
         try:
-            response, renderer = await _stream_once(agent, message, history, poll_state=poll_state)
+            response, renderer = await _stream_once(agent, message, history, poll_state=poll_state, task_id=request_id)
 
             # Reprint compact notice (Live was transient)
             if renderer._compact_notice:
@@ -1244,25 +1261,25 @@ async def _send_to_agent(
             history.append(Message(role="assistant", content=response))
             return history, response, {}
 
-        except KeyboardInterrupt:
-            console.print("[dim]Interrupted[/dim]")
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            try:
+                async with _async_client() as client:
+                    response = await client.post(f"/tasks/{request_id}/cancel")
+                    response.raise_for_status()
+                console.print("[dim]Task cancelled[/dim]")
+            except Exception as cancel_error:
+                console.print(f"[magenta]Could not confirm cancellation of {request_id}: {cancel_error}[/magenta]")
             history.pop()
-            return history, "", {}
+            raise
 
         except Exception as exc:
-            if _is_overloaded(exc) and attempt < _MAX_RETRIES:
+            reconnectable = isinstance(exc, httpx.TransportError) or str(exc).startswith("Connection interrupted.")
+            if reconnectable and attempt < _MAX_RETRIES:
                 delay = _RETRY_DELAYS[attempt]
-                console.print(
-                    f"[yellow]API overloaded \u2014 retrying in {delay}s "
-                    f"(attempt {attempt + 1}/{_MAX_RETRIES})...[/yellow]"
-                )
+                console.print(f"[yellow]Connection interrupted — reattaching to task {request_id} in {delay}s...[/yellow]")
                 await asyncio.sleep(delay)
                 continue
-
-            if _is_overloaded(exc):
-                console.print("[magenta]API is overloaded after multiple retries. Try again later.[/magenta]")
-            else:
-                console.print(f"\n[magenta]Error:[/magenta] {exc}")
+            console.print(f"\n[magenta]Error:[/magenta] {exc} (task {request_id})")
             history.pop()
             return history, "", {}
 

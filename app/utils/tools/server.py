@@ -5,6 +5,7 @@ import signal
 import subprocess
 import sys
 import textwrap
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -126,58 +127,27 @@ def _schedule_deferred_restart(old_pid: int, cmd: list[str], delay: float = 3.0)
 
 
 def _resolve_resume_session(session_id: str) -> str:
-    """Pick the session the resumed task should stream into.
+    """Preserve the caller's session, including browser-only sessions.
 
-    A blank session here is not harmless: `_startup_resume` falls back to
-    ``session_id = task_id``, so the resumed turn runs on a synthetic session
-    the browser has never opened and is not subscribed to. Its output then goes
-    only to the per-agent activity channel — the user sees the agent-flow panel
-    fill up while the chat stays empty.
-
-    So when the caller has no session (or carries a synthetic one that is not a
-    real chat), fall back to the most recently used UI session, which is the
-    conversation the user was in when they asked for the restart.
+    A missing owner cannot safely be inferred from the last active browser or
+    CLI session: autonomous work may belong to neither of them.
     """
-    from app.cli.sessions import latest_session_id, session_path
+    from app.utils.conversation_store import _validate_session_id
 
     candidate = (session_id or "").strip()
-    if candidate:
-        try:
-            if session_path(candidate).exists():
-                return candidate  # a real chat session — keep it
-        except Exception:
-            pass
-
-    # The chat's own last session, recorded by /task/stream. This is the only
-    # signal that reliably identifies a session the BROWSER has open —
-    # latest_session_id() sees CLI logs, and the newest events/ directory is
-    # usually a previous synthetic resume session.
-    fallback = ""
-    try:
-        marker = settings.project_root / "data" / "last_ui_session"
-        if marker.exists():
-            fallback = marker.read_text(encoding="utf-8").strip()
-    except Exception:
-        fallback = ""
-    if not fallback:
-        try:
-            fallback = latest_session_id() or ""
-        except Exception:
-            fallback = ""
-    if fallback:
-        from loguru import logger as _sess_log
-        _sess_log.info(
-            "resume: no usable session on the restart call ({!r}) — binding to "
-            "latest UI session {} so the resumed turn streams into the chat",
-            candidate, fallback[:8],
-        )
-    return fallback
+    return _validate_session_id(candidate) if candidate else ""
 
 
 async def _save_resume_state(reason: str = "", next_action: str = "", session_id: str = "") -> str:
     """Gather agent state and write a structured RESUME.MD for post-restart continuity."""
     agents_dir = settings.agents_dir
-    session_id = _resolve_resume_session(session_id)
+    from app.backend.services.task_runtime import current_task_id
+    from app.utils.db import get_queued_task
+    origin_task_id = current_task_id.get() or ""
+    origin = get_queued_task(origin_task_id) if origin_task_id else None
+    # The executing run is an authoritative fallback for older callers that
+    # did not inject session_id into the tool constructor.
+    session_id = _resolve_resume_session((origin or {}).get("session_id") or session_id)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     active: list[str] = []
@@ -209,17 +179,26 @@ async def _save_resume_state(reason: str = "", next_action: str = "", session_id
 
     content = (
         f"---\n"
+        f"origin_task_id: {origin_task_id}\n"
         f"restart_at: {now}\n"
-        f"restart_reason: {reason}\n"
-        f"next_action: {next_action}\n"
-        f"session_id: {session_id}\n"
+        f"restart_reason: {json.dumps(reason, ensure_ascii=False)}\n"
+        f"next_action: {json.dumps(next_action, ensure_ascii=False)}\n"
+        f"session_id: {json.dumps(session_id)}\n"
         f"---\n\n"
         f"## Active agents\n"
         + ("\n".join(active) if active else "  (none)\n")
     )
 
     _RESUME_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _RESUME_FILE.write_text(content)
+    fd, temporary = tempfile.mkstemp(dir=_RESUME_FILE.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, _RESUME_FILE)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
     # Freeze the session's working transcript alongside RESUME.MD. RESUME.MD
     # carries only the next action; without this the actual conversation
@@ -227,9 +206,11 @@ async def _save_resume_state(reason: str = "", next_action: str = "", session_id
     if session_id:
         try:
             from app.cli.sessions import load_session
-            from app.utils.conversation_store import snapshot
+            from app.utils.conversation_store import load, snapshot
 
-            msgs = load_session(session_id) or []
+            # The tool loop snapshots its actual working context before a
+            # restart call. CLI history is only a fallback for standalone use.
+            msgs = (load_session(session_id) or []) if not load(session_id) else []
             if msgs:
                 transcript = "\n\n".join(
                     f"### {m.get('role', '?')}\n{m.get('content', '')}" for m in msgs

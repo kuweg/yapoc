@@ -6,8 +6,8 @@
   "agents": {
     "master": {
       "adapter": "deepseek",
-      "model": "deepseek-chat",
-      "temperature": 1,
+      "model": "DeepSeek-V4-Pro-0813",
+      "temperature": 0.3,
       "task_timeout": 300,
       "tools": [
         "file_read",
@@ -49,7 +49,8 @@
         "grep",
         "shell_exec",
         "delegate_task",
-        "search_negative_knowledge"
+        "search_negative_knowledge",
+        "render_chart"
       ],
       "max_tokens": 8192,
       "fallbacks": [
@@ -75,6 +76,7 @@
       "adapter": "deepseek",
       "model": "deepseek-chat",
       "_tools_note": "Authoritative tool source is app/agents/planning/CONFIG.yaml; this list is a fallback and must mirror it.",
+      "temperature": 0.3,
       "tools": [
         "file_read",
         "file_write",
@@ -100,7 +102,6 @@
         "delegate_task",
         "search_negative_knowledge"
       ],
-      "temperature": 1,
       "max_tokens": 8096,
       "task_timeout": 600,
       "fallbacks": [
@@ -351,6 +352,7 @@
       "model": "deepseek-chat",
       "temperature": 0.1,
       "max_tokens": 8096,
+      "task_timeout": 600,
       "tools": [
         "file_read",
         "file_write",
@@ -464,8 +466,88 @@
         "delegate_task",
         "search_negative_knowledge"
       ],
+      "mcp_servers": [
+        "playwright"
+      ],
       "temperature": 0.3,
       "max_tokens": 8096,
+      "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-5.4-mini"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-flash"
+        }
+      ]
+    },
+    "tester": {
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
+      "tools": [
+        "mcp__playwright__browser_navigate",
+        "mcp__playwright__browser_click",
+        "mcp__playwright__browser_fill",
+        "mcp__playwright__browser_snapshot",
+        "mcp__playwright__browser_screenshot",
+        "mcp__playwright__browser_evaluate",
+        "file_write",
+        "file_read",
+        "file_list",
+        "notify_parent"
+      ],
+      "mcp_servers": [
+        "playwright"
+      ],
+      "temperature": 0.2,
+      "max_tokens": 8096,
+      "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-5.4-mini"
+        }
+      ]
+    },
+    "mcp": {
+      "adapter": "deepseek",
+      "model": "deepseek-chat",
+      "tools": [
+        "mcp__playwright__browser_navigate",
+        "mcp__playwright__browser_click",
+        "mcp__playwright__browser_fill",
+        "mcp__playwright__browser_snapshot",
+        "mcp__playwright__browser_screenshot",
+        "mcp__playwright__browser_evaluate",
+        "mcp__context7__resolve-library-id",
+        "mcp__context7__query-docs",
+        "file_read",
+        "file_write",
+        "file_list",
+        "file_edit",
+        "file_delete",
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "notes_append",
+        "notify_parent",
+        "grep"
+      ],
+      "mcp_servers": [
+        "playwright",
+        "context7"
+      ],
+      "temperature": 0.2,
+      "max_tokens": 8096,
+      "idle_timeout": 3600,
       "fallbacks": [
         {
           "adapter": "deepseek",

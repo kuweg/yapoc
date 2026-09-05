@@ -302,6 +302,9 @@ class MoonshotAdapter(BaseLLMAdapter):
         if openai_tools:
             payload["tools"] = openai_tools
 
+        from app.utils.adapters.termination import require_complete, parse_tool_arguments
+        finish_reason = None
+        streamed_text: list[str] = []
         t_start = time.perf_counter()
 
         # Accumulators for streaming tool calls
@@ -332,6 +335,8 @@ class MoonshotAdapter(BaseLLMAdapter):
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])
+                    if chunk.get("error"):
+                        raise RuntimeError(f"Provider stream error: {chunk['error']}")
 
                     # Usage in final chunk
                     if chunk.get("usage"):
@@ -343,6 +348,8 @@ class MoonshotAdapter(BaseLLMAdapter):
                     if not choices:
                         continue
 
+                    if choices[0].get("finish_reason") is not None:
+                        finish_reason = choices[0]["finish_reason"]
                     delta = choices[0].get("delta", {})
 
                     # Reasoning content (kimi-k2 thinking models)
@@ -371,6 +378,7 @@ class MoonshotAdapter(BaseLLMAdapter):
                         if args_chunk := tc_delta.get("function", {}).get("arguments", ""):
                             tc_accum[idx]["arguments_parts"].append(args_chunk)
 
+        require_complete(finish_reason)
         elapsed = time.perf_counter() - t_start
 
         # Build tool calls and assistant_content
@@ -388,20 +396,7 @@ class MoonshotAdapter(BaseLLMAdapter):
         for idx in sorted(tc_accum):
             acc = tc_accum[idx]
             arguments_str = "".join(acc["arguments_parts"])
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError as exc:
-                _log.bind(
-                    tool=acc.get("name"), adapter="moonshot",
-                    parts=len(acc["arguments_parts"]),
-                ).warning(
-                    "Tool-call args failed to parse ({}): {!r}",
-                    exc, arguments_str[:400],
-                )
-                arguments = {
-                    "__adapter_parse_error__": str(exc)[:120],
-                    "__raw_args__": arguments_str[:400],
-                }
+            arguments = parse_tool_arguments(arguments_str)
 
             # Sanitize tool IDs so cross-adapter fallback (e.g. Anthropic,
             # which requires ``^[a-zA-Z0-9_-]+$``) accepts the replay.

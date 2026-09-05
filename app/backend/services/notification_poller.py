@@ -305,6 +305,7 @@ class NotificationPoller:
                 error=error,
                 session_id=str(fm.get("session_id", "") or ""),
                 task_id=str(fm.get("task_id", "") or ""),
+                parent_task_id=str(fm.get("parent_task_id", "") or ""),
             )
             self._notified.add(dedup_key)
             self._notified_dirty = True

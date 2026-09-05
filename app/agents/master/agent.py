@@ -16,8 +16,7 @@ class MasterAgent(BaseAgent):
         super().__init__(AGENTS_DIR / "master")
         self._run_lock = asyncio.Lock()
         self._started_at: str | None = None
-        # Mark master as idle immediately (it runs in-process, not via AgentRunner)
-        self._write_status("idle")
+        # Only the backend lifespan initializes runtime status.
 
     # ── Lifecycle accessors ──────────────────────────────────────────────
 
@@ -185,7 +184,6 @@ class MasterAgent(BaseAgent):
         source: str | None = None,
         session_id: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        from app.backend.services.notification_queue import notification_queue
         async with self._run_lock:
             previous_session_id = self._session_id
             if session_id is not None:
@@ -195,30 +193,7 @@ class MasterAgent(BaseAgent):
                     await self._maybe_trigger_indexer(f"session_start_{session_id}")
                 self._session_id = session_id
 
-            # Drain any results pushed by sub-agents via notify_parent.
-            # When session_id is bound, only consume that session's notifications.
-            pending = notification_queue.drain("master", session_id=self._session_id)
-            notifications_context = ""
-            if pending:
-                # Cap per-notification content + total block size so a chatty
-                # sub-agent (e.g. a long builder result) can't balloon
-                # master's system prompt and degrade response quality. The
-                # full text is always one `read_task_result` call away.
-                _MAX_PER_NOTIF = 1200
-                _MAX_BLOCK = 6000
-                lines = ["[SYSTEM NOTIFICATION — sub-agent results]"]
-                for n in pending:
-                    label = "DONE" if n["status"] == "done" else "ERROR"
-                    content = (n["result"] if n["status"] == "done" else n["error"]) or ""
-                    if len(content) > _MAX_PER_NOTIF:
-                        content = content[:_MAX_PER_NOTIF] + f"\n[…truncated, {len(content) - _MAX_PER_NOTIF} chars more — use read_task_result for full text]"
-                    lines.append(f"\n### Agent: {n['child_agent']} — {label}\n{content}")
-                notifications_context = "\n".join(lines)
-                if len(notifications_context) > _MAX_BLOCK:
-                    notifications_context = (
-                        notifications_context[:_MAX_BLOCK]
-                        + f"\n[…notification block truncated at {_MAX_BLOCK} chars]"
-                    )
+            notifications_context = ""  # Results arrive as durable delivery tasks.
 
             # Hydrate history from a persisted compaction checkpoint when
             # the session was previously compacted. Re-doing the compact on
@@ -299,7 +274,8 @@ class MasterAgent(BaseAgent):
                 _blocked = (
                     {"server_restart", "process_restart", "spawn_agent", "kill_agent", "shell_exec"}
                     if source == "notification"
-                    else None
+                    else {"server_restart", "process_restart", "kill_agent", "shell_exec"}
+                    if source == "continuation" else None
                 )
                 async for event in self.run_stream_with_tools(
                     history=history,

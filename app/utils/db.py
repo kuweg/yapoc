@@ -52,6 +52,13 @@ def init_schema() -> None:
     """Create tables if they don't exist. Safe to call multiple times."""
     db = get_db()
     db.executescript("""
+        CREATE TABLE IF NOT EXISTS task_events (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT NOT NULL,
+            payload TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_events ON task_events(task_id, seq);
+
         CREATE TABLE IF NOT EXISTS tasks (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             agent           TEXT NOT NULL,
@@ -467,6 +474,15 @@ def clear_session_tasks(session_id: str, source: str = "telegram") -> int:
     )
     db.commit()
     return cur.rowcount
+
+
+def session_tasks_queue(session_id: str, limit: int = 100) -> list[dict[str, Any]]:
+    """Recent runs owned by this conversation, independent of global activity."""
+    rows = get_db().execute(
+        "SELECT * FROM task_queue WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+        (session_id, limit),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def recent_tasks_queue(limit: int = 50, status: str | None = None) -> list[dict[str, Any]]:

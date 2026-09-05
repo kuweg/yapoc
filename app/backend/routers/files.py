@@ -77,7 +77,7 @@ async def upload_file(file: UploadFile = File(...)):
 
     dest_dir = settings.project_root / "data" / "telegram_media"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    fname = f"{uuid.uuid4()}_{file.filename}"
+    fname = f"{uuid.uuid4()}_{Path(file.filename or 'upload').name}"
     dest = dest_dir / fname
     dest.write_bytes(contents)
     result = {"path": f"data/telegram_media/{fname}", "type": "text" if text_content else "image"}
@@ -104,8 +104,10 @@ def _sandbox(path: str) -> Path:
     """Resolve path relative to project_root and ensure it stays within."""
     root = settings.project_root.resolve()
     resolved = (root / path).resolve()
-    if not str(resolved).startswith(str(root)):
+    if not resolved.is_relative_to(root):
         raise ValueError(f"Path '{path}' escapes project root")
+    if any(part.startswith(".env") and part != ".env.example" for part in resolved.relative_to(root).parts) or resolved.suffix.lower() in {".pem", ".key"} or ".git" in resolved.relative_to(root).parts:
+        raise ValueError("Sensitive files are not available through the file browser")
     return resolved
 
 
@@ -117,9 +119,15 @@ def _build_tree(abs_path: Path, rel_base: Path, depth: int, max_depth: int) -> l
         return nodes
 
     for entry in entries:
-        if entry.name.startswith(".") and entry.name not in (".env",):
+        if entry.name.startswith("."):
             continue
         if entry.name in _SKIP_DIRS:
+            continue
+        try:
+            _sandbox(str(entry.relative_to(rel_base)))
+        except ValueError:
+            continue
+        if entry.is_symlink():
             continue
         rel = entry.relative_to(rel_base)
         if entry.is_dir():

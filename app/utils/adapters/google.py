@@ -255,6 +255,8 @@ class GoogleAdapter(BaseLLMAdapter):
             # flash models without _pb proto access → skip thinking config
             # entirely (Gemini 2.5 Flash thinks by default without config).
 
+        from app.utils.adapters.termination import require_complete, parse_tool_arguments
+        finish_reason = None
         t_start = time.perf_counter()
         input_tokens = 0
         output_tokens = 0
@@ -271,6 +273,9 @@ class GoogleAdapter(BaseLLMAdapter):
         )
         _synthetic_id_counter = 0
         async for chunk in stream:
+            for candidate in chunk.candidates or []:
+                if candidate.finish_reason:
+                    finish_reason = getattr(candidate.finish_reason, "value", candidate.finish_reason)
             if chunk.text:
                 assistant_text_parts.append(chunk.text)
                 yield TextDelta(chunk.text)
@@ -288,7 +293,7 @@ class GoogleAdapter(BaseLLMAdapter):
                         _fc_id = f"gemini_fc_{_synthetic_id_counter}"
                     if _fc_id not in seen_call_ids:
                         seen_call_ids.add(_fc_id)
-                        args = fc.args if isinstance(fc.args, dict) else {}
+                        args = parse_tool_arguments(fc.args if fc.args is not None else {})
                         tc = ToolCall(id=_fc_id, name=fc.name or "", input=args)
                         tool_calls.append(tc)
                         yield ToolStart(name=tc.name, input=tc.input)
@@ -297,6 +302,7 @@ class GoogleAdapter(BaseLLMAdapter):
                 input_tokens = chunk.usage_metadata.prompt_token_count or 0
                 output_tokens = chunk.usage_metadata.candidates_token_count or 0
 
+        require_complete(finish_reason)
         elapsed = time.perf_counter() - t_start
         tps = output_tokens / elapsed if elapsed > 0 else 0.0
 

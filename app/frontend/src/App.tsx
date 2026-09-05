@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSessionStore } from './store/session'
 import { useAppStore } from './store/appStore'
 import { useAgentChatStore } from './store/agentChatStore'
@@ -22,10 +22,11 @@ import { CommandPalette } from './components/CommandPalette'
 import { NotificationBell, NotificationCenter } from './components/NotificationCenter'
 import { ConnectionStatus } from './components/ConnectionStatus'
 import { MasterProgressPill } from './components/MasterProgressPill'
+import SpeakingSphere from './components/SpeakingSphere'
 import { useWindowsStore } from './store/windowsStore'
 import { useWebSocket } from './hooks/useWebSocket'
 
-export default function App() {
+function Workspace() {
   // Establish persistent WebSocket connection for real-time events
   useWebSocket()
   const newSession = useSessionStore((s) => s.newSession)
@@ -58,6 +59,7 @@ export default function App() {
   function AppHeader() {
     return (
       <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
+        <SpeakingSphere />
         <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
         <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5 overflow-x-auto max-w-full nav-scroll" role="tablist" aria-label="Main sections">
           <NavButton id="chat" label="Chat" />
@@ -113,6 +115,7 @@ export default function App() {
       {/* ── Chat tab header (only visible when chat is active) ── */}
       {tab === 'chat' ? (
         <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
+          <SpeakingSphere />
           <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
 
           {/* Nav tabs */}
@@ -270,4 +273,52 @@ export default function App() {
 
     </div>
   )
+}
+
+
+export default function App() {
+  const [authenticated, setAuthenticated] = useState(false)
+  const [checking, setChecking] = useState(true)
+  const [token, setToken] = useState('')
+  const [error, setError] = useState('')
+  const check = () => {
+    setError('')
+    setChecking(true)
+    fetch('/api/auth/status').then((r) => {
+      if (!r.ok) throw new Error('Backend unavailable')
+      return r.json()
+    }).then((data) => {
+      setAuthenticated(Boolean(data.authenticated))
+      if (!data.authenticated && !data.configured) setError('Remote access requires BACKEND_API_TOKEN on the backend.')
+    }).catch((e) => setError(String(e))).finally(() => setChecking(false))
+  }
+  useEffect(check, [])
+  if (authenticated) return <Workspace />
+  return <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
+    <form className="space-y-4 w-80" onSubmit={async (event) => {
+      event.preventDefault()
+      setError('')
+      try {
+        const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) })
+        if (!response.ok) throw new Error('Access token was not accepted')
+        setToken('')
+        check()
+      } catch (e) { setError(String(e)) }
+    }}>
+      <h1 className="text-xl">YAPOC backend access</h1>
+      {checking ? <p>Connecting…</p> : <>
+        <label className="block">Access token<input className="block w-full bg-zinc-800 p-2" type="password" autoComplete="current-password" value={token} onChange={(e) => setToken(e.target.value)} /></label>
+        <button className="px-4 py-2 bg-zinc-700" type="submit">Connect</button>
+        <button className="px-4 py-2" type="button" onClick={check}>Retry connection</button>
+        {error && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) && <button className="px-4 py-2" type="button" onClick={async () => {
+          try {
+            const response = await fetch('/__yapoc/start', { method: 'POST' })
+            if (!response.ok) throw new Error('Start the backend with yapoc start, then retry the connection.')
+            setError('Backend starting. Retry the connection in a few seconds.')
+          } catch (e) { setError(String(e)) }
+        }}>Start local backend</button>}
+      </>}
+      {error && <p role="alert">{error}</p>}
+    </form>
+  </main>
 }

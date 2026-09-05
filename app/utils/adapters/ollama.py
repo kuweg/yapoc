@@ -143,8 +143,11 @@ class OllamaAdapter(BaseLLMAdapter):
         if ollama_tools:
             payload["tools"] = ollama_tools
 
+        from app.utils.adapters.termination import require_complete, parse_tool_arguments
+        finish_reason = None
         t_start = time.perf_counter()
         all_tool_calls: list[dict[str, Any]] = []
+        text_parts: list[str] = []
         prompt_eval_count = 0
         eval_count = 0
 
@@ -167,6 +170,7 @@ class OllamaAdapter(BaseLLMAdapter):
 
                     # Text content
                     if content := message.get("content", ""):
+                        text_parts.append(content)
                         yield TextDelta(content)
 
                     # Tool calls — Ollama returns full tool_calls in message (not delta)
@@ -174,25 +178,27 @@ class OllamaAdapter(BaseLLMAdapter):
                         all_tool_calls.extend(tc_list)
 
                     # Usage stats from final chunk (done=true)
+                    if chunk.get("error"):
+                        raise RuntimeError(str(chunk["error"]))
                     if chunk.get("done"):
+                        finish_reason = chunk.get("done_reason", "stop")
                         prompt_eval_count = chunk.get("prompt_eval_count", 0)
                         eval_count = chunk.get("eval_count", 0)
 
+        require_complete(finish_reason)
         elapsed = time.perf_counter() - t_start
 
         # Build tool calls and assistant_content
         tool_calls: list[ToolCall] = []
         assistant_content: list[dict[str, Any]] = []
+        if text_parts:
+            assistant_content.append({"type": "text", "text": "".join(text_parts)})
 
         for i, tc_data in enumerate(all_tool_calls):
             func = tc_data.get("function", {})
             name = func.get("name", "")
             arguments = func.get("arguments", {})
-            if isinstance(arguments, str):
-                try:
-                    arguments = json.loads(arguments)
-                except json.JSONDecodeError:
-                    arguments = {}
+            arguments = parse_tool_arguments(arguments)
 
             tc_id = f"call_{i}"
             tc = ToolCall(id=tc_id, name=name, input=arguments)

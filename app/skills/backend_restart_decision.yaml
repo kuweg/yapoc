@@ -1,0 +1,31 @@
+name: backend_restart_decision
+summary: Decide whether a code/config change requires a backend restart
+description: |
+  Determines whether a completed file mutation (by builder/keeper or self)
+  requires a server_restart to take effect, or whether a page refresh or
+  no action suffices. Encodes the project's restart rules so agents stop
+  over-restarting (frontend-only changes) and under-restarting (Python/config
+  mutations).
+level_1: "Decide if a change needs a backend restart (vs. refresh or nothing)"
+level_2: |
+  Inputs:
+  - change_type: one of 'python' | 'config' | 'frontend' | 'prompt' | 'env'
+  - files_changed: list of paths touched by the mutation
+  - source: 'ui' | 'telegram' | 'notification' (user source context)
+  Output: one of 'server_restart' | 'refresh_only' | 'no_action'
+level_3: |
+  Procedure:
+  1. Classify the change by what was mutated:
+     - Python files (app/**/*.py), agent-settings.json, CONFIG.yaml, .env
+       → backend code/config path → RESTART
+     - Frontend only (JS/TSX/CSS/HTML under app/frontend) → REFRESH_ONLY
+     - Agent prompt files only (MEMORY.MD, NOTES.MD, LEARNINGS.MD, PROMPT.MD)
+       → NO_ACTION (takes effect next turn, no restart needed)
+  2. If RESTART: call server_restart with reason= and next_action= so work
+     resumes after. In 'ui' source, warn the user of a brief disconnect first.
+     Do NOT ask permission (auto-restart is the standing rule).
+  3. If REFRESH_ONLY: do NOT call server_restart. Tell the user
+     "Built — refresh the page to see changes" and let them decide when.
+  4. If NO_ACTION: do nothing further.
+  5. Never restart during a background notification/autonomous task — finish
+     the user-facing summary first.

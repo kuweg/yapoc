@@ -25,7 +25,7 @@ from loguru import logger
 from app.backend.message_bus import bus
 from app.backend.services import _read_status_json
 from app.config import settings
-from app.utils.db import recent_tasks_queue
+from app.utils.db import recent_tasks_queue, session_tasks_queue
 
 
 class WebSocketManager:
@@ -140,6 +140,12 @@ class WebSocketManager:
             if session_id not in self._session_subscribers:
                 self._session_subscribers[session_id] = set()
             self._session_subscribers[session_id].add(ws)
+        # Replay after subscription so a completion during reconnect is either
+        # in this snapshot or delivered live. Client IDs deduplicate overlap.
+        await ws.send_text(json.dumps({
+            "type": "session_sync", "session_id": session_id,
+            "tasks": session_tasks_queue(session_id),
+        }))
         logger.debug(f"WebSocket subscribed to session {session_id}")
 
     async def unsubscribe_session(self, ws: WebSocket, session_id: str) -> None:

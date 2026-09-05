@@ -115,3 +115,10 @@
 - **Action:** Before delegating ANY task likely to need >12 tool-call turns (large multi-hundred-line code-gen, complex rewrites, deep investigation), read app/agents/builder/CONFIG.yaml runner.max_turns. If the task needs more than that budget, either (a) raise max_turns for that one job then revert after, or (b) chunk into small idempotent sub-tasks. NEVER re-send an over-budget task unchanged — a task that died once at a mechanical cap will die the same way every time.
 - **Confidence:** high
 
+
+## Rule: Grep all layers (utils + base hooks + executor) before claiming a gap
+- **Observed:** 2026-09-02
+- **Context:** Observed 2026-09-02: I pitched #1 (webhook error/timeout callbacks) and #2 (2-strikes per-agent Telegram alert) as missing; both were fully implemented (dispatcher.py delivers callbacks on success/timeout/error; agent_failure_tracker.py + base agent hook implement the alert).
+- **Action:** Before proposing ANY feature as missing, grep the ENTIRE repo (shell: `grep -rn CONCEPT app/ --include="*.py"`) across ALL layers: routers, dispatchers/executors, base-agent task-finalization hooks, AND app/utils/*.py helper modules. A feature looks absent when (a) it lives in a dedicated app/utils module with a module docstring I never opened, (b) the inbound router exists but I checked only that file, or (c) the base agent's set_task_status hook already calls the tracker. I produced FALSE 'missing-feature' claims 3 times in one session by reading only one surface each time. Grep across utils/ + base hooks + executors to prove the absence before delegating a build.
+- **Confidence:** high
+

@@ -117,7 +117,7 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
   // value itself isn't read, only the setter is used as a render trigger.
   const [, setHasRealData] = useState(false)
   const hydratedRef = useRef(false)
-  const lastLenRef = useRef(0)
+  const lastEventRef = useRef<AgentEvent | null>(null)
 
   // Subscribe to real-time agent events from WebSocket
   const wsEvents = useWsStore((s) => s.agentEvents[agentName])
@@ -155,10 +155,10 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
   // Process new WebSocket events as they arrive
   useEffect(() => {
     if (!wsEvents || wsEvents.length === 0) return
-    const currentLen = wsEvents.length
-    if (currentLen <= lastLenRef.current) return
-    const newEvents = wsEvents.slice(lastLenRef.current)
-    lastLenRef.current = currentLen
+    const previous = lastEventRef.current
+    const previousIndex = previous ? wsEvents.indexOf(previous) : -1
+    const newEvents = wsEvents.slice(previousIndex + 1)
+    lastEventRef.current = wsEvents[wsEvents.length - 1]
 
     const converted: AgentActivityLog[] = []
     for (const ev of newEvents) {
@@ -177,7 +177,8 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
 
   // Reset when agent changes
   useEffect(() => {
-    lastLenRef.current = 0
+    setActivities([])
+    lastEventRef.current = null
     hydratedRef.current = false
     setHasRealData(false)
   }, [agentName])

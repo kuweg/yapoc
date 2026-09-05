@@ -88,7 +88,7 @@ class GrepTool(BaseTool):
         ignore_case: bool = False,
     ) -> str:
         target = self._verify_path(path)
-        cmd = ["grep", "-rn"]
+        cmd = ["grep", "-E", "-rn"]
         if ignore_case:
             cmd.append("-i")
         if include:

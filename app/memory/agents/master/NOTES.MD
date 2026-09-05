@@ -108,3 +108,6 @@ Implementation status:
 - ✅ Concilium engine `app/utils/concilium.py` has `ConciliumOrchestrator.deliberate()` returning `{status, approved_plan|escalation_summary}`; full record per session under `app/agents/concilium/<session_id>/`.
 - ⚠️ The one gap was MASTER's behavior: I kept treating concilium as advisory-on-top-of-planning and asking the user to decide, instead of enforcing the ≥9 hard-routing rule myself. Fixed by this policy note + auto-injected learned rule: complexity>=9 → delegate to concilium first, execute only on approved plan.
 
+
+Tool-config resolution verified 2026-09-02: For MASTER, agent-settings.json has no `tools` key (returns []), so the agent's `CONFIG.yaml` `tools:` block is the sole authority (via BaseAgent._load_tool_names). agent-settings.json tools are only a fallback when CONFIG.yaml has no tools block. The CONFIG.yaml header comment claiming agent-settings.json is authoritative is misleading for tool lists. To add a tool to master: edit app/agents/master/CONFIG.yaml tools block, then restart server.
+

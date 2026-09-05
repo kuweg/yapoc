@@ -15,6 +15,14 @@ function backendControlPlugin(): Plugin {
     name: 'yapoc-backend-control',
     configureServer(server) {
       server.middlewares.use('/__yapoc/start', (req, res) => {
+        const remote = req.socket.remoteAddress ?? ''
+        const hostname = new URL(`http://${req.headers.host || 'invalid'}`).hostname
+        const originHost = req.headers.origin ? new URL(req.headers.origin).hostname : hostname
+        if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote) || !['localhost', '127.0.0.1', '[::1]'].includes(hostname) || originHost !== hostname) {
+          res.statusCode = 403
+          res.end(JSON.stringify({ error: 'Backend control is local only' }))
+          return
+        }
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end(JSON.stringify({ error: 'POST only' }))
@@ -45,10 +53,12 @@ function backendControlPlugin(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), backendControlPlugin()],
   server: {
+    host: '127.0.0.1',
     proxy: {
       '/api': {
         target: `http://127.0.0.1:${backendPort}`,
-        changeOrigin: true,
+        changeOrigin: false,
+        xfwd: true,
         // Strip /api so frontend `/api/foo` hits the backend's `/foo` route.
         // All FastAPI routers (tasks, agents, voice, etc.) are mounted at
         // root; this rewrite keeps the frontend's `/api/*` convention without
@@ -64,7 +74,8 @@ export default defineConfig({
       '/ws': {
         target: `ws://127.0.0.1:${backendPort}`,
         ws: true,
-        changeOrigin: true,
+        changeOrigin: false,
+        xfwd: true,
       },
     },
     watch: {

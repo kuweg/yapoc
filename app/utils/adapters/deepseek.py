@@ -422,6 +422,9 @@ class DeepSeekAdapter(BaseLLMAdapter):
         if openai_tools:
             payload["tools"] = openai_tools
 
+        from app.utils.adapters.termination import require_complete, parse_tool_arguments
+        finish_reason = None
+        streamed_text: list[str] = []
         t_start = time.perf_counter()
 
         tc_accum: dict[int, dict[str, Any]] = {}
@@ -451,6 +454,8 @@ class DeepSeekAdapter(BaseLLMAdapter):
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])
+                    if chunk.get("error"):
+                        raise RuntimeError(f"Provider stream error: {chunk['error']}")
 
                     if chunk.get("usage"):
                         usage = chunk["usage"]
@@ -461,6 +466,8 @@ class DeepSeekAdapter(BaseLLMAdapter):
                     if not choices:
                         continue
 
+                    if choices[0].get("finish_reason") is not None:
+                        finish_reason = choices[0]["finish_reason"]
                     delta = choices[0].get("delta", {})
 
                     if reasoning := delta.get("reasoning_content"):
@@ -491,6 +498,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
         raw_xml = "".join(text_parts)
         parsed_tool_calls = _parse_raw_tool_calls(raw_xml)
 
+        require_complete(finish_reason)
         elapsed = time.perf_counter() - t_start
 
         tool_calls: list[ToolCall] = []
@@ -524,25 +532,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
         for idx in sorted(tc_accum):
             acc = tc_accum[idx]
             arguments_str = "".join(acc["arguments_parts"])
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError as exc:
-                # Same rationale as the openai adapter: don't silently
-                # fall back to {} — it masks the parse failure and the
-                # downstream tool reports a misleading "empty input"
-                # error. Sentinel keys let the tool surface the real
-                # cause to the model.
-                _log.bind(
-                    tool=acc.get("name"), adapter="deepseek",
-                    parts=len(acc["arguments_parts"]),
-                ).warning(
-                    "Tool-call args failed to parse ({}): {!r}",
-                    exc, arguments_str[:400],
-                )
-                arguments = {
-                    "__adapter_parse_error__": str(exc)[:120],
-                    "__raw_args__": arguments_str[:400],
-                }
+            arguments = parse_tool_arguments(arguments_str)
 
             sanitized_id = sanitize_tool_id(acc["id"])
             tc = ToolCall(id=sanitized_id, name=acc["name"], input=arguments)

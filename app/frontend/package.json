@@ -11,6 +11,7 @@
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",
+    "echarts": "^6.1.0",
     "framer-motion": "^12.38.0",
     "highlight.js": "^11.11.1",
     "react": "^19.0.0",

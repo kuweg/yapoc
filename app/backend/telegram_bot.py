@@ -26,6 +26,7 @@ import httpx
 from loguru import logger
 
 from app.config import settings
+from app.backend.ttt_game import TicTacToe, render_board
 from app.utils.db import create_queued_task, get_queued_task, clear_session_tasks
 
 # ── Constants ──────────────────────────────────────────────────────────────
@@ -239,6 +240,9 @@ class TelegramBot:
         # Progress bar + typing indicator persistence
         self._progress_active: set[str] = set()   # task_ids with active progress updaters
         self._streaming_active: set[str] = set()  # task_ids where streaming editor has kicked in
+        # Tic-Tac-Toe games keyed by chat_id (int → TicTacToe)
+        self._ttt_games: dict[int, TicTacToe] = {}
+        self._load_ttt_games()
         # Load persisted tracked messages so /clear works across restarts
         TelegramBot._load_tracked_messages()
         # Load persisted offset + processed update IDs so a post-restart
@@ -412,6 +416,10 @@ class TelegramBot:
                     if edited_message is not None:
                         await self._handle_edited_message(edited_message)
 
+                    callback_query = update.get("callback_query")
+                    if callback_query is not None:
+                        await self._handle_callback_query(callback_query)
+
                 # Prune processed IDs periodically to prevent unbounded memory
                 # growth. Keep only the last 1000 IDs — far more than any
                 # realistic duplicate window.
@@ -473,7 +481,7 @@ class TelegramBot:
         params = {
             "offset": offset,
             "timeout": timeout,
-            "allowed_updates": ["message", "edited_message"],
+            "allowed_updates": ["message", "edited_message", "callback_query"],
         }
         for attempt in range(MAX_RETRIES):
             try:
@@ -763,13 +771,14 @@ class TelegramBot:
                     continue
         return None
 
-    async def _send_message(self, chat_id: int, text: str, reply_to_message_id: int | None = None) -> int | None:
+    async def _send_message(self, chat_id: int, text: str, reply_to_message_id: int | None = None, reply_markup: dict | None = None) -> int | None:
         """Send a text message to a Telegram chat.
 
         Args:
             chat_id: Target chat ID.
             text: Message text to send.
             reply_to_message_id: If set, the message will reply to the given message.
+            reply_markup: Optional inline keyboard (dict with "inline_keyboard").
 
         Returns the message_id on success, None on failure.
         """
@@ -783,7 +792,7 @@ class TelegramBot:
             last_id: int | None = None
             for i, chunk in enumerate(chunks):
                 chunk_reply = reply_to_message_id if i == 0 else None
-                chunk_id = await self._send_message(chat_id, chunk, reply_to_message_id=chunk_reply)
+                chunk_id = await self._send_message(chat_id, chunk, reply_to_message_id=chunk_reply, reply_markup=reply_markup if i == len(chunks) - 1 else None)
                 if chunk_id is not None:
                     last_id = chunk_id
             return last_id
@@ -796,6 +805,8 @@ class TelegramBot:
         }
         if reply_to_message_id is not None:
             payload["reply_to_message_id"] = reply_to_message_id
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
 
         await self._rate_limiter.wait_if_needed(chat_id)
         # Re-send typing right before the actual POST so it stays visible
@@ -858,7 +869,7 @@ class TelegramBot:
                 continue
         return None
 
-    async def _edit_message(self, chat_id: int, message_id: int, text: str, parse_mode: str | None = "HTML") -> bool:
+    async def _edit_message(self, chat_id: int, message_id: int, text: str, parse_mode: str | None = "HTML", reply_markup: dict | None = None) -> bool:
         """Edit a previously sent message.
 
         Args:
@@ -866,6 +877,7 @@ class TelegramBot:
             message_id: ID of the message to edit.
             text: New text content.
             parse_mode: Parse mode ("HTML", "MarkdownV2", or None for plain text).
+            reply_markup: Optional inline keyboard (dict with "inline_keyboard").
 
         Returns True on success, False on failure.
         """
@@ -877,6 +889,8 @@ class TelegramBot:
         }
         if parse_mode:
             payload["parse_mode"] = parse_mode
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
 
         await self._rate_limiter.wait_if_needed(chat_id)
 
@@ -919,6 +933,114 @@ class TelegramBot:
                     continue
             except httpx.RequestError as exc:
                 logger.warning("Telegram API unreachable (editMessageText): {}", exc)
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAY)
+                continue
+        return False
+
+    async def _answer_callback_query(self, callback_query_id: str, text: str | None = None) -> bool:
+        """Answer a callback query (dismisses the button's loading spinner).
+
+        Args:
+            callback_query_id: The callback query id to answer.
+            text: Optional short notification text shown to the user.
+
+        Returns True on success, False on failure.
+        """
+        url = TELEGRAM_API_BASE.format(token=self.token, method="answerCallbackQuery")
+        payload: dict = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await self._client.post(url, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("ok"):
+                        return True
+                    logger.warning(
+                        "Telegram API error (answerCallbackQuery): {}",
+                        data.get("description", "unknown"),
+                    )
+                    return False
+                elif response.status_code == 429:
+                    retry_after = int(response.headers.get("Retry-After", RETRY_DELAY))
+                    logger.warning(
+                        "Telegram rate limited (answerCallbackQuery): retry after {}s",
+                        retry_after,
+                    )
+                    await asyncio.sleep(retry_after)
+                    continue
+                else:
+                    logger.warning(
+                        "Telegram API HTTP {} (answerCallbackQuery): {}",
+                        response.status_code,
+                        response.text[:200],
+                    )
+                    if attempt < MAX_RETRIES - 1:
+                        await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except httpx.RequestError as exc:
+                logger.warning("Telegram API unreachable (answerCallbackQuery): {}", exc)
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(RETRY_DELAY)
+                continue
+        return False
+
+    async def _edit_message_reply_markup(self, chat_id: int, message_id: int, reply_markup: dict | None) -> bool:
+        """Edit only the reply markup (inline keyboard) of a message.
+
+        Pass ``reply_markup=None`` to remove the keyboard entirely.
+
+        Returns True on success, False on failure.
+        """
+        url = TELEGRAM_API_BASE.format(token=self.token, method="editMessageReplyMarkup")
+        payload: dict = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
+
+        await self._rate_limiter.wait_if_needed(chat_id)
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await self._client.post(url, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("ok"):
+                        self._rate_limiter.record_send(chat_id)
+                        return True
+                    desc = data.get("description", "unknown")
+                    if "message is not modified" in desc.lower():
+                        self._rate_limiter.record_send(chat_id)
+                        return True
+                    logger.warning(
+                        "Telegram API error (editMessageReplyMarkup): {}",
+                        desc,
+                    )
+                    return False
+                elif response.status_code == 429:
+                    retry_after = int(response.headers.get("Retry-After", RETRY_DELAY))
+                    logger.warning(
+                        "Telegram rate limited (editMessageReplyMarkup): retry after {}s",
+                        retry_after,
+                    )
+                    await asyncio.sleep(retry_after)
+                    continue
+                else:
+                    logger.warning(
+                        "Telegram API HTTP {} (editMessageReplyMarkup): {}",
+                        response.status_code,
+                        response.text[:200],
+                    )
+                    if attempt < MAX_RETRIES - 1:
+                        await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except httpx.RequestError as exc:
+                logger.warning("Telegram API unreachable (editMessageReplyMarkup): {}", exc)
                 if attempt < MAX_RETRIES - 1:
                     await asyncio.sleep(RETRY_DELAY)
                 continue
@@ -1379,6 +1501,198 @@ class TelegramBot:
 
         return ""
 
+    # ── Tic-Tac-Toe game ───────────────────────────────────────────────────
+
+    def _ttt_state_path(self):
+        return settings.project_root / "data" / "ttt_games.json"
+
+    def _load_ttt_games(self) -> None:
+        """Load persisted per-chat Tic-Tac-Toe games from disk (best-effort)."""
+        try:
+            path = self._ttt_state_path()
+            if not path.exists():
+                return
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            for chat_id_str, state in raw.items():
+                try:
+                    game = TicTacToe()
+                    game.board = list(state.get("board", [""] * 9))
+                    game.human = state.get("human", "X")
+                    game.ai = state.get("ai", "O")
+                    game.winner = state.get("winner")
+                    game.draw = bool(state.get("draw", False))
+                    game.current_turn = state.get("current_turn", game.human)
+                    game.game_over = bool(state.get("game_over", False))
+                    game.move_count = int(state.get("move_count", 0))
+                    self._ttt_games[int(chat_id_str)] = game
+                except Exception:
+                    continue
+        except Exception as exc:
+            logger.warning("Telegram bot: failed to load ttt games: {}", exc)
+
+    def _save_ttt_games(self) -> None:
+        """Persist per-chat Tic-Tac-Toe games to disk (best-effort)."""
+        try:
+            path = self._ttt_state_path()
+            payload = {}
+            for chat_id, game in self._ttt_games.items():
+                payload[str(chat_id)] = {
+                    "board": game.board,
+                    "human": game.human,
+                    "ai": game.ai,
+                    "winner": game.winner,
+                    "draw": game.draw,
+                    "current_turn": game.current_turn,
+                    "game_over": game.game_over,
+                    "move_count": game.move_count,
+                }
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(payload), encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Telegram bot: failed to save ttt games: {}", exc)
+
+    @staticmethod
+    def _ttt_keyboard(board: list[str]) -> dict:
+        """Build a 3x3 inline keyboard (plus a control row) for the board."""
+        rows = []
+        for r in range(3):
+            row = []
+            for c in range(3):
+                idx = r * 3 + c
+                sym = board[idx]
+                label = sym if sym else "·"
+                row.append({"text": label, "callback_data": f"ttt:{idx}"})
+            rows.append(row)
+        rows.append([
+            {"text": "🔄 Restart", "callback_data": "ttt:restart"},
+            {"text": "❌ Quit", "callback_data": "ttt:quit"},
+        ])
+        return {"inline_keyboard": rows}
+
+    @staticmethod
+    def _ttt_caption(game) -> str:
+        """Compose the HTML caption for a game message."""
+        board_text = render_board(game.board)
+        header = (
+            "🎮 <b>Tic-Tac-Toe vs YAPOC</b>\n\n"
+            f"You are <b>{game.human}</b> · YAPOC is <b>{game.ai}</b>\n\n"
+            f"<pre>{board_text}</pre>\n\n"
+        )
+        if game.game_over:
+            if game.winner == game.human:
+                return header + "🏆 <b>You win!</b>"
+            elif game.winner == game.ai:
+                return header + "🤖 <b>YAPOC wins!</b>"
+            else:
+                return header + "🤝 <b>It's a draw!</b>"
+        if game.current_turn == game.ai:
+            return header + "YAPOC is thinking…"
+        return header + "Your turn — tap a cell."
+
+    async def _start_ttt(self, chat_id: int, reply_to_message_id: int | None = None) -> None:
+        """Start (or restart) a Tic-Tac-Toe game for a chat."""
+        game = TicTacToe(human="X", ai="O")
+        self._ttt_games[chat_id] = game
+        self._save_ttt_games()
+        caption = self._ttt_caption(game)
+        await self._send_message(
+            chat_id,
+            caption,
+            reply_to_message_id=reply_to_message_id,
+            reply_markup=self._ttt_keyboard(game.board),
+        )
+
+    async def _handle_callback_query(self, cq: dict) -> None:
+        """Process a single callback_query update (inline button press)."""
+        cq_id = cq.get("id")
+        message = cq.get("message") or {}
+        chat = message.get("chat") or {}
+        chat_id = chat.get("id")
+        message_id = message.get("message_id")
+        data = cq.get("data", "") or ""
+        from_user = cq.get("from") or {}
+        user_id = from_user.get("id")
+
+        # Always answer first so the button's loading spinner clears.
+        if cq_id:
+            await self._answer_callback_query(cq_id)
+
+        if chat_id is None or message_id is None:
+            return
+
+        if data.startswith("ttt"):
+            await self._handle_ttt_callback(chat_id, message_id, data, user_id)
+
+    async def _handle_ttt_callback(self, chat_id: int, message_id: int, data: str, user_id: int | None) -> None:
+        """Handle a tic-tac-toe inline button press.
+
+        The callback query has already been answered (spinner dismissed) by
+        ``_handle_callback_query``, so this method only mutates game state and
+        edits the board message.
+        """
+        game = self._ttt_games.get(chat_id)
+        if game is None:
+            await self._send_message(chat_id, "No active game — send /ttt to start.")
+            return
+
+        if data == "ttt:restart":
+            game.reset()
+            self._save_ttt_games()
+            await self._edit_message(chat_id, message_id, self._ttt_caption(game), reply_markup=self._ttt_keyboard(game.board))
+            return
+
+        if data == "ttt:quit":
+            self._ttt_games.pop(chat_id, None)
+            self._save_ttt_games()
+            await self._edit_message(
+                chat_id,
+                message_id,
+                "🎮 Game ended. Send <code>/ttt</code> to play again.",
+            )
+            await self._edit_message_reply_markup(chat_id, message_id, None)
+            return
+
+        # Cell press: data == "ttt:<idx>"
+        if not data.startswith("ttt:"):
+            return
+        try:
+            idx = int(data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            return
+
+        if game.game_over:
+            return
+        if game.current_turn != game.human:
+            return
+        if not game.make_move(idx):
+            return
+
+        # Show the human's move first.
+        await self._edit_message(chat_id, message_id, self._ttt_caption(game), reply_markup=self._ttt_keyboard(game.board))
+
+        if game.game_over:
+            # Human won or drew.
+            await self._edit_message(chat_id, message_id, self._ttt_caption(game))
+            await self._edit_message_reply_markup(chat_id, message_id, None)
+            self._ttt_games.pop(chat_id, None)
+            self._save_ttt_games()
+            return
+
+        # Brief pause so the AI move feels natural and avoids an edit race.
+        await asyncio.sleep(0.6)
+
+        ai_idx = game.ai_move()
+        if ai_idx >= 0:
+            game.make_move(ai_idx)
+
+        if game.game_over:
+            await self._edit_message(chat_id, message_id, self._ttt_caption(game))
+            await self._edit_message_reply_markup(chat_id, message_id, None)
+            self._ttt_games.pop(chat_id, None)
+            self._save_ttt_games()
+        else:
+            await self._edit_message(chat_id, message_id, self._ttt_caption(game), reply_markup=self._ttt_keyboard(game.board))
+
     async def _handle_message(self, msg: dict) -> None:
         """Process a single incoming message.
 
@@ -1647,7 +1961,8 @@ class TelegramBot:
                 "/start — Show this welcome message\n"
                 "/help — Show available commands\n"
                 "/clear — Clear all messages and context for this chat\n"
-                "/auth <PIN> — Authenticate with the bot\n\n"
+                "/auth <PIN> — Authenticate with the bot\n"
+                "/ttt — Play Tic-Tac-Toe vs YAPOC\n\n"
                 "<b>How it works:</b>\n"
                 "1. You send a message\n"
                 "2. It's queued for the Master agent\n"
@@ -1721,6 +2036,8 @@ class TelegramBot:
                 if confirmation_msg_id in ids:
                     ids.remove(confirmation_msg_id)
                     TelegramBot._save_tracked_messages()
+        elif command == "/ttt":
+            await self._start_ttt(chat_id, reply_to_message_id=reply_to_message_id)
         else:
             await self._send_message(
                 chat_id,

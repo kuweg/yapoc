@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useCallback } from 'react'
 import type { AgentActivityLog } from '../types/agentActivity'
-import { ACTIVITY_TYPE_COLORS, ACTIVITY_TYPE_LABELS, getAgentColor } from '../types/agentActivity'
+import { getAgentColor, withAlpha, getAgentDisplayName } from '../lib/agentIdentity'
 import { useAgentActivity } from '../hooks/useAgentActivity'
 
 interface Props {
@@ -8,51 +8,98 @@ interface Props {
   onClose: () => void
 }
 
-/** Format ISO timestamp to HH:MM:SS */
-function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso)
-    return d.toLocaleTimeString('en-US', { hour12: false })
-  } catch {
-    return iso.slice(11, 19) || iso
-  }
+/** Tool arg worth showing inline — the path/agent/command, not the whole blob. */
+function toolArg(input: Record<string, unknown>): string {
+  const v = input.path ?? input.agent_name ?? input.command ?? input.query ?? input.entry
+  const s = typeof v === 'string' ? v : ''
+  return s.length > 60 ? `${s.slice(0, 57)}…` : s
 }
 
-/** Single activity bubble */
-function ActivityBubble({ activity }: { activity: AgentActivityLog }) {
-  const borderColor = ACTIVITY_TYPE_COLORS[activity.type]
-  const agentColor = getAgentColor(activity.agent_name)
-  const typeLabel = ACTIVITY_TYPE_LABELS[activity.type]
+/** Readable, short one-line summary of a (non-error) tool result. */
+function shortResult(result: string): string {
+  const joined = (result || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!joined) return ''
+  return joined.length > 120 ? `${joined.slice(0, 117)}…` : joined
+}
 
-  return (
-    <div className="agent-activity-bubble" style={{ borderLeftColor: borderColor }}>
-      {/* Header row: timestamp, agent badge, type badge */}
-      <div className="agent-activity-bubble-header">
-        <span className="agent-activity-timestamp">{formatTime(activity.timestamp)}</span>
-        <span
-          className="agent-activity-agent-badge"
-          style={{ backgroundColor: agentColor, color: '#0a0a0a' }}
-        >
-          {activity.agent_name}
-        </span>
-        <span
-          className="agent-activity-type-badge"
-          style={{ backgroundColor: borderColor + '22', color: borderColor, borderColor }}
-        >
-          {typeLabel}
-        </span>
-      </div>
+/**
+ * Logical chat rows derived from the raw activity stream:
+ *   msg      — assistant prose (consecutive llm_output joined defensively)
+ *   tool     — compact tool chip; absorbs an immediately-following tool_result
+ *   status   — turn divider / status line (system events)
+ *   error    — error chip (red-tinted, keeps agent avatar placement)
+ */
+type Row =
+  | { kind: 'msg'; text: string; ts: string }
+  | { kind: 'tool'; name: string; arg: string; result?: string; ts: string }
+  | { kind: 'status'; label: string; ts: string }
+  | { kind: 'error'; name: string | null; text: string; ts: string }
 
-      {/* Content */}
-      <div className="agent-activity-content">
-        <pre className="agent-activity-pre">{activity.content}</pre>
-      </div>
-    </div>
-  )
+/** Fold the raw (already api-side coalesced) stream into chat rows. */
+function toRows(activities: AgentActivityLog[]): Row[] {
+  const rows: Row[] = []
+  let openMsg = ''
+
+  const flushMsg = () => {
+    if (!openMsg) return
+    const trimmed = openMsg.trim()
+    if (trimmed) {
+      rows.push({ kind: 'msg', text: trimmed, ts: rows.length ? rows[rows.length - 1].ts : '' })
+    }
+    openMsg = ''
+  }
+
+  for (const a of activities) {
+    if (a.type === 'llm_output') {
+      openMsg += a.content ?? ''
+      continue
+    }
+
+    // Any non-llm event closes an in-progress assistant message.
+    flushMsg()
+
+    if (a.type === 'tool_call') {
+      const meta = (a.metadata ?? {}) as Record<string, unknown>
+      const name = String(meta.name ?? 'tool')
+      rows.push({
+        kind: 'tool',
+        name,
+        arg: toolArg((meta.input ?? {}) as Record<string, unknown>),
+        ts: a.timestamp,
+      })
+    } else if (a.type === 'tool_result') {
+      // Attach to the immediately-preceding tool if there was no prose/split
+      // between the call and its result; otherwise show a muted one-liner.
+      const last = rows[rows.length - 1]
+      const summary = shortResult(a.content)
+      if (last && last.kind === 'tool' && !last.result && summary) {
+        last.result = summary
+      } else if (summary) {
+        rows.push({ kind: 'status', label: summary, ts: a.timestamp })
+      }
+    } else if (a.type === 'system') {
+      // turn_start / turn_done etc → a numbered divider/status line.
+      const label = (a.content ?? '').trim()
+      rows.push({ kind: 'status', label, ts: a.timestamp })
+    } else if (a.type === 'error') {
+      const meta = (a.metadata ?? {}) as Record<string, unknown>
+      rows.push({
+        kind: 'error',
+        name: typeof meta.name === 'string' ? meta.name : null,
+        text: String(a.content ?? 'Unknown error'),
+        ts: a.timestamp,
+      })
+    }
+  }
+  flushMsg()
+  return rows
 }
 
 export function AgentChatFlowPanel({ agentName, onClose }: Props) {
   const activities = useAgentActivity(agentName)
+  const rows = useMemo(() => toRows(activities), [activities])
   const listRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
   const prefersReducedMotion = useRef(false)
@@ -68,26 +115,27 @@ export function AgentChatFlowPanel({ agentName, onClose }: Props) {
     stickToBottomRef.current = distanceFromBottom < 60
   }, [])
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages (stick-to-bottom preserved).
   useEffect(() => {
     if (!stickToBottomRef.current) return
     const el = listRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [activities])
+  }, [rows])
 
   const agentColor = getAgentColor(agentName)
+  const agentLabel = getAgentDisplayName(agentName)
 
   return (
     <div className="agent-chat-flow-panel">
-      {/* Header */}
+      {/* Header (unchanged) */}
       <div className="agent-chat-flow-header">
         <div className="agent-chat-flow-header-left">
           <span
             className="agent-chat-flow-agent-dot"
             style={{ backgroundColor: agentColor }}
           />
-          <span className="agent-chat-flow-agent-name">{agentName}</span>
+          <span className="agent-chat-flow-agent-name">{agentLabel}</span>
           <span className="agent-chat-flow-msg-count">{activities.length} msgs</span>
         </div>
         <button
@@ -105,7 +153,7 @@ export function AgentChatFlowPanel({ agentName, onClose }: Props) {
         onScroll={handleScroll}
         className="agent-chat-flow-list"
       >
-        {activities.length === 0 && (
+        {rows.length === 0 && (
           <div className="agent-chat-flow-empty">
             <div className="agent-chat-flow-empty-icon">⟳</div>
             <p>Waiting for agent activity...</p>
@@ -113,12 +161,68 @@ export function AgentChatFlowPanel({ agentName, onClose }: Props) {
           </div>
         )}
 
-        {activities.map((activity, i) => (
-          <ActivityBubble key={`${activity.timestamp}-${i}`} activity={activity} />
-        ))}
+        {rows.map((row, i) => {
+          switch (row.kind) {
+            case 'msg':
+              return (
+                <div key={i} className="flowchat-msg-row" data-kind="msg">
+                  <div
+                    className="flowchat-msg-bubble"
+                    style={{
+                      backgroundColor: withAlpha(agentColor, 0.10),
+                      borderColor: withAlpha(agentColor, 0.32),
+                    }}
+                  >
+                    {row.text}
+                  </div>
+                </div>
+              )
+
+            case 'tool':
+              return (
+                <div key={i} className="flowchat-tool-row" data-kind="tool">
+                  <div className="flowchat-tool-chip">
+                    <span className="flowchat-tool-caret" style={{ color: agentColor }}>▸</span>
+                    <span className="flowchat-tool-name" style={{ color: agentColor }}>
+                      {row.name}
+                    </span>
+                    {row.arg && <span className="flowchat-tool-arg">{row.arg}</span>}
+                  </div>
+                  {row.result && (
+                    <div className="flowchat-tool-result">
+                      <span className="flowchat-tool-result-ok" style={{ color: agentColor }}>✓</span>
+                      <span className="flowchat-tool-result-text">{row.result}</span>
+                    </div>
+                  )}
+                </div>
+              )
+
+            case 'status':
+              return (
+                <div key={i} className="flowchat-status" data-kind="status">
+                  <span className="flowchat-status-line" />
+                  <span className="flowchat-status-text">{row.label}</span>
+                  <span className="flowchat-status-line" />
+                </div>
+              )
+
+            case 'error':
+              return (
+                <div key={i} className="flowchat-error-row" data-kind="error">
+                  <div className="flowchat-error-chip">
+                    <span className="flowchat-error-icon">⚠</span>
+                    <span className="flowchat-error-title">
+                      {row.name ? `${row.name} failed` : 'Error'}
+                    </span>
+                  </div>
+                  <pre className="flowchat-error-body">{row.text}</pre>
+                </div>
+              )
+          }
+        })}
       </div>
 
-      {/* Footer */}
+      {/* Footer (unchanged) */}
       <div className="agent-chat-flow-footer">
         <span className="agent-chat-flow-footer-text">
           {activities.length > 0

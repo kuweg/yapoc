@@ -1,13 +1,8 @@
-"""Git autocheckpoint helpers — snapshot before sub-agent task, verify
-on terminal status, commit-or-rollback based on the result.
+"""Read-only checkpoints for shared-workspace tasks.
 
-Granularity is per-sub-agent-task (see plan: surgical v1). Wired into
-``SpawnAgentTool`` (snapshot) and ``WaitForAgentTool`` / ``WaitForAgentsTool``
-(verify+commit/rollback). Disabled in lockstep when
-``settings.git_autocheckpoint_enabled`` is False — every helper returns
-a no-op handle so caller paths stay uniform.
-
-The lock serializes git ops across parallel agent spawns.
+Verification remains available. Automatic commit and rollback refuse shared
+workspace ownership: a dirty-file difference cannot identify who edited it.
+Handles remain available for deliberate recovery in an isolated workspace.
 """
 from __future__ import annotations
 
@@ -103,8 +98,8 @@ def _parse_porcelain(porcelain_output: str) -> set[str]:
 async def snapshot_state(label: str, agent: str) -> CheckpointHandle:
     """Record HEAD SHA + the set of paths already dirty BEFORE this agent runs.
 
-    Net-new paths the agent touches afterwards are what commit/rollback act on.
-    Paths the user had dirty at snapshot time are explicitly left alone.
+    Dirty paths are diagnostic context only; they do not establish ownership.
+    Shared-workspace commit/rollback are refused even when enabled.
 
     Returns a disabled handle when autocheckpoint is off — the caller path is
     unchanged; verify/commit/rollback no-op on a disabled handle.
@@ -183,117 +178,26 @@ async def verify_no_corruption(handle: CheckpointHandle) -> tuple[bool, str]:
     return True, "ok"
 
 
-async def commit_checkpoint(handle: CheckpointHandle, summary: str) -> Optional[str]:
-    """Verify passed → commit ONLY the paths the agent newly touched.
+class UnsafeSharedCheckpoint(RuntimeError):
+    """A shared worktree provides no evidence of exclusive edit ownership."""
 
-    Paths that were already dirty at snapshot time (``handle.baseline_dirty``)
-    are explicitly excluded — they're the user's. Returns the new commit SHA,
-    or None if the agent produced no net-new changes (no commit needed).
-    """
+
+async def commit_checkpoint(handle: CheckpointHandle, summary: str) -> Optional[str]:
     if not handle.enabled or not handle.sha:
         return None
-
-    async with _GIT_LOCK:
-        try:
-            _, porcelain, _ = await _git("status", "--porcelain")
-        except RuntimeError as exc:
-            _log.warning("git_safety: commit status check failed ({}). Skipping commit.", exc)
-            return None
-
-        current = _parse_porcelain(porcelain)
-        baseline = set(handle.baseline_dirty)
-        agent_paths = sorted(current - baseline)
-        if not agent_paths:
-            _log.bind(agent=handle.spawned_agent).debug(
-                "git_safety: no agent-touched paths for {}", handle.spawned_agent
-            )
-            return None
-
-        clean_summary = summary.replace("\n", " ").strip()[:60]
-        msg = f"{settings.git_checkpoint_label_prefix}:agent:{handle.spawned_agent}:done — {clean_summary}"
-        try:
-            # Stage only paths the agent introduced/modified.
-            await _git("add", "--", *agent_paths)
-            await _git("commit", "-m", msg, "--no-verify")
-            _, new_sha, _ = await _git("rev-parse", "HEAD")
-            _log.bind(agent=handle.spawned_agent, sha=new_sha[:12], n_paths=len(agent_paths)).info(
-                "git_safety: checkpoint commit {} for {} ({} paths)",
-                new_sha[:12], handle.spawned_agent, len(agent_paths),
-            )
-            return new_sha
-        except RuntimeError as exc:
-            _log.warning("git_safety: commit failed ({}). Working tree left as-is.", exc)
-            return None
+    raise UnsafeSharedCheckpoint(
+        "Automatic commit refused: checkpoint has no isolated workspace ownership. "
+        "Existing staged changes and concurrent edits have been preserved."
+    )
 
 
 async def rollback_to(handle: CheckpointHandle, reason: str) -> bool:
-    """Verify failed → revert ONLY the agent-touched paths to handle.sha state.
-
-    Paths in ``baseline_dirty`` are left untouched (user's). Returns True if
-    any rollback action ran, False if disabled. Best-effort: logs and continues
-    on any individual step failure rather than raising.
-    """
     if not handle.enabled or not handle.sha:
         return False
-
-    async with _GIT_LOCK:
-        try:
-            _, porcelain, _ = await _git("status", "--porcelain")
-        except RuntimeError as exc:
-            _log.error("git_safety: rollback status read failed ({}). Tree not modified.", exc)
-            return False
-
-        current = _parse_porcelain(porcelain)
-        baseline = set(handle.baseline_dirty)
-        agent_paths = sorted(current - baseline)
-
-        import shutil
-        for path in agent_paths:
-            # Untracked dirs come through as "agent_dir/" with trailing slash.
-            cleaned = path.rstrip("/")
-            full = settings.project_root / cleaned
-            try:
-                # Was this path tracked at handle.sha? `cat-file -e` returns 0
-                # when the object exists at that ref. If yes → restore via
-                # checkout; if no → the agent created it, remove it.
-                rc, _, _ = await _git(
-                    "cat-file", "-e", f"{handle.sha}:{cleaned}", check=False,
-                )
-                if rc == 0:
-                    await _git("checkout", handle.sha, "--", cleaned)
-                else:
-                    if full.is_symlink() or full.is_file():
-                        try:
-                            full.unlink()
-                        except OSError as exc:
-                            _log.warning("git_safety: failed to unlink {} ({})", full, exc)
-                    elif full.is_dir():
-                        try:
-                            shutil.rmtree(full)
-                        except OSError as exc:
-                            _log.warning("git_safety: failed to rmtree {} ({})", full, exc)
-            except RuntimeError as exc:
-                _log.warning("git_safety: rollback step for {} failed ({})", path, exc)
-
-        # Audit to master HEALTH.MD
-        try:
-            health_path = settings.agents_dir / "master" / "HEALTH.MD"
-            ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-            line = (
-                f"[{ts}] ROLLBACK: agent={handle.spawned_agent} sha={handle.sha[:12]} "
-                f"paths={len(agent_paths)} label={handle.label!r} reason={reason!r}\n"
-            )
-            health_path.parent.mkdir(parents=True, exist_ok=True)
-            with health_path.open("a", encoding="utf-8") as f:
-                f.write(line)
-        except OSError as exc:
-            _log.warning("git_safety: HEALTH.MD audit append failed ({})", exc)
-
-        _log.bind(agent=handle.spawned_agent, sha=handle.sha[:12], n=len(agent_paths), reason=reason).warning(
-            "git_safety: ROLLBACK {} paths for {} (sha={}) — {}",
-            len(agent_paths), handle.spawned_agent, handle.sha[:12], reason,
-        )
-        return True
+    raise UnsafeSharedCheckpoint(
+        "Automatic rollback refused: checkpoint has no isolated workspace ownership. "
+        "Working files and checkpoint have been preserved for recovery."
+    )
 
 
 # ── Sidecar persistence (handle <-> agent dir) ───────────────────────────
@@ -307,6 +211,11 @@ def write_checkpoint(agent_name: str, handle: CheckpointHandle) -> None:
     path = checkpoint_path(agent_name)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            archive = settings.project_root / "data" / "recovery" / agent_name
+            archive.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+            (archive / f"checkpoint-{stamp}.json").write_bytes(path.read_bytes())
         path.write_text(json.dumps(handle.to_dict()), encoding="utf-8")
     except OSError as exc:
         _log.warning("git_safety: failed to write {} ({})", path, exc)

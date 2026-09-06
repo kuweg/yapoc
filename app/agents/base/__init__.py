@@ -14,6 +14,7 @@ from loguru import logger as _log
 
 from app.config import settings
 from app.utils import agent_settings as _agent_settings
+from app.utils import agent_failure_tracker as _agent_failure_tracker
 from app.utils.adapters import (
     AgentConfig,
     BaseLLMAdapter,
@@ -26,6 +27,7 @@ from app.utils.adapters import (
     ToolDone,
     ToolResult,
     ToolStart,
+    MessageBoundary,
     TurnComplete,
     UsageStats,
     get_adapter,
@@ -342,6 +344,38 @@ def _detect_stuck_loop(tail: str) -> str | None:
     return None
 
 
+# Phrases that announce an imminent action. A turn ending on one of these with
+# ZERO tool calls means the model described what it was about to do and then
+# stopped — the loop treats stop_reason=end_turn as "finished", so the task
+# silently ends mid-intent. Distinct from the stuck-loop detector, which only
+# fires on REPEATED announcements; a single one slips straight through.
+_ANNOUNCE_RE = re.compile(
+    r"(?:^|[.!?\n])\s*(?:now|next|then|first|so)?[,\s]*"
+    r"(?:let me|let['’]s|i['’]?ll|i will|i(?:['’]m| am) going to)\b"
+    r"(?!\s+(?:know|wait|report back|keep you posted)\b)"
+    r"(?:(?![.!?](?:\s|$))[^\n]){0,300}[.!…]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _announced_without_acting(text: str) -> str | None:
+    """Return the announcing phrase if `text` ends mid-intent, else None."""
+    tail = (text or "").strip()
+    if not tail:
+        return None
+    # Only look at the end — an announcement earlier in the turn that was
+    # followed by real content is fine.
+    tail = tail[-400:]
+    m = _ANNOUNCE_RE.search(tail)
+    if not m:
+        return None
+    phrase = m.group(0).strip(" .\n")
+    # A trailing question is the model asking the user, not stalling.
+    if tail.rstrip().endswith("?") or re.search(r"\b(?:if|once|when)\b", phrase, re.I):
+        return None
+    return phrase[:120]
+
+
 _AUDIT_LOG_PATH = settings.project_root / "app" / "logs" / "AUDIT.md"
 
 
@@ -397,6 +431,7 @@ class BaseAgent:
         self._recent_tools: deque[str] = deque(maxlen=15)  # for loop detection
         self._loop_reflected: bool = False  # set after loop reflection injected
         self._no_tool_turns: int = 0  # stuck detector: consecutive no-tool turns
+        self._auto_capture_active: bool = False  # recursion guard for skill auto-capture
 
     # ── Session event emission ──────────────────────────────────────────────
 
@@ -412,6 +447,7 @@ class BaseAgent:
             "agent": self._name,
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             **payload,
+            "session_id": self._session_id,
         }
         # Session-bound: write JSONL audit log + publish session channel.
         if self._session_id:
@@ -766,6 +802,102 @@ class BaseAgent:
                 flags=re.DOTALL,
             )
         await self._write_file("TASK.MD", content)
+
+        # ── Per-agent consecutive-failure tracking (user rule: "Alert me if
+        # any agent fails twice in a row"). Strictly additive + defensive:
+        # record_agent_success/failure never raise, and any surprise is
+        # swallowed so the underlying status write path is never broken.
+        self._track_consecutive_failures(status)
+
+    # ── Consecutive-failure alert helper ─────────────────────
+    def _track_consecutive_failures(self, status: str) -> None:
+        """Reset/increment the per-agent failure counter off a task finalize.
+
+        On a "done" the counter resets; on an "error" it increments. When the
+        counter *reaches* the threshold (default 2 consecutive failures) an
+        alert is raised once — a Telegram message (if configured) plus an
+        ERROR entry in both this agent's and master's HEALTH.MD. Fire-and-forget
+        Telegram dispatch; strictly non-blocking and never raised.
+        """
+        if status == "done":
+            try:
+                _agent_failure_tracker.record_agent_success(self._name)
+            except Exception:
+                pass
+            return
+        if status != "error":
+            return
+
+        try:
+            fired = _agent_failure_tracker.record_agent_failure(self._name)
+        except Exception:
+            return
+        if not fired:
+            return  # below threshold or already alerted on this streak
+
+        count = 0
+        try:
+            count = _agent_failure_tracker.get_failure_count(self._name)
+        except Exception:
+            count = 0
+        _ts = _time.strftime("%Y-%m-%d %H:%M", _time.localtime())
+        advisory = f"Agent {self._name} has failed {count} times in a row"
+        _entry = f"[{_ts}] CONSECUTIVE FAILURE ALERT: {advisory}"
+
+        # Fire-and-forget alert (never raise / never block this status write).
+        try:
+            import asyncio as _asyncio
+
+            _loop = _asyncio.get_running_loop()
+            _loop.create_task(
+                self._dispatch_failure_alert(_entry, _advisory_text=advisory)
+            )
+        except Exception:
+            pass
+
+    async def _dispatch_failure_alert(
+        self, _entry: str, *, _advisory_text: str = ""
+    ) -> None:
+        """Best-effort HEALTH.MD notes + one Telegram alert. Never raises."""
+        # 1) This agent's own HEALTH.MD (routed via the memory-dir helper).
+        try:
+            await self._append_memory_file("HEALTH.MD", _entry + "\n")
+        except Exception:
+            pass
+        # 2) Master's HEALTH.MD (raw append; no agent handle needed here).
+        try:
+            from aiofiles import open as _aio_open
+
+            _mh_path = (
+                settings.project_root
+                / "app" / "memory" / "agents" / "master" / "HEALTH.MD"
+            )
+            _mh_path.parent.mkdir(parents=True, exist_ok=True)
+            async with _aio_open(_mh_path, "a", encoding="utf-8") as _fh:
+                await _fh.write(_entry + "\n")
+        except Exception:
+            pass
+        # 3) Telegram alert (single, point-in-time).
+        try:
+            from app.backend.telegram_bot import get_telegram_bot_instance
+
+            bot = get_telegram_bot_instance()
+            if bot is None:
+                return
+            _auth = getattr(bot, "_auth", None)
+            _authorized: set[int] = set()
+            if _auth is not None:
+                _authorized = set(getattr(_auth, "_authorized_chats", set()))
+                _authorized |= set(getattr(_auth, "_whitelist", set()))
+            if not _authorized:
+                return
+            chat_id = next(iter(_authorized))
+            await bot._send_message(
+                chat_id,
+                f"⚠️ {_advisory_text or _entry}",
+            )
+        except Exception:
+            pass
 
     async def get_task_body(self) -> str:
         """Return the ``## Task`` section text from TASK.MD."""
@@ -1213,6 +1345,8 @@ class BaseAgent:
         response: str = ""
         _stream_exc: BaseException | None = None
         _stream_exc_tb: str = ""
+        _loaded_skills: set[str] = set()
+        full_text_parts: list[str] = []
 
         try:
             async with asyncio.timeout(_timeout_value):
@@ -1224,6 +1358,21 @@ class BaseAgent:
                 if notifications_context:
                     system_prompt += f"\n\n---\n\n{notifications_context}"
                 task = await self._read_file("TASK.MD")
+
+                # ── Child token budget (delegate_task / spawn_agent token_limit) ──
+                # The parent records ``token_limit: N`` in this task's TASK.MD
+                # frontmatter. Read it here so the child can hard-stop once its
+                # cumulative input+output tokens exceed the budget, returning
+                # partial results instead of running away. Absent/<=0 = unbounded.
+                _task_token_budget: int = 0
+                try:
+                    _fm = self._parse_frontmatter(task)
+                    _tl = _fm.get("token_limit")
+                    if _tl:
+                        _task_token_budget = int(str(_tl).strip())
+                except Exception:
+                    _task_token_budget = 0
+                _task_tokens_used: int = 0  # cumulative in+out tokens this task
 
                 # Load and build tools
                 tool_names = await self._load_tool_names(config_raw=_cfg_raw)
@@ -1255,6 +1404,11 @@ class BaseAgent:
                     messages.append({"role": "user", "content": task})
 
                 full_text_parts: list[str] = []
+                _task_tool_count: int = 0  # tool calls executed this task (for skill auto-capture)
+                # Skills loaded at level_3 (full procedure) during this task.
+                # Used by the skill-verification loop to attribute task
+                # success/failure back to the skills that were executed.
+                _loaded_skills: set[str] = set()
                 # Loop-detection state for stuck-text aborts. Tracks how many
                 # chars have been appended since the last check so we can amortize
                 # the scan cost (O(N) per call) over many small deltas.
@@ -1268,7 +1422,14 @@ class BaseAgent:
                 # give up cleanly instead of looping forever.
                 _stuck_loop_count: int = 0
                 _STUCK_LOOP_GIVEUP: int = 5
-                max_turns = _runner.get("max_turns", settings.max_turns)
+                # Nudges for "announced an action but made no tool call".
+                _nudge_count: int = 0
+                _MAX_ANNOUNCE_NUDGES: int = 2
+                self._recent_tools.clear()
+                self._loop_reflected = False
+                max_turns = _as_runner.get("max_turns", _runner.get("max_turns", settings.max_turns))
+                if max_turns <= 0:
+                    raise ValueError("max_turns must be positive")
                 _ctx_window = adapter.context_window_size()
                 threshold_tokens = int(_ctx_window * settings.context_compact_threshold)
                 threshold_tokens_preemptive = int(
@@ -1373,6 +1534,10 @@ class BaseAgent:
                         agent=self._name, event="turn_start", turn=_turn,
                         model=config.model, in_tokens=estimated,
                     ).info("Turn {} start | model={} est_tokens={}", _turn, config.model, estimated)
+                    # full_text_parts accumulates across the whole run, so
+                    # remember where this turn's prose begins — used below to
+                    # decide whether this turn said anything worth separating.
+                    _turn_text_start = len(full_text_parts)
                     # Lightweight turn boundary for the Agents-tab Live feed —
                     # lets the UI group thinking/message deltas under a
                     # collapsible per-turn block keyed by turn index.
@@ -1499,6 +1664,20 @@ class BaseAgent:
                                     await self._append_memory_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
                                     yield TextDelta(text=f"\n\n{_budget_msg}")
                                     _budget_exceeded = True
+                            # Per-task token budget (child token_limit from TASK.MD
+                            # frontmatter). Accumulate input+output tokens across
+                            # turns; when the child exceeds its parent-set budget,
+                            # hard-stop and return partial results.
+                            if not _budget_exceeded and _task_token_budget > 0:
+                                _task_tokens_used += event.input_tokens + event.output_tokens
+                                if _task_tokens_used >= _task_token_budget:
+                                    _budget_msg = (
+                                        f"[TOKEN BUDGET EXCEEDED] Task used {_task_tokens_used} "
+                                        f"tokens >= budget {_task_token_budget}. Stopping with partial results."
+                                    )
+                                    await self._append_memory_file("HEALTH.MD", f"[{_time.strftime('%Y-%m-%d %H:%M', _time.localtime())}] {_budget_msg}\n")
+                                    yield TextDelta(text=f"\n\n{_budget_msg}")
+                                    _budget_exceeded = True
                             # Daily autonomous budget (only for non-user-initiated runs).
                             # The dispatcher already gates new task spawns against this cap,
                             # but in-flight long-running tasks could overshoot. This halt
@@ -1561,6 +1740,19 @@ class BaseAgent:
                         elif isinstance(event, TurnComplete):
                             turn_complete = event
 
+                    # A turn that produced prose and is followed by another turn
+                    # is a complete thought. Signal the boundary so consumers can
+                    # keep them as SEPARATE messages instead of concatenating —
+                    # otherwise a multi-turn run reads as one run-on blob
+                    # ("…builder agent.Builder completed the task."). MessageBoundary
+                    # was defined for exactly this and had no emitter until now.
+                    if (
+                        turn_complete is not None
+                        and getattr(turn_complete, "tool_calls", None)
+                        and "".join(full_text_parts[_turn_text_start:]).strip()
+                    ):
+                        yield MessageBoundary()
+
                     # ── Diagnostic: per-turn loop control state ──
                     # Helps trace the "parallel tools → Turn 1 silent" failure
                     # mode. One line, structured, easy to grep.
@@ -1597,7 +1789,7 @@ class BaseAgent:
                         if _give_up:
                             # Two consecutive stuck-loops — recovery hint
                             # isn't landing. Bail before we waste more tokens.
-                            break
+                            raise RuntimeError("Task incomplete: repeated output persisted after recovery attempts")
                         # Self-unstack: discard whatever got spammed this turn,
                         # append a corrective user message, reset the abort
                         # flag, and let the outer loop iterate. The model sees
@@ -1622,11 +1814,14 @@ class BaseAgent:
 
                     if turn_complete is None:
                         _log.bind(agent=self._name, turn=_turn).info("loop break: tc_none")
-                        break
+                        raise RuntimeError("Task incomplete: provider stream ended without a completion event")
 
                     if _budget_exceeded:
                         _log.bind(agent=self._name, turn=_turn).info("loop break: budget")
-                        break
+                        raise RuntimeError(_budget_msg)
+
+                    if turn_complete.stop_reason not in {"end_turn", "stop", "tool_use"}:
+                        raise RuntimeError(f"Task incomplete: provider stopped with {turn_complete.stop_reason!r}")
 
                     # Append assistant message to conversation
                     if turn_complete.assistant_content:
@@ -1637,11 +1832,51 @@ class BaseAgent:
                             }
                         )
 
-                    # If no tool calls, we're done
-                    if (
-                        turn_complete.stop_reason != "tool_use"
-                        or not turn_complete.tool_calls
-                    ):
+                    # If no tool calls, we're done — UNLESS the model just
+                    # announced an action it never took. stop_reason=end_turn is
+                    # the normal completion path, so the only signal separating
+                    # "finished" from "stalled mid-intent" is the text itself:
+                    # a turn ending on "Let me find X…" with zero tool calls is
+                    # an abandoned task, not an answer. Nudge once rather than
+                    # silently returning the announcement as the result.
+                    if not turn_complete.tool_calls:
+                        if turn_complete.stop_reason not in {"end_turn", "stop"}:
+                            raise RuntimeError(
+                                f"Task incomplete: provider stopped with {turn_complete.stop_reason!r}"
+                            )
+                        if not "".join(full_text_parts[_turn_text_start:]).strip() and not _task_tool_count:
+                            raise RuntimeError("Task incomplete: provider returned no answer or tool calls")
+                        _announced = _announced_without_acting(
+                            "".join(full_text_parts[_turn_text_start:])
+                        )
+                        if _announced and _nudge_count < _MAX_ANNOUNCE_NUDGES:
+                            _nudge_count += 1
+                            _log.bind(
+                                agent=self._name, turn=_turn, nudge=_nudge_count,
+                                phrase=_announced,
+                            ).info(
+                                "announce-without-action: nudging ({}/{}) — {!r}",
+                                _nudge_count, _MAX_ANNOUNCE_NUDGES, _announced,
+                            )
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    "[SYSTEM] Your last message ended with "
+                                    f"{_announced!r} but you made no tool call, so "
+                                    "nothing happened and the task is unfinished. "
+                                    "Either make that tool call now, or — if the "
+                                    "work is actually done — reply with the final "
+                                    "answer and no further announcements. Do not "
+                                    "repeat the announcement."
+                                ),
+                            })
+                            yield MessageBoundary()
+                            continue
+                        if _announced:
+                            raise RuntimeError(
+                                "Task incomplete: agent kept announcing an action without "
+                                f"executing it after {_MAX_ANNOUNCE_NUDGES} retries: {_announced}"
+                            )
                         _log.bind(
                             agent=self._name, turn=_turn,
                             stop=turn_complete.stop_reason,
@@ -1653,6 +1888,20 @@ class BaseAgent:
                         )
                         break
 
+                    if self._name == "master":
+                        from app.backend.services.task_runtime import current_task_id
+                        from app.utils.conversation_store import snapshot
+                        transcript = "\n\n".join(
+                            f"### {m['role']}\n" + (m["content"] if isinstance(m["content"], str)
+                            else json.dumps(m["content"], ensure_ascii=False, default=str)) for m in messages
+                        )
+                        run_id = current_task_id.get()
+                        if run_id:
+                            await asyncio.to_thread(snapshot, "run-" + run_id, transcript)
+                        if self._session_id and any(tc.name in {"server_restart", "process_restart"} for tc in turn_complete.tool_calls):
+                            await asyncio.to_thread(snapshot, self._session_id, transcript)
+
+                    _nudge_count = 0  # real action resets consecutive failures
                     coros = [
                         self._execute_tool(tc, tool_map)
                         for tc in turn_complete.tool_calls
@@ -1661,12 +1910,28 @@ class BaseAgent:
 
                     # Yield ToolDone events, build tool results message
                     tool_results: list[dict[str, Any]] = []
-                    for tool_result, tool_done in results:
+                    for (tool_result, tool_done), tc in zip(results, turn_complete.tool_calls):
                         # Count every executed tool call against this agent's
                         # usage, attributed to whichever model decided to call
                         # it. Errors still count — they still cost the model
                         # a tool-use round-trip.
                         self._usage.record_tool_call(config.model)
+                        _task_tool_count += 1
+                        # Skill-verification loop: remember which skills were
+                        # loaded at level_3 (full procedure) so task success or
+                        # failure can be attributed back to the executed skills.
+                        if (
+                            not tool_done.is_error
+                            and tool_done.name == "load_skills"
+                            and isinstance(getattr(tc, "input", None), dict)
+                            and tc.input.get("level") == 3
+                        ):
+                            _names = tc.input.get("names") or tc.input.get("name") or []
+                            if isinstance(_names, str):
+                                _names = [_names]
+                            for _sn in _names:
+                                if isinstance(_sn, str) and _sn.strip():
+                                    _loaded_skills.add(_sn.strip())
                         yield tool_done
                         await self._emit_event("tool_result", {
                             "name": tool_done.name,
@@ -1750,7 +2015,7 @@ class BaseAgent:
                                     "Loop detected: {} called 10+ times after reflection. Force-stopping.",
                                     last_10_names[0],
                                 )
-                                break
+                                raise RuntimeError("Task incomplete: repeated tool calls persisted after reflection")
                             else:
                                 # Inject reflection message
                                 self._loop_reflected = True
@@ -1809,7 +2074,7 @@ class BaseAgent:
                                     )
                                 except Exception:
                                     pass
-                                break
+                                raise RuntimeError(_stuck_msg)
 
                     # ── Per-turn tool call limit ──
                     _turn_tool_count = sum(1 for _ in results)
@@ -1818,6 +2083,9 @@ class BaseAgent:
                             "[SYSTEM] Tool call limit reached for this turn. "
                             "Summarize your progress and continue in the next turn."
                         )})
+
+                else:
+                    raise RuntimeError(f"Task incomplete: reached the {max_turns}-turn limit")
 
                 # Log and clean up
                 response = "".join(full_text_parts)
@@ -1844,6 +2112,48 @@ class BaseAgent:
                             "No text response was generated by the model."
                         )
 
+                # ── Skill auto-capture hook ────────────────────────────────
+                # After a complex task (>= auto_capture_min_tool_calls tool
+                # calls) completes normally, ask the model whether the task
+                # produced a reusable procedure worth capturing as a skill.
+                # Never breaks or delays the main task — all failures are
+                # swallowed and logged. Runs only on the normal-completion
+                # path (no exception, no budget abort).
+                try:
+                    if (
+                        not _stream_exc
+                        and not _budget_exceeded
+                        and getattr(settings, "auto_capture_skills", True)
+                        and _task_tool_count >= getattr(settings, "auto_capture_min_tool_calls", 5)
+                        and "create_skill" in tool_map
+                        and not self._auto_capture_active
+                    ):
+                        await self._maybe_auto_capture_skill(
+                            task, response, tool_map, config, adapter, messages
+                        )
+                except Exception as _ac_exc:
+                    _log.bind(agent=self._name).warning(
+                        "skill auto-capture failed (non-fatal): {}", _ac_exc,
+                    )
+
+                # ── Skill-verification hook (success path) ────────────────
+                # If the task completed normally and it loaded any level_3
+                # skills, record a success for each — this resets their
+                # consecutive-failure counters. Runs only on the normal path
+                # (no exception, no budget abort). Never breaks the task.
+                try:
+                    if (
+                        _loaded_skills
+                        and getattr(settings, "skill_verify_enabled", True)
+                    ):
+                        from app.utils import skills_health as _sh
+                        for _sn in list(_loaded_skills):
+                            await _sh.record_skill_outcome(_sn, success=True)
+                except Exception as _sv_exc:
+                    _log.bind(agent=self._name).warning(
+                        "skill verification (success) failed (non-fatal): {}", _sv_exc,
+                    )
+
                 _log.bind(
                     agent=self._name, event="task_done",
                     turn=_turn, response_chars=len(response),
@@ -1856,6 +2166,11 @@ class BaseAgent:
                 if manage_task_file:
                     await self._write_file("TASK.MD", "")
 
+        except asyncio.CancelledError as exc:
+            _stream_exc = exc
+            _stream_exc_tb = "Task cancelled before completion"
+            response = "".join(full_text_parts)
+            raise
         except TimeoutError:
             _stream_exc = TimeoutError(f"Task timed out after {_task_timeout}s")
             _stream_exc_tb = traceback.format_exc()
@@ -1879,14 +2194,32 @@ class BaseAgent:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             error_entry = f"[{timestamp}] ERROR: {exc}\n{_stream_exc_tb}\n"
             await self._append_memory_file("HEALTH.MD", error_entry)
+            # ── Skill-verification hook (failure path) ────────────────────
+            # If the task failed and it had loaded level_3 skills, record a
+            # failure for each and demote any that have now failed enough
+            # consecutive times. Never breaks the re-raise.
+            try:
+                if _loaded_skills and getattr(settings, "skill_verify_enabled", True):
+                    from app.utils import skills_health as _sh
+                    _threshold = int(getattr(settings, "skill_verify_threshold", 3))
+                    for _sn in list(_loaded_skills):
+                        await _sh.record_skill_outcome(_sn, success=False)
+                        _note = await _sh.check_and_demote(_sn, threshold=_threshold)
+                        if _note:
+                            _log.bind(agent=self._name, skill=_sn).warning(
+                                "skill verification: {}", _note,
+                            )
+            except Exception as _sv_exc:
+                _log.bind(agent=self._name).warning(
+                    "skill verification (failure) failed (non-fatal): {}", _sv_exc,
+                )
             raise
 
         finally:
             try:
                 if _stream_exc is not None:
                     await self._write_error(f"[ERROR] {_stream_exc}\n\n{_stream_exc_tb}")
-                    if not response:
-                        await self._write_result("")
+                    await self._write_result(response or "".join(full_text_parts))
                 else:
                     # Strip raw XML tool call syntax from response before writing to RESULT.MD
                     cleaned = response
@@ -1908,6 +2241,106 @@ class BaseAgent:
                 _log.bind(agent=self._name).warning(
                     "Failed to persist RESULT/ERROR.MD after stream run: {}", exc
                 )
+
+    # ── Skill auto-capture ────────────────────────────────────────────────
+
+    async def _maybe_auto_capture_skill(
+        self,
+        task: str,
+        response: str,
+        tool_map: dict[str, Any],
+        config: AgentConfig,
+        adapter: BaseLLMAdapter,
+        messages: list[dict[str, Any]],
+    ) -> None:
+        """Fully-automatic skill capture: after a complex task completes
+        normally, deterministically derive a reusable skill from the task text
+        and the tool-call sequence that succeeded. No LLM judge round-trip —
+        capture is instant, free, and requires no user/model approval. Runs
+        only on the normal-completion path; every failure is swallowed and
+        logged so the main task is never delayed or broken."""
+        self._auto_capture_active = True
+        try:
+            # ── Cheap heuristics to skip non-capturable tasks ──────────────
+            task_clean = (task or "").strip()
+            if len(task_clean) < 12:
+                _log.bind(agent=self._name).info(
+                    "skill auto-capture: task too short to be a procedure — skipping"
+                )
+                return
+
+            # Extract the ordered tool-call sequence from the assembled
+            # response (lines like "[tool] OK: ..." produced when the model
+            # used tools and emitted no prose).
+            steps: list[str] = []
+            for line in (response or "").splitlines():
+                line = line.strip()
+                m = re.match(r"^\[([^\]]+)\]\s+(OK|ERROR):\s*(.*)$", line)
+                if m:
+                    tool_name, status, detail = m.group(1), m.group(2), m.group(3)
+                    if status == "OK" and tool_name not in (
+                        "read_task_result", "notify_parent", "memory_append",
+                    ):
+                        steps.append(f"{tool_name}: {detail[:200]}")
+            if not steps:
+                _log.bind(agent=self._name).info(
+                    "skill auto-capture: no tool steps captured — skipping"
+                )
+                return
+
+            # ── Deterministic name from the task ───────────────────────────
+            # Slugify the task into a snake_case identifier, strip stop words,
+            # cap length, and guarantee a valid leading char.
+            words = re.findall(r"[a-zA-Z0-9]+", task_clean.lower())
+            stop = {
+                "the", "a", "an", "and", "or", "for", "to", "of", "in", "on",
+                "with", "please", "can", "you", "i", "me", "my", "this", "that",
+                "task", "do", "make", "create", "build", "write", "add", "fix",
+                "implement", "need", "want", "how", "what", "is", "are",
+            }
+            name_words = [w for w in words if w not in stop][:6]
+            if not name_words:
+                name_words = words[:6]
+            if not name_words:
+                name_words = ["auto"]
+            name = "_".join(name_words)
+            if not re.match(r"^[a-zA-Z_]", name):
+                name = "auto_" + name
+            name = re.sub(r"[^a-zA-Z0-9_]", "", name)[:64]
+
+            summary = task_clean[:120]
+            level_1 = summary
+            level_2 = "Inputs: the task description and relevant context provided to the agent."
+            level_3 = (
+                "Procedure (auto-captured from a successful run):\n"
+                + "\n".join(f"{i}. {s}" for i, s in enumerate(steps, 1))
+            )
+
+            skills_dir = settings.project_root / "app" / "skills"
+            if (skills_dir / f"{name}.yaml").exists():
+                _log.bind(agent=self._name).info(
+                    "skill auto-capture: skill {!r} already exists — skipping", name
+                )
+                return
+
+            from app.utils.tools.skills import CreateSkillTool
+            create_tool = CreateSkillTool()
+            outcome = await create_tool.execute(
+                name=name,
+                summary=summary,
+                level_1=level_1,
+                level_2=level_2,
+                level_3=level_3,
+            )
+            _log.bind(agent=self._name).info(
+                "skill auto-capture: created skill {!r} | {}", name, outcome
+            )
+        except Exception as exc:
+            _log.bind(agent=self._name).warning(
+                "skill auto-capture: failed ({}) — skipping", exc
+            )
+        finally:
+            self._auto_capture_active = False
 
     # ── Status ───────────────────────────────────────────────────────────────
 

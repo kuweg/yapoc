@@ -54,6 +54,7 @@ async def _deliver_webhook_callback(task_id: str, result: str) -> None:
 
 # Track currently dispatched task IDs to prevent double-dispatch
 _running_task_ids: set[str] = set()
+_running_tasks: dict[str, asyncio.Task] = {}
 
 # Shutdown signal
 _shutdown = asyncio.Event()
@@ -64,14 +65,65 @@ def request_shutdown() -> None:
     _shutdown.set()
 
 
+async def stop_running_tasks() -> None:
+    """Persist interruption before closing shared services at shutdown."""
+    request_shutdown()
+    tasks = list(_running_tasks.values())
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def cancel_task(task_id: str) -> None:
+    row = get_queued_task(task_id)
+    if not row or row["status"] not in {"pending", "running", "interrupted"}:
+        return
+    update_queued_task(task_id, status="cancelled", error="Cancelled by user",
+                       completed_at=datetime.now(timezone.utc).isoformat())
+    task = _running_tasks.get(task_id)
+    if task:
+        task.cancel()
+    try:
+        from app.backend.websocket import ws_manager
+        await ws_manager.push_event("task_error", {
+            "task_id": task_id, "status": "cancelled", "error": "Cancelled by user",
+            "session_id": row.get("session_id"), "source": row.get("source"),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as exc:
+        logger.warning("Cancellation event delivery failed for {}: {}", task_id, exc)
+
+
 async def _execute_task(task_id: str) -> None:
+    from app.backend.services.task_runtime import current_task_id
+    token = current_task_id.set(task_id)
+    try:
+        await _execute_task_body(task_id)
+    except asyncio.CancelledError:
+        row = get_queued_task(task_id)
+        if row and row["status"] == "running":
+            update_queued_task(task_id, status="interrupted", error="Backend stopped during execution")
+        raise
+    except Exception as exc:
+        row = get_queued_task(task_id)
+        if row and row["status"] in {"pending", "running"}:
+            update_queued_task(task_id, status="error", error=str(exc), completed_at=datetime.now(timezone.utc).isoformat())
+        logger.exception("Task {} execution failed", task_id)
+    finally:
+        current_task_id.reset(token)
+        _running_task_ids.discard(task_id)
+        _running_tasks.pop(task_id, None)
+
+
+async def _execute_task_body(task_id: str) -> None:
     """Execute a single task via master_agent and update task_queue."""
     from app.agents.master.agent import master_agent
     from app.backend.websocket import ws_manager
     from app.utils.adapters import Message
 
     task_row = get_queued_task(task_id)
-    if not task_row:
+    if not task_row or task_row["status"] != "pending":
         _running_task_ids.discard(task_id)
         return
 
@@ -89,6 +141,7 @@ async def _execute_task(task_id: str) -> None:
     # metadata carries a cron_job_id), its success/failure feeds the cron
     # failure-escalation ladder.
     cron_job_id: str | None = None
+    meta: dict = {}
     if task_row.get("metadata"):
         try:
             meta = json.loads(task_row["metadata"])
@@ -106,11 +159,13 @@ async def _execute_task(task_id: str) -> None:
     if history is not None:
         history = history + [Message(role="user", content=prompt)]
 
-    session_id = task_row.get("session_id") or task_id
+    # Task IDs identify executions; they must never become invented chat IDs.
+    session_id = task_row.get("session_id") or ""
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    update_queued_task(task_id, status="running", started_at=now, assigned_agent="master",
-                       session_id=session_id)
+    from app.backend.services.task_runtime import claim_task
+    if not claim_task(task_id, session_id, now):
+        return
     await ws_manager.push_event("task_update", {
         "task_id": task_id,
         "status": "running",
@@ -132,20 +187,9 @@ async def _execute_task(task_id: str) -> None:
     except Exception:
         pass
 
-    # Total chain timeout: prevents infinite delegation chains.
-    # 2x master's task_timeout gives sub-agents time to finish.
-    # Fix 2.2: master is autonomous — bypass the chain timeout entirely so
-    # long-running orchestration is not cancelled at the parent level. Cost
-    # protection lives in budget_per_agent_usd / budget_per_task_usd; sub-
-    # agents keep their own task_timeout. Non-master targets (rare here, all
-    # tasks route through master) retain the original guard.
-    if settings.task_timeout > 0:
-        _chain_timeout: int | None = settings.task_timeout * 2
-    else:
-        _chain_timeout = None
-    _chain_ctx_timeout: int | None = None if _chain_timeout is None else _chain_timeout
-    # Master is unbounded — see Fix 2.2.
-    _chain_ctx_timeout = None  # all tasks dispatched here go through master
+    # Background work yields the master after a bounded run. Foreground tasks
+    # use the agent's own configured timeout and explicit user cancellation.
+    _chain_ctx_timeout = (settings.autonomous_run_timeout or None) if source not in {"ui", "cli", "telegram", "resume"} else None
 
     # Emit graph event for task assignment
     await graph_event_bus.emit_task_assigned(
@@ -160,6 +204,9 @@ async def _execute_task(task_id: str) -> None:
     )
 
     response_parts: list[str] = []
+    # Completed logical messages, split on MessageBoundary.
+    message_blocks: list[str] = []
+    _msg_start = 0
     total_cost = 0.0
 
     # Telegram streaming: push partial text to the bot as it generates
@@ -180,10 +227,23 @@ async def _execute_task(task_id: str) -> None:
                 source=source,
                 session_id=session_id,
             ):
+                from app.backend.routers.tasks import _event_to_dict
+                from app.backend.services.task_runtime import append_event
+                serialized = _event_to_dict(event)
+                if serialized:
+                    append_event(task_id, serialized)
                 # Collect text deltas for the final result
-                from app.utils.adapters import TextDelta, UsageStats
+                from app.utils.adapters import MessageBoundary, TextDelta, UsageStats
 
-                if isinstance(event, TextDelta):
+                if isinstance(event, MessageBoundary):
+                    # End of a logical message. Close the current one so
+                    # multi-turn output arrives as SEPARATE messages instead of
+                    # one run-on blob ("…builder agent.Builder completed…").
+                    _chunk = "".join(response_parts[_msg_start:]).strip()
+                    if _chunk:
+                        message_blocks.append(_chunk)
+                    _msg_start = len(response_parts)
+                elif isinstance(event, TextDelta):
                     response_parts.append(event.text)
                     if telegram_bot is not None:
                         telegram_bot.append_streaming_text(task_id, event.text)
@@ -199,7 +259,12 @@ async def _execute_task(task_id: str) -> None:
                     # Accumulate cost if available
                     pass
 
-        result_text = "".join(response_parts)
+        _tail = "".join(response_parts[_msg_start:]).strip()
+        if _tail:
+            message_blocks.append(_tail)
+        # Blank line between blocks so any consumer that only reads `result`
+        # still sees paragraph separation rather than glued sentences.
+        result_text = "\n\n".join(message_blocks) if message_blocks else "".join(response_parts)
         # Never substitute the prompt for the result. Echoing the task back at
         # the user reads as "the resume produced nothing useful" even when it
         # succeeded, and the old `len < 25` threshold actively destroyed valid
@@ -210,12 +275,22 @@ async def _execute_task(task_id: str) -> None:
                 "_Task finished with no text output — check the agent trace for what ran._"
             )
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if get_queued_task(task_id)["status"] != "running":
+            return
         update_queued_task(
             task_id,
             status="done",
             result=result_text,
             completed_at=completed_at,
+            metadata=json.dumps({**meta, "messages": message_blocks}),
         )
+        if meta.get("notification"):
+            from app.backend.services.notification_queue import notification_queue
+            try:
+                notification_queue.acknowledge([meta["notification"]])
+            except Exception as exc:
+                # The outbox poller reconciles this persisted success later.
+                logger.warning("Notification acknowledgment deferred: {}", exc)
         # Cron escalation: a successful cron-sourced run feeds the
         # failure-escalation ladder — resets failures, clears any disable.
         if cron_job_id:
@@ -232,6 +307,9 @@ async def _execute_task(task_id: str) -> None:
                 "task_id": task_id,
                 "status": "done",
                 "result": result_text,
+                # Each logical message separately, so the chat can render them
+                # as distinct bubbles rather than one concatenated wall.
+                "messages": message_blocks,
                 "completed_at": completed_at,
                 "session_id": session_id,
                 "source": source,
@@ -245,6 +323,7 @@ async def _execute_task(task_id: str) -> None:
                     "task_id": task_id,
                     "status": "done",
                     "result": result_text,
+                    "messages": message_blocks,
                     "completed_at": completed_at,
                     "session_id": session_id,
                     "source": source,
@@ -267,9 +346,12 @@ async def _execute_task(task_id: str) -> None:
             pass
 
         # Auto-trigger memory sweep every 20 turns
-        if new_count % 20 == 0:
+        if new_count > 0 and new_count % 20 == 0:
             try:
-                sweep_task_id = create_queued_task(
+                import uuid
+                sweep_task_id = str(uuid.uuid4())
+                create_queued_task(
+                    id=sweep_task_id,
                     prompt="memory-sweep",
                     source="system",
                     metadata=json.dumps({"auto_triggered": True, "turn_count": new_count}),
@@ -305,7 +387,7 @@ async def _execute_task(task_id: str) -> None:
         # tasks (resume, notification, etc.) do NOT trigger a Telegram ping —
         # they were not submitted by the user in the UI. Telegram-sourced tasks
         # are already handled by the bot's "Processing..." edit.
-        if (source or "").lower() == "ui" and not silent:
+        if (source or "").lower() == "ui" and not silent and meta.get("transport") != "sse":
             try:
                 from app.backend.telegram_bot import get_telegram_bot_instance
 
@@ -341,7 +423,9 @@ async def _execute_task(task_id: str) -> None:
         await _deliver_webhook_callback(task_id, result_text)
 
     except TimeoutError:
-        error_text = f"Task chain timed out after {_chain_timeout}s"
+        if get_queued_task(task_id)["status"] != "running":
+            return
+        error_text = f"Task chain timed out after {_chain_ctx_timeout}s"
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         update_queued_task(task_id, status="timeout", error=error_text, completed_at=completed_at)
         await ws_manager.push_event("task_error", {
@@ -400,7 +484,7 @@ async def _execute_task(task_id: str) -> None:
             except Exception as exc:
                 logger.warning(f"Cron failure record failed for {cron_job_id}: {exc}")
         # Telegram notification on task timeout (only for user-submitted UI tasks)
-        if (source or "").lower() == "ui":
+        if (source or "").lower() == "ui" and not silent and meta.get("transport") != "sse":
             try:
                 from app.backend.telegram_bot import get_telegram_bot_instance
 
@@ -427,14 +511,20 @@ async def _execute_task(task_id: str) -> None:
             except Exception:
                 pass
         logger.warning(f"Task {task_id[:8]}… chain timeout after {_chain_timeout}s")
+        # Webhook callback delivery (timeout status)
+        await _deliver_webhook_callback(task_id, error_text)
 
     except Exception as exc:
+        if get_queued_task(task_id)["status"] != "running":
+            logger.warning("Post-completion bookkeeping failed for {}: {}", task_id, exc)
+            return
         error_text = str(exc)
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         update_queued_task(
             task_id,
             status="error",
             error=error_text,
+            result="".join(response_parts),
             completed_at=completed_at,
         )
         await ws_manager.push_event("task_error", {
@@ -489,7 +579,7 @@ async def _execute_task(task_id: str) -> None:
             except Exception as exc:
                 logger.warning(f"Cron failure record failed for {cron_job_id}: {exc}")
         # Telegram notification on task error (only for user-submitted UI tasks)
-        if (source or "").lower() == "ui":
+        if (source or "").lower() == "ui" and not silent and meta.get("transport") != "sse":
             try:
                 from app.backend.telegram_bot import get_telegram_bot_instance
 
@@ -516,18 +606,27 @@ async def _execute_task(task_id: str) -> None:
             except Exception:
                 pass
         logger.error(f"Task {task_id[:8]}… failed: {error_text}")
+        # Webhook callback delivery (error status)
+        await _deliver_webhook_callback(task_id, error_text)
 
     finally:
         _running_task_ids.discard(task_id)
 
 
 async def _check_timeouts() -> None:
-    """Mark stale running tasks as timed out."""
+    """Expire orphaned rows; live executions own their configured timeout."""
     running = get_tasks_by_status("running")
     now = datetime.now(timezone.utc)
     timeout_seconds = settings.task_timeout
+    if timeout_seconds <= 0:
+        return
 
     for task in running:
+        # Removing a live ID doesn't cancel its coroutine. It only frees a
+        # fictitious slot, and that coroutine can later overwrite timeout with
+        # done. BaseAgent enforces its per-agent timeout (master may use 0).
+        if task["id"] in _running_task_ids:
+            continue
         started = task.get("started_at")
         if not started:
             continue
@@ -545,6 +644,8 @@ async def _check_timeouts() -> None:
                         "task_id": tid,
                         "status": "timeout",
                         "error": f"Timed out after {elapsed:.0f}s",
+                        "session_id": task.get("session_id"),
+                        "source": task.get("source"),
                     })
                 except Exception:
                     pass
@@ -555,6 +656,7 @@ async def _check_timeouts() -> None:
 async def dispatcher_loop() -> None:
     """Main dispatcher loop. Poll task_queue every 1s, dispatch pending tasks."""
     logger.info("Task dispatcher started")
+    _shutdown.clear()
 
     while not _shutdown.is_set():
         try:
@@ -562,14 +664,23 @@ async def dispatcher_loop() -> None:
             await _check_timeouts()
 
             # How many slots are available?
+            # All queue entries execute through the one master. Do not mark
+            # lock waiters running or let them occupy foreground slots.
+            from app.agents.master.agent import master_agent
+            if master_agent.is_busy():
+                await asyncio.sleep(0.2)
+                continue
             running_count = len(_running_task_ids)
-            available = settings.max_concurrent_tasks - running_count
+            available = 1 - running_count
             if available <= 0:
                 await asyncio.sleep(1)
                 continue
 
             # Fetch pending tasks
-            pending = get_tasks_by_status("pending", limit=available)
+            from app.utils.db import get_db
+            pending = [dict(r) for r in get_db().execute(
+                "SELECT * FROM task_queue WHERE status='pending' ORDER BY CASE WHEN source IN ('ui','cli','telegram','resume') THEN 0 ELSE 1 END, created_at, rowid LIMIT ?", (available,)
+            ).fetchall()]
             for task in pending:
                 tid = task["id"]
                 if tid in _running_task_ids:
@@ -593,7 +704,7 @@ async def dispatcher_loop() -> None:
                         pass
 
                 _running_task_ids.add(tid)
-                asyncio.create_task(_execute_task(tid))
+                _running_tasks[tid] = asyncio.create_task(_execute_task(tid))
 
             # Goal-driven task creation: when no pending or running tasks, check GOALS.MD
             if not pending and not _running_task_ids:

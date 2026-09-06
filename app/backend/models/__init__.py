@@ -1,13 +1,15 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.backend.models.voice import TTSRequest, TTSVoice, TTSVoicesResponse, STTRequest, STTResponse  # noqa: F401
 
 
 class TaskRequest(BaseModel):
     task: str
+    task_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    after_seq: int = Field(default=0, ge=0)
     history: list[dict] | None = None
     source: str | None = None  # "cli", "ui", "notification"
-    session_id: str | None = None  # bind task/event stream to a UI chat session
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
     attachments: list[str] | None = None  # uploaded attachment IDs (owner-scoped)
 
 

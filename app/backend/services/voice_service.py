@@ -283,12 +283,16 @@ class STTEngine:
             tmp_path = Path(tmp.name)
 
         try:
+            lang = language.split("-")[0].lower() if language else None
+            data = {"model": "whisper-1"}
+            if lang:
+                data["language"] = lang
             with open(tmp_path, "rb") as f:
                 response = httpx.post(
                     "https://api.openai.com/v1/audio/transcriptions",
                     headers={"Authorization": f"Bearer {api_key}"},
                     files={"file": f},
-                    data={"model": "whisper-1", "language": language},
+                    data=data,
                     timeout=60.0,
                 )
             response.raise_for_status()

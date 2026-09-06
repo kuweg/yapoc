@@ -5,6 +5,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts, type GroupedPart } from './groupParts'
+import ChartBlock from './ChartBlock'
 import { StreamingText } from './StreamingText'
 import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import { CompactionMarker } from './ContextGauge'
@@ -189,6 +190,9 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
     }
     if (part.kind === 'compact') {
       return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
+    }
+    if (part.kind === 'chart') {
+      return <ChartBlock key={`chart-${i}`} option={part.option} />
     }
     return (
       <ToolCallBlock

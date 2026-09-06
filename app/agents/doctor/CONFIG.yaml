@@ -37,7 +37,6 @@ tools:
   - grep
 delegation_targets:
   - builder
-  - planning
 autonomy_envelope:
   can_kill_agents: [builder, keeper, cron]
   cannot_kill: [master, doctor]

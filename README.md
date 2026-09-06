@@ -4,39 +4,95 @@ An autonomous multi-agent system where a small hierarchy of LLM-driven agents co
 
 Currently 11 agents (master, planning, builder, keeper, doctor, model_manager, cron, evaluator, librarian, researcher, security) cooperate through markdown files, a SQLite task queue, and a Redis message bus.
 
+Last updated: 2026-09-02
+
+<!-- TODO: Add actual architecture diagram -->
+```mermaid
+graph TD
+  placeholder["Architecture diagram goes here"]
+```
+
+> **Diagram placeholder.** The architecture diagram will show how the User entry points (CLI, Web UI, Telegram) feed the FastAPI backend and Master agent, and how each sub-agent hangs off Master. The source file will live at `docs/architecture.mmd`.
+
 ---
 
 ## Quick start
 
-```bash
-# One-line installer. Detects your OS, checks Python 3.12 + git, installs Poetry
-# (via pipx) and Redis (via brew/apt — prompted), clones the repo, runs
-# `poetry install`, and drops into an interactive setup wizard.
-curl -fsSL https://raw.githubusercontent.com/kuweg/yapoc/main/scripts/install.sh | bash
+**Prerequisites**
 
-# Then:
-cd ~/yapoc
-poetry run yapoc start   # backend daemon
-poetry run yapoc         # interactive REPL
-```
+- Python 3.12
+- Git
+- Redis running on `:6379`
+- Node 20+ and pnpm (only if you want the web UI)
 
-The installer never runs as root, never edits your shell rc files, and prompts
-before invoking `sudo` (only ever for an explicitly-named package). Pass
-`-s -- --yes` to the curl pipe to auto-confirm all prompts.
+**Automated install (recommended)**
+
+1. **Run the one-line installer.** It detects your OS, checks Python 3.12 + git,
+   installs Poetry (via pipx) and Redis (via brew/apt — prompted), clones the
+   repo, runs `poetry install`, and drops into an interactive setup wizard.
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/kuweg/yapoc/main/scripts/install.sh | bash
+   ```
+
+   *Expected outcome:* the repo is cloned into `~/yapoc` and the setup wizard opens.
+
+   The installer never runs as root, never edits your shell rc files, and prompts
+   before invoking `sudo` (only ever for an explicitly-named package). Pass
+   `-s -- --yes` to the curl pipe to auto-confirm all prompts.
+
+2. **Start the backend daemon.**
+
+   ```bash
+   cd ~/yapoc
+   poetry run yapoc start   # backend daemon
+   ```
+
+   *Expected outcome:* the FastAPI backend is running and healthy.
+
+3. **Launch the interactive REPL** (or open the web UI).
+
+   ```bash
+   poetry run yapoc         # interactive REPL
+   ```
+
+   *Expected outcome:* a Typer/Rich REPL with tab-completion, `@file` mentions,
+   and `!bash` mode.
 
 ### Manual install
 
-```bash
-# Prereqs: Python 3.12, Poetry, Redis running on :6379. Node 20+ + pnpm if you
-# want the web UI.
+1. **Install dependencies** (Poetry resolves and installs the Python environment).
 
-poetry install
-poetry run yapoc init    # interactive wizard: pick provider, validate key,
-                         # write .env and rewrite agent-settings.json
-poetry run yapoc doctor  # preflight check
-poetry run yapoc start   # backend daemon
-poetry run yapoc         # interactive REPL — or open http://localhost:5173
-```
+   ```bash
+   poetry install
+   ```
+
+2. **Run the interactive setup wizard** to pick a provider, validate your key,
+   write `.env`, and rewrite `agent-settings.json`.
+
+   ```bash
+   poetry run yapoc init
+   ```
+
+   *Expected outcome:* `.env` written and `agent-settings.json` rewritten.
+
+3. **Run the preflight check** to confirm the environment is ready.
+
+   ```bash
+   poetry run yapoc doctor
+   ```
+
+4. **Start the backend daemon.**
+
+   ```bash
+   poetry run yapoc start   # backend daemon
+   ```
+
+5. **Launch the interactive REPL** — or open the web UI.
+
+   ```bash
+   poetry run yapoc         # interactive REPL — or open http://localhost:5173
+   ```
 
 The CLI REPL supports tab-completion, `@file` mentions, `!bash` mode, `/diff`, `/copy`, `/export`, and live cost tracking. Run `/help` inside the REPL to see the full set.
 
@@ -169,6 +225,23 @@ app/
 │   └── db.py      # SQLite task_queue + memory index
 └── frontend/      # React/Vite dashboard
 ```
+
+<!-- Keep this table in sync with app/agents/ and app/config/agent-settings.json when agents change. -->
+## Agents
+
+| Agent Name | Purpose | Key Capabilities / Typical Use Case |
+|------------|---------|--------------------------------------|
+| master | System entry point | Orchestrates the hierarchy, delegates tasks |
+| planning | Task decomposer | Breaks complex tasks into manageable sub-tasks |
+| builder | Code/file editor | File and code edits over the shared file system |
+| keeper | Config manager | Config, `.env`, and settings management |
+| model_manager | Model availability (cron) | Monitors and manages LLM model availability |
+| cron | Scheduled tasks | Runs scheduled/recurring tasks |
+| evaluator | Quality gate | Reviews work and serves as a quality gate |
+| doctor | Health monitor (cron) | Monitors agent/system health |
+| librarian | Memory consolidation | Consolidates memory |
+| researcher | Web + investigation | Web search and investigation |
+| security | Tool-call gatekeeper | LLM gatekeeper in the two-layer security gate |
 
 ---
 

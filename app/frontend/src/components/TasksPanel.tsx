@@ -106,12 +106,22 @@ export function TasksPanel() {
 
   // The list spans days but only ever showed clock times, so "1:20 PM" could be
   // today or last week. Group under day headers instead.
+  //
+  // Merge by label rather than by adjacency: `sorted` is ordered by status
+  // first, so a single day's tasks are split across status runs. Adjacency
+  // grouping emitted "Today" once per run — duplicate React keys, and two
+  // "Today" headers on screen.
   const groups: Array<{ day: string; items: QueuedTask[] }> = []
+  const groupByDay = new Map<string, { day: string; items: QueuedTask[] }>()
   for (const t of sorted) {
     const day = dayLabel(t.created_at)
-    const last = groups[groups.length - 1]
-    if (last && last.day === day) last.items.push(t)
-    else groups.push({ day, items: [t] })
+    let group = groupByDay.get(day)
+    if (!group) {
+      group = { day, items: [] }
+      groupByDay.set(day, group)
+      groups.push(group)
+    }
+    group.items.push(t)
   }
 
   return (

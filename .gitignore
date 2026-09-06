@@ -117,3 +117,6 @@ app/yapoc_*.mp3
 
 # ── Playwright MCP snapshots / logs ─────────────────────────────────────
 .playwright-mcp/
+
+# Editor/agent backup files (only *.MD.bak was covered before)
+*.bak

@@ -92,6 +92,7 @@ export type TaskPart =
       done: boolean
     }
   | { kind: 'compact'; id: string; tokensBefore: number; tokensAfter: number; reason: string }
+  | { kind: 'chart'; option: Record<string, unknown> }
 
 export interface Attachment {
   id?: string          // server upload id (present after upload)
@@ -117,6 +118,7 @@ export interface TaskCompletionMeta {
 }
 
 export interface Message {
+  completionId?: string // persisted delivery ID, independent of task-card presentation
   role: 'user' | 'assistant'
   content: string
   parts?: TaskPart[]         // execution trace for structured assistant messages
@@ -126,6 +128,8 @@ export interface Message {
 
 // Client-side session (localStorage)
 export interface Session {
+  /** Delivery receipts survive message-history trimming. */
+  completionIds?: string[]
   id: string
   name: string
   createdAt: string

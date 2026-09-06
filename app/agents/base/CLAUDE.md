@@ -26,14 +26,15 @@ All agents inherit from this. Key methods:
 - Tools run in parallel via `asyncio.gather`
 - Wrapped in `asyncio.timeout(task_timeout)`
 - `manage_task_file=True` (default): clears TASK.MD after run. Set to `False` when AgentRunner calls it — the runner manages TASK.MD frontmatter itself.
-- **`blocked_tools: set[str] | None`** — tools prohibited from this run. Both `AgentRunner._run_task` and `MasterAgent.handle_task_stream` pass `{"server_restart", "process_restart", "spawn_agent", "kill_agent"}` for notification-processing tasks (task body starts with `"[Process incoming"`). Any agent processing child results MUST pass blocked_tools — otherwise it may call server_restart and kill the backend.
+- **`blocked_tools: set[str] | None`** — tools prohibited from this run. Summary-only notification tasks block restart, spawn, kill, and shell tools. Durable planning continuations may spawn specialists but still block restart, kill, and shell tools.
 
-### Notification task pattern (MUST FOLLOW for all new agents)
-When an agent processes incoming results from child agents:
-1. Detect it: task body starts with `"[Process incoming"`
-2. Pass `blocked_tools={"server_restart", "process_restart", "spawn_agent", "kill_agent"}`
-3. Notification-processing tasks share the same turn budget as regular tasks. Cost protection lives in `budget_per_task_usd` / `budget_per_agent_usd`, not in a turn cap.
-4. After processing, call `notification_queue.drain()` for the session
+### Notification delivery pattern
+When an agent processes child results:
+1. Snapshot `notification_queue.pending_entries(parent)` for the exact session. Empty string means sessionless; `None` in legacy queue filters means all sessions.
+2. Summary-only runs use `blocked_tools={"server_restart", "process_restart", "spawn_agent", "kill_agent", "shell_exec"}`.
+3. Master results are handed off through `notification_delivery.py` as durable queue runs. Completed plans use `source="continuation"` with specialist-spawn permission and the original request lineage.
+4. Persist successful output before `notification_queue.acknowledge(snapshot)`. Never drain before execution or drain all current inputs afterward: late arrivals have not been processed.
+5. Preserve pending inputs on failure. Stable delivery IDs reconcile retry/crash boundaries; retries are bounded by centralized settings.
 
 ### Config loading
 `_load_config()` runs on every turn (not cached per-run). Order:
@@ -46,7 +47,7 @@ When an agent processes incoming results from child agents:
 
 ### Task status lifecycle (structured TASK.MD)
 ```
-pending → running → done | error
+pending → running → done | error | interrupted
 ```
 Written to frontmatter by `set_task_status()`. Regex replaces `## Result` / `## Error` sections.
 

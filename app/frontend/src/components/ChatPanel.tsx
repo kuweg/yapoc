@@ -1,9 +1,10 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { streamTask, ServerRestartError } from '../hooks/useStream'
+import { streamTask } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
 import { useWsStore, type BackgroundTask } from '../store/wsStore'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
+import { useBackendSTT } from '../hooks/useBackendSTT'
 import { handleCommand, synthesizeSpeech, getAgents, uploadFiles } from '../api/client'
 import { MessageBubble } from './MessageBubble'
 import { TaskCompletionCard } from './TaskCompletionCard'
@@ -12,8 +13,10 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { CompactionMarker } from './ContextGauge'
 import { groupParts } from './groupParts'
+import ChartBlock from './ChartBlock'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { SubAgentActivity } from './SubAgentActivity'
+import { useLiveAgentParts } from './LiveAgentTranscript'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
@@ -31,6 +34,7 @@ type PendingStreamEvent =
   | { kind: 'tool_start'; id: string; name: string; input: Record<string, unknown> }
   | { kind: 'tool_done'; name: string; result: string; isError: boolean }
   | { kind: 'compact'; tokensBefore: number; tokensAfter: number; reason: string }
+  | { kind: 'message_boundary' }
 
 /** ES2023 findLastIndex polyfill */
 function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
@@ -40,10 +44,30 @@ function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
   return -1
 }
 
+/**
+ * Close out any open (still "running") thinking or tool parts so an interrupt
+ * (page reload mid-stream, connection loss) doesn't leave a spinner forever.
+ * Mirrors the end-of-turn idiom; hoisted to module scope so the in-stream
+ * close-out AND the pagehide/abort persistence handler share one definition.
+ */
+function closeOpenParts(parts: Part[]): Part[] {
+  return parts.map((p) =>
+    (p.kind === 'thinking' || p.kind === 'tool') && !p.done ? { ...p, done: true } : p,
+  )
+}
+
+// Note appended to a partial assistant reply that was cut off mid-stream by a
+// page reload / navigation / connection loss. Kept as plain italic markdown so
+// it renders through both the ReactMarkdown bubbles and is immune to store
+// schema changes.
+const INTERRUPTED_MARKER = '\n\n_[interrupted — this reply was cut off mid-stream before it finished. It is not master\'s final answer; send another message or retry to continue.]_'
+
 function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] {
   let parts = prev
   for (const event of events) {
-    if (event.kind === 'thinking_delta') {
+    if (event.kind === 'message_boundary') {
+      parts = [...parts.map((p): Part => p.kind === 'thinking' ? { ...p, done: true } : p), { kind: 'text', text: '' }]
+    } else if (event.kind === 'thinking_delta') {
       const last = parts[parts.length - 1]
       if (last && last.kind === 'thinking' && !last.done) {
         parts = [...parts.slice(0, -1), { ...last, text: last.text + event.text }]
@@ -71,6 +95,29 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
         .reverse()
         .find(({ p }) => p.kind === 'tool' && !(p as { kind: 'tool'; id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean; done: boolean }).done && p.name === event.name)
       if (target) {
+        if (event.name === 'render_chart' && !event.isError) {
+          // A successful render_chart resolves to an interactive ECharts option
+          // payload (normalized compact JSON). Try to parse it and, on success,
+          // REPLACE the tool card with a chart part in the same slot so the
+          // chart renders instantly (no `done` field) instead of a collapsed
+          // tool card. Any parse failure falls back to a normal (error) tool
+          // card below so errors stay visible.
+          try {
+            const parsed: unknown = JSON.parse(event.result)
+            const isObj = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+            if (isObj) {
+              const updated = [...parts]
+              updated[target.i] = {
+                kind: 'chart',
+                option: parsed as Record<string, unknown>,
+              }
+              parts = updated
+              continue
+            }
+          } catch {
+            // fall through to the tool-done render below
+          }
+        }
         const updated = [...parts]
         updated[target.i] = {
           ...(updated[target.i] as { kind: 'tool'; id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean; done: boolean }),
@@ -264,6 +311,9 @@ function PartsChain({
         if (part.kind === 'compact') {
           return <CompactionMarker key={part.id} tokensBefore={part.tokensBefore} tokensAfter={part.tokensAfter} reason={part.reason} />
         }
+        if (part.kind === 'chart') {
+          return <ChartBlock key={`chart-${i}`} option={part.option} />
+        }
         return (
           <ToolCallBlock
             key={part.id}
@@ -316,14 +366,34 @@ export function ChatPanel() {
     return out
   }, [streamingParts])
 
+  // Live parts for whatever autonomous turn is running, converted from the
+  // per-agent activity channel into the chat's normal Part[] shape. Derived
+  // straight from backgroundTasks so the hook runs unconditionally at the top
+  // level, before autonomousRunning is computed below.
+  const autonomousStartedAt = useMemo(() => {
+    // Only follow a turn that belongs to THIS chat. YAPOC restarts itself for
+    // its own reasons, and those resumes carry their own session — rendering
+    // them here showed master doing unrelated work under the user's request,
+    // which reads as "it ignored my instructions after the restart".
+    const running = backgroundTasks.find(
+      (t) =>
+        t.status === 'running' &&
+        ['resume', 'goal', 'cron', 'notification', 'continuation'].includes((t.source ?? '').toLowerCase()) &&
+        t.session_id === activeId,
+    )
+    return running?.started_at
+  }, [backgroundTasks, activeId])
+  const liveParts = useLiveAgentParts('master', autonomousStartedAt, activeId ?? undefined)
+
   const autonomousRunning = useMemo(
     () =>
       backgroundTasks.filter(
         (t) =>
           t.status === 'running' &&
-          ['resume', 'goal', 'cron', 'notification'].includes((t.source ?? '').toLowerCase()),
+          ['resume', 'goal', 'cron', 'notification', 'continuation'].includes((t.source ?? '').toLowerCase()) &&
+          t.session_id === activeId,
       ),
-    [backgroundTasks],
+    [backgroundTasks, activeId],
   )
   const [backgroundActivity, setBackgroundActivity] = useState<string>('')
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
@@ -340,6 +410,19 @@ export function ChatPanel() {
   // launch animation regardless of how the message was submitted (spec §4).
   const [launchTick, setLaunchTick] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
+  const runIdRef = useRef<string | null>(null)
+  // Mirror of the live `assembledText` accumulator inside sendMessage, so a
+  // synchronous pagehide/abort handler can read "what arrived so far" even
+  // though assembledText is a closure `let` scoped to sendMessage.
+  const assembledTextRef = useRef('')
+  // True once the partial interrupted text has been committed to the store,
+  // preventing double-append from (1) pagehide firing and (2) the AbortError
+  // catch on the same disconnect.
+  const partialCommittedRef = useRef(false)
+  // Set by handleStop BEFORE aborting so the AbortError catch can tell an
+  // intentional user Stop (do NOT persist a partial as a real answer) apart
+  // from a genuine mid-stream disconnect (DO persist).
+  const stoppingRef = useRef(false)
   const backendAudioRef = useRef<HTMLAudioElement | null>(null)
   const backendAudioUrlRef = useRef<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -399,6 +482,8 @@ export function ChatPanel() {
     voiceSpeed,
     voiceTtsMode,
     voiceBackendEngine,
+    setAgentSpeaking,
+    setAgentListening,
   } = useAppStore()
 
   const {
@@ -412,14 +497,64 @@ export function ChatPanel() {
   })
   const isSpeaking = ttsSpeaking || backendSpeaking
 
+  // Mirror local speaking state up into the shared store so global chrome
+  // (e.g. the header speaking sphere) can react to it.
+  useEffect(() => {
+    setAgentSpeaking(isSpeaking)
+  }, [isSpeaking, setAgentSpeaking])
+
   const { isListening: sttListening, start: sttStart, stop: sttStop, supported: sttSupported } =
     useSpeechRecognition({
       onResult: (transcript) => {
         chatInputRef.current?.setText(transcript)
       },
       onEnd: () => {},
-      onError: () => {},
+      onError: (err) => setVoiceError(`Speech recognition error: ${err}`),
     })
+
+  // Backend STT (OpenAI Whisper) is preferred whenever it is supported; the
+  // browser-native SpeechRecognition path stays as a fallback.
+  const {
+    isListening: backendSttListening,
+    start: backendSttStart,
+    stop: backendSttStop,
+    supported: backendSttSupported,
+  } = useBackendSTT({
+    engine: voiceBackendEngine,
+    language: 'en-US',
+    onResult: (result) => {
+      chatInputRef.current?.setText(result.text)
+    },
+    onError: (err) => setVoiceError(err),
+  })
+
+  const useBackendMic = voiceEnabled && backendSttSupported
+  const micListening = useBackendMic ? backendSttListening : sttListening
+  const micSupported = useBackendMic ? backendSttSupported : sttSupported
+
+  const startListening = useCallback(() => {
+    setVoiceError(null)
+    if (useBackendMic) {
+      backendSttStart()
+    } else {
+      sttStart()
+    }
+  }, [useBackendMic, backendSttStart, sttStart])
+
+  const stopListening = useCallback(() => {
+    if (backendSttListening) backendSttStop()
+    if (sttListening) sttStop()
+  }, [backendSttListening, backendSttStop, sttListening, sttStop])
+
+  // Mirror the mic-listening state up into the shared store so the header
+  // sphere can show its "listening" third state.
+  useEffect(() => {
+    setAgentListening(micListening)
+  }, [micListening, setAgentListening])
+  // Clear the listening flag on unmount.
+  useEffect(() => {
+    return () => setAgentListening(false)
+  }, [setAgentListening])
 
   const cleanupBackendAudio = useCallback(() => {
     const audio = backendAudioRef.current
@@ -534,7 +669,7 @@ export function ChatPanel() {
     const partsToSave = group.parts.length > 0 ? group.parts : undefined
     // Bind to the session the group started in — the user may have switched
     // chats while the delegation was still running.
-    appendMessage('assistant', text, partsToSave, undefined, group.sessionId)
+    appendMessage('assistant', text, partsToSave, undefined, group.sessionId, undefined, `${group.id}:0`)
     setTaskGroups((prev) => prev.filter((g) => g.id !== group.id))
   }, [appendMessage])
 
@@ -543,37 +678,49 @@ export function ChatPanel() {
     if (!lastCompletedTask || !activeId) return
     const result = lastCompletedTask.result?.trim()
     const hasError = Boolean(lastCompletedTask.error)
+    const targetSession = lastCompletedTask.session_id
+    // Service work remains in Notifications/Tasks. A result with an owner is
+    // appended to that owner's conversation even if another chat is open.
+    if (!targetSession || !useSessionStore.getState().sessions.some((s) => s.id === targetSession)) {
+      clearLastCompletedTask()
+      return
+    }
 
     // Same completion delivered twice (live event + a state_sync replay after a
     // reconnect) previously rendered two "Task completed" cards.
     const completionId = lastCompletedTask.task_id
     if (completionId) {
-      if (appendedCompletionsRef.current.has(completionId)) {
+      const owner = useSessionStore.getState().sessions.find((s) => s.id === targetSession)
+      if (appendedCompletionsRef.current.has(completionId) || owner?.completionIds?.some((id) => id.startsWith(`${completionId}:`)) || owner?.history.some((m) => m.completionId?.startsWith(`${completionId}:`))) {
         clearLastCompletedTask()
         return
       }
       appendedCompletionsRef.current.add(completionId)
     }
 
-    if (!awaitingNotification) {
-      // Automated/background completion (source: resume, notification, goal…)
-      // with no active task group. These belong to a SYNTHETIC service session
-      // (e.g. a resume task's own ID, a notification channel session) the user
-      // has never opened — routing to it would silently drop the message
-      // (appendMessage returns early for an unknown session). Always surface
-      // them in the ACTIVE chat, regardless of the completion's session_id.
-      const finalText = result || (hasError ? '_Background task failed_' : '_Task completed_')
-      // When the completion carried structured metadata (which agent finished,
-      // a real prompt description, an error), persist it so the history renders
-      // a rich <TaskCompletionCard>. Fall back to bare text otherwise.
-      const hasMeta = Boolean(
-        (lastCompletedTask.prompt && lastCompletedTask.prompt.trim()) ||
-          (lastCompletedTask.agent && lastCompletedTask.agent.trim()) ||
-          lastCompletedTask.task_id ||
-          lastCompletedTask.error,
-      )
-      const snapshot = hasMeta ? lastCompletedTask : undefined
-      appendMessage('assistant', finalText, undefined, undefined, activeId, snapshot)
+    if (!awaitingNotification || !taskGroups.some((g) => g.status === 'running') || targetSession !== activeId || lastCompletedTask.source === 'resume') {
+      const finalText = hasError
+        ? `${result ? `${result}\n\n` : ''}Task failed: ${lastCompletedTask.error}`
+        : result || '_Task completed_'
+      // A completion whose session IS this chat is master talking to the user —
+      // a post-restart resume of something they asked for. Render it as an
+      // ordinary assistant message, not a "task completed" card: a card reads
+      // as a job report and, for longer work, hides master's own words behind a
+      // summary the user must wait for.
+      //
+      // Multi-turn output arrives pre-split on turn boundaries. Append each
+      // as its own message so the chat reads as a conversation rather than one
+      // concatenated paragraph.
+      const blocks = hasError ? [] : (lastCompletedTask.messages ?? []).filter((m) => m && m.trim())
+      if (blocks.length > 1) {
+        blocks.forEach((m, i) => appendMessage('assistant', m, undefined, undefined, targetSession, undefined, `${completionId}:${i}`))
+      } else {
+        appendMessage('assistant', finalText, undefined, undefined, targetSession, undefined, `${completionId}:0`)
+      }
+      if (targetSession === activeId) {
+        setAwaitingNotification(false)
+        setBackgroundActivity('')
+      }
       clearLastCompletedTask()
       return
     }
@@ -604,13 +751,15 @@ export function ChatPanel() {
     setAwaitingNotification(false)
     setBackgroundActivity('')
     clearLastCompletedTask()
-  }, [lastCompletedTask, awaitingNotification, activeId, clearLastCompletedTask, persistTaskGroupToHistory, appendMessage])
+  }, [lastCompletedTask, awaitingNotification, taskGroups, activeId, clearLastCompletedTask, persistTaskGroupToHistory, appendMessage])
 
   useEffect(() => {
     if (!awaitingNotification || !lastSessionEvent || !activeId) return
     if (lastSessionEvent.session_id !== activeId) return
     const eventType = String(lastSessionEvent.event.type ?? '')
     if (eventType === 'notification_result') {
+      // New backends also send task_complete with this delivery ID.
+      if (lastSessionEvent.event.task_id) return
       const text = String(lastSessionEvent.event.text ?? '').trim()
       setTaskGroups((prev) => {
         const idx = findLastIndex(prev, (g) => g.status === 'running')
@@ -686,6 +835,58 @@ export function ChatPanel() {
       }
     }
   }, [stopPolling, stopSpeaking])
+
+  // Fired on pagehide/beforeunload and on a genuine mid-stream connection
+  // loss. Persists "what arrived so far" (partial text + the closed parts
+  // trace) as an assistant message marked INTERRUPTED, so a page reload shows
+  // the partial reply instead of nothing. Tool side-effects are NOT re-run;
+  // this only records what already happened.
+  const persistInterruptedPartial = useCallback(
+    (sessionId: string | null) => {
+      if (partialCommittedRef.current) return
+      const textSoFar = (assembledTextRef.current || '').trim()
+      // Flush any RAF-buffered parts into the parts ref so the trace is current.
+      if (pendingEventsRef.current.length > 0) {
+        streamingPartsRef.current = applyPendingEvents(
+          streamingPartsRef.current,
+          pendingEventsRef.current,
+        )
+        pendingEventsRef.current = []
+      }
+      const partsSnap = closeOpenParts(streamingPartsRef.current)
+      const hasTextPart = partsSnap.some((p) => p.kind === 'text' && (p.text || '').trim().length > 0)
+      if (!textSoFar && partsSnap.length === 0) return // nothing arrived — nothing to persist
+      partialCommittedRef.current = true
+      // Mirror the established error-render path: when we have running text we
+      // persist a collapsed single bubble (content + marker) so the marker is
+      // never hidden by PartsChain's hasText-suppresses-content logic.
+      if (textSoFar) {
+        appendMessage('assistant', textSoFar + INTERRUPTED_MARKER, undefined, undefined, sessionId)
+      } else if (!hasTextPart && partsSnap.length > 0) {
+        // Mid-tool/thinking interrupt with no assembled prose: keep the trace.
+        appendMessage('assistant', INTERRUPTED_MARKER.trimStart(), partsSnap, undefined, sessionId)
+      } else {
+        appendMessage('assistant', INTERRUPTED_MARKER.trimStart(), undefined, undefined, sessionId)
+      }
+    },
+    [appendMessage],
+  )
+
+  // Persist any partial stream on page unload (refresh/nav/close). Fires
+  // synchronously on pagehide before the fetch is aborted; the AbortError
+  // catch is a backstop for genuine connection loss without navigation.
+  useEffect(() => {
+    if (!isStreaming) return undefined
+    const onPageHide = () => {
+      persistInterruptedPartial(useSessionStore.getState().activeId)
+    }
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('beforeunload', onPageHide)
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('beforeunload', onPageHide)
+    }
+  }, [isStreaming, persistInterruptedPartial])
 
   // Clear task groups when switching sessions
   useEffect(() => {
@@ -780,8 +981,16 @@ export function ChatPanel() {
     setIsStreaming(true)
     setBackgroundActivity('')
 
+    const runId = crypto.randomUUID()
+    runIdRef.current = runId
+    appendedCompletionsRef.current.add(runId)
     const controller = new AbortController()
     abortRef.current = controller
+    // Reset per-send persistence + stop flags so a prior turn's committed
+    // partial doesn't suppress this turn's commit.
+    assembledTextRef.current = ''
+    partialCommittedRef.current = false
+    stoppingRef.current = false
 
     // Track assembled text locally — avoids React ref/useEffect timing races
     let assembledText = ''
@@ -791,11 +1000,15 @@ export function ChatPanel() {
     let hadInlineResult = false
 
     try {
-      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds)) {
-        if (event.type === 'thinking') {
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId)) {
+        if (event.type === 'message_boundary') {
+          enqueueStreamEvent({ kind: 'message_boundary' })
+          assembledText += '\n\n'
+        } else if (event.type === 'thinking') {
           enqueueStreamEvent({ kind: 'thinking_delta', text: event.text })
         } else if (event.type === 'text') {
           assembledText += event.text
+          assembledTextRef.current = assembledText
           enqueueStreamEvent({ kind: 'text_delta', text: event.text })
         } else if (event.type === 'tool_start') {
           if (event.name === 'spawn_agent') hadSpawnAgent = true
@@ -868,68 +1081,33 @@ export function ChatPanel() {
       // wait_for_agent, whose result master surfaced inline) doesn't spin
       // forever. Applied to BOTH the live view and the captured finalParts
       // (what gets persisted/grouped), since the ref lags the last flush.
-      const closeOpenParts = (parts: Part[]): Part[] =>
-        parts.map((p) =>
-          (p.kind === 'thinking' || p.kind === 'tool') && !p.done ? { ...p, done: true } : p,
-        )
       setStreamingParts((prev) => closeOpenParts(prev))
 
       // Capture the full parts array before resetting
       const finalParts = closeOpenParts(streamingPartsRef.current)
 
-      if (hadSpawnAgent && !hadInlineResult) {
-        // Genuine fire-and-forget spawn: master ended its turn without waiting,
-        // so the child completes later → a background notification will resolve
-        // this. Render the trace as a live task group meanwhile.
-        setTaskGroups((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            parts: finalParts,
-            finalText: assembledText,
-            status: 'running',
-            sessionId,
-          },
-        ])
-        setAwaitingNotification(true)
-      } else if (hadSpawnAgent && hadInlineResult) {
-        // master spawned AND waited/read the result in this turn — it's already
-        // in `assembledText`. Show the delegation trace as a COMPLETED task group
-        // and persist it; do NOT wait for a notification that will never come.
-        const doneGroup: TaskGroup = {
-          id: crypto.randomUUID(),
-          parts: finalParts,
-          finalText: assembledText,
-          status: 'done',
-          sessionId,
-        }
-        setTaskGroups((prev) => [...prev, doneGroup])
-        setTimeout(() => persistTaskGroupToHistory(doneGroup), 0)
-      } else {
-        // Save both the structured parts AND the final assembled text into history.
-        // On page refresh, MessageBubble will render the parts as the execution trace.
-        const partsToSave = finalParts.length > 0 ? finalParts : undefined
-        appendMessage('assistant', assembledText, partsToSave, undefined, sessionId)
-        // Auto-speak response if voice auto-speak is enabled
-        if (assembledText) {
-          const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
-          if (ve && vas) {
-            speakText(assembledText)
-          }
-        }
+      const partsToSave = finalParts.length > 0 ? finalParts : undefined
+      appendMessage('assistant', assembledText, partsToSave, undefined, sessionId, undefined, `${runId}:0`)
+      if (hadSpawnAgent && !hadInlineResult) setAwaitingNotification(true)
+      if (assembledText) {
+        const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
+        if (ve && vas) speakText(assembledText)
       }
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') {
-        // ServerRestartError → backend bounced mid-stream and is already back
-        // up (useStream waited for /health). Show a recovery hint, not a raw
-        // network error. Any partial assistant text is preserved before the
-        // hint so the user can still see what arrived before the restart.
-        const errText = e instanceof ServerRestartError
-          ? `\n\n_Server restarted — connection lost. Reconnected; please retry your message._`
-          : `\n\n_Error: ${(e as Error).message}_`
-        setStreamingParts((prev) => [...prev, { kind: 'text', text: errText }])
-        const full = (assembledText + errText).trim()
-        if (full) appendMessage('assistant', full, undefined, undefined, sessionId)
+      // Release live-SSE suppression so a later durable completion can arrive
+      // via WebSocket. A completion already received remains in backgroundTasks.
+      appendedCompletionsRef.current.delete(runId)
+      const finished = useWsStore.getState().backgroundTasks.find((t) => t.task_id === runId && ['done', 'error', 'timeout', 'cancelled'].includes(t.status))
+      if (finished) {
+        const text = finished.result || finished.error || '_Task completed_'
+        appendMessage('assistant', text, undefined, undefined, sessionId, undefined, `${runId}:0`)
+        appendedCompletionsRef.current.add(runId)
+      } else if ((e as Error).name === 'AbortError') {
+        if (!stoppingRef.current) persistInterruptedPartial(sessionId)
+        else appendMessage('assistant', assembledText + '\n\n_Cancelled._', undefined, undefined, sessionId, undefined, `${runId}:0`)
+      } else {
+        const errText = `\n\n_Connection interrupted: ${(e as Error).message}. The task remains in the backend; its result will appear here when available._`
+        appendMessage('assistant', (assembledText + errText).trim(), undefined, undefined, sessionId)
       }
     } finally {
       // Drop any pending buffered events and cancel the scheduled flush —
@@ -947,7 +1125,20 @@ export function ChatPanel() {
   }, [isStreaming, appendMessage, speakText, stopPolling, enqueueStreamEvent, flushPendingEvents])
 
   function handleStop() {
-    abortRef.current?.abort()
+    // Mark an intentional Stop so the AbortError catch does NOT persist a
+    // half-finished partial as if it were a real answer. Only page-unload /
+    // genuine connection-loss persists.
+    stoppingRef.current = true
+    const runId = runIdRef.current
+    if (runId) {
+      void fetch(`/api/tasks/${runId}/cancel`, { method: 'POST' }).then((response) => {
+        if (!response.ok) throw new Error(`Cancel failed: ${response.status}`)
+        abortRef.current?.abort()
+      }).catch((error) => {
+        stoppingRef.current = false
+        setQueuedNotice(String(error))
+      })
+    }
   }
 
   return (
@@ -1049,6 +1240,13 @@ export function ChatPanel() {
             looking at. */}
         {autonomousRunning.length > 0 && !awaitingNotification && (
           <div className="space-y-1" data-testid="autonomous-running">
+            {/* Rendered through the SAME PartsChain as a live chat turn, so a
+                resumed turn reads as master talking — bubble, tool call,
+                bubble — rather than a "background task" block the user has to
+                wait on and unpack. */}
+            {liveParts.length > 0 && (
+              <PartsChain parts={liveParts} masterModel={masterModel} streaming />
+            )}
             {autonomousRunning.map((t: BackgroundTask) => (
               <div
                 key={t.task_id}
@@ -1056,7 +1254,9 @@ export function ChatPanel() {
               >
                 <TypingIndicator />
                 <span>
-                  {t.source === 'resume' ? 'Resuming after restart' : `Running ${t.source ?? 'background'} task`}
+                  {t.session_id === activeId
+                    ? (t.source === 'resume' ? 'Resuming after restart' : `Running ${t.source ?? 'background'} task`)
+                    : `Master is busy with other ${t.source ?? 'background'} work`}
                   {t.prompt ? ` — ${t.prompt.replace(/^\[Resume\]\s*/, '').slice(0, 80)}` : ''}
                 </span>
               </div>
@@ -1106,21 +1306,21 @@ export function ChatPanel() {
             onSubmit={(text, files) => sendMessage(text, files)}
             disabled={isStreaming}
           />
-          {sttSupported && voiceEnabled && (
+          {micSupported && voiceEnabled && (
             <button
               onClick={() => {
-                if (sttListening) {
-                  sttStop()
+                if (micListening) {
+                  stopListening()
                 } else {
-                  sttStart()
+                  startListening()
                 }
               }}
               className={`px-3 py-2 rounded-lg text-sm flex-shrink-0 ${
-                sttListening
+                micListening
                   ? 'bg-red-700 text-white hover:bg-red-600 animate-pulse'
                   : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
               }`}
-              title={sttListening ? 'Stop listening' : 'Start listening'}
+              title={micListening ? 'Stop listening' : 'Start listening'}
             >
               🎤
             </button>

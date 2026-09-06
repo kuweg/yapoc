@@ -75,3 +75,103 @@
 - **Source:** user (memory sweep)
 - **Time:** 2026-05-25 11:44
 - **Content:** Coding convention: snake_case over camelCase. Concurrency pattern: async/await over threading. JSON formatting: compact over pretty-printed. Agent prompts must stay under 4000 tokens. Use Claude for all agents except cron.
+
+## Entry: warning
+- **Source:** master
+- **Time:** 2026-09-02 11:53
+- **Content:** Webhook outbound callback DELIVERY already exists in app/backend/dispatcher.py `_deliver_webhook_callback` — it POSTs result back to callback_url on task SUCCESS (source=="webhook", metadata.callback_url). It does NOT fire on error/timeout paths. For feature-gap analysis of any webhook/notification feature, read BOTH the inbound router (webhook.py) AND the dispatcher that writes completion — claiming a callback feature is missing without reading dispatcher.py is a known false-negative.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 11:55
+- **Content:** For any agent that has a CONFIG.yaml `tools:` block, that block is AUTHORITATIVE for the runtime tool surface (via BaseAgent._load_tool_names) — app/config/agent-settings.json tools is only a fallback used when CONFIG.yaml has no tools block. Many CONFIG.yaml files carry a stale comment claiming agent-settings.json tools are authoritative; trust CONFIG.yaml instead. Adding a tool to agent-settings.json alone does NOT expose it at runtime if the agent's CONFIG.yaml tools list omits it. Change requires a server restart to rebuild the tool surface.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 12:22
+- **Content:** YAPOC feature-mapping for gap-analysis (verified present, do NOT re-propose as missing): (1) webhook completion callbacks — _deliver_webhook_callback in app/backend/dispatcher.py fires on success AND timeout AND error paths (lines ~360/450/541), POSTs {task_id,status,result} to callback_url in task metadata. (2) "alert if agent fails twice in a row" — app/utils/agent_failure_tracker.py (per-agent consecutive-failure counter persisted to data/agent_failures.json, threshold 2), invoked from BaseAgent.set_task_status via _track_consecutive_failures in app/agents/base/__init__.py (~line 772), which raises _dispatch_failure_alert (~824) writing HEALTH.MD + sending a Telegram alert exactly on the 2nd consecutive error.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 12:39
+- **Content:** YAPOC overnight crash-resilience (2026-09-02): bare `yapoc start` runs uvicorn with NO respawn (a crash kills the whole system). The resilience path is `yapoc supervise` (python -m app.cli.main supervise) — a foreground supervisor that owns uvicorn, respawns on crash with exponential backoff + circuit breaker, logs to app/agents/master/SUPERVISOR.MD. Wrap it in a systemd USER unit (scripts/systemd/yapoc.service + install-supervisor.sh) for a second tier (supervisor + systemd both restart). Master's shell sandbox blocks ~/.config/systemd writes and systemctl, so the OS-level install is a user-run step.
+
+## Entry: decision
+- **Source:** master
+- **Time:** 2026-09-02 13:53
+- **Content:** DECISION (2026-09-02, master + user approval): Cron agent is RETIRED, not down. It terminated 2026-05-25 by idle timeout and will NOT be restarted. Its sole scheduled job (skill-capture-sweep @ 3am) is superseded by librarian's manual memory/skill consolidation sweeps. Nothing else depends on cron's schedule. Evaluator should STOP flagging "cron down 3+ months" as a NEEDS_APPROVAL/MEDIUM issue — this is an intentional, operator-approved state. Do not re-file it as an open item.
+
+## Entry: decision
+- **Source:** master
+- **Time:** 2026-09-02 13:53
+- **Content:** DECISION (2026-09-02, master + user approved recommendation): Runtime temperature for the master AND planning agents aligned to 0.3 in app/config/agent-settings.json (authoritative per app/agents/base/__init__.py:651-664). Both were silently running at temperature 1 despite CONFIG.yaml files intending 0.3 — dead config. Lowered to improve delegation determinism (planning returning research-only instead of executing) and reduce cost (evaluator flagged master temp 1.0 as #1 spend signal, 80.8% of $). Other agents untouched.
+
+## Entry: decision
+- **Source:** master
+- **Time:** 2026-09-02 20:28
+- **Content:** PLANNING AGENT DISABLED (temporary, operator directive 2026-09-02): Master must NOT spawn or route to the planning agent — only master and builder execute tasks. Removed 'planning' from doctor's delegation_targets in app/agents/doctor/CONFIG.yaml (now [builder]). No other agent routes to planning (cron targets builder/keeper/doctor/master/librarian). Planning agent dir remains intact (reversible). To re-enable, add planning back to doctor's delegation_targets and resume routing.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 20:32
+- **Content:** context7 MCP server fixed 2026-09-02: mcp SDK 1.29.1 streamable_http_client yields a 3-tuple (read, write, get_session_id_callback) while sse_client yields 2-tuple. host.py _run_http must capture transport-agnostically (`async with factory(...) as _streams: read, write = _streams[0], _streams[1]`) — unpacking as a fixed 2-tuple raises ValueError during __aexit__. Verified context7 connects and both tools (resolve-library-id, query-docs) work.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 13:01
+- **Content:** Stale-checkpoint reconcile feature built (closes crash-mid-mutation gap). New module app/backend/git_checkpoint_reconcile.py: reconcile_stale_checkpoints(stale_names) rolls back + clears any orphaned CHECKPOINT.json left by a sub-agent killed before reaching terminal status. Wired into main.py lifespan: _cleanup_stale_agent_statuses() (main.py:52) returns the stale-agent list; reconcile runs right after (main.py ~L1280-1293, non-fatal warning on failure), reverting half-applied working-tree changes to the pre-change SHA before any retry. Enabled by git_safety.rollback_to() being fully process-stateless. Standalone crash test: scripts/crash_test_reconcile.py (all 5 assertions pass; entry `poetry run python scripts/crash_test_reconcile.py`).
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 13:07
+- **Content:** grep tool pipe-alternation fix. Root cause: app/utils/tools/grep.py executed `grep -rn` WITHOUT the `-E` (extended regex) flag, so basic-regex grep treated `|` as a literal pipe instead of alternation (false "no matches" on multi-pattern searches). Fix: line 91 now reads `cmd = ["grep", "-E", "-rn"]`. Shell `grep -rn` is authoritative when the built-in grep tool returns suspicious empty results.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 13:10
+- **Content:** cron_parser tzinfo fix. Root cause of "Cron tick error: 'str' object has no attribute 'tzinfo'": get_due_jobs()/_entry_last_run() handed is_due() a plain ISO string (legacy data/cron_runs.json) instead of a datetime, and is_due did last_run.tzinfo on it. Fix: normalize string/naive last_run -> aware datetime at top of is_due and widen except to (ValueError, KeyError, TypeError). 59 pre-fix errors, ZERO after.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 21:26
+- **Content:** Voice TTS/STT via OpenAI models (user: "browser voiceover is awful"). Backend OpenAI TTS fully configured (openai_api_key set, tts_engine=openai, voice=onyx) and STT via OpenAI Whisper. Frontend default flipped in appStore.ts line 38 from voiceTtsMode:'browser' (robotic speechSynthesis) to 'backend' so playback routes through OpenAI onyx voice. STT endpoint POST /stt (multipart audio + engine=openai + language) — note en-US must normalize to en in _transcribe_openai (voice_service.py ~line 286). Verified live: /tts returns RIFF/WAVE PCM 16-bit mono 24000 Hz; /stt returns HTTP 200.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 21:36
+- **Content:** SpeakingSphere UI element added to frontend. New src/components/SpeakingSphere.tsx (reads agentSpeaking from appStore). Added agentSpeaking/setAgentSpeaking runtime fields to appStore.ts (not persisted). ChatPanel mirrors local isSpeaking into store via useEffect. Mounted top-left of both headers in App.tsx. 3-state: listening (cyan) > speaking (amber) > idle. CSS keyframes sphere-pulse/idle/ring + reduced-motion in index.css. Frontend-only.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 22:28
+- **Content:** Interactive chart rendering in chat COMPLETE (ECharts). types.ts TaskPart union += {kind:'chart', option:Record<string,unknown>}; ChatPanel applyPendingEvents tool_done branch REPLACES a render_chart tool part with a chart part when JSON.parse succeeds (falls back to normal tool card on error); new ChartBlock.tsx (echarts.init + setOption + resize listener + dispose, h-72 container); MessageBubble renderPart chart branch; ChatPanel PartsChain inline streaming chart branch + TaskGroupBubble chart branch for delegation traces. render_chart tool registered in app/utils/tools/__init__.py (~line 225). Frontend-only. NOTE: project is pnpm-based — `npm install` fails with node v26 incompatibility; use pnpm.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 21:14
+- **Content:** Skill auto-capture feature VERIFIED complete. Config fields in app/config/settings.py: auto_capture_skills=True, auto_capture_min_tool_calls=5 (added by keeper after max_spawn_depth). Implementation in app/agents/base/__init__.py: hook at ~line 2032 (runs on normal-completion path only, guarded by _auto_capture_active recursion flag, all failures swallowed/logged), _maybe_auto_capture_skill() at line 2122 (30s model timeout, strict JSON-only judge prompt, name regex ^[a-zA-Z_][a-zA-Z0-9_]*$, level_1<=120 chars, skips existing skills, uses CreateSkillTool).
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 21:20
+- **Content:** Child token budget feature VERIFIED live. Spans app/utils/tools/delegation.py (token_limit param on delegate_task tool, written to TASK.MD frontmatter) + app/agents/base/__init__.py (reads token_limit from frontmatter ~line 1364, accumulates input+output tokens per task ~line 1660, hard-stops with partial results when budget exceeded).
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-02 22:11
+- **Content:** Tic-Tac-Toe against YAPOC ALREADY EXISTS and is live in Telegram (do NOT re-propose as missing): /ttt command in telegram_bot.py starts a game; _ttt_keyboard() renders a 3x3 inline keyboard (each cell a button, callback_data ttt:0-8); _handle_ttt_callback() processes presses; minimax AI in ttt_game.py (unbeatable, human=X first); Restart/Quit buttons; persistence to data/ttt_games.json.
+
+## Entry: correction
+- **Source:** evaluator (round 76, 2026-09-05)
+- **Time:** 2026-09-05 15:54
+- **Content:** CORRECTION to the "cron down 3+ months" claim (rounds 71-75): cron is NOT down. Cron is a TASK-DRIVEN agent (spawned per scheduled tick), not a persistent process — so `is_alive` false and stale `last_active` (2026-05-25) are EXPECTED, not evidence of failure. Cron dispatched 2 memory-sweep tasks on 2026-09-05. Evaluator must STOP flagging "cron down" based on is_alive/last_active. This refines the 2026-09-02 "cron RETIRED" entry: cron remains active for memory-sweep dispatch; its retired role was only the 3am skill-capture-sweep.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-05 15:15
+- **Content:** Current model distribution across 14 agents (from app/config/agent-settings.json): deepseek-chat used by 10 agents (planning, builder, keeper, concilium, librarian, evaluator, security, researcher, tester, mcp); master uses DeepSeek-V4-Pro-0813. (One additional agent on a distinct model; total 14.)
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-05 15:54
+- **Content:** Evaluator self-evaluation loop runs on a ~30-minute scheduled cadence (rounds 75-79 observed on 2026-09-05). Cost profile (rounds 76-79): total spend ~$262 across 15 agents; master is the dominant cost driver at $211.93 / 80.9% of spend / ~425M input tokens (expected for the orchestrator — watch item, no action). Builder is #2 spender (~$38.46) with runtime temperature 1.0 (highest of all agents; informational, no defect evidence). System healthy: 0 current/recent errors, all tasks done.

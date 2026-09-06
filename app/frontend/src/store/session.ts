@@ -87,6 +87,15 @@ const resilientStorage = <S>() => {
   }
 }
 
+// Keep receipts independently of the 100-message display history so session
+// catch-up cannot resurrect a previously delivered reply after history trims.
+function completionIds(session: Session): string[] {
+  return [...new Set([
+    ...(session.completionIds ?? []),
+    ...session.history.flatMap((m) => m.completionId ? [m.completionId] : []),
+  ])].slice(-1000)
+}
+
 interface SessionStore {
   sessions: Session[]
   activeId: string | null
@@ -94,7 +103,7 @@ interface SessionStore {
   pendingChatInput: string | null
   newSession: () => void
   loadSession: (id: string) => void
-  appendMessage: (role: 'user' | 'assistant', content: string, parts?: TaskPart[], attachments?: Attachment[], sessionId?: string | null, taskCompletion?: import('../api/types').TaskCompletionMeta) => void
+  appendMessage: (role: 'user' | 'assistant', content: string, parts?: TaskPart[], attachments?: Attachment[], sessionId?: string | null, taskCompletion?: import('../api/types').TaskCompletionMeta, completionId?: string) => void
   deleteSession: (id: string) => void
   deleteMessage: (index: number) => void
   setPendingChatInput: (text: string) => void
@@ -110,6 +119,7 @@ type PersistedState = {
     name: string
     createdAt: string
     source?: string
+    completionIds?: string[]
     history: Array<Record<string, unknown>>
   }>
   activeId: string | null
@@ -146,12 +156,19 @@ export const useSessionStore = create<SessionStore>()(
         set({ activeId: id, history: session.history })
       },
 
-      appendMessage(role, content, parts, attachments, sessionId, taskCompletion) {
+      appendMessage(role, content, parts, attachments, sessionId, taskCompletion, completionId) {
         const msg: Message = { role, content }
+        if (completionId) msg.completionId = completionId
         if (parts) msg.parts = parts
         if (attachments && attachments.length) msg.attachments = attachments
         if (taskCompletion && typeof taskCompletion === 'object' && Object.keys(taskCompletion).length > 0) msg.taskCompletion = taskCompletion
         const { activeId, sessions } = get()
+        const owner = sessions.find((s) => s.id === (sessionId ?? activeId))
+        if (completionId && owner && completionIds(owner).includes(completionId)) return
+        const withMessage = (sess: Session): Session => ({
+          ...sess, history: [...sess.history, msg],
+          ...(completionId ? { completionIds: [...completionIds(sess), completionId].slice(-1000) } : {}),
+        })
 
         // A message belongs to the session that produced it. Late arrivals
         // (a stream finishing, a delegation result) must land there even if
@@ -162,7 +179,7 @@ export const useSessionStore = create<SessionStore>()(
           set((s) => ({
             sessions: s.sessions.map((sess) =>
               sess.id === sessionId
-                ? { ...sess, history: [...sess.history, msg] }
+                ? withMessage(sess)
                 : sess,
             ),
           }))
@@ -177,18 +194,20 @@ export const useSessionStore = create<SessionStore>()(
             name: `Session ${new Date().toLocaleString()}`,
             createdAt: new Date().toISOString(),
             history: [msg],
+            ...(completionId ? { completionIds: [completionId] } : {}),
           }
           set((s) => ({
             sessions: [session, ...s.sessions].slice(0, 50),
             activeId: id,
             history: [msg],
+            ...(completionId ? { completionIds: [completionId] } : {}),
           }))
           return
         }
 
         set(() => {
           const updated = sessions.map((sess) =>
-            sess.id === activeId ? { ...sess, history: [...sess.history, msg] } : sess,
+            sess.id === activeId ? withMessage(sess) : sess,
           )
           const currentHistory = updated.find((s) => s.id === activeId)?.history ?? []
           return { sessions: updated, history: currentHistory }
@@ -243,11 +262,13 @@ export const useSessionStore = create<SessionStore>()(
             name: s?.name ?? 'Session',
             createdAt: s?.createdAt ?? new Date().toISOString(),
             ...(s?.source ? { source: s.source } : {}),
+            completionIds: Array.isArray(s?.completionIds) ? s.completionIds.filter((id) => typeof id === 'string').slice(-1000) : [],
             history: (Array.isArray(s?.history) ? s.history : [])
               .map((m) => {
                 const slim: Record<string, unknown> = {
                   role: m?.role ?? 'assistant',
                   content: slimContent(m?.content),
+                  ...(m?.completionId ? { completionId: m.completionId } : {}),
                 }
                 if (Array.isArray(m?.attachments) && m.attachments.length) {
                   slim.attachments = m.attachments.map(({ previewUrl: _pv, ...a }) => a)
@@ -272,10 +293,12 @@ export const useSessionStore = create<SessionStore>()(
             name: s.name,
             createdAt: s.createdAt,
             ...(s.source ? { source: s.source } : {}),
+            completionIds: completionIds(s),
             history: s.history.slice(-MAX_PERSISTED_MESSAGES).map((m) => {
               const slim: Record<string, unknown> = {
                 role: m.role,
                 content: slimContent(m.content),
+                ...(m.completionId ? { completionId: m.completionId } : {}),
               }
               if (m.attachments && m.attachments.length) {
                 slim.attachments = m.attachments.map(({ previewUrl: _pv, ...a }) => a)

@@ -20,6 +20,12 @@ interface AppStore {
   setVoiceTtsMode: (mode: VoiceTTSMode) => void
   voiceBackendEngine: VoiceBackendEngine
   setVoiceBackendEngine: (engine: VoiceBackendEngine) => void
+  // Runtime-only speaking indicator (not persisted via partialize)
+  agentSpeaking: boolean
+  setAgentSpeaking: (v: boolean) => void
+  // Runtime-only mic-listening indicator (not persisted via partialize)
+  agentListening: boolean
+  setAgentListening: (v: boolean) => void
 }
 
 export const useAppStore = create<AppStore>()(
@@ -35,10 +41,14 @@ export const useAppStore = create<AppStore>()(
       setSelectedVoice: (v) => set({ selectedVoice: v }),
       voiceSpeed: 1.0,
       setVoiceSpeed: (v) => set({ voiceSpeed: v }),
-      voiceTtsMode: 'browser',
+      voiceTtsMode: 'backend',
       setVoiceTtsMode: (mode) => set({ voiceTtsMode: mode }),
       voiceBackendEngine: 'openai',
       setVoiceBackendEngine: (engine) => set({ voiceBackendEngine: engine }),
+      agentSpeaking: false,
+      setAgentSpeaking: (v) => set({ agentSpeaking: v }),
+      agentListening: false,
+      setAgentListening: (v) => set({ agentListening: v }),
     }),
     {
       name: 'yapoc-voice-settings',

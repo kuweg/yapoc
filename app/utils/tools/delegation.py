@@ -4,12 +4,13 @@ Token budget enforcement contract: the ``token_limit`` param on
 ``SpawnAgentTool`` / ``DelegateTaskTool`` is RECORDED in the child task's
 TASK.MD frontmatter (``token_limit: N``) before the runner reads the task,
 and SURFACED to the parent on completion via a ``[TOKEN BUDGET: N]`` line in
-the ``WaitForAgentTool`` / ``WaitForAgentsTool`` result. We do NOT hard-stop
-a mid-run agent when a budget is exceeded — that would require a base-layer
-(``app/agents/base/``) hook that is gate-protected and refused. The contract
-here is therefore best-effort accounting + visibility, not runtime
-enforcement, so callers should treat an exceeded budget as an advisory signal
-and handle overrun at the orchestration layer.
+the ``WaitForAgentTool`` / ``WaitForAgentsTool`` result. The child's runtime
+loop (``app/agents/base/__init__.py``) reads that frontmatter value and
+HARD-STOPS once its cumulative input+output tokens reach the budget, yielding
+a ``[TOKEN BUDGET EXCEEDED]`` message and returning partial results. So the
+budget is enforced at runtime, not merely advisory. Callers should still treat
+an exceeded budget as a signal that the subtask was cut short and may need
+re-scoping or a larger limit.
 """
 
 import asyncio
@@ -274,6 +275,7 @@ async def _resolve_checkpoint(agent_name: str, status: str, summary: str) -> str
         return ""
 
     banner = ""
+    resolved = False
     try:
         if status == "done":
             ok, reason = await _git_safety.verify_no_corruption(handle)
@@ -288,11 +290,14 @@ async def _resolve_checkpoint(agent_name: str, status: str, summary: str) -> str
         elif status == "error":
             await _git_safety.rollback_to(handle, reason="agent reported error")
             banner = "[ROLLED BACK — agent reported error]\n\n"
+        resolved = True
     except Exception as exc:
+        banner = f"[CHECKPOINT RETAINED — {exc}]\n\n"
         from loguru import logger as _ck_log
         _ck_log.warning("checkpoint resolution for {} failed: {}", agent_name, exc)
     finally:
-        _git_safety.clear_checkpoint(agent_name)
+        if resolved:
+            _git_safety.clear_checkpoint(agent_name)
 
     return banner
 
@@ -424,8 +429,14 @@ class SpawnAgentTool(BaseTool):
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         task_id = str(uuid.uuid4())
         token_line = f"token_limit: {int(token_limit)}\n" if isinstance(token_limit, int) and token_limit > 0 else ""
+        from app.backend.services.task_runtime import current_task_id
+        from app.utils.frontmatter import parse_frontmatter_fields
+        caller_task = _task_path(self._caller)
+        caller_fields = parse_frontmatter_fields(caller_task.read_text()) if caller_task.exists() else {}
+        parent_task_id = current_task_id.get() or caller_fields.get("parent_task_id", "")
         task_content = (
             f"---\n"
+            f"parent_task_id: {parent_task_id}\n"
             f"status: pending\n"
             f"task_id: {task_id}\n"
             f"session_id: {self._session_id or ''}\n"
@@ -1680,9 +1691,15 @@ class NotifyParentTool(BaseTool):
         parent_name = await _read_assigned_by(task_path)
         session_id = await _read_session_id(task_path)
         task_id = await _read_task_id(task_path)
+        from app.utils.frontmatter import parse_frontmatter_fields
+        parent_task_id = parse_frontmatter_fields(task_path.read_text()).get("parent_task_id", "")
 
-        if not parent_name or parent_name in ("", "notification"):
-            return "Error: no parent found in TASK.MD (assigned_by is missing or 'notification')."
+        if (
+            not parent_name
+            or parent_name in ("", "notification")
+            or parent_name == self._agent_dir.name
+        ):
+            return "No parent to notify (assigned_by is 'notification' or unset) — result is delivered via the notification poller. Nothing to do."
 
         # "User" is the terminal sentinel — route through master
         if parent_name.lower() == "user":
@@ -1705,6 +1722,7 @@ class NotifyParentTool(BaseTool):
                     "result": result_text,
                     "session_id": session_id or "",
                     "task_id": task_id or "",
+                    "parent_task_id": parent_task_id,
                 },
                 agent_name=self._agent_dir.name,
             )
@@ -1725,6 +1743,7 @@ class NotifyParentTool(BaseTool):
                 error=result_text if status == "error" else "",
                 session_id=session_id or "",
                 task_id=task_id or "",
+                parent_task_id=parent_task_id,
             )
 
         # Wake signal always fires — carries no payload, only triggers a
@@ -1808,7 +1827,7 @@ class DelegateTaskTool(BaseTool):
             },
             "token_limit": {
                 "type": "integer",
-                "description": "Optional token budget for the delegated agent. Recorded in the child's TASK.MD frontmatter so the parent is informed on completion. Not a hard runtime stop (that would require a gate-protected base-layer hook).",
+                "description": "Optional token budget for the delegated agent. Recorded in the child's TASK.MD frontmatter; the child's runtime loop hard-stops once cumulative input+output tokens reach this limit and returns partial results. Omit/0 for unbounded.",
             },
         },
         "required": ["agent_name", "task"],

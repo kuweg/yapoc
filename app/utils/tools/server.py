@@ -5,6 +5,7 @@ import signal
 import subprocess
 import sys
 import textwrap
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -125,9 +126,28 @@ def _schedule_deferred_restart(old_pid: int, cmd: list[str], delay: float = 3.0)
     )
 
 
+def _resolve_resume_session(session_id: str) -> str:
+    """Preserve the caller's session, including browser-only sessions.
+
+    A missing owner cannot safely be inferred from the last active browser or
+    CLI session: autonomous work may belong to neither of them.
+    """
+    from app.utils.conversation_store import _validate_session_id
+
+    candidate = (session_id or "").strip()
+    return _validate_session_id(candidate) if candidate else ""
+
+
 async def _save_resume_state(reason: str = "", next_action: str = "", session_id: str = "") -> str:
     """Gather agent state and write a structured RESUME.MD for post-restart continuity."""
     agents_dir = settings.agents_dir
+    from app.backend.services.task_runtime import current_task_id
+    from app.utils.db import get_queued_task
+    origin_task_id = current_task_id.get() or ""
+    origin = get_queued_task(origin_task_id) if origin_task_id else None
+    # The executing run is an authoritative fallback for older callers that
+    # did not inject session_id into the tool constructor.
+    session_id = _resolve_resume_session((origin or {}).get("session_id") or session_id)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     active: list[str] = []
@@ -159,17 +179,26 @@ async def _save_resume_state(reason: str = "", next_action: str = "", session_id
 
     content = (
         f"---\n"
+        f"origin_task_id: {origin_task_id}\n"
         f"restart_at: {now}\n"
-        f"restart_reason: {reason}\n"
-        f"next_action: {next_action}\n"
-        f"session_id: {session_id}\n"
+        f"restart_reason: {json.dumps(reason, ensure_ascii=False)}\n"
+        f"next_action: {json.dumps(next_action, ensure_ascii=False)}\n"
+        f"session_id: {json.dumps(session_id)}\n"
         f"---\n\n"
         f"## Active agents\n"
         + ("\n".join(active) if active else "  (none)\n")
     )
 
     _RESUME_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _RESUME_FILE.write_text(content)
+    fd, temporary = tempfile.mkstemp(dir=_RESUME_FILE.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, _RESUME_FILE)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
     # Freeze the session's working transcript alongside RESUME.MD. RESUME.MD
     # carries only the next action; without this the actual conversation
@@ -177,9 +206,11 @@ async def _save_resume_state(reason: str = "", next_action: str = "", session_id
     if session_id:
         try:
             from app.cli.sessions import load_session
-            from app.utils.conversation_store import snapshot
+            from app.utils.conversation_store import load, snapshot
 
-            msgs = load_session(session_id) or []
+            # The tool loop snapshots its actual working context before a
+            # restart call. CLI history is only a fallback for standalone use.
+            msgs = (load_session(session_id) or []) if not load(session_id) else []
             if msgs:
                 transcript = "\n\n".join(
                     f"### {m.get('role', '?')}\n{m.get('content', '')}" for m in msgs
@@ -278,7 +309,16 @@ class ServerRestartTool(BaseTool):
             return (
                 f"Server self-restart scheduled (fires in ~3 s). "
                 f"RESUME.MD saved with {reason!r}. "
-                f"Sub-agents notified. New backend will be at http://{settings.host}:{settings.port}."
+                f"Sub-agents notified. New backend will be at http://{settings.host}:{settings.port}.\n\n"
+                "STOP HERE. The restart has NOT happened yet — this process is "
+                "about to be killed mid-turn. Do not answer the user's request "
+                "now, and do not describe the restart as complete or claim to "
+                "have verified anything about the new process: nothing you say "
+                "after this point survives, and saying it produces a reply that "
+                "contradicts what actually happened. End your turn with one "
+                "short line telling the user the server is restarting. Your "
+                f"next_action ({next_action!r}) is dispatched automatically "
+                "once the new backend is up, and you will answer them there."
             )
 
         # Normal restart (CLI-initiated). Wait for the old uvicorn to fully

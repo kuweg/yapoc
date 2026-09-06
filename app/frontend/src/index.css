@@ -1475,6 +1475,146 @@ body.sidebar-auto-railed aside {
   word-break: break-word;
 }
 
+/* ── Chat-like flow renderer (flowchat-*) ───────────────────── */
+/* Each logical row is one chat item. The list keeps its gap: 6px. */
+
+.agent-chat-flow-list {
+  gap: 8px;
+}
+
+/* Assistant prose bubble — left column (agent is always the "assistant" here). */
+.flowchat-msg-row {
+  display: flex;
+  justify-content: flex-start;
+  min-width: 0;
+}
+.flowchat-msg-bubble {
+  max-width: 92%;
+  padding: 8px 12px;
+  border-radius: 12px 12px 12px 3px;
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: msg-enter 0.2s ease-out both;
+}
+
+/* Compact inline tool chip — muted, smaller, mono so prose flows past it. */
+.flowchat-tool-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 4px;
+  min-width: 0;
+}
+.flowchat-tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 9px;
+  max-width: 100%;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-muted);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  align-self: flex-start;
+  animation: msg-enter 0.2s ease-out both;
+}
+.flowchat-tool-caret { flex-shrink: 0; font-weight: 700; }
+.flowchat-tool-name {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.flowchat-tool-arg {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+/* Optional result line folded under the chip. */
+.flowchat-tool-result {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 4px;
+  max-width: 100%;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+.flowchat-tool-result-ok { flex-shrink: 0; }
+.flowchat-tool-result-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Turn/status divider — centered, tiny, muted mono. */
+.flowchat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px;
+}
+.flowchat-status-line {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+  opacity: 0.6;
+}
+.flowchat-status-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-transform: lowercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+
+/* Persistent error — red-tinted chip, never hidden. */
+.flowchat-error-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-status-error-border, var(--color-accent-red));
+  border-radius: 6px;
+  background: var(--color-status-error-bg);
+  animation: msg-enter 0.2s ease-out both;
+}
+.flowchat-error-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.flowchat-error-icon { color: var(--color-error); flex-shrink: 0; }
+.flowchat-error-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-error);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.flowchat-error-body {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── Footer ──────────────────────────────────────────────────── */
 .agent-chat-flow-footer {
   display: flex;
@@ -1493,7 +1633,10 @@ body.sidebar-auto-railed aside {
 
 /* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
-  .agent-activity-bubble {
+  .agent-activity-bubble,
+  .flowchat-msg-bubble,
+  .flowchat-tool-chip,
+  .flowchat-error-row {
     animation: none !important;
   }
   .agent-chat-flow-empty-icon {
@@ -1592,4 +1735,63 @@ body.sidebar-auto-railed aside {
   .subagent-row,
   .subagent-pulse { animation: none !important; }
   .subagent-card::after { display: none; }
+}
+
+/* ── Speaking sphere ─────────────────────────────────────────────────────────
+   Animated header indicator that mirrors agent speech (TTS playback). The
+   sphere is ~24px warm amber orb. When speaking it pulsates and throws an
+   expanding ripple ring; when idle it only breathes very subtly. */
+@keyframes sphere-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 6px  rgba(255, 182, 51, 0.55); }
+  50%      { transform: scale(1.35); box-shadow: 0 0 18px rgba(255, 182, 51, 0.95); }
+}
+@keyframes sphere-idle {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+@keyframes sphere-listening {
+  0%, 100% { transform: scale(1);    box-shadow: 0 0 6px  rgba(56, 189, 248, 0.55); }
+  50%      { transform: scale(1.25); box-shadow: 0 0 18px rgba(56, 189, 248, 0.95); }
+}
+@keyframes sphere-ring {
+  0%   { transform: scale(1);   opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.sphere {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  /* Warm amber radial gradient: brighter center → darker edge */
+  background: radial-gradient(circle at 35% 30%, #ffe9b8 0%, #ffd573 38%, #FFB633 68%, #c07f12 100%);
+  box-shadow: 0 0 6px rgba(255, 182, 51, 0.45);
+}
+.sphere-speaking { animation: sphere-pulse 0.5s ease-in-out infinite; }
+.sphere-listening {
+  /* Cool cyan radial gradient: brighter center → deeper blue edge */
+  background: radial-gradient(circle at 35% 30%, #e0f2fe 0%, #7dd3fc 38%, #38bdf8 68%, #0369a1 100%);
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.55);
+  animation: sphere-listening 0.8s ease-in-out infinite;
+}
+.sphere-idle     { animation: sphere-idle 3s ease-in-out infinite; }
+
+/* Soft puff ring parked behind the sphere; animates while speaking/listening */
+.sphere-ring {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 182, 51, 0.75);
+  opacity: 0;
+  pointer-events: none;
+}
+.sphere-ring.is-visible { animation: sphere-ring 1.2s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sphere-speaking,
+  .sphere-listening,
+  .sphere-idle,
+  .sphere-ring.is-visible { animation: none !important; }
+  .sphere-ring.is-visible { opacity: 0; }
 }

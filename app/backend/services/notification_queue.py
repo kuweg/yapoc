@@ -12,7 +12,7 @@ Each notification is a dict with:
   - error: str          — error text (may be empty)
   - session_id: str     — UI session this completion belongs to (may be empty)
   - completed_at: str   — ISO timestamp
-  - consumed: bool      — True once injected into parent's context
+  - consumed: bool      — True once delivery output is durably persisted
 """
 from __future__ import annotations
 
@@ -44,6 +44,7 @@ class Notification(TypedDict):
     error: str
     session_id: str
     task_id: str
+    parent_task_id: str
     completed_at: str
     consumed: bool
 
@@ -59,7 +60,7 @@ def _is_duplicate(
     session_id: str,
     task_id: str,
 ) -> bool:
-    """Return True if ``existing`` is an unconsumed duplicate of this completion.
+    """Return True if ``existing`` is a duplicate of this completion.
 
     When ``task_id`` is known it is the authoritative key: three independent
     producers (NotificationPoller, the Redis master-watcher, startup reconcile)
@@ -67,8 +68,6 @@ def _is_duplicate(
     ``result`` payload for the SAME task — keying on task_id collapses them.
     Falls back to the legacy exact-payload match when no task_id is available.
     """
-    if existing.get("consumed"):
-        return False
     if existing["parent_agent"] != parent_agent:
         return False
     if existing["child_agent"] != child_agent:
@@ -154,7 +153,7 @@ class NotificationQueue:
                 try:
                     self._items = json.loads(self._path.read_text(encoding="utf-8"))
                 except (json.JSONDecodeError, OSError):
-                    self._items = []
+                    raise  # never replace an unreadable durable queue with an empty one
             else:
                 self._items = []
             yield self._items
@@ -162,10 +161,14 @@ class NotificationQueue:
             if not readonly:
                 try:
                     tmp = self._path.with_suffix(".tmp")
-                    tmp.write_text(json.dumps(self._items, indent=2), encoding="utf-8")
+                    with tmp.open("w", encoding="utf-8") as f:
+                        json.dump(self._items, f, indent=2)
+                        f.flush()
+                        os.fsync(f.fileno())
                     os.replace(tmp, self._path)
                 except Exception as exc:
                     logger.error("NotificationQueue: failed to save: %s", exc)
+                    raise
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             lock_fd.close()
@@ -207,6 +210,7 @@ class NotificationQueue:
         error: str = "",
         session_id: str = "",
         task_id: str = "",
+        parent_task_id: str = "",
     ) -> None:
         """Add a new notification to the queue."""
         notification: Notification = {
@@ -217,6 +221,7 @@ class NotificationQueue:
             "error": error,
             "session_id": session_id or "",
             "task_id": task_id or "",
+            "parent_task_id": parent_task_id or "",
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "consumed": False,
         }
@@ -265,12 +270,20 @@ class NotificationQueue:
             error_preview=(error or ""),
         )
 
+    def acknowledge(self, delivered: list[Notification]) -> None:
+        """Consume exactly the persisted delivery inputs, never late arrivals."""
+        with self._lock:
+            with self._disk_transaction() as items:
+                for item in items:
+                    if any(item == n for n in delivered):
+                        item["consumed"] = True
+
     def drain(
         self,
         parent_agent: str,
         session_id: str | None = None,
     ) -> list[Notification]:
-        """Drain unconsumed notifications for a parent, optionally scoped by session."""
+        """Legacy explicit consumption. Execution paths must use snapshot + acknowledge."""
         with self._lock:
             with self._disk_transaction() as items:
                 pending = [
@@ -291,70 +304,7 @@ class NotificationQueue:
                 session_id=n.get("session_id", ""),
                 completed_at=n.get("completed_at", ""),
             )
-            # The queue's `consumed=True` flag alone is NOT a durable shield:
-            # it lives only in this queue file, which dedup only consults for
-            # UNCONSUMED entries, and the poller's `_notified` set is evictable
-            # (capped at 2000). Stamp `consumed_at` back into the child's
-            # TASK.MD so the poller's `if consumed_at: continue` guard — a
-            # permanent, non-evictable record on the source of truth — finally
-            # prevents the same terminal TASK.MD from being re-enqueued and
-            # re-surfaced to master as a duplicate/echo notification.
-            self._stamp_consumed_at(n.get("child_agent", ""))
         return pending
-
-    def _stamp_consumed_at(self, child_agent: str) -> None:
-        """Stamp ``consumed_at`` into the child's TASK.MD so the poller's
-        ``if consumed_at: continue`` guard authoritatively prevents re-emission.
-
-        Two independent result-consumption paths exist:
-         1. ``collect_agent_results()`` (CLI REPL / HTTP streaming) — stamps
-            ``consumed_at`` via ``BaseAgent.mark_task_consumed()``.
-         2. The watcher + queue drain path (master woken by a sub-agent
-            completion) — only set the queue's ``consumed`` flag.
-
-        Path 2 never touched TASK.MD, so the child stayed ``status: done``
-        with empty ``consumed_at`` forever. The only thing preventing the
-        poller from re-enqueueing that completion was the evictable
-        ``_notified`` set (capped at 2000); once it aged out, the next poll
-        re-detected the still-terminal TASK.MD and re-enqueued the same
-        result → master re-processed already-surfaced work → the user saw
-        duplicate/echo notifications. Stamping TASK.MD fixes this permanantly.
-
-        Format matches ``BaseAgent.mark_task_consumed`` (UTC, ``Z`` suffix).
-        """
-        try:
-            task_path = settings.agents_dir / child_agent / "TASK.MD"
-            if not task_path.exists():
-                return
-            content = task_path.read_text(encoding="utf-8")
-            if not content.strip():
-                return
-            existing: dict[str, str] = {}
-            body = content
-            m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
-            if m:
-                for line in m.group(1).splitlines():
-                    if ":" in line:
-                        key, _, val = line.partition(":")
-                        existing[key.strip()] = val.strip()
-                body = content[m.end():]
-            if existing.get("consumed_at"):
-                return  # idempotent — already consumed
-            existing["consumed_at"] = datetime.now(timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            )
-            fm_lines = [f"{k}: {v}" for k, v in existing.items()]
-            task_path.write_text(
-                "---\n" + "\n".join(fm_lines) + "\n---\n" + body,
-                encoding="utf-8",
-            )
-        except Exception as exc:
-            # Never let a metadata stamp break notification delivery.
-            logger.warning(
-                "NotificationQueue: failed to stamp consumed_at for %s: %s",
-                child_agent,
-                exc,
-            )
 
     def pending_count(self, parent_agent: str, session_id: str | None = None) -> int:
         """Return count of unconsumed notifications for parent_agent.
@@ -409,7 +359,7 @@ class NotificationQueue:
         with self._lock:
             with self._disk_transaction(readonly=True):
                 for existing in self._items:
-                    if _is_duplicate(
+                    if not existing.get("consumed") and _is_duplicate(
                         existing,
                         parent_agent=parent_agent,
                         child_agent=child_agent,

@@ -13,6 +13,8 @@ export interface BackgroundTask {
   status: string
   prompt?: string
   result?: string
+  /** Result split into logical messages on turn boundaries. */
+  messages?: string[]
   error?: string
   source?: string
   agent?: string
@@ -52,6 +54,7 @@ interface WsStore {
   unreadNotifications: BackgroundTask[]
   /** Most recent task_complete event (for ChatPanel to pick up) */
   lastCompletedTask: BackgroundTask | null
+  pendingCompletions: BackgroundTask[]
   /** Orphan notification result — fired when the backend couldn't route to a
    * specific session because session_id was lost upstream. ChatPanel falls
    * back to showing this in the active chat when awaiting a notification. */
@@ -81,38 +84,33 @@ interface WsStore {
  *  newest-first, so scanning for the first meaningful completed task yields
  *  the most recent recoverable completion. Only returns tasks that are
  *  "done" with a non-empty result, or in an error-ish terminal state. */
-const RECOVER_WINDOW_MS = 10 * 60 * 1000 // 10 minutes
-
 // Completions already surfaced to the UI. state_sync replays recent tasks on
 // EVERY reconnect, so without this the same finished task is appended to the
 // chat again after each blip — visible as old results reappearing in a fresh
 // conversation.
-const surfacedCompletions = new Set<string>()
+const surfacedCompletions = new Map<string, string>()
+function wasSurfaced(id: string, sessionId?: string): boolean {
+  return surfacedCompletions.has(id) && (!sessionId || surfacedCompletions.get(id) === sessionId)
+}
+const agentSubscribers = new Map<string, number>()
 
 function findRecoverableCompletion(tasks: BackgroundTask[]): BackgroundTask | null {
-  const now = Date.now()
   for (const task of tasks ?? []) {
     const id = task.task_id ?? (task as BackgroundTask & { id?: string }).id
-    if (id && surfacedCompletions.has(id)) continue
+    if (!id) continue
+    if (id && wasSurfaced(id, task.session_id)) continue
     const status = (task.status ?? '').toLowerCase()
-    const isError = status === 'error' || status === 'failed'
+    const isError = ['error', 'failed', 'timeout', 'cancelled'].includes(status)
     const isDone = status === 'done'
     const hasMeaningfulResult = isDone && !!task.result && task.result.trim().length > 0
     if (!isError && !hasMeaningfulResult) continue
 
-    // Recency guard — avoid surfacing stale historical completions on every
-    // page load. Missing/unparseable timestamps default to "recent".
-    const rawTs = task.completed_at ?? task.created_at
-    if (rawTs) {
-      const ms = Date.parse(rawTs)
-      if (!Number.isNaN(ms) && now - ms > RECOVER_WINDOW_MS) continue
-    }
-
-    if (id) surfacedCompletions.add(id)
+    if (id) surfacedCompletions.set(id, task.session_id || '')
     return {
       task_id: task.task_id,
       status: task.status,
       result: task.result,
+      messages: task.messages,
       error: task.error,
       source: task.source,
       prompt: task.prompt,
@@ -130,6 +128,7 @@ export const useWsStore = create<WsStore>((set) => ({
   lastSessionEvent: null,
   unreadNotifications: [],
   lastCompletedTask: null,
+  pendingCompletions: [],
   lastOrphanNotification: null,
   agentEvents: {},
   subscribedAgents: [],
@@ -141,7 +140,10 @@ export const useWsStore = create<WsStore>((set) => ({
       unreadNotifications: s.unreadNotifications.filter((n) => n.task_id !== taskId),
     })),
 
-  clearLastCompletedTask: () => set({ lastCompletedTask: null }),
+  clearLastCompletedTask: () => set((s) => {
+    const pendingCompletions = s.pendingCompletions.slice(1)
+    return { pendingCompletions, lastCompletedTask: pendingCompletions[0] ?? null }
+  }),
 
   clearLastOrphanNotification: () => set({ lastOrphanNotification: null }),
 
@@ -161,18 +163,26 @@ export const useWsStore = create<WsStore>((set) => ({
     }),
 
   subscribeAgent: (agent) =>
-    set((s) =>
+    set((s) => {
+      agentSubscribers.set(agent, (agentSubscribers.get(agent) ?? 0) + 1)
+      return (
       s.subscribedAgents.includes(agent)
         ? s
         : { subscribedAgents: [...s.subscribedAgents, agent] }
-    ),
+      )
+    }),
 
   unsubscribeAgent: (agent) =>
-    set((s) =>
+    set((s) => {
+      const remaining = Math.max(0, (agentSubscribers.get(agent) ?? 0) - 1)
+      agentSubscribers.set(agent, remaining)
+      if (remaining) return s
+      return (
       s.subscribedAgents.includes(agent)
         ? { subscribedAgents: s.subscribedAgents.filter((a) => a !== agent) }
         : s
-    ),
+      )
+    }),
 
   handleEvent: (data) => {
     const type = data.type as string
@@ -187,31 +197,37 @@ export const useWsStore = create<WsStore>((set) => ({
       return [next, ...tasks].slice(0, 100)
     }
 
-    if (type === 'state_sync') {
+    if (type === 'state_sync' || type === 'session_sync') {
       // Initial batch of recent tasks on connect.
       // These come straight from the task_queue table, which names the primary
       // key `id` — every live event uses `task_id`. Without normalising, a
       // synced row can never be matched by a later task_update/task_complete
       // upsert, so a task that finishes just after connect stays "running"
       // forever, and React sees a list of undefined keys.
-      const tasks = ((data.tasks ?? []) as Array<BackgroundTask & { id?: string }>).map((t) => ({
-        ...t,
-        task_id: t.task_id ?? t.id ?? '',
-      })) as BackgroundTask[]
+      const tasks = ((data.tasks ?? []) as Array<BackgroundTask & { id?: string; metadata?: string }>).map((t) => {
+        let metadata: { messages?: string[]; silent?: boolean } = {}
+        try { metadata = JSON.parse(t.metadata || '{}') } catch { /* legacy row */ }
+        return { ...t, task_id: t.task_id ?? t.id ?? '', messages: t.messages ?? metadata.messages, silent: metadata.silent }
+      })
       // A completion may have landed during a reconnect gap (e.g. server
       // restart) and thus never fired a live task_complete WS event. Surface
       // the most recent meaningful completion so ChatPanel still renders it.
-      const completedTask = findRecoverableCompletion(tasks)
-      set(
-        completedTask
-          ? { backgroundTasks: tasks, lastCompletedTask: completedTask }
-          : { backgroundTasks: tasks }
-      )
+      const recovered: BackgroundTask[] = []
+      let completedTask: BackgroundTask | null
+      while ((completedTask = findRecoverableCompletion(tasks.filter((t) => !t.silent)))) recovered.push(completedTask)
+      set((s) => {
+        const pendingCompletions = [...s.pendingCompletions, ...recovered.reverse()]
+        const backgroundTasks = type === 'session_sync'
+          ? tasks.reduce((all, task) => upsertTask(all, task), s.backgroundTasks)
+          : tasks
+        return { backgroundTasks, pendingCompletions, lastCompletedTask: pendingCompletions[0] ?? null }
+      })
       return
     }
 
     if (type === 'task_created') {
-      const task = (data.task ?? data) as BackgroundTask
+      const task = { ...(data.task ?? data) } as BackgroundTask & { id?: string }
+      task.task_id = task.task_id || task.id || String(data.task_id ?? '')
       if (!task.task_id && data.task_id) {
         task.task_id = data.task_id as string
       }
@@ -235,10 +251,13 @@ export const useWsStore = create<WsStore>((set) => ({
 
     if (type === 'task_complete') {
       const taskId = data.task_id as string
+      if (!taskId) return
+      if (wasSurfaced(taskId, data.session_id as string | undefined)) return
       const completed: BackgroundTask = {
         task_id: taskId,
         status: 'done',
         result: data.result as string | undefined,
+        messages: Array.isArray(data.messages) ? (data.messages as string[]) : undefined,
         completed_at: data.completed_at as string | undefined,
         source: data.source as string | undefined,
         prompt: data.prompt as string | undefined,
@@ -249,17 +268,21 @@ export const useWsStore = create<WsStore>((set) => ({
       // marked ids, so a task shown live was still "unseen" to the state_sync
       // replay that runs on EVERY reconnect — and reappeared as a second (and
       // third) completion card.
-      if (taskId) surfacedCompletions.add(taskId)
+      if (taskId) surfacedCompletions.set(taskId, (data.session_id as string) || '')
       set((s) => ({
         backgroundTasks: upsertTask(s.backgroundTasks, completed),
         unreadNotifications: [completed, ...s.unreadNotifications],
-        lastCompletedTask: completed,
+        pendingCompletions: [...s.pendingCompletions, completed],
+        lastCompletedTask: s.lastCompletedTask ?? completed,
       }))
       return
     }
 
     if (type === 'task_error') {
       const taskId = data.task_id as string
+      if (!taskId) return
+      if (wasSurfaced(taskId, data.session_id as string | undefined)) return
+      if (taskId) surfacedCompletions.set(taskId, (data.session_id as string) || '')
       const rawError = data.error as string | undefined
       // Normalize "unknown" / empty errors so the task group still completes
       const cleanedError = rawError?.trim() && rawError !== 'unknown' ? rawError.trim() : 'Task failed — check agent health logs'
@@ -276,7 +299,8 @@ export const useWsStore = create<WsStore>((set) => ({
       set((s) => ({
         backgroundTasks: upsertTask(s.backgroundTasks, errTask),
         unreadNotifications: [errTask, ...s.unreadNotifications],
-        lastCompletedTask: errTask,
+        pendingCompletions: [...s.pendingCompletions, errTask],
+        lastCompletedTask: s.lastCompletedTask ?? errTask,
       }))
       return
     }

@@ -189,6 +189,9 @@ class RedisBus:
         if not await self._ensure_connected():
             return 0
         try:
+            info = await self._redis.xinfo_consumers(stream, group)
+            if any(c.get("name") == consumer and c.get("pending", 0) for c in info):
+                return 0  # deleting a pending consumer destroys reclaimable work
             return await self._redis.xgroup_delconsumer(stream, group, consumer)
         except Exception as exc:
             logger.warning(
@@ -234,6 +237,8 @@ class RedisBus:
             except (ProcessLookupError, PermissionError):
                 # process is gone — remove the registration
                 try:
+                    if c.get("pending", 0):
+                        continue  # retain ownership until XAUTOCLAIM transfers it
                     await self._redis.xgroup_delconsumer(stream, group, name)
                     pruned += 1
                 except Exception as exc:

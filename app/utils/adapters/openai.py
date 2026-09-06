@@ -216,6 +216,9 @@ class OpenAIAdapter(BaseLLMAdapter):
         if openai_tools:
             payload["tools"] = openai_tools
 
+        from app.utils.adapters.termination import require_complete, parse_tool_arguments
+        finish_reason = None
+        streamed_text: list[str] = []
         t_start = time.perf_counter()
 
         # Accumulators for streaming tool calls
@@ -245,6 +248,8 @@ class OpenAIAdapter(BaseLLMAdapter):
                     if not line.startswith("data: ") or line == "data: [DONE]":
                         continue
                     chunk = json.loads(line[6:])
+                    if chunk.get("error"):
+                        raise RuntimeError(f"Provider stream error: {chunk['error']}")
 
                     # Usage in final chunk
                     if chunk.get("usage"):
@@ -256,10 +261,13 @@ class OpenAIAdapter(BaseLLMAdapter):
                     if not choices:
                         continue
 
+                    if choices[0].get("finish_reason") is not None:
+                        finish_reason = choices[0]["finish_reason"]
                     delta = choices[0].get("delta", {})
 
                     # Text content
                     if text := delta.get("content"):
+                        streamed_text.append(text)
                         yield TextDelta(text)
 
                     # Tool call deltas
@@ -279,35 +287,17 @@ class OpenAIAdapter(BaseLLMAdapter):
                         if args_chunk := tc_delta.get("function", {}).get("arguments", ""):
                             tc_accum[idx]["arguments_parts"].append(args_chunk)
 
+        require_complete(finish_reason)
         elapsed = time.perf_counter() - t_start
 
         # Build tool calls and assistant_content
         tool_calls: list[ToolCall] = []
-        assistant_content: list[dict[str, Any]] = []
+        assistant_content: list[dict[str, Any]] = ([{"type": "text", "text": "".join(streamed_text)}] if streamed_text else [])
 
         for idx in sorted(tc_accum):
             acc = tc_accum[idx]
             arguments_str = "".join(acc["arguments_parts"])
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError as exc:
-                # Don't silently fall back to {} — that masquerades as
-                # "model called the tool with no args" and produces
-                # misleading downstream errors (e.g. execute_dag's
-                # "nodes list is empty"). Surface the parse failure as a
-                # sentinel-tagged dict so the tool can return an
-                # actionable error pointing at the real issue.
-                _log.bind(
-                    tool=acc.get("name"), adapter="openai",
-                    parts=len(acc["arguments_parts"]),
-                ).warning(
-                    "Tool-call args failed to parse ({}): {!r}",
-                    exc, arguments_str[:400],
-                )
-                arguments = {
-                    "__adapter_parse_error__": str(exc)[:120],
-                    "__raw_args__": arguments_str[:400],
-                }
+            arguments = parse_tool_arguments(arguments_str)
 
             tc = ToolCall(id=acc["id"], name=acc["name"], input=arguments)
             tool_calls.append(tc)

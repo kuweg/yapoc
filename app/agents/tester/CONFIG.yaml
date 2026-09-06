@@ -1,0 +1,36 @@
+# NOTE: For agents listed in app/config/agent-settings.json, the values
+# below are NOT authoritative at runtime. The runtime config-resolution
+# order is:
+#   1. app/config/agent-settings.json (adapter, model, temperature,
+#      max_tokens, fallbacks, tools — authoritative when present)
+#   2. THIS FILE (CONFIG.yaml) — fallback for fields not in agent-settings.json
+#   3. NOTES.MD [config] block (legacy)
+#   4. app/config/settings.py defaults
+# Sandbox + runner blocks are still read from this file at all times.
+# If you edit adapter/model here expecting it to apply, ALSO update
+# app/config/agent-settings.json.
+
+adapter: deepseek
+model: deepseek-chat
+temperature: 0.2
+tools:
+  - mcp__playwright__browser_navigate
+  - mcp__playwright__browser_click
+  - mcp__playwright__browser_fill_form
+  - mcp__playwright__browser_snapshot
+  - mcp__playwright__browser_take_screenshot
+  - mcp__playwright__browser_evaluate
+  - file_write
+  - file_read
+  - file_list
+  - notify_parent
+delegation_targets:
+  - builder
+  - keeper
+runner:
+  max_turns: 40
+  task_timeout: 300
+  poll_interval: 30
+  retry_attempts: 3
+  context_memory_limit: 50
+  context_health_limit: 10

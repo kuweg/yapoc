@@ -49,96 +49,56 @@ def _pid_alive_local(pid: int) -> bool:
         return False
 
 
-def _cleanup_stale_agent_statuses() -> None:
-    """On server start, reset every non-master agent to a clean baseline.
-
-    Subprocess agents use ``start_new_session=True`` so they survive their
-    parent uvicorn dying. When the new backend boots, those orphan processes
-    still own a STATUS.json saying ``idle``/``running``/``spawning`` — the
-    new backend has no relationship to them. SpawnAgentTool then refuses to
-    spawn ("agent already processing") and master must do a manual STATUS.json
-    reset to recover (observed live during self-eval test, 6 wasted turns).
-
-    Policy: every non-master agent dir on disk gets its STATUS.json reset to
-    ``terminated`` and stale TASK.MD cleared. Any still-alive orphan PID is
-    SIGTERM'd best-effort, so the next spawn lands a fresh subprocess.
-
-    Logs a count of cleaned/killed agents at INFO so long-running ops can
-    see what got cleaned up at boot.
-    """
-    cleaned = 0
-    orphans_killed = 0
+def _cleanup_stale_agent_statuses() -> list[str]:
+    """Journal interrupted assignments; never delete a child's unfinished work."""
+    import psutil
+    from app.utils.frontmatter import parse_frontmatter
+    recovered = []
     for agent_dir in settings.agents_dir.iterdir():
-        if not agent_dir.is_dir() or agent_dir.name in ("base", "master", "shared"):
+        if not agent_dir.is_dir() or agent_dir.name in {"base", "master", "shared"}:
             continue
-        status_path = agent_dir / "STATUS.json"
-        task_path = agent_dir / "TASK.MD"
-
-        if not status_path.exists():
-            # No STATUS.json but TASK.MD may be stale — clear it
-            if task_path.exists():
-                content = task_path.read_text(encoding="utf-8", errors="ignore")
-                if re.search(r"^status:\s*(pending|running)", content, re.MULTILINE):
-                    task_path.write_text("")
-            continue
-
+        task_path, status_path = agent_dir / "TASK.MD", agent_dir / "STATUS.json"
+        content = task_path.read_text(encoding="utf-8") if task_path.exists() else ""
+        fields, body = parse_frontmatter(content)
         try:
-            status = json.loads(status_path.read_text())
-        except Exception:
+            status = json.loads(status_path.read_text()) if status_path.exists() else {}
+        except (ValueError, OSError):
+            status = {}
+        if fields.get("status") not in {"pending", "running"} and status.get("state") not in {"running", "spawning", "idle"}:
             continue
-
-        state = status.get("state", "")
+        archive = settings.project_root / "data" / "recovery" / agent_dir.name
+        archive.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+        # Write before signalling or changing state. Includes original request,
+        # ownership, and process identity so a continuation can inspect it.
+        with (archive / f"{stamp}.json").open("w", encoding="utf-8") as f:
+            json.dump({"task": content, "status": status}, f)
+            f.flush()
+            os.fsync(f.fileno())
         pid = status.get("pid")
-        if state not in ("idle", "running", "spawning"):
-            continue  # already terminated; nothing to do
-
-        # Orphan: PID alive but parent backend is us (a new process). Disown.
-        alive = bool(pid and _pid_alive_local(pid))
-        if alive:
+        if pid:
             try:
-                import os as _os
-                import signal as _signal
-                _os.kill(pid, _signal.SIGTERM)
-                orphans_killed += 1
-                logger.info(
-                    "cleanup: SIGTERM'd orphan subprocess for {} (PID {})",
-                    agent_dir.name, pid,
-                )
-            except (ProcessLookupError, PermissionError) as _kill_exc:
-                logger.debug(
-                    "cleanup: could not SIGTERM PID {} for {} ({})",
-                    pid, agent_dir.name, _kill_exc,
-                )
-
-        status["state"] = "terminated"
-        status["task_summary"] = "shutdown: server restart"
-        try:
-            status_path.write_text(json.dumps(status, indent=2))
-        except Exception:
-            pass
-
-        # Clear stale TASK.MD frontmatter so the next spawn writes fresh content
-        # and the sidebar doesn't show a busy state.
-        # FIX: also strip any lingering task_id — a stale ID from a prior session
-        # causes the runner's "task_id mismatch" abort when a new spawn sends a
-        # Redis task_assign message (the on-disk ID != expected ID). Clearing the
-        # whole file is safe: results live in RESULT.MD and the notification queue.
-        if task_path.exists():
-            try:
-                content = task_path.read_text(encoding="utf-8", errors="ignore")
-                has_stale_status = re.search(r"^status:\s*(pending|running)", content, re.MULTILINE)
-                has_stale_task_id = re.search(r"^task_id:\s*\S", content, re.MULTILINE)
-                if has_stale_status or has_stale_task_id:
-                    task_path.write_text("")
-            except Exception:
+                proc = psutil.Process(pid)
+                cmd = proc.cmdline()
+                matching = "app.agents.base.runner_entry" in cmd and "--agent" in cmd and cmd[cmd.index("--agent") + 1] == agent_dir.name
+                matching = matching and Path(proc.cwd()).resolve() == settings.project_root.resolve()
+                if matching:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=2)
+                    except psutil.TimeoutExpired:
+                        logger.warning("Agent {} still shutting down; preserving its current files", agent_dir.name)
+                        continue
+            except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError, OSError):
                 pass
-        cleaned += 1
-
-    if cleaned or orphans_killed:
-        logger.info(
-            "cleanup: {} agent STATUS.json reset, {} orphan subprocesses SIGTERM'd",
-            cleaned, orphans_killed,
-        )
+        if fields.get("status") in {"pending", "running"}:
+            fields["status"] = "interrupted"
+            fields["interrupted_at"] = datetime.now(timezone.utc).isoformat()
+            task_path.write_text("---\n" + "\n".join(f"{k}: {v}" for k, v in fields.items()) + "\n---\n" + body, encoding="utf-8")
+        status.update(state="interrupted", task_summary=status.get("task_summary", ""))
+        status_path.write_text(json.dumps(status), encoding="utf-8")
+        recovered.append(agent_dir.name)
+    return recovered
 
 
 async def _doctor_tick() -> None:
@@ -380,155 +340,14 @@ async def _goal_proposer_tick() -> None:
 
 
 async def _master_notification_watcher() -> None:
-    """Background task: watch master's TASK.MD for notification triggers written by
-    notify_parent tool and auto-invoke master_agent to process the queue.
-
-    Sub-agents call notify_parent("master") which enqueues a Notification and writes
-    a trigger TASK.MD (status: pending). Master has no AgentRunner, so this watcher
-    fills that role for notification-triggered tasks only.
-    """
-    from app.agents.master.agent import master_agent
-    from app.backend.services.notification_queue import notification_queue
-
-    task_path = settings.agents_dir / "master" / "TASK.MD"
-    status_path = settings.agents_dir / "master" / "STATUS.json"
-
+    """Dispatch persisted child results independently of mutable TASK.MD triggers."""
+    from app.backend.services.notification_delivery import queue_pending_notifications
     while True:
-        await asyncio.sleep(3)
         try:
-            if not task_path.exists():
-                continue
-            content = task_path.read_text(encoding="utf-8")
-            # Only handle notification-triggered tasks (assigned_by preserved from chain)
-            if not re.search(r"^status:\s*pending", content, re.MULTILINE):
-                continue
-            # Check it was written by notify_parent (not a user-sent task)
-            trigger_body = re.search(r"\[Process incoming notifications from sub-agents\]", content)
-            if not trigger_body:
-                continue  # user task — leave it alone
-            trigger_session_match = re.search(r"^session_id:\s*(.*)$", content, re.MULTILINE)
-            trigger_session_id = trigger_session_match.group(1).strip() if trigger_session_match else ""
-            # Guard: don't interrupt a running master.
-            # Authoritative concurrency check via _run_lock state; STATUS.json
-            # is a UI denormalization and not safe for routing. See Fix 1.3.
-            if master_agent.is_busy():
-                continue
-            # Only fire if there are actual pending notifications
-            if notification_queue.pending_count("master") == 0:
-                # No pending notifications; if a stale trigger exists, clear it
-                try:
-                    content = task_path.read_text(encoding="utf-8")
-                    if re.search(r"\[Process incoming.*notifications", content):
-                        task_path.write_text("")
-                except OSError:
-                    pass
-                continue
-
-            # Process notifications session-by-session so results stay scoped
-            # to the originating UI chat.
-            session_ids = notification_queue.pending_sessions("master")
-            if not session_ids:
-                session_ids = [""]
-
-            if trigger_session_id and trigger_session_id in session_ids:
-                session_ids = [trigger_session_id] + [sid for sid in session_ids if sid != trigger_session_id]
-
-            logger.info(
-                "Notification watcher: firing master for sessions={} trigger_sid={!r}",
-                [sid[:8] if sid else "<empty>" for sid in session_ids],
-                trigger_session_id[:8] if trigger_session_id else "<empty>",
-            )
-
-            # Don't consume the trigger before processing — if master fails,
-            # the trigger should remain for retry. Mark consumed only after
-            # all sessions are processed successfully.
-            for sid in session_ids:
-                if notification_queue.pending_count("master", session_id=sid) == 0:
-                    continue
-
-                async for _ in master_agent.handle_task_stream(
-                    task=(
-                        "[Auto-notification] Sub-agent task(s) just completed. "
-                        "Read the sub-agent results via read_task_result if needed. "
-                        "If a planning step produced a PLAN that was not actually "
-                        "executed (the implementation work wasn't carried out), "
-                        "CONTINUE the chain now by spawning the needed specialists "
-                        "(builder/keeper). Otherwise write ONE short summary message "
-                        "for the user describing what was accomplished. Do NOT restart "
-                        "servers and do NOT re-verify work that is already done."
-                    ),
-                    source="notification",
-                    session_id=sid,
-                ):
-                    pass  # events consumed; result written to RESULT.MD by BaseAgent
-
-                # Drain notification_queue so this session doesn't re-trigger
-                notification_queue.drain("master", session_id=sid)
-
-                # Push result to WebSocket: session_event for chat panel AND
-                # task_complete for downstream subscribers.
-                try:
-                    from app.backend.websocket import ws_manager
-
-                    result_text = (settings.memory_agents_dir / "master" / "RESULT.MD").read_text(
-                        encoding="utf-8",
-                        errors="replace",
-                    ).strip()
-                    if result_text:
-                        if sid:
-                            await ws_manager.push_session_event(
-                                sid,
-                                {"type": "notification_result", "text": result_text},
-                            )
-                            await ws_manager.push_event(
-                                "task_complete",
-                                {
-                                    "session_id": sid,
-                                    "text": result_text,
-                                    "source": "notification",
-                                    "agent": "master",
-                                },
-                            )
-                            logger.info(
-                                "Notification watcher: pushed master result to session={} ({} chars)",
-                                sid[:8],
-                                len(result_text),
-                            )
-                        else:
-                            await ws_manager.push_event(
-                                "notification_result",
-                                {"text": result_text, "session_id": ""},
-                            )
-                            logger.info(
-                                "Notification watcher: broadcast master result (no session, {} chars)",
-                                len(result_text),
-                            )
-                    else:
-                        logger.warning(
-                            "Notification watcher: RESULT.MD empty after master run for session={}",
-                            (sid or "<empty>")[:8],
-                        )
-                except Exception as _push_exc:
-                    logger.warning(
-                        "Notification watcher: event push failed for {}: {}",
-                        sid,
-                        _push_exc,
-                    )
-
-            # After processing all sessions, clear any remaining trigger
-            # (handle_task_stream normally clears via set_task + run_stream_with_tools,
-            # but clean up if a stale trigger persists).
-            try:
-                content = task_path.read_text(encoding="utf-8")
-                if re.search(r"\[Process incoming.*notifications", content):
-                    task_path.write_text("")
-            except OSError:
-                pass
-        except Exception as _watcher_exc:
-            logger.warning(
-                "Notification watcher iteration failed (will retry): {}",
-                _watcher_exc,
-            )
+            queue_pending_notifications()
+        except Exception:
+            logger.exception("Notification handoff failed; retaining inputs for retry")
+        await asyncio.sleep(3)
 
 
 async def _master_redis_watcher() -> None:
@@ -538,7 +357,7 @@ async def _master_redis_watcher() -> None:
     completion. Master has no AgentRunner, so this watcher fills that role
     for Redis-delivered notifications.
 
-    Drains notification_queue after each session to prevent re-triggers.
+    Persists notifications before ACK; periodically reclaims pending messages.
     """
     from app.agents.master.agent import master_agent
     from app.backend.message_bus import bus as _bus
@@ -552,15 +371,6 @@ async def _master_redis_watcher() -> None:
 
     # Create consumer group (idempotent)
     await _bus.stream_create_group(inbox, group)
-    # Claim + process any messages from a dead previous server instance
-    claimed = await _bus.stream_claim_pending(inbox, group, consumer)
-    if claimed:
-        logger.info("Redis master watcher: claimed {} pending messages", len(claimed))
-        for msg in claimed:
-            await _process_inbox_message(
-                msg, _bus, inbox, group, master_agent, ws_manager,
-                status_path, notification_queue,
-            )
     await _bus.flush_outbox("master")
 
     logger.info(
@@ -570,7 +380,8 @@ async def _master_redis_watcher() -> None:
 
     while True:
         try:
-            msgs = await _bus.stream_read_group(inbox, group, consumer, block_ms=5000)
+            pending = await _bus.stream_claim_pending(inbox, group, consumer)
+            msgs = pending + await _bus.stream_read_group(inbox, group, consumer, block_ms=5000)
             for msg in msgs:
                 await _process_inbox_message(
                     msg, _bus, inbox, group, master_agent, ws_manager,
@@ -597,156 +408,17 @@ async def _process_inbox_message(
     data = msg.get("data", {})
     if not isinstance(data, dict):
         return
-
-    msg_type = data.get("type", "")
-    msg_id = str(msg.get("id", ""))
-
-    if msg_type != "task_result":
-        await _bus.stream_ack(inbox, group, msg_id)
-        return
-
-    child_agent = str(data.get("child_agent", "unknown"))
-    child_status = str(data.get("status", "done"))
-    session_id = str(data.get("session_id", ""))
-    raw_result = str(data.get("result", ""))
-    task_id = str(data.get("task_id", ""))
-
-    def _safety_enqueue() -> bool:
-        """Enqueue this Redis payload into notification_queue. Returns True on success.
-
-        Queue convention: result is non-empty only for status=done, error
-        non-empty only for status=error. Matches NotifyParentTool's split so
-        dedup byte-comparison works.
-        """
-        try:
-            notification_queue.enqueue(
-                parent_agent="master",
-                child_agent=child_agent,
-                status=child_status,
-                result=raw_result if child_status == "done" else "",
-                error=raw_result if child_status == "error" else "",
-                session_id=session_id,
-                task_id=task_id,
-            )
-            return True
-        except Exception as _enq_exc:
-            logger.warning(
-                "Redis master watcher: safety enqueue failed: {}", _enq_exc
-            )
-            return False
-
-    # Fix 1.1: don't ACK when master is busy. Without an ACK, Redis keeps the
-    # message in the consumer-group pending list and re-delivers on the next
-    # cycle. The safety enqueue also gives the notification watcher a chance
-    # to pick it up the moment master idles. Queue dedup handles the
-    # double-write if Redis later redelivers.
-    if master_agent.is_busy():
-        _safety_enqueue()
-        return
-
-    # Fix 3.4 (transitional defer): if the notification_queue already has a
-    # matching unconsumed entry, let the notification watcher handle it — do
-    # not ACK Redis (let it redeliver if the queue path also drops the ball).
-    # After Fix 3.1 fully rolls out NotifyParentTool should not emit both
-    # paths, so this branch rarely fires.
-    if notification_queue.has_matching_unconsumed(
-        parent_agent="master",
-        child_agent=child_agent,
-        status=child_status,
-        result=raw_result if child_status == "done" else "",
-        error=raw_result if child_status == "error" else "",
-        session_id=session_id,
-        task_id=task_id,
-    ):
-        logger.debug(
-            "Redis master watcher: queue match — deferring to notification watcher"
+    if data.get("type") == "task_result":
+        status = str(data.get("status", "done"))
+        notification_queue.enqueue(
+            parent_agent="master", child_agent=str(data.get("child_agent", "unknown")),
+            status=status, result=str(data.get("result", "")) if status == "done" else "",
+            error=str(data.get("error") or data.get("result", "")) if status != "done" else "",
+            session_id=str(data.get("session_id") or ""), task_id=str(data.get("task_id") or ""),
+            parent_task_id=str(data.get("parent_task_id") or ""),
         )
-        return
-
-    logger.info(
-        "Redis master watcher: {} ({}) sid={}",
-        child_agent, child_status, session_id[:8] if session_id else "<none>",
-    )
-
-    # When planning completes it may have only produced a PLAN without
-    # executing it (planning has spawn_agent/notify_parent but doesn't always
-    # use them). In that case master must CONTINUE the chain rather than treat
-    # it as finished — the old unconditional "chain has finished, do NOT
-    # re-spawn" dead-ended exactly this case. Leaf executors (builder/keeper)
-    # are genuinely terminal, so for those we keep the surface-only guidance.
-    if child_agent == "planning" and child_status == "done":
-        followup = (
-            "If planning only produced a PLAN and the implementation was NOT "
-            "actually carried out (no builder/keeper changes were made), EXECUTE "
-            "the plan now by spawning the needed specialists, then summarize. "
-            "If the work is already done, just surface the outcome to the user."
-        )
-    else:
-        followup = (
-            "Do NOT re-spawn agents and do NOT re-verify work that is already "
-            "done — your only job here is to surface the outcome to the user."
-        )
-    task_prompt = (
-        f"[Auto-notification via Redis] {child_agent} completed ({child_status}). "
-        "Read the sub-agent results via read_task_result if needed, then write "
-        "ONE short summary message for the user describing what was accomplished. "
-        f"{followup}"
-    )
-
-    try:
-        async for _ in master_agent.handle_task_stream(
-            task=task_prompt,
-            source="notification",
-            session_id=session_id or None,
-        ):
-            pass
-
-        # Drain notification_queue so the same session doesn't re-trigger
-        notification_queue.drain("master", session_id=session_id or None)
-
-        # Push result to WebSocket
-        result_text = (settings.memory_agents_dir / "master" / "RESULT.MD").read_text(
-            encoding="utf-8", errors="replace"
-        ).strip()
-        if result_text:
-            if session_id:
-                await ws_manager.push_session_event(
-                    session_id,
-                    {"type": "notification_result", "text": result_text},
-                )
-                await ws_manager.push_event("task_complete", {
-                    "session_id": session_id,
-                    "text": result_text,
-                    "source": "notification",
-                    "agent": "master",
-                })
-            else:
-                await ws_manager.push_event(
-                    "notification_result",
-                    {"text": result_text, "session_id": ""},
-                )
-            logger.info(
-                "Redis master watcher: pushed result to session={} ({} chars)",
-                (session_id or "<none>")[:8], len(result_text),
-            )
-
-        # Successful processing — safe to ACK.
-        await _bus.stream_ack(inbox, group, msg_id)
-        return
-    except Exception as _proc_exc:
-        # Fix 1.2: re-enqueue on processing failure so notification watcher
-        # can retry. Only ACK Redis if the queue path accepted the payload —
-        # otherwise leave it pending in Redis for redelivery.
-        logger.warning("Redis master watcher: processing failed: {}", _proc_exc)
-        if _safety_enqueue():
-            await _bus.stream_ack(inbox, group, msg_id)
-        else:
-            logger.error(
-                "Redis master watcher: BOTH processing AND safety enqueue failed for "
-                "child={} sid={} — leaving message pending for Redis redelivery.",
-                child_agent, session_id[:8] if session_id else "<none>",
-            )
-        return
+    # Enqueue is fsynced and raises on failure: ACK only after durable handoff.
+    await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
 
 
 def _is_task_already_consumed(agent_name: str) -> bool:
@@ -789,15 +461,27 @@ async def _startup_resume() -> None:
         if content:
             # Parse YAML frontmatter for next_action and session_id
             fm: dict[str, str] = {}
-            if content.startswith("---"):
-                parts = content.split("---", 2)
-                if len(parts) >= 3:
-                    for line in parts[1].strip().splitlines():
-                        if ":" in line:
-                            k, _, v = line.partition(":")
-                            fm[k.strip()] = v.strip()
-                    next_action = fm.get("next_action", "")
-                    resume_session_id = fm.get("session_id", "")
+            from app.utils.frontmatter import parse_frontmatter_fields
+            fm = parse_frontmatter_fields(content)
+
+            # New writers JSON-encode multiline values inside frontmatter.
+            # Legacy plain scalar values remain readable.
+            for key in ("next_action", "session_id"):
+                value = fm.get(key, "")
+                if value.startswith('"'):
+                    try:
+                        fm[key] = json.loads(value)
+                    except (ValueError, TypeError):
+                        pass
+            next_action = fm.get("next_action", "")
+            resume_session_id = fm.get("session_id", "")
+            from app.utils.db import get_queued_task
+            origin_id = fm.get("origin_task_id", "")
+            origin = get_queued_task(origin_id) if origin_id else None
+            # Compatibility with restart files written by the old tool factory:
+            # recover from the explicit originating run, never the latest chat.
+            resume_session_id = (origin or {}).get("session_id") or resume_session_id
+            # Unowned service work remains sessionless.
 
             if next_action:
                 # Session checkpointing: if this resume belongs to a session
@@ -807,7 +491,7 @@ async def _startup_resume() -> None:
                 resume_prompt = f"[Resume] {next_action}"
                 if resume_session_id:
                     try:
-                        from app.cli.sessions import read_summary, summary_path
+                        from app.cli.sessions import read_summary
                         summary = read_summary(resume_session_id)
                         if summary:
                             anchor = summary.get("anchor", {}).get("content", "")
@@ -818,13 +502,6 @@ async def _startup_resume() -> None:
                                     f"Original task: {anchor[:400]}\n"
                                     f"Progress summary: {synth[:1200]}"
                                 )
-                            # Consume the checkpoint so it doesn't replay on
-                            # the next restart.  write_summary will recreate
-                            # it when the next compact fires.
-                            try:
-                                summary_path(resume_session_id).unlink(missing_ok=True)
-                            except Exception:
-                                pass
                     except Exception as _sum_exc:
                         logger.debug(
                             "Startup resume: failed to load session summary ({})",
@@ -840,7 +517,7 @@ async def _startup_resume() -> None:
 
                         frozen = _load_conv(resume_session_id)
                         if frozen:
-                            tail = frozen[-4000:]
+                            tail = frozen
                             resume_prompt += (
                                 "\n\n[WORKING CONTEXT RESTORED FROM BEFORE RESTART]\n"
                                 f"{tail}"
@@ -855,13 +532,28 @@ async def _startup_resume() -> None:
                             "Startup resume: no conversation snapshot ({})", _conv_exc
                         )
 
-                task_id = str(uuid.uuid4())
-                create_queued_task(
-                    id=task_id,
-                    prompt=resume_prompt,
-                    source="resume",
-                    session_id=resume_session_id,
-                )
+                # A crash after enqueue but before consuming RESUME.MD must
+                # not create a second copy of the same recovery task.
+                task_id = str(uuid.uuid5(uuid.NAMESPACE_URL, content))
+                from app.utils.db import get_queued_task
+                existing_resume = get_queued_task(task_id)
+                if not existing_resume:
+                    create_queued_task(
+                        id=task_id,
+                        prompt=resume_prompt,
+                        source="resume",
+                        session_id=resume_session_id,
+                        metadata=json.dumps({"origin_task_id": origin_id}),
+                    )
+                elif resume_session_id and existing_resume.get("session_id") in {None, "", task_id}:
+                    from app.utils.db import update_queued_task
+                    update_queued_task(task_id, session_id=resume_session_id)
+                origin_id = fm.get("origin_task_id", "")
+                if origin_id and origin_id != task_id:
+                    from app.utils.db import update_queued_task
+                    origin = get_queued_task(origin_id)
+                    if origin and origin["status"] in {"pending", "running", "interrupted"}:
+                        update_queued_task(origin_id, status="superseded", error="Continuing after restart", completed_at=datetime.now(timezone.utc).isoformat())
                 resumed += 1
                 logger.info(
                     "Resumed from RESUME.MD: {} (session={})",
@@ -869,8 +561,26 @@ async def _startup_resume() -> None:
                     resume_session_id[:8] if resume_session_id else "<none>",
                 )
 
-            # Clear RESUME.MD after consuming
-            resume_path.write_text("")
+            # Mark RESUME.MD consumed rather than blanking it. The resumed
+            # task starts moments later and master reads this file as its first
+            # move — finding it EMPTY made it narrate "RESUME.MD is empty, no
+            # pending work" in the same turn whose prompt is "[Resume] <action>",
+            # contradicting itself to the user. A consumed marker answers the
+            # read honestly without re-triggering on the next boot (the parser
+            # above only acts on a `next_action:` field, which this omits).
+            consumed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            resume_path.write_text(
+                "---\n"
+                f"consumed_at: {consumed_at}\n"
+                f"consumed_by_task: {task_id if next_action else ''}\n"
+                "---\n\n"
+                "## Already consumed\n"
+                "This resume was dispatched at startup and is the task you are "
+                "running now. There is no *additional* pending work here — your "
+                "current task IS the resume action. Do not report this file as "
+                "empty or as evidence that nothing was pending.\n"
+                + (f"\nResumed action: {next_action}\n" if next_action else "")
+            )
 
     # 2. Check Redis for pending task_result messages in master's inbox
     #    (agents that finished during shutdown/downtime)
@@ -897,16 +607,6 @@ async def _startup_resume() -> None:
                         result = str(data.get("result", ""))
                         sid = str(data.get("session_id", ""))
                         tid = str(data.get("task_id", ""))
-                        # Fix 3.3: skip if the child's TASK.MD already has
-                        # consumed_at set — this Redis message arrived from
-                        # work that was already processed before crash.
-                        if _is_task_already_consumed(child):
-                            logger.info(
-                                "Startup resume: skipping {} ({}) — TASK.MD already consumed",
-                                child, status,
-                            )
-                            await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
-                            continue
                         # Enqueue to notification_queue so the watcher picks it up naturally
                         _nq.enqueue(
                             parent_agent="master",
@@ -916,6 +616,7 @@ async def _startup_resume() -> None:
                             error=result if status == "error" else "",
                             session_id=sid,
                             task_id=tid,
+                            parent_task_id=str(data.get("parent_task_id") or ""),
                         )
                         logger.info(
                             "Startup resume: enqueued {} ({}) result for master (sid={})",
@@ -924,30 +625,6 @@ async def _startup_resume() -> None:
                     await _bus.stream_ack(inbox, group, str(msg.get("id", "")))
     except Exception as _exc:
         logger.warning("Startup resume: Redis pending check failed: {}", _exc)
-
-    # Fix 3.3: reconcile any pre-existing queue entries whose source TASK.MD
-    # is already marked consumed_at. This catches the case where master
-    # crashed between mark_task_consumed and queue drain on the prior run.
-    try:
-        from app.backend.services.notification_queue import notification_queue as _nq_rec
-        pending = _nq_rec.pending_entries("master")
-        reconciled = 0
-        for entry in pending:
-            child = entry.get("child_agent", "")
-            if child and _is_task_already_consumed(child):
-                marked = _nq_rec.mark_consumed_matching(
-                    parent_agent="master",
-                    child_agent=child,
-                    session_id=entry.get("session_id", ""),
-                )
-                reconciled += marked
-        if reconciled:
-            logger.info(
-                "Startup resume: reconciled {} queue entry(ies) with consumed TASK.MD",
-                reconciled,
-            )
-    except Exception as _exc:
-        logger.warning("Startup resume: queue reconcile failed: {}", _exc)
 
     # 3. If no pending user tasks and budget allows, check goals
     if resumed == 0:
@@ -1232,7 +909,21 @@ async def lifespan(app: FastAPI):
 
     _graph_relay_task = asyncio.create_task(_graph_relay())
 
-    _cleanup_stale_agent_statuses()
+    _stale_agent_names = _cleanup_stale_agent_statuses()
+
+    # Reconcile git checkpoints orphaned by a crash mid-task. An agent
+    # checkpoint only exists if a sub-agent was spawned but never reached a
+    # terminal status (done/error) — i.e. the backend died mid-mutation and
+    # half-applied changes + the pre-change SHA are still on disk. Roll them
+    # back so a retry starts from a clean tree. This closes the crash gap that
+    # _cleanup_stale_agent_statuses does not cover (it only clears TASK.MD/STATUS).
+    from app.backend.git_checkpoint_reconcile import reconcile_stale_checkpoints
+    try:
+        _reconciled = await reconcile_stale_checkpoints(_stale_agent_names)
+        if _reconciled:
+            logger.info("Reconciled stale git checkpoints for agents: {}", _reconciled)
+    except Exception as _rec_exc:
+        logger.warning("Startup stale-checkpoint reconcile failed: {}", _rec_exc)
 
     # If the cleanup signaled crash-recovery (orphan SIGTERMs or stale tasks),
     # rewrite MORNING_REPORT.md so a human waking up sees what happened.
@@ -1247,11 +938,13 @@ async def lifespan(app: FastAPI):
     # Initialize SQLite schema
     from app.utils.db import init_schema, get_tasks_by_status, update_queued_task
     init_schema()
+    from app.agents.master.agent import master_agent
+    master_agent._write_status("idle")
 
     # Recover stale tasks from previous server run. Goal-source tasks
     # naturally resume because _check_goals' new duplicate guard sees the
     # pending task and skips re-dispatching the same goal text.
-    stale = get_tasks_by_status("running")
+    stale = get_tasks_by_status("running", "interrupted", limit=10000)
     _resumed_goals: list[str] = []
     for task in stale:
         tid = task["id"]
@@ -1261,7 +954,18 @@ async def lifespan(app: FastAPI):
             "Recovering stale task {} source={} prompt={!r} (running → pending)",
             tid[:8], src, prompt_preview,
         )
-        update_queued_task(tid, status="pending", started_at=None, assigned_agent=None)
+        from app.utils.conversation_store import load as load_snapshot
+        transcript = load_snapshot("run-" + tid) or "No tool checkpoint available. Inspect durable events and child assignments before acting."
+        meta = json.loads(task.get("metadata") or "{}")
+        meta.setdefault("original_prompt", task["prompt"])
+        meta.pop("history", None)
+        prompt = (
+            "[Recover interrupted run] Continue the original request below. The previous process stopped; "
+            "a tool without a recorded result has an UNKNOWN outcome. Inspect files, child status and external "
+            "state before repeating side effects. Do not assume a restart completed any pending action.\n\n"
+            + meta["original_prompt"] + "\n\nWorking checkpoint:\n" + transcript
+        )
+        update_queued_task(tid, status="pending", prompt=prompt, metadata=json.dumps(meta), started_at=None, assigned_agent=None)
         if src == "goal":
             _resumed_goals.append(prompt_preview)
     if _resumed_goals:
@@ -1273,6 +977,23 @@ async def lifespan(app: FastAPI):
     # Load tool plugins from plugins/ directory
     from app.utils.tools.plugin_loader import load_plugins
     load_plugins()
+
+    # Start MCP host layer — connect external MCP servers (e.g. Playwright)
+    # and register their tools into TOOL_REGISTRY. Non-fatal: a missing mcp
+    # SDK or failed server connection logs a warning and continues.
+    # connect() is async (the mcp SDK's stdio_client is an async context
+    # manager), so we await it here inside the running lifespan loop.
+    try:
+        from app.utils.mcp.host import mcp_host_manager
+        from app.utils.mcp.registry import register_server_tools
+        await mcp_host_manager.connect()
+        _mcp_registered = await register_server_tools(mcp_host_manager)
+        if _mcp_registered:
+            logger.info(
+                "MCP: registered {} tool(s) from external servers", _mcp_registered
+            )
+    except Exception as _mcp_exc:
+        logger.warning("MCP host startup failed (continuing): {}", _mcp_exc)
 
     # Notification system — load persisted state and start background poller
     from app.backend.services.spawn_registry import registry
@@ -1398,6 +1119,8 @@ async def lifespan(app: FastAPI):
     finally:
         request_shutdown()
         dispatcher_task.cancel()
+        from app.backend.dispatcher import stop_running_tasks
+        await stop_running_tasks()
         scheduler.shutdown(wait=False)
         poller.stop()
         _graph_relay_task.cancel()
@@ -1440,10 +1163,20 @@ async def lifespan(app: FastAPI):
                 "Shutdown: master consumer cleanup failed: {}",
                 _consumer_cleanup_exc,
             )
+        # Shut down MCP host layer (close stdio subprocess + sessions).
+        # disconnect() is async in MCPHostManager.
+        try:
+            from app.utils.mcp.host import mcp_host_manager
+            await mcp_host_manager.disconnect()
+        except Exception:
+            pass
         await bus.disconnect()
 
 
 app = FastAPI(title="YAPOC", version="0.1.0", lifespan=lifespan)
+from app.backend.access import AccessMiddleware, router as access_router
+app.add_middleware(AccessMiddleware)
+app.include_router(access_router)
 
 _cors_origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
 app.add_middleware(

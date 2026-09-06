@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     # ── Server ───────────────────────────────────────────────────────────────
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
+    backend_api_token: str = ""  # required for remote API/browser access
     port: int = 8000
     # Comma-separated list of origins allowed by the CORS middleware. Defaults
     # to common local dev origins; set CORS_ALLOW_ORIGINS in production.
@@ -60,6 +61,9 @@ class Settings(BaseSettings):
     # ── Runner defaults ──────────────────────────────────────────────────────
     max_turns: int = 99999
     task_timeout: int = 900
+    notification_max_attempts: int = Field(default=3, ge=1, le=10)
+    notification_retry_seconds: int = Field(default=30, ge=0)
+    autonomous_run_timeout: int = Field(default=300, ge=0)
 
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
@@ -157,6 +161,10 @@ class Settings(BaseSettings):
     daily_autonomous_budget_usd: float = 100.0 # daily cap for autonomous tasks (cron, goal, doctor)
     max_tool_calls_per_turn: int = 500   # per-turn tool call limit; prevents infinite loops
     max_spawn_depth: int = 20            # max agent spawn chain depth
+    auto_capture_skills: bool = True  # auto-create a skill after a complex task (>= auto_capture_min_tool_calls tool calls)
+    auto_capture_min_tool_calls: int = 5  # min tool calls in a task before skill auto-capture is considered
+    skill_verify_enabled: bool = True  # auto-demote skills that fail repeatedly (skill verification loop)
+    skill_verify_threshold: int = 3  # consecutive task failures before a loaded skill is demoted one level
 
     # ── Supervisor (`yapoc supervise`) ────────────────────────────────
     # Pure-Python watchdog that keeps uvicorn alive across crashes.
@@ -186,6 +194,11 @@ class Settings(BaseSettings):
     model_manager_interval_hours: int = 24  # Model Manager audit frequency
     evaluator_interval_minutes: int = 30  # Scheduled self-evaluation cadence
     memory_max_age_days: int = 7  # Drop MEMORY.MD entries older than this on prune
+
+    # ── MCP integration ────────────────────────────────────────────────────
+    mcp_server_enabled: bool = False
+    mcp_api_key: str = ''
+    yapoc_dashboard_url: str = 'http://localhost:8000'
 
     # ── Embedding / indexer ───────────────────────────────────────────────
     embedding_model: str = "all-MiniLM-L6-v2"

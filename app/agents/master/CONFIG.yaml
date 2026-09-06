@@ -55,12 +55,13 @@ tools:
   - delegate_task
   - search_negative_knowledge
   - render_chart
+  # ── Skills ───────────────────────────────────────────────────────────
+  - load_skills
+  - create_skill
+  - update_skill
+  - delete_skill
 sandbox:
-  # Master can read anything but writes must go through a sub-agent.
-  forbidden:
-    - .env
-    - app/config/settings.py
-    - pyproject.toml
+
 runner:
   # task_timeout: 0 means unbounded — master is the autonomous orchestrator
   # and must not be killed by an externally-imposed per-task duration.

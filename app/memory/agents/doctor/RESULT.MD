@@ -1,21 +1,17 @@
-Audit complete.
+Completed 24h HEALTH.MD scan.
 
-Key findings:
-- High severity:
-  - master: 9 HEALTH.MD errors; 18 SERVER_CRASH.MD crashes
-  - evaluator: 2 crashes, including `AttributeError: 'BaseAgent' object has no attribute '_name'`
-  - builder: persistent `re.error: bad escape \u` in `set_task_status`
-- Medium severity:
-  - runaway cost alerts for builder, evaluator, master, planning
-  - planning warning: singleton builder spawn collision
-  - most agent HEALTH.MD files are missing or empty
-- Low/info:
-  - cron, keeper, librarian, model_manager, researcher, security, concilium, telegram-killer appear terminated/idle, not stuck
+Summary:
+- No new unresolved HEALTH.MD errors found for agents with HEALTH.MD present.
+- Coverage is limited: most agent HEALTH.MD files are missing or empty.
+- Notable anomalies remain historical:
+  - master — 2026-06-06 17:12 — rollback entries in HEALTH.MD
+  - doctor — 2026-06-07 15:16 — warning about missing/empty HEALTH.MD coverage
+  - doctor — 2026-06-07 15:16 — historical builder crash: `re.error: bad escape \u`
+  - doctor — 2026-06-07 15:16 — historical master server crash: port 8000 bind conflict and Telegram 409 polling conflict
 
 Actions taken:
 - Wrote `app/agents/doctor/HEALTH_SUMMARY.MD`
-- Appended to `MEMORY.MD`
-- Logged completion in `HEALTH.MD`
-- Notified parent
+- Appended to `app/agents/doctor/MEMORY.MD`
+- Logged `HEALTH_CHECK_COMPLETE`
 
-No corrective actions or config changes were made.
+No corrective actions were taken.

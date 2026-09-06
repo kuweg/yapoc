@@ -28,3 +28,16 @@
 [2026-09-02 21:44] INFO: Frontend verification build PASSED (exit 0). 1311 modules transformed, built in 5.07s. No code changes made. | context: task 986f4ff7
 [2026-09-02 21:49] INFO: STT endpoint verification PASSED: POST /stt (engine=openai, language=en-US) returned HTTP 200. Language normalization fix (en-US→en) confirmed live; no HTTP 400. Response body verbatim: {"text":"Oh","confidence":0.0,"engine":"openai-whisper","duration_ms":0} | context: task 442c1447
 [2026-09-02 22:08] INFO: Created app/utils/skills_health.py (skill health tracker + demotion ladder). ast.parse OK, clean import confirmed. Temp test state .health.json cleaned up. No existing files modified. | context: task 1b57017d
+[2026-09-06 20:59] ERROR: Task incomplete: reached the 15-turn limit
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 2088, in run_stream_with_tools
+    raise RuntimeError(f"Task incomplete: reached the {max_turns}-turn limit")
+RuntimeError: Task incomplete: reached the 15-turn limit
+
+[2026-09-06 21:17] ERROR: Task incomplete: reached the 15-turn limit
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 2088, in run_stream_with_tools
+    raise RuntimeError(f"Task incomplete: reached the {max_turns}-turn limit")
+RuntimeError: Task incomplete: reached the 15-turn limit
+
+[2026-09-06 21:17] CONSECUTIVE FAILURE ALERT: Agent builder has failed 2 times in a row

@@ -171,6 +171,11 @@ def _shell_escapes_project(command: str) -> bool:
     return False
 
 
+def _shell_is_destructive(command: str) -> bool:
+    """True if ``command`` matches any hardcoded system-destruction pattern."""
+    return any(pat.search(command) for pat in _SHELL_DESTRUCTION_PATTERNS)
+
+
 # ── The actual deny list ─────────────────────────────────────────────────
 
 HARDCODED_DENY: tuple[Rule, ...] = (
@@ -320,6 +325,22 @@ HARDCODED_ALLOW: tuple[AllowRule, ...] = (
         tool="file_delete",
         matcher=lambda caller, p: caller == "master" and _is_orphaned_agent_memory_file(str(p.get("path", ""))),
         reason="master can delete orphaned memory files after migration to app/memory/agents/",
+    ),
+    # Builder and master are the primary workers — they need git and general
+    # shell commands as routine ops. Routing every `git status` / `curl`
+    # through the Layer-2 LLM classifier was both too strict and flaky, so
+    # we give them a fast-path allow — while baking the two hard safety nets
+    # (destructive patterns + escaping project_root) into the matcher itself.
+    # A destructive/escaping command fails the matcher and still falls through
+    # to the HARDCODED_DENY rules below.
+    AllowRule(
+        tool="shell_exec",
+        matcher=lambda caller, p: (
+            caller in {"builder", "master"}
+            and not _shell_is_destructive(str(p.get("command", "")))
+            and not _shell_escapes_project(str(p.get("command", "")))
+        ),
+        reason="builder/master have shell authority within project_root",
     ),
 )
 

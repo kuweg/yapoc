@@ -20,3 +20,13 @@
 [2026-09-05] User asked for a chart of current model distribution across agents (14 agents; deepseek-chat on 10, master on DeepSeek-V4-Pro-0813).
 [2026-09-05] User requested Belgrade 7-day weather forecast (via Open-Meteo) and authorized a live backend restart test (RESTART-CHECK-ac27942c, 17*23=391).
 [2026-09-05] User asked what features YAPOC might be missing (no inner-doc references) and for a menu of test tasks to exercise YAPOC.
+[2026-09-05] User asked about small/fast Rust algo-trading frameworks (informational; Nautilus Trader, Barrage discussed).
+[2026-09-05] User ran a YAPOC end-to-end self-test ("let's test yapoc") — config readability, delegation chain, chart capability all passed.
+[2026-09-05] User asked to explore Honcho (Plastic Labs) memory API for possible use in YAPOC. Verdict: usable as a separate HTTP service, not vendored.
+[2026-09-05] User requested fancified/updated plots ("show me updated plot") — chart rendering upgraded with Tableau-10 colourblind-safe palette + theme-aware frontend colors.
+[2026-09-05] User switched master model to gpt-5.6-terra (openai adapter) and authorized restart — confirmed live post-restart (was DeepSeek-V4-Pro-0813).
+[2026-09-05] User requested VSCode-theme support (themes from vscodethemes.com, e.g. github-dark) — feasible since frontend is CSS-variable-driven.
+[2026-09-06] User recognized YAPOC is an agent harness (runtime/orchestration layer hosting a fleet of specialized agents), not a single agent.
+[2026-09-06] User asked whether to use YAPOC for a code project/folder. Master advised: technically yes, but YAPOC is for autonomous orchestration (overnight stability, self-maintenance, scheduled jobs, multi-agent coordination), not a code-editing assistant.
+[2026-09-06] User requested cron/scheduled-task activity be surfaced in the UI chat (master should announce when processing a cron task), not just in agent-flow logs.
+[2026-09-06] User tested YAPOC with a real task: parse a LinkedIn profile (www.linkedin.com/in/nikita-zaitcev). Direct parse failed (HTTP 999 anti-bot wall); web-search fallback surfaced the profile content.

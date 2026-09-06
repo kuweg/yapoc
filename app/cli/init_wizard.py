@@ -180,7 +180,7 @@ def _collect_credentials(provider: str) -> tuple[str | None, str]:
     return api_key, base_url
 
 
-def _validate_loop(provider: str, api_key: str | None, base_url: str) -> str | None:
+def _validate_loop(provider: str, api_key: str | None, base_url: str, *, strict: bool = False) -> str | None:
     """Live-validate credentials, with retry/skip/cancel on failure."""
     while True:
         with console.status(f"[dim]validating {provider} credentials…[/dim]"):
@@ -192,14 +192,12 @@ def _validate_loop(provider: str, api_key: str | None, base_url: str) -> str | N
             console.print(f"[green]ok[/green] {msg}")
             return api_key or ""
 
+        if api_key:
+            msg = msg.replace(api_key, "[redacted]")
         console.print(f"[red]fail[/red] {msg}")
         next_step = questionary.select(
             "What now?",
-            choices=[
-                "Retry — re-enter key",
-                "Save anyway (skip validation)",
-                "Cancel",
-            ],
+            choices=["Retry — re-enter key"] + ([] if strict else ["Save anyway (skip validation)"]) + ["Cancel"],
         ).ask()
         if next_step is None or next_step.startswith("Cancel"):
             console.print("[yellow]Wizard cancelled.[/yellow]")
@@ -222,11 +220,14 @@ def _pick_model(provider: str) -> str | None:
             f"No catalog for {provider} — type a model id:"
         ).ask() or None
 
-    return questionary.select(
+    selected = questionary.select(
         f"Default model for {provider}:",
-        choices=choices,
+        choices=[*choices, "Enter another model ID"],
         default=choices[0],
     ).ask()
+    if selected == "Enter another model ID":
+        return questionary.text("Model ID:").ask() or None
+    return selected
 
 
 def _write_env(

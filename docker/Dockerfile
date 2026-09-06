@@ -21,6 +21,7 @@ RUN poetry install --only main --no-root --no-interaction
 COPY app/ ./app/
 COPY --from=frontend /build/dist ./app/frontend/dist
 COPY docker/entrypoint.py ./entrypoint.py
+RUN chmod -R a+rX /opt/yapoc
 WORKDIR /workspace
 ENTRYPOINT ["python", "/opt/yapoc/entrypoint.py"]
 CMD ["serve"]

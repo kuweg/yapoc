@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSessionStore } from './store/session'
 import { useAppStore } from './store/appStore'
 import { useAgentChatStore } from './store/agentChatStore'
@@ -277,6 +277,7 @@ function Workspace() {
 
 
 export default function App() {
+  const authStarted = useRef(false)
   const [authenticated, setAuthenticated] = useState(false)
   const [checking, setChecking] = useState(true)
   const [token, setToken] = useState('')
@@ -293,6 +294,8 @@ export default function App() {
     }).catch((e) => setError(String(e))).finally(() => setChecking(false))
   }
   useEffect(() => {
+    if (authStarted.current) return
+    authStarted.current = true
     // The installer hands off browser access in a fragment: it is never sent
     // in the HTTP URL or access logs. Clear it before the app makes requests.
     const setupToken = new URLSearchParams(window.location.hash.slice(1)).get('setup-token')

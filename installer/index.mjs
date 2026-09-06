@@ -247,6 +247,8 @@ export async function main(args = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// npm launches Unix bins through a symlink under node_modules/.bin.
+const invokedPath = process.argv[1] ? await realpath(process.argv[1]).catch(() => '') : '';
+if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
   main().catch(error => { console.error(`\nSetup stopped: ${error.message}\nRe-run the same command to continue. Existing settings and projects are preserved.`); process.exitCode = 1; });
 }

@@ -1,6 +1,8 @@
 // Portable, offline validation of the installer payload and host isolation.
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, symlink } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { composeConfig, stageSource, includeInImage } from './index.mjs';
@@ -30,4 +32,13 @@ for (const file of ['docker/Dockerfile', 'docker/entrypoint.py', 'app/cli/guided
 await stageSource(source, destination);
 await assert.rejects(readFile(path.join(destination, '.env')));
 assert.equal(await readFile(path.join(destination, 'app/agents/master/PROMPT.MD'), 'utf8'), 'public fixture');
+let executable = fileURLToPath(new URL('./index.mjs', import.meta.url));
+if (process.platform !== 'win32') {
+  const shim = path.join(destination, 'yapoc-install');
+  await symlink(executable, shim);
+  executable = shim;
+}
+const help = spawnSync(process.execPath, [executable, '--help'], { encoding: 'utf8' });
+assert.equal(help.status, 0, help.stderr);
+assert.match(help.stdout, /Usage: yapoc-install/, 'npm-style bin must invoke main, not exit silently');
 console.log('PASS: portable paths, localhost-only service, isolated workspace, credentials/runtime excluded from image');

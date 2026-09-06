@@ -189,7 +189,7 @@ async def _execute_task_body(task_id: str) -> None:
 
     # Background work yields the master after a bounded run. Foreground tasks
     # use the agent's own configured timeout and explicit user cancellation.
-    _chain_ctx_timeout = (settings.autonomous_run_timeout or None) if source not in {"ui", "cli", "telegram", "resume"} else None
+    _chain_ctx_timeout = (settings.autonomous_run_timeout or None) if source not in {"ui", "cli", "telegram", "resume", "mcp"} else None
 
     # Emit graph event for task assignment
     await graph_event_bus.emit_task_assigned(

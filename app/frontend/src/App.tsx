@@ -292,7 +292,20 @@ export default function App() {
       if (!data.authenticated && !data.configured) setError('Remote access requires BACKEND_API_TOKEN on the backend.')
     }).catch((e) => setError(String(e))).finally(() => setChecking(false))
   }
-  useEffect(check, [])
+  useEffect(() => {
+    // The installer hands off browser access in a fragment: it is never sent
+    // in the HTTP URL or access logs. Clear it before the app makes requests.
+    const setupToken = new URLSearchParams(window.location.hash.slice(1)).get('setup-token')
+    if (!setupToken) { check(); return }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: setupToken }),
+    }).then((response) => {
+      if (!response.ok) throw new Error('Installer access token was not accepted')
+      check()
+    }).catch((e) => { setError(String(e)); setChecking(false) })
+  }, [])
   if (authenticated) return <Workspace />
   return <main className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
     <form className="space-y-4 w-80" onSubmit={async (event) => {

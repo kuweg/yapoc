@@ -16,48 +16,43 @@ graph TD
 
 ---
 
-## Quick start
+## Quick start — guided installation
 
-**Prerequisites**
+The installer supports **Linux, Windows and macOS** using Node.js 22+ and Docker.
+It guides you through:
 
-- Python 3.12
-- Git
-- Redis running on `:6379`
-- Node 20+ and pnpm (only if you want the web UI)
+1. Choosing a master folder where YAPOC can work freely.
+2. Selecting an allowed AI provider and entering its API key.
+3. Optionally pairing a Telegram bot with your private chat.
+4. Configuring and starting YAPOC, including Redis and the built dashboard.
+5. Opening the browser after readiness checks pass.
 
-**Automated install (recommended)**
+From this checkout:
 
-1. **Run the one-line installer.** It detects your OS, checks Python 3.12 + git,
-   installs Poetry (via pipx) and Redis (via brew/apt — prompted), clones the
-   repo, runs `poetry install`, and drops into an interactive setup wizard.
+```sh
+node installer/index.mjs --source .
+```
 
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/kuweg/yapoc/main/scripts/install.sh | bash
-   ```
+Or, with Node.js and Git installed, use the preview branch directly:
 
-   *Expected outcome:* the repo is cloned into `~/yapoc` and the setup wizard opens.
+```sh
+npx --yes --package=github:kuweg/yapoc#feat/guided-installer yapoc-install --ref feat/guided-installer
+```
 
-   The installer never runs as root, never edits your shell rc files, and prompts
-   before invoking `sudo` (only ever for an explicitly-named package). Pass
-   `-s -- --yes` to the curl pipe to auto-confirm all prompts.
+Python, Poetry and frontend build dependencies run inside the container. The
+host needs Docker running; setup explains how to retry if it is missing.
+The first build includes the ML dependencies and can download several gigabytes.
 
-2. **Start the backend daemon.**
+See the **[installation guide](docs/installation.md)** for Linux/macOS `curl`,
+Windows PowerShell, prerequisites, folder permissions, Telegram pairing,
+start/stop commands, troubleshooting and validation limits. The npm registry
+package has not been published; use the checkout or GitHub command above.
 
-   ```bash
-   cd ~/yapoc
-   poetry run yapoc start   # backend daemon
-   ```
+### Developer setup
 
-   *Expected outcome:* the FastAPI backend is running and healthy.
-
-3. **Launch the interactive REPL** (or open the web UI).
-
-   ```bash
-   poetry run yapoc         # interactive REPL
-   ```
-
-   *Expected outcome:* a Typer/Rich REPL with tab-completion, `@file` mentions,
-   and `!bash` mode.
+The existing native Poetry workflow remains available for source development.
+The older `scripts/install.sh` is the Linux/macOS developer bootstrap; it is
+separate from the cross-platform guided installer.
 
 ### Manual install
 

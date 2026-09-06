@@ -1,0 +1,45 @@
+name: Guided installer
+on:
+  push:
+    paths: ['installer/**', 'docker/**', 'package.json', 'scripts/install-guided.*', 'app/**', 'pyproject.toml', 'poetry.lock', '.github/workflows/installer.yml']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  host:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node installer/index.mjs --help
+      - run: node installer/validate.mjs
+      - run: npm pack --dry-run
+      - if: runner.os != 'Windows'
+        run: bash -n scripts/install-guided.sh
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$pwd/scripts/install-guided.ps1", [ref]$null, [ref]$parseErrors) | Out-Null
+          if ($parseErrors) { throw $parseErrors }
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Stage a clean image context
+        run: node --input-type=module -e 'import {stageSource} from "./installer/index.mjs"; await stageSource(process.cwd(), "/tmp/yapoc-context");'
+      - name: Build the real runtime and dashboard
+        run: docker build -f /tmp/yapoc-context/docker/Dockerfile -t yapoc-installer-check /tmp/yapoc-context
+      - name: Verify packaged imports and dashboard without credentials
+        run: |
+          docker run --rm --entrypoint python yapoc-installer-check -c 'import sys; sys.path.insert(0,"/opt/yapoc"); import app.backend.main; from pathlib import Path; assert Path("/opt/yapoc/app/frontend/dist/index.html").is_file()'

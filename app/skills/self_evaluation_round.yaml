@@ -1,0 +1,23 @@
+name: self_evaluation_round
+summary: Run a scheduled self-evaluation round (pull signals, rank top 3 issues, update REPORT.MD, notify parent)
+description: |
+  Runs the periodic evaluator self-evaluation round. Pulls recent signals once,
+  identifies the top 3 issues, writes a new round entry to REPORT.MD (retaining
+  only the new round plus one prior round), and notifies the parent with a 3-line
+  summary. This is the most frequently repeated master procedure across scheduled
+  ticks (6+ occurrences in recent session history).
+level_1: "Run a scheduled self-evaluation round (pull signals, rank top 3 issues, update REPORT.MD, notify parent)."
+level_2: |
+  Inputs:
+  - signals: get_recent_signals tool (pull exactly once, do not re-gather)
+  - report_path: app/agents/evaluator/REPORT.MD
+  - retention: keep only the new round entry + 1 prior round (max 2 rounds)
+  - turn_budget: stop gathering at turn 7 max
+  Output: notify_parent with a 3-line summary of the round
+level_3: |
+  1. Spawn evaluator with the round task: "Pull get_recent_signals once. Identify
+     top 3 issues. Write the new round entry to REPORT.MD keeping only new + 1
+     prior round. notify_parent with 3-line summary. Stop gathering at turn 7 max."
+     Use context "Scheduled tick — keep it tight."
+  2. wait_for_agent('evaluator', timeout=240).
+  3. Read the evaluator's 3-line notify_parent summary and surface it to the user.

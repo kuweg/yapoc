@@ -294,6 +294,12 @@ class ServerRestartTool(BaseTool):
         # 2. Notify sub-agents to save their state
         await _notify_agents_pre_shutdown()
 
+        if settings.managed_restart:
+            # The packaged service already has a supervisor. Creating a second
+            # replacement here races it and can start duplicate backends.
+            asyncio.get_running_loop().call_later(3.0, os.kill, os.getpid(), signal.SIGTERM)
+            return "Server is restarting. Stop this turn; the supervisor will resume next_action in the same chat."
+
         old_pid: int | None = None
         if _PID_FILE.exists():
             try:

@@ -41,6 +41,8 @@
 - **Wants to talk with YAPOC via voice** — real STT/TTS via OpenAI models (Whisper STT + onyx TTS), not browser speechSynthesis ("browser voiceover is awful")
 - **Wants interactive plots/charts + HTML reports rendered in chat** (e.g. "how much money did I burn?" should return text + charts, not just numbers)
 - **Wants automation without being asked every time** — prefers the system to act automatically rather than prompting for confirmation on routine/reversible work
+- **Wants cron/scheduled-task activity surfaced in the UI chat** — when master processes a cron task (skill-capture-sweep, self-eval, memory-sweep), it should announce it in chat (e.g. "getting updated from cron task, I'll tell you what it's about") rather than only appearing in agent-flow logs
+- **Wants VSCode-theme support** — themes sourced from vscodethemes.com (e.g. github-dark), since YAPOC frontend is CSS-variable-driven
 
 ## Schedule
 - Works mostly between **10pm and 2am**

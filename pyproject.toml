@@ -40,6 +40,7 @@ dependencies = [
 [project.scripts]
 yapoc = "app.cli.main:app"
 yapoc-agent = "app.agents.base.runner_entry:main"
+yapoc-mcp = "app.mcp_server.server:main"
 
 [tool.poetry]
 packages = [{include = "app"}]

@@ -20,13 +20,21 @@ tools:
   - file_delete
   - file_list
   - shell_exec
+  - grep
+  - search_negative_knowledge
+  - notify_parent
+  - load_skills
+  - create_skill
+  - update_skill
+  - delete_skill
+  - spawn_agent
+  - wait_for_agent
+  - check_task_status
   - memory_append
   - notes_read
   - notes_write
   - notes_append
   - health_log
-  - grep
-  - search_negative_knowledge
 delegation_targets:
   - keeper
 sandbox:

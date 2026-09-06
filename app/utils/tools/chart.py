@@ -5,6 +5,23 @@ from typing import Any
 from . import BaseTool
 
 
+# Curated colourblind-safe palette (Tableau 10). Applied as the default series
+# colour list so every chart is legible for common colour-vision deficiencies,
+# while still letting callers override with their own explicit `color` list.
+COLORBLIND_PALETTE = [
+    "#4E79A7",  # blue
+    "#F28E2B",  # orange
+    "#E15759",  # red
+    "#76B7B2",  # teal
+    "#59A14F",  # green
+    "#EDC948",  # yellow
+    "#B07AA1",  # purple
+    "#FF9DA7",  # pink
+    "#9C755F",  # brown
+    "#BAB0AC",  # gray
+]
+
+
 class RenderChartTool(BaseTool):
     name = "render_chart"
     description = (
@@ -51,6 +68,10 @@ class RenderChartTool(BaseTool):
 
             # Render instantly, no animation glitches on first paint.
             normalized["animation"] = False
+
+            # Colourblind-safe palette unless the caller supplied their own.
+            if "color" not in normalized:
+                normalized["color"] = copy.deepcopy(COLORBLIND_PALETTE)
 
             return json.dumps(normalized, ensure_ascii=False)
         except Exception as exc:

@@ -1301,6 +1301,13 @@ def init():
 
 
 @app.command()
+def setup():
+    """Guided configuration for the cross-platform packaged installer."""
+    from app.cli.guided_setup import run_guided_setup
+    raise typer.Exit(code=run_guided_setup())
+
+
+@app.command()
 def start(
     host: str = typer.Option(settings.host, help="Host to bind"),
     port: int = typer.Option(settings.port, help="Port to listen on"),

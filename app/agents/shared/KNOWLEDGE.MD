@@ -175,3 +175,38 @@
 - **Source:** master
 - **Time:** 2026-09-05 15:54
 - **Content:** Evaluator self-evaluation loop runs on a ~30-minute scheduled cadence (rounds 75-79 observed on 2026-09-05). Cost profile (rounds 76-79): total spend ~$262 across 15 agents; master is the dominant cost driver at $211.93 / 80.9% of spend / ~425M input tokens (expected for the orchestrator — watch item, no action). Builder is #2 spender (~$38.46) with runtime temperature 1.0 (highest of all agents; informational, no defect evidence). System healthy: 0 current/recent errors, all tasks done.
+
+## Entry: warning
+- **Source:** master
+- **Time:** 2026-09-05 21:40
+- **Content:** Tool-grant authority is CONFIG.yaml's `tools:` block, NOT agent-settings.json — despite the header note in CONFIG.yaml claiming the opposite. BaseAgent._load_tool_names (app/agents/base/__init__.py:~1009) reads CONFIG.yaml tools as authoritative and uses agent-settings.json's `tools` array only as a fallback when CONFIG has no tools block. Keep both in sync or audits misread the JSON. This drift caused builder's "Unknown tool: notify_parent" (2026-09-05) — the JSON listed notify_parent but CONFIG.yaml didn't, so runtime never granted it.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-05 21:46
+- **Content:** Chart rendering fancified with theme-aware, colourblind-safe colors (2026-09-05). Backend app/utils/tools/chart.py now injects a Tableau-10 colourblind-safe palette as the default series color list (#4E79A7 blue, #F28E2B orange, #E15759 red, #76B7B2, #59A14F, #EDC948, #B07AA1, #FF9DA7, #9C755F, #BAB0AC), sets animation:false, and normalizes series to a non-empty list. Frontend ChartBlock.tsx resolves theme tokens (--color-chart-text/-grid, --color-tooltip-bg/-border/-text, --font-mono) so text/legend/tooltip/axes match the active theme. Frontend build passes clean (tsc exit 0). Frontend-only change — user refreshes to see.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-05 21:29
+- **Content:** Honcho (Plastic Labs) memory API evaluated for YAPOC (2026-09-05). Verdict: USABLE but as a SEPARATE service called over HTTP, NOT vendored into the repo (license makes that distinction the whole ballgame). Honcho is memory infrastructure, not a retrieval lib — a FastAPI server + background worker backed by Postgres + Redis + vector collections. Data model: Workspace → Peer → Session. Full report in master session; no integration decision made yet.
+
+## Entry: decision
+- **Source:** master
+- **Time:** 2026-09-05 21:51
+- **Content:** MASTER MODEL CHANGED to openai/gpt-5.6-terra (2026-09-05 21:50, user directive "switch master to gpt-5.6-terra and restart"). Confirmed live post-restart: adapter=openai, model=gpt-5.6-terra. This SUPERSEDES the earlier "master on DeepSeek-V4-Pro-0813" model-distribution entry (2026-09-05 15:15). Motivation: deepseek was throwing "Incomplete provider response: length" in the health log. The other 10 agents remain on deepseek-chat.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-05 21:56
+- **Content:** VSCode-theme support feature requested by user (2026-09-05): wants themes sourced from vscodethemes.com (e.g. GitHub.github-vscode-theme/github-dark). Feasible because YAPOC frontend is 100% CSS-variable-driven. A VSCode theme is a JSON file with `colors` (semantic UI tokens like editor.background/foreground, sideBar.background) + `tokenColors` (syntax highlighting). Integration path: map VSCode semantic tokens to YAPOC CSS variables. No implementation decision made yet.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-06 20:35
+- **Content:** Skill-capture sweep created skill `self_evaluation_round` (app/skills/self_evaluation_round.yaml) on 2026-09-06 — the most-repeated procedure in master memory (scheduled self-eval rounds 75-82). NOTE: skill tools (create_skill etc.) were absent from master's actual runtime tool set AND from master's CONFIG.yaml tools list even though listed in agent-settings.json — same CONFIG.yaml/JSON drift pattern as builder's notify_parent bug. Skill was captured by writing the YAML directly.
+
+## Entry: discovery
+- **Source:** master
+- **Time:** 2026-09-06 20:47
+- **Content:** LinkedIn page parsing is BLOCKED for YAPOC: fetch_page returns HTTP 999 (LinkedIn's standard anti-scraping/anti-bot wall). fetch_page does NOT run JavaScript or hold a session, so LinkedIn blocks at the door. Fallback that works: web search surfaced the actual profile content. For LinkedIn (and similar JS-heavy/anti-bot sites), use web search or playwright (JS-rendering) instead of fetch_page.

@@ -20,6 +20,7 @@ from .graph import router as graph_router
 from .observability import router as observability_router
 from .uploads import router as uploads_router
 from .skills import router as skills_router
+from .mcp import router as mcp_router
 
 __all__ = [
     "health_router",
@@ -44,4 +45,5 @@ __all__ = [
     "observability_router",
     "uploads_router",
     "skills_router",
+    "mcp_router",
 ]

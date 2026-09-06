@@ -5,8 +5,8 @@
   "stale_task_threshold_seconds": 600,
   "agents": {
     "master": {
-      "adapter": "deepseek",
-      "model": "DeepSeek-V4-Pro-0813",
+      "adapter": "openai",
+      "model": "gpt-5.6-terra",
       "temperature": 0.3,
       "task_timeout": 300,
       "tools": [
@@ -124,17 +124,22 @@
         "file_edit",
         "file_delete",
         "file_list",
-        "notify_parent",
         "shell_exec",
+        "grep",
+        "search_negative_knowledge",
+        "notify_parent",
         "load_skills",
         "create_skill",
         "update_skill",
         "delete_skill",
-        "grep",
         "spawn_agent",
         "wait_for_agent",
         "check_task_status",
-        "search_negative_knowledge"
+        "memory_append",
+        "notes_read",
+        "notes_write",
+        "notes_append",
+        "health_log"
       ],
       "temperature": 1,
       "max_tokens": 8096,

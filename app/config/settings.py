@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     backend_api_token: str = ""  # required for remote API/browser access
     port: int = 8000
+    managed_restart: bool = False  # installer supervisor owns backend replacement
     # Comma-separated list of origins allowed by the CORS middleware. Defaults
     # to common local dev origins; set CORS_ALLOW_ORIGINS in production.
     cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
@@ -196,7 +197,7 @@ class Settings(BaseSettings):
     memory_max_age_days: int = 7  # Drop MEMORY.MD entries older than this on prune
 
     # ── MCP integration ────────────────────────────────────────────────────
-    mcp_server_enabled: bool = False
+    mcp_server_enabled: bool = True
     mcp_api_key: str = ''
     yapoc_dashboard_url: str = 'http://localhost:8000'
 

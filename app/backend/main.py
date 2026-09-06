@@ -21,6 +21,7 @@ from app.backend.routers import (
     graph_router,
     health_router,
     memory_graph_router,
+    mcp_router,
     metrics_router,
     models_router,
     notification_trace_router,
@@ -1208,3 +1209,8 @@ app.include_router(commands_router)
 app.include_router(graph_router)
 app.include_router(concilium_router)
 app.include_router(admin_router)
+app.include_router(mcp_router)
+
+# Release installs serve the prebuilt UI without Node or a Vite process.
+from app.backend.dashboard import mount_dashboard
+mount_dashboard(app, settings.project_root / "app" / "frontend" / "dist")

@@ -16,6 +16,7 @@ import json
 import shutil
 import subprocess
 import time
+import tempfile
 from pathlib import Path
 
 import questionary
@@ -229,20 +230,22 @@ def _pick_model(provider: str) -> str | None:
 
 
 def _write_env(
-    path: Path, provider: str, api_key: str, base_url: str, model: str
+    path: Path, provider: str, api_key: str, base_url: str, model: str,
+    extra_updates: dict[str, str] | None = None,
 ) -> None:
     """Render .env from .env.example, substituting the answered fields.
 
     Backs up any existing .env to .env.bak.<unix> before writing.
     """
     example_path = settings.project_root / ".env.example"
-    template = (
+    template = path.read_text(encoding="utf-8") if path.exists() else (
         example_path.read_text(encoding="utf-8") if example_path.exists() else ""
     )
 
     if path.exists():
         backup = path.with_name(f".env.bak.{int(time.time())}")
         shutil.copy2(path, backup)
+        backup.chmod(0o600)
         console.print(f"[dim]backed up existing .env to {backup.name}[/dim]")
 
     updates: dict[str, str] = {
@@ -254,24 +257,22 @@ def _write_env(
         updates[env_key_name] = api_key
     if base_url and provider in PROVIDER_BASE_URL_KEY:
         updates[PROVIDER_BASE_URL_KEY[provider]] = base_url
+    updates.update(extra_updates or {})
 
-    out_lines: list[str] = []
-    seen: set[str] = set()
-    for line in template.splitlines():
-        stripped = line.lstrip()
-        if "=" in stripped and not stripped.startswith("#"):
-            key = stripped.split("=", 1)[0].strip()
-            if key in updates:
-                out_lines.append(f"{key}={updates[key]}")
-                seen.add(key)
-                continue
-        out_lines.append(line)
-
-    for k, v in updates.items():
-        if k not in seen:
-            out_lines.append(f"{k}={v}")
-
-    path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    # dotenv handles quoting and embedded spaces/quotes; write atomically so an
+    # interrupted setup cannot leave a truncated credentials file.
+    from dotenv import set_key
+    import os
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=".setup-", suffix=".env")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(template)
+        for key, value in updates.items():
+            set_key(temporary, key, value, quote_mode="always")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def _rewrite_agent_settings(provider: str, model: str) -> None:

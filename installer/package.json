@@ -1,0 +1,10 @@
+{
+  "name": "yapoc-installer",
+  "version": "0.1.0",
+  "description": "Guided YAPOC installation for Linux, Windows and macOS",
+  "type": "module",
+  "engines": {"node": ">=22"},
+  "bin": {"yapoc-install": "index.mjs"},
+  "files": ["index.mjs", "README.md"],
+  "scripts": {"check": "node --check index.mjs"}
+}

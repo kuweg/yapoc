@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile, readdir, copyFile, mkdtemp, realpath, lstat, access } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, copyFile, mkdtemp, realpath, access } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,7 +10,7 @@ import net from 'node:net';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const exists = async file => { try { await access(file); return true; } catch { return false; } };
-const literal = value => value.replaceAll('$', '$$'); // Compose interpolation is independent of JSON quoting.
+const literal = value => value.replaceAll('$', () => '$$'); // Avoid JS replacement-string escaping too.
 
 export function composeConfig(workspace, context, port, uid = null, gid = null) {
   return {
@@ -119,9 +119,9 @@ export async function stageSource(source, destination) {
   }
 }
 
-async function downloadSource() {
+async function downloadSource(ref) {
   console.log('Downloading YAPOC source…');
-  const result = await fetch('https://api.github.com/repos/kuweg/yapoc/commits/main', { signal: AbortSignal.timeout(30000) });
+  const result = await fetch(`https://api.github.com/repos/kuweg/yapoc/commits/${encodeURIComponent(ref)}`, { signal: AbortSignal.timeout(30000) });
   if (!result.ok) throw new Error(`Could not resolve release source: HTTP ${result.status}`);
   const { sha } = await result.json();
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('Invalid source revision');
@@ -165,16 +165,19 @@ async function waitReady(url, token, seconds = 180) {
 }
 
 export async function main(args = process.argv.slice(2)) {
+  if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Install Node.js 22 or newer and retry.');
   if (args.includes('--help')) {
-    console.log('YAPOC guided installer (Node 22+, Docker)\nUsage: yapoc-install [--source PATH] [--workspace PATH] [--no-browser]\nLinux, Windows and macOS. Credentials are requested interactively.');
+    console.log('YAPOC guided installer (Node 22+, Docker)\nUsage: yapoc-install [--source PATH] [--ref BRANCH_OR_COMMIT] [--workspace PATH] [--no-browser]\nLinux, Windows and macOS. Credentials are requested interactively.');
     return;
   }
-  let source, requestedWorkspace, noBrowser = false;
+  let source, requestedWorkspace, ref = 'main', noBrowser = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--no-browser') noBrowser = true;
-    else if (['--source', '--workspace'].includes(args[i]) && args[i+1]) {
+    else if (['--source', '--workspace', '--ref'].includes(args[i]) && args[i+1]) {
       const option = args[i++];
-      if (option === '--source') source = path.resolve(args[i]); else requestedWorkspace = args[i];
+      if (option === '--source') source = path.resolve(args[i]);
+      else if (option === '--ref') ref = args[i];
+      else requestedWorkspace = args[i];
     } else throw new Error(`Unknown or incomplete option: ${args[i]}`);
   }
   if (!process.stdin.isTTY) throw new Error('Run the installer in an interactive terminal. It never accepts API keys on the command line.');
@@ -185,6 +188,7 @@ export async function main(args = process.argv.slice(2)) {
   if (workspace === path.parse(workspace).root || workspace === homedir()) throw new Error('Choose a dedicated folder inside your home, not the entire home or drive.');
   await mkdir(workspace, { recursive: true });
   workspace = await realpath(workspace);
+  if (workspace === path.parse(workspace).root || workspace === await realpath(homedir())) throw new Error('Choose a dedicated folder, not a link to your entire home or drive.');
   const marker = path.join(workspace, '.yapoc-install.json');
   if (!await exists(marker)) {
     for (const reserved of ['app', 'data', '.env', 'pyproject.toml', 'poetry.lock']) {
@@ -193,8 +197,11 @@ export async function main(args = process.argv.slice(2)) {
   }
   console.log(`Workspace: ${workspace}`);
   await ensureDocker();
-  const control = path.join(workspace, '.yapoc-installer');
-  await mkdir(control, { recursive: true });
+  // Keep host orchestration OUTSIDE the agent-writable folder. Otherwise an
+  // agent could edit Compose and gain extra host mounts on the next launch.
+  const installId = createHash('sha256').update(workspace).digest('hex').slice(0, 10);
+  const control = path.join(homedir(), '.yapoc', 'installations', installId);
+  await mkdir(control, { recursive: true, mode: 0o700 });
   const composeFile = path.join(control, 'compose.json');
   let config;
   if (await exists(composeFile)) {
@@ -203,7 +210,7 @@ export async function main(args = process.argv.slice(2)) {
     const context = path.join(control, 'image-source');
     await mkdir(context, { recursive: true });
     const local = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-    source ||= await exists(path.join(local, 'pyproject.toml')) ? local : await downloadSource();
+    source ||= await exists(path.join(local, 'pyproject.toml')) ? local : await downloadSource(ref);
     await stageSource(source, context);
     const port = await availablePort();
     config = composeConfig(workspace, context, port, process.getuid?.() ?? null, process.getgid?.() ?? null);
@@ -215,8 +222,14 @@ export async function main(args = process.argv.slice(2)) {
   console.log('Preparing the runtime and built dashboard. First installation downloads dependencies; retries reuse the build cache.');
   await docker('build', 'yapoc');
   // No live bot poller may compete with pairing/reconfiguration.
+  const wasRunning = Boolean((await run('docker', ['compose', '-f', composeFile, 'ps', '--status', 'running', '-q', 'yapoc'], { capture: true })).trim());
   await docker('stop', 'yapoc');
-  await docker('run', '--rm', '--no-deps', 'yapoc', 'setup');
+  try {
+    await docker('run', '--rm', '--no-deps', 'yapoc', 'setup');
+  } catch (error) {
+    if (wasRunning) await docker('up', '-d');
+    throw error;
+  }
   await docker('up', '-d');
   const port = config.services.yapoc.ports[0].published;
   const url = `http://localhost:${port}`;
@@ -234,6 +247,8 @@ export async function main(args = process.argv.slice(2)) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// npm launches Unix bins through a symlink under node_modules/.bin.
+const invokedPath = process.argv[1] ? await realpath(process.argv[1]).catch(() => '') : '';
+if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
   main().catch(error => { console.error(`\nSetup stopped: ${error.message}\nRe-run the same command to continue. Existing settings and projects are preserved.`); process.exitCode = 1; });
 }

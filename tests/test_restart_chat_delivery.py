@@ -32,7 +32,12 @@ def isolated(tmp_path, monkeypatch):
     db.init_schema()
     agents = tmp_path / 'agents'
     (agents / 'master').mkdir(parents=True)
-    settings = SimpleNamespace(agents_dir=agents, project_root=tmp_path, host='127.0.0.1', port=8000)
+    # `managed_restart` must be present: server.restart_server() reads it to
+    # decide whether the installer supervisor owns process replacement. It was
+    # added to the real Settings after this stub was written, so the stub went
+    # stale and every run died with AttributeError before reaching any assert.
+    settings = SimpleNamespace(agents_dir=agents, project_root=tmp_path, host='127.0.0.1',
+                               port=8000, managed_restart=False)
     monkeypatch.setattr(server, 'settings', settings)
     monkeypatch.setattr(server, '_RESUME_FILE', agents / 'master' / 'RESUME.MD')
     monkeypatch.setattr(server, '_PID_FILE', tmp_path / 'pid')

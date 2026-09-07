@@ -146,7 +146,7 @@ from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
 from .web import FetchPageTool, WebSearchTool
 from .browser import FetchPageJsTool
-from .telegram import SendTelegramMessageTool
+from .telegram import SendTelegramMessageTool, SendTelegramMediaTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
     CheckTaskStatusTool,
@@ -170,7 +170,7 @@ from .evaluator_signals import GetRecentSignalsTool
 from .grep import GrepTool
 from .concilium_deliberate import ConciliumDeliberateTool
 from .skills import CreateSkillTool, DeleteSkillTool, LoadSkillsTool, UpdateSkillTool
-from .chart import RenderChartTool
+from .chart import RenderChartTool, RenderChartImageTool
 from .image_gen import GenerateImageTool
 from .mermaid import RenderMermaidTool
 
@@ -220,6 +220,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "image_read": ImageReadTool,
     "parse_csv": ParseCsvTool,
     "send_telegram_message": SendTelegramMessageTool,
+    "send_telegram_media": SendTelegramMediaTool,
     "load_skills": LoadSkillsTool,
     "create_skill": CreateSkillTool,
     "update_skill": UpdateSkillTool,
@@ -227,6 +228,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "grep": GrepTool,
     "concilium_deliberate": ConciliumDeliberateTool,
     "render_chart": RenderChartTool,
+    "render_chart_image": RenderChartImageTool,
     "generate_image": GenerateImageTool,
     "render_mermaid": RenderMermaidTool,
 }

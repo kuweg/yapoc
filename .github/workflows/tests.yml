@@ -1,0 +1,82 @@
+name: Tests
+
+on:
+  push:
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'conftest.py'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/tests.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py312-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      # No API keys are provided, so anything reaching a real provider must be
+      # skipped or mocked rather than left to fail the run. The suite is
+      # expected to be fully green: it went from 32 failures to 0 in the commit
+      # that added this workflow, and a red run here means a real regression.
+      - name: Run tests
+        env:
+          # Keep the access middleware on its local-dev path; conftest.py gives
+          # TestClient a loopback identity to match.
+          BACKEND_API_TOKEN: ''
+        run: poetry run pytest tests/ app/backend/tests/ -q --maxfail=0
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The frontend uses pnpm (app/frontend/pnpm-lock.yaml). `npm ci` would
+      # fail here — there is no package-lock.json.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: app/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: app/frontend
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        working-directory: app/frontend
+        run: pnpm run build

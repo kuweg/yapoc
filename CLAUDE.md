@@ -5,7 +5,10 @@ Autonomous multi-agent system where a hierarchy of specialized AI agents collabo
 ## Project Rules
 
 - **Poetry only** — always use `poetry add`, `poetry install`, `poetry remove`. Never use pip directly.
-- **No tests yet** — MVP phase, skip test creation unless explicitly asked.
+- **Tests run in CI** — `poetry run pytest tests/ app/backend/tests/` must stay
+  green (255 tests). `.github/workflows/tests.yml` enforces it. Add tests with
+  behavioural changes to `app/agents/base/`, `app/backend/`, or `app/utils/`;
+  elsewhere use judgement rather than writing tests by reflex.
 - **Centralized settings** — all configuration lives in `app/config/settings.py` (pydantic-settings). Never read env vars with `os.environ` directly in application code; import `settings` from `app.config` instead.
 - **Docs are authoritative** — design docs in `docs/` define the intended architecture. When in doubt, follow the docs.
 

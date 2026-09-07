@@ -138,13 +138,24 @@ writing code — the same discipline §1 exists to enforce:
 | 1.5 | **Librarian timeouts** (P1) ✅ | `agent-settings.json` | Done. Measured: librarian's successful tasks have p95 137s and a slowest-ever 161s across 71 samples, against a 900s timeout. Its timeouts are therefore *stuck* tasks, not slow ones — 900s only meant burning 15 minutes before failing. Cut to 300s (~2x the slowest success ever). Raising it would have been exactly wrong. |
 | 1.6 | **Task-class routing** (P2) | master prompt + classifier | Worth doing as a cost/latency optimization — planning carries 253 tasks of overhead — but it is no longer the fix for turn exhaustion. Demoted from the first draft's P1. |
 
-### Phase 2 — Make it measurable (weeks 5-8)
+### Phase 2 — Make it measurable (weeks 5-8) — P0s LANDED 2026-09-07
+
+**Headline result.** The suite went from **32 failing to 0** (264 passing), and
+none of the 32 were product bugs — every one was a stale test or a test-harness
+defect that had gone unnoticed precisely because nothing ever ran them:
+
+| Cause | Count | Fix |
+|---|---:|---|
+| `TestClient` is not a loopback client, so `AccessMiddleware` correctly refused every request with 401 | 22 | root `conftest.py` gives it a loopback identity |
+| Tests asserting `truncate_text` truncation, removed in `1b02284` (2026-05-16); the function has **zero callers** | 8 | rewritten to pin the documented no-op |
+| Test asserting a per-model reasoning-replay gate, removed in `c64e8d7` (2026-09-07) | 1 | rewritten to pin "disabled for every model" |
+| `SimpleNamespace` settings stub missing `managed_restart`, added to Settings after the stub was written | 1 | field added to the stub |
 
 | # | Item | Detail |
 |---|---|---|
-| 2.1 | **Test posture, resolved** (P0) | 27 test files exist and nothing runs them. Add `.github/workflows/tests.yml` running `poetry run pytest tests/ app/backend/tests/`. Fix or delete what fails. Then correct `README.md:191` and `CLAUDE.md` — "No tests yet" is now actively misleading. |
-| 2.2 | **Reliability scorecard** (P0) | Built on 1.1 + 1.2: completion rate, failure mix windowed by release (the mistake in §1 was a windowing mistake — the scorecard must default to a recent window, never all-time), continuations, cost per completed task, p95 duration. |
-| 2.3 | **Finish provenance** (P0) | Populate the dead `provenance` column at every `insert_memory` call site in `indexer.py` with `{source_file, agent, task_id, indexed_at}`. |
+| 2.1 | **Test posture, resolved** (P0) ✅ | `.github/workflows/tests.yml` runs pytest plus a frontend typecheck and build on every push. Both CI commands were verified locally first — the frontend job uses **pnpm**, not npm: there is no `package-lock.json`, so an `npm ci` job would have failed on its first run. `README.md` and `CLAUDE.md` no longer claim "No tests yet". |
+| 2.2 | **Reliability scorecard** (P0) ✅ | `GET /api/metrics/reliability?days=N` plus an Observability panel with 2d/7d/30d toggles. Defaults to 7 days and always states the window it used. It reproduces the §1 lesson by construction: over 2 days `turn_limit` is 70% of failures, while over 120 days `timeout` leads and `provider_config` reappears — the exact artifact that misled the first draft. Reports failure rate (excluding `partial`, which has no outcome yet), failure mix, cost per completed task, continuation cost, and per-agent p50/p95. |
+| 2.3 | **Finish provenance** (P0) ✅ | Only 1 of 11 `insert_memory_entry` sites wrote it, leaving 2,473 of 2,480 rows empty. All 11 now pass a repo-relative source path. **Deviation from this row as first written:** it specified a `{source_file, agent, task_id, indexed_at}` blob, but `agent`, `source` and `timestamp` are already their own columns — the file path was the only missing fact, and a plain path stays greppable. A test fails if any future index site omits it. |
 | 2.4 | **Retrieval benchmark** (P1) | ~40 fixed queries with known-good answers from real `MEMORY.MD` history; measure recall@k before/after decay and consolidation. |
 | 2.5 | **Verification gates** (P1) | Every modifying task attaches changed files, check run, result, checkpoint ref. |
 | 2.6 | **Security regression suite** (P1) | `security_policy.py` is 401 lines of heuristics with zero tests. Adversarial fixtures: traversal, absolute paths, destructive shell, core-agent deletion. |

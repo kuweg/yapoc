@@ -16,7 +16,7 @@ from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 from watchdog.observers import Observer
 
 from app.config import settings
-from app.agents.base import BaseAgent
+from app.agents.base import BaseAgent, TurnLimitReached
 from app.agents.base.context import _parse_runner_config
 from app.utils.adapters import UsageStats
 
@@ -475,6 +475,18 @@ class AgentRunner:
             await self._notify_parent_via_bus("Task timed out", "error")
             if task_body.startswith("[Process incoming"):
                 await self._agent.mark_task_consumed()
+        except TurnLimitReached as exc:
+            # Turn exhaustion is a budget event, not a failed task. Salvage the
+            # work and hand it back as `partial`, then re-enqueue a continuation
+            # so the agent resumes from its own progress instead of restarting.
+            #
+            # Before this, `except Exception` below caught it: the task became
+            # `error`, the parent got only the message, and every turn of work
+            # was discarded. Turn-limit errors were 19 of the 28 failures in the
+            # current release and 100% of them lost their work.
+            await self._handle_turn_limit(exc, task_body, _fm)
+            if task_body.startswith("[Process incoming"):
+                await self._agent.mark_task_consumed()
         except Exception as exc:
             await self._agent.set_task_status("error", error=str(exc) or repr(exc))
             _exc_fm = self._parse_task_frontmatter()
@@ -511,6 +523,197 @@ class AgentRunner:
                 _hb_task.cancel()
             except Exception:
                 _hb_task.cancel()
+
+    # ── Turn-exhaustion salvage + continuation ─────────────────────────
+
+    # Marker line prefixed to a continuation's ## Task body. Used to detect an
+    # already-continued task on re-entry and to keep the original instruction
+    # visible to the agent alongside what it already achieved.
+    _CONTINUATION_HEADER = "[CONTINUATION]"
+    # Section markers inside the continuation body. These deliberately do NOT
+    # start with "## ": `BaseAgent.get_task_body` extracts the `## Task` section
+    # with `(?=\n## |\Z)`, so a "## "-prefixed subheader here would terminate
+    # the section early and the agent would receive the preamble with neither
+    # the original instruction nor its own progress.
+    _ORIGINAL_MARKER = "=== ORIGINAL TASK ==="
+    _PROGRESS_MARKER = "=== PROGRESS SO FAR ==="
+
+    @staticmethod
+    def _neutralize_headers(text: str) -> str:
+        """Blockquote line-leading markdown headers in salvaged agent output.
+
+        Same hazard as the markers above, but from the other direction: a
+        partial result that happens to contain a line like "## Findings" would
+        truncate the rebuilt `## Task` section at exactly that line, silently
+        cutting the agent's own progress in half. Prefixing with "> " keeps the
+        text readable and valid markdown while ensuring no line starts with "#".
+        """
+        return re.sub(r"^(#{1,6} )", r"> \1", text, flags=re.MULTILINE)
+
+    def _continuation_count(self, fm: dict[str, str]) -> int:
+        """Read the continuation counter from TASK.MD frontmatter (0 when absent)."""
+        try:
+            return max(0, int(str(fm.get("continuation", "0")).strip() or "0"))
+        except (TypeError, ValueError):
+            return 0
+
+    async def _handle_turn_limit(
+        self, exc: TurnLimitReached, task_body: str, fm: dict[str, str]
+    ) -> None:
+        """Record an out-of-turns task as `partial` and re-enqueue a continuation.
+
+        Three things happen here, in order, each independently guarded so a
+        failure in one does not lose the others:
+
+        1. Salvage — RESULT.MD already holds the partial text (BaseAgent's
+           `finally` writes it on every exit path), so the text is read back
+           rather than reconstructed. `exc.partial_text` is the fallback.
+        2. Record — a `partial` row in `tasks` carrying BOTH result_summary and
+           error_summary, so the reliability scorecard can count continuations
+           without mistaking them for either successes or hard failures.
+        3. Continue — rewrite TASK.MD as `pending` with an incremented
+           `continuation` counter; the runner's own poll loop picks it up.
+
+        Exhausting the continuation budget is a LOUDER failure than the old
+        turn-limit error, not a quieter one: the task finalizes as `error`, which
+        feeds the consecutive-failure alert that `partial` deliberately does not.
+        """
+        partial = ""
+        try:
+            partial = (await self._agent._read_file("RESULT.MD")).strip()
+        except Exception as _read_exc:
+            _log.bind(agent=self._name).warning(
+                "could not read RESULT.MD for turn-limit salvage: {}", _read_exc
+            )
+        if not partial:
+            partial = (exc.partial_text or "").strip()
+
+        used = self._continuation_count(self._parse_task_frontmatter() or fm)
+        budget = int(getattr(settings, "max_task_continuations", 0) or 0)
+        can_continue = bool(partial) and used < budget
+
+        _log.bind(agent=self._name, continuation=used, budget=budget).info(
+            "turn limit reached ({} turns), salvaged {} chars, continuing={}",
+            exc.max_turns, len(partial), can_continue,
+        )
+
+        status = "partial" if can_continue else "error"
+        note = (
+            f"Reached the {exc.max_turns}-turn limit "
+            f"(continuation {used}/{budget})."
+        )
+        if not can_continue:
+            note += (
+                " Continuation budget exhausted."
+                if partial
+                else " No partial output to continue from."
+            )
+
+        try:
+            if status == "partial":
+                await self._agent.set_task_status("partial", result=partial)
+            else:
+                await self._agent.set_task_status("error", error=note)
+        except Exception as _st_exc:
+            _log.bind(agent=self._name).warning(
+                "failed to write turn-limit task status: {}", _st_exc
+            )
+
+        _tl_fm = self._parse_task_frontmatter()
+        try:
+            from app.utils.db import init_schema, insert_task
+            init_schema()
+            insert_task(
+                agent=self._name,
+                task_id=_tl_fm.get("task_id", "") or fm.get("task_id", ""),
+                status=status,
+                assigned_by=_tl_fm.get("assigned_by", "") or fm.get("assigned_by", ""),
+                assigned_at=_tl_fm.get("assigned_at", "") or fm.get("assigned_at", ""),
+                task_summary=task_body,
+                result_summary=partial,
+                error_summary=note,
+            )
+        except Exception as _db_exc:
+            _log.bind(agent=self._name).warning(
+                "DB insert_task({}) failed: {}", status, _db_exc
+            )
+
+        if not can_continue:
+            # Terminal: tell the parent it failed, exactly as before.
+            await self._notify_parent_via_bus(note, "error")
+            return
+
+        # Re-enqueue. The parent is intentionally NOT notified — from its point
+        # of view the task is still in flight, which is true.
+        try:
+            await self._enqueue_continuation(task_body, partial, used + 1, exc.max_turns)
+        except Exception as _cont_exc:
+            _log.bind(agent=self._name).warning(
+                "continuation enqueue failed; finalizing as error: {}", _cont_exc
+            )
+            await self._agent.set_task_status("error", error=note)
+            await self._notify_parent_via_bus(note, "error")
+
+    async def _enqueue_continuation(
+        self, task_body: str, partial: str, attempt: int, max_turns: int
+    ) -> None:
+        """Rewrite TASK.MD as a pending continuation of the same task.
+
+        The task_id is preserved so the whole continuation chain stays one task
+        to the parent, to `wait_for_agent`, and in the DB. Only `status`,
+        `continuation` and the body change.
+        """
+        task_id = str(self._parse_task_frontmatter().get("task_id", "") or "")
+
+        original = task_body
+        marker = self._CONTINUATION_HEADER
+        if original.startswith(marker):
+            # Already a continuation — recover the original instruction so the
+            # body does not grow by one nested copy per attempt.
+            _, _, rest = original.partition(self._ORIGINAL_MARKER + "\n")
+            if rest:
+                original = rest.split("\n" + self._PROGRESS_MARKER)[0].strip()
+
+        body = (
+            f"{marker} attempt {attempt} of "
+            f"{int(getattr(settings, 'max_task_continuations', 0) or 0)}.\n"
+            f"You previously ran out of turns ({max_turns}) on this task. "
+            f"Your own progress is below — continue from it, do not start over, "
+            f"and do not repeat work already done.\n\n"
+            f"{self._ORIGINAL_MARKER}\n{original}\n\n"
+            f"{self._PROGRESS_MARKER}\n{self._neutralize_headers(partial)}\n"
+        )
+
+        content = await self._agent._read_file("TASK.MD")
+        content = self._agent._update_frontmatter(
+            content, status="pending", continuation=str(attempt)
+        )
+        # Replace the ## Task section with the continuation body. Callable
+        # replacement so the partial text is treated as literal, never as a
+        # regex template (same hazard set_task_status documents).
+        _body = body
+        content = re.sub(
+            r"(## Task\n).*?(?=\n## |\Z)",
+            lambda m: m.group(1) + _body,
+            content,
+            flags=re.DOTALL,
+        )
+        await self._agent._write_file("TASK.MD", content)
+
+        # A continuation deliberately keeps the ORIGINAL task_id so the parent,
+        # `wait_for_agent` and the DB all still see one task. But `_run_task`
+        # records every executed id in `_recent_task_ids` and skips repeats as
+        # cross-path duplicate deliveries — which would silently swallow this
+        # continuation. Retire the id from that window so the re-run is allowed.
+        try:
+            while self._recent_task_ids and task_id in self._recent_task_ids:
+                self._recent_task_ids.remove(task_id)
+        except ValueError:
+            pass
+
+        _log.bind(agent=self._name, attempt=attempt).info(
+            "re-enqueued task as continuation {}", attempt
+        )
 
     async def _check_task(self) -> bool:
         """Check TASK.MD for pending status. Returns True if a task was executed."""

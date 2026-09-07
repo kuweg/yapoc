@@ -38,6 +38,26 @@ from app.utils.usage_tracker import UsageTracker
 from app.agents.base.context import build_system_context, _parse_runner_config
 
 
+class TurnLimitReached(RuntimeError):
+    """Raised when an agent exhausts ``max_turns`` without finishing its task.
+
+    This is deliberately distinct from a generic ``RuntimeError`` so the runner
+    can tell "ran out of room" apart from "genuinely failed". The work done so
+    far is carried on the exception rather than discarded: the runner records it
+    as a ``partial`` task and re-enqueues a continuation (see
+    ``settings.max_task_continuations``).
+
+    The ``str()`` of this exception is kept byte-identical to the message the
+    old bare ``RuntimeError`` used, because HEALTH.MD scrapers and the doctor
+    agent match on that text.
+    """
+
+    def __init__(self, max_turns: int, partial_text: str = "") -> None:
+        super().__init__(f"Task incomplete: reached the {max_turns}-turn limit")
+        self.max_turns = max_turns
+        self.partial_text = partial_text
+
+
 def _estimate_tokens(
     messages: list[dict[str, Any]],
     system_prompt: str = "",
@@ -772,7 +792,7 @@ class BaseAgent:
         content = await self._read_file("TASK.MD")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         updates: dict[str, str] = {"status": status}
-        if status in ("done", "error"):
+        if status in ("done", "error", "partial"):
             updates["completed_at"] = now
         content = self._update_frontmatter(content, **updates)
 
@@ -2093,7 +2113,10 @@ class BaseAgent:
                         )})
 
                 else:
-                    raise RuntimeError(f"Task incomplete: reached the {max_turns}-turn limit")
+                    # Turn exhaustion is not a failure of the work, only of the
+                    # budget — hand the accumulated text to the runner so it can
+                    # be salvaged and continued instead of thrown away.
+                    raise TurnLimitReached(max_turns, "".join(full_text_parts))
 
                 # Log and clean up
                 response = "".join(full_text_parts)

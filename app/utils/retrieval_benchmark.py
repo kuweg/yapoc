@@ -182,13 +182,61 @@ def _hybrid_ids(
     return [d for d, _ in sorted(scores.items(), key=lambda kv: -kv[1])[:limit]]
 
 
+def _apply_collapse(conn: sqlite3.Connection, min_count: int = 3) -> int:
+    """Run the Phase 3.1 repetition collapse over the benchmark corpus.
+
+    Lets the benchmark answer the question the roadmap gates 3.1 on: does
+    collapsing repetitive entries actually improve retrieval, or does it only
+    look tidier? Uses the same functions as the production path, so a
+    measurement here reflects the real policy rather than a re-implementation.
+    """
+    from app.utils.memory_layers import (
+        annotate_representative,
+        find_repetition_groups,
+    )
+
+    rows = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT id, agent, source, content, timestamp FROM memory_entries WHERE tier='hot'"
+        ).fetchall()
+    ]
+    groups = find_repetition_groups(rows, min_count=min_count)
+    by_id = {r["id"]: r for r in rows}
+    collapsed = 0
+    for group in groups:
+        if group.representative_id is None:
+            continue
+        rep = by_id.get(group.representative_id)
+        if rep is not None:
+            annotated = annotate_representative(rep["content"], group.count)
+            conn.execute(
+                "UPDATE memory_entries SET content=? WHERE id=?",
+                (annotated, group.representative_id),
+            )
+            conn.execute(
+                "UPDATE memory_fts SET content=? WHERE rowid=?",
+                (annotated, group.representative_id),
+            )
+        for dead in group.collapsed_ids:
+            conn.execute("UPDATE memory_entries SET tier='cold' WHERE id=?", (dead,))
+            collapsed += 1
+    conn.commit()
+    return collapsed
+
+
 def run_benchmark(
     fixture: dict[str, Any] | None = None,
     mode: Mode = "hybrid",
     k: int = 5,
     embed=None,
+    collapse: bool = False,
 ) -> BenchmarkResult:
-    """Score the retrieval stack against the fixture. Pure function of inputs."""
+    """Score the retrieval stack against the fixture. Pure function of inputs.
+
+    ``collapse=True`` applies the Phase 3.1 repetition policy first, so the
+    same query set can be scored with and against it.
+    """
     fixture = fixture or load_fixture()
     if embed is None:
         from app.utils.embeddings import embed_batch as embed
@@ -196,6 +244,8 @@ def run_benchmark(
     documents = fixture["documents"]
     queries = fixture["queries"]
     conn = _build_corpus_db(documents, embed)
+    if collapse:
+        _apply_collapse(conn)
 
     q_vectors = embed([q["query"] for q in queries]) if mode != "fts" else [None] * len(queries)
 
@@ -229,7 +279,7 @@ def run_benchmark(
     conn.close()
     n = len(per_query) or 1
     return BenchmarkResult(
-        mode=mode,
+        mode=mode + ("+collapse" if collapse else ""),
         k=k,
         n_queries=len(per_query),
         n_documents=len(documents),
@@ -246,16 +296,22 @@ def main() -> None:
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--fixture", type=Path, default=None)
     ap.add_argument("--show-misses", action="store_true")
+    ap.add_argument("--collapse", action="store_true",
+                    help="apply the Phase 3.1 repetition collapse first")
+    ap.add_argument("--compare", action="store_true",
+                    help="score each mode with AND without collapse")
     args = ap.parse_args()
 
     fixture = load_fixture(args.fixture)
     modes = ["fts", "vector", "hybrid"] if args.mode == "all" else [args.mode]
+    variants = [False, True] if args.compare else [args.collapse]
     for mode in modes:
-        result = run_benchmark(fixture, mode=mode, k=args.k)
-        print(result.summary())
-        if args.show_misses:
-            for q in result.misses:
-                print(f"    MISS: {q.query!r} -> {q.retrieved}")
+        for collapse in variants:
+            result = run_benchmark(fixture, mode=mode, k=args.k, collapse=collapse)
+            print(result.summary())
+            if args.show_misses:
+                for q in result.misses:
+                    print(f"    MISS: {q.query!r} -> {q.retrieved}")
 
 
 if __name__ == "__main__":

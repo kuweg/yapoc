@@ -46,6 +46,37 @@ class GoogleAdapter(BaseLLMAdapter):
         return "model" if role == "assistant" else role
 
     @staticmethod
+    def _extract_image_parts(content: Any) -> list[types.Part]:
+        """Extract image parts from tool_result content.
+
+        The base agent nests Anthropic-style image blocks inside a
+        tool_result's ``content`` list.  Return a list of Gemini image
+        ``types.Part`` objects (or empty list if none found).
+        """
+        import base64 as _b64
+
+        blocks = content if isinstance(content, list) else [content]
+        parts: list[types.Part] = []
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") != "image":
+                continue
+            src = block.get("source", {})
+            if not isinstance(src, dict) or src.get("type") != "base64":
+                continue
+            data = src.get("data", "")
+            if not data:
+                continue
+            mime = src.get("media_type", "image/png")
+            try:
+                raw = _b64.b64decode(data)
+            except Exception:
+                continue
+            parts.append(types.Part.from_bytes(data=raw, mime_type=mime))
+        return parts
+
+    @staticmethod
     def _messages_to_contents(
         messages: list[dict[str, Any]],
     ) -> list[types.Content]:
@@ -92,15 +123,44 @@ class GoogleAdapter(BaseLLMAdapter):
                     elif btype == "tool_result":
                         tool_use_id = block["tool_use_id"]
                         name = tool_names.get(tool_use_id, "") or tool_use_id
-                        parts.append(
-                            types.Part(
-                                function_response=types.FunctionResponse(
-                                    id=tool_use_id,
-                                    name=name,
-                                    response={"result": block.get("content", "")},
+                        _content = block.get("content", "")
+                        # The base agent reformats image_read results into an
+                        # Anthropic-style image block nested inside the
+                        # tool_result content list:
+                        #   {"type": "tool_result", "content": [
+                        #       {"type": "image", "source": {"type": "base64",
+                        #        "media_type": ..., "data": ...}}]}
+                        # Emit the image as a real Part so the model can see it,
+                        # rather than stuffing base64 text into the response.
+                        _image_parts = GoogleAdapter._extract_image_parts(_content)
+                        if _image_parts:
+                            parts.extend(_image_parts)
+                        else:
+                            parts.append(
+                                types.Part(
+                                    function_response=types.FunctionResponse(
+                                        id=tool_use_id,
+                                        name=name,
+                                        response={"result": _content},
+                                    )
                                 )
                             )
-                        )
+                    elif btype == "image":
+                        # Anthropic-style image block produced by the base agent
+                        # when an image_read tool result is reformatted:
+                        #   {"type": "image", "source": {"type": "base64",
+                        #    "media_type": ..., "data": ...}}
+                        src = block.get("source", {})
+                        if isinstance(src, dict) and src.get("type") == "base64":
+                            data = src.get("data", "")
+                            mime = src.get("media_type", "image/png")
+                            if data:
+                                import base64 as _b64
+
+                                raw = _b64.b64decode(data)
+                                parts.append(
+                                    types.Part.from_bytes(data=raw, mime_type=mime)
+                                )
 
             if parts:
                 contents.append(types.Content(role=gemini_role, parts=parts))

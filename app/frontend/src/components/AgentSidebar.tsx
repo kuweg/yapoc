@@ -44,7 +44,7 @@ export function AgentSidebar() {
   }
 
   return (
-    <aside className="flex flex-col bg-zinc-900 border-r border-zinc-700 w-48 min-w-[12rem] flex-shrink-0 max-md:w-36 max-md:min-w-[9rem] max-sm:hidden">
+    <aside className="flex flex-col bg-zinc-950 border-l border-zinc-800 w-64 min-w-[16rem] flex-shrink-0 max-md:w-48 max-md:min-w-[12rem] max-sm:hidden">
       <div className="px-4 py-3 border-b border-zinc-700">
         <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Agents</h2>
         {(error ?? actionError) && !backendDown && (

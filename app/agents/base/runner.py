@@ -460,6 +460,24 @@ class AgentRunner:
                     "DB insert_task(done) failed (task still completed): {}", _db_exc
                 )
 
+            # ── Evaluator signal-ledger refresh (roadmap 3.2) ───────────
+            # `update_ledger()` was only ever called from `propose_goals()`,
+            # which only runs when a human types `yapoc propose-goals`. So the
+            # ledger drifted behind REPORT.MD — it sat at round 93 against a
+            # round-103 report, and a signal the evaluator had already raised
+            # ("observability error counters still blind to task-level
+            # failures") stayed open long after the underlying bug was fixed.
+            # Refreshing here means a finished evaluation always reconciles
+            # its own findings. Never allowed to fail the task.
+            if self._name == "evaluator":
+                try:
+                    from app.utils.signal_ledger import update_ledger
+                    await asyncio.to_thread(update_ledger)
+                except Exception as _ledger_exc:
+                    _log.bind(agent=self._name).warning(
+                        "signal ledger refresh failed (non-fatal): {}", _ledger_exc
+                    )
+
             # Publish result to parent's Redis inbox (non-blocking)
             await self._notify_parent_via_bus(result_text, "done")
 

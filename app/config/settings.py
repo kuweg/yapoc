@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""  # Bot token from @BotFather; empty = bot disabled
     telegram_auth_pin: str = ""  # PIN for Telegram bot auth; empty = no auth required
     telegram_whitelist: list[int] = []  # Chat IDs that bypass PIN auth; e.g. [123456789]
+    telegram_voice_reply_default: bool = False  # Default voice-reply mode for Telegram chats (user can toggle with /voice)
 
     @property
     def telegram_enabled(self) -> bool:
@@ -125,7 +126,7 @@ class Settings(BaseSettings):
         0.70  # earlier threshold: extract facts only (no lossy summarize)
     )
     context_compact_model: str = (
-        "deepseek-chat"  # cheap model for compaction (was dead claude-haiku-4-5-20251001)
+        "deepseek-v4-flash"  # cheap model for compaction
     )
     # Smart-compact tunables. The compact preserves the first user message
     # (the anchor / original task) and the last N messages verbatim, then

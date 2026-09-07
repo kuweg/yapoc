@@ -43,11 +43,8 @@ _DEFAULT_CONTEXT_WINDOW = 64_000
 
 def _supports_reasoning_replay(model_id: str) -> bool:
     """Whether assistant reasoning_content can be replayed in input messages."""
-    normalized = model_id.lower()
-    if "/" in normalized:
-        normalized = normalized.split("/", 1)[1]
-    # deepseek-reasoner explicitly rejects reasoning_content in inputs.
-    return normalized != "deepseek-reasoner"
+    # Thinking is explicitly disabled for every DeepSeek request.
+    return False
 
 
 def _normalize_to_deepseek(
@@ -334,6 +331,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
             "messages": self._build_messages(sp, user_message, history),
             "temperature": self._config.temperature,
             "max_tokens": self._config.max_tokens,
+            "thinking": {"type": "disabled"},
             **(json_param or {}),
         }
         async with httpx.AsyncClient() as client:
@@ -358,6 +356,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
             "messages": self._build_messages(system_prompt, user_message, history),
             "temperature": self._config.temperature,
             "max_tokens": self._config.max_tokens,
+            "thinking": {"type": "disabled"},
             "stream": True,
         }
         async with httpx.AsyncClient() as client:
@@ -390,7 +389,9 @@ class DeepSeekAdapter(BaseLLMAdapter):
         messages: list[dict[str, Any]],
         tools: list[ToolDefinition],
     ) -> AsyncIterator[StreamEvent]:
-        include_reasoning_content = _supports_reasoning_replay(self._config.model)
+        # Thinking is explicitly disabled in the request payload below, so prior
+        # reasoning_content must not be replayed into the tool-call history.
+        include_reasoning_content = False
         openai_messages = [{"role": "system", "content": system_prompt}]
         openai_messages.extend(
             _normalize_to_deepseek(
@@ -416,6 +417,7 @@ class DeepSeekAdapter(BaseLLMAdapter):
             "messages": openai_messages,
             "temperature": self._config.temperature,
             "max_tokens": self._config.max_tokens,
+            "thinking": {"type": "disabled"},
             "stream": True,
             "stream_options": {"include_usage": True},
         }

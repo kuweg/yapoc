@@ -12,7 +12,7 @@
 # app/config/agent-settings.json.
 
 adapter: deepseek
-model: deepseek-chat
+model: deepseek-v4-pro
 temperature: 0.3
 tools:
   - file_read
@@ -38,12 +38,13 @@ tools:
   - shared_knowledge_append
   - delegate_task
   - search_negative_knowledge
+  - execute_code
 delegation_targets:
   - builder
   - keeper
   - model_manager
 runner:
-  max_turns: 15
+  max_turns: 45
   task_timeout: 600
   poll_interval: 30
   retry_attempts: 3

@@ -90,8 +90,7 @@ class TTSEngine:
 
     def _synthesize_openai(self, text: str, voice: str, speed: float, fmt: str) -> bytes:
         api_key = settings.openai_api_key
-        logger.debug(f"_synthesize_openai called: text_len={len(text)}, voice={voice}, speed={speed}, fmt={fmt}")
-        logger.debug(f"openai_api_key present: {bool(api_key)}, key_len={len(api_key) if api_key else 0}")
+        logger.debug("OpenAI TTS requested: text_len=%d, voice=%s, speed=%s, fmt=%s", len(text), voice, speed, fmt)
         if not api_key:
             raise RuntimeError("OpenAI API key not configured")
 

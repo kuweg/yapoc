@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentStatus } from '../api/types'
+import type { ActiveTimeAgent, AgentStatus } from '../api/types'
 import { useAgentChatStore } from '../store/agentChatStore'
-import { killAgent } from '../api/client'
+import { getActiveTimes, killAgent } from '../api/client'
 import { AgentAvatar, getAgentDisplayName } from '../lib/agentIdentity'
 import { AgentPresenceIndicator } from './AgentPresence'
 import { ContextGauge, contextWindowForModel } from './ContextGauge'
+import { RunningTimer } from './RunningTimer'
 
 const MAX_SPARKLINE = 20
 
@@ -84,6 +85,25 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
   const outTokens = agent.output_tokens
   const inTokens = agent.input_tokens
 
+  // Active running-time for this agent — fetched once (no polling; the timer
+  // ticks locally). Errors are swallowed silently (timer just stays hidden).
+  const [active, setActive] = useState<ActiveTimeAgent | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getActiveTimes()
+      .then((res) => {
+        if (cancelled) return
+        const match = res.agents.find((a) => a.name === agent.name)
+        setActive(match ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setActive(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [agent.name])
+
   function handleClick(_e: React.MouseEvent) {
     onClick()
   }
@@ -132,14 +152,23 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
         )}
       </div>
 
-      {/* Row 2: pid / context gauge / task summary */}
-      {(agent.pid != null || agent.task_summary || ctxUsed > 0) && (
+      {/* Row 2: pid / context gauge / active timer / task summary */}
+      {(agent.pid != null || agent.task_summary || ctxUsed > 0 || active != null) && (
         <div className="pl-4 mt-0.5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {agent.pid != null && (
               <span className="text-xs text-zinc-600 flex-shrink-0">pid {agent.pid}</span>
             )}
             <ContextGauge used={ctxUsed} window={contextWindowForModel(agent.model)} />
+            {active != null && (
+              <span className="text-xs text-zinc-600 flex-shrink-0">
+                ⏱{' '}
+                <RunningTimer
+                  totalSeconds={active.total_active_s ?? 0}
+                  running={active.running ?? false}
+                />
+              </span>
+            )}
           </div>
           {agent.task_summary && (
             <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>

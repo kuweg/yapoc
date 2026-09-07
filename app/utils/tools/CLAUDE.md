@@ -1,7 +1,7 @@
 # app/utils/tools — Tool System
 
 ## Registry
-`TOOL_REGISTRY: dict[str, type[BaseTool]]` in `__init__.py`. 40 tools total.
+`TOOL_REGISTRY: dict[str, type[BaseTool]]` in `__init__.py`. 41 tools total.
 
 **Always use `build_tools(names, agent_dir)` — never instantiate tools directly.** Some tools require `agent_dir` at construction:
 ```python
@@ -17,6 +17,7 @@ All tools execute immediately. There is no approval gate, no risk-tier system, a
 |---|---|
 | `server.py` | `server_restart`, `process_restart` |
 | `shell.py` | `shell_exec` |
+| `execute_code.py` | `execute_code` (script API in `code_api.py`) |
 | `file.py` | `file_read`, `file_write`, `file_edit`, `file_delete`, `file_list` |
 | `memory.py` | `memory_append`, `notes_read`, `notes_write`, `notes_append`, `health_log` |
 | `web.py` | `web_search`, `fetch_page` |
@@ -30,6 +31,49 @@ All tools execute immediately. There is no approval gate, no risk-tier system, a
 
 ### `shell_exec`
 Runs in `/bin/sh -c` with `start_new_session=True`. Timeout hard-capped at `settings.max_shell_timeout` (120s); kills entire process group on timeout. Output truncated at 10,000 chars. Optional `sandbox.shell_allowlist` in the agent's CONFIG.yaml restricts commands by binary name.
+
+### `execute_code`
+Runs a Python script in a **subprocess** — no LLM loop, no sub-agent. This is the cheap
+half of the delegation split: `spawn_agent` starts a full reasoning loop with fresh
+context (~30s + model spend), which is right for work needing judgement and wasteful for
+work that is merely mechanical. `execute_code` covers the multi-step mechanical case the
+tool ladder's single-read guidance doesn't reach.
+
+The script is written to a tempfile with a bootstrap that imports `code_api as yapoc`,
+then run with `cwd=project_root` and `start_new_session=True`. **stdout is the result** —
+a script that prints nothing gets a reminder back, not silence. Non-zero exit returns the
+traceback so the calling agent can fix its own script and retry. Default timeout 30s,
+max 120s; on timeout the process *group* is SIGKILLed and then reaped (skipping the reap
+leaks a pipe per timed-out script and raises `Event loop is closed` at GC).
+
+**Never run in-process.** A generated script must not be able to corrupt the backend, and
+a hung one must be killable.
+
+#### `code_api` — the `yapoc.*` surface
+| Call | Behavior |
+|---|---|
+| `yapoc.read(path, tail_lines=0)` | File text; `tail_lines=N` returns the last N lines |
+| `yapoc.write(path, content)` | Atomic (`mkstemp` + `os.replace`), creates parents |
+| `yapoc.edit(path, old, new)` | `old` must appear exactly once — same contract as `file_edit` |
+| `yapoc.delete(path)` | Unlink |
+| `yapoc.ls(path, pattern='*')` | Entries relative to project root, dirs suffixed `/` |
+| `yapoc.grep(pattern, path, glob='**/*', max_results=200)` | `path:lineno:line` |
+| `yapoc.exists(path)` | Bool |
+
+`grep` is **pure Python on purpose** — the shell `grep` available via `shell_exec` has a
+recorded false-negative problem (negative-knowledge store), and a mechanical pipeline
+should not inherit an unreliable primitive.
+
+#### Sandbox
+Enforced in `code_api`, **inside the child, before any I/O** — a script cannot widen its
+own permissions:
+- `_resolve()` rejects anything escaping `project_root` (so `../../../etc/passwd` fails).
+- `_check_writable()` additionally rejects the calling agent's `forbidden_paths` (passed
+  in as `YAPOC_FORBIDDEN_PATHS`) and the same `_PROTECTED_NAMES` set `file_delete` uses.
+- Reads are root-scoped only; forbidden paths are a *write* boundary, matching the file tools.
+
+Both boundaries are covered by tests; the four that matter are root escape, forbidden
+path, protected filename, and timeout.
 
 ### `file_edit`
 `old_string` must appear **exactly once** in the file. Atomic write via `mkstemp + os.replace`.

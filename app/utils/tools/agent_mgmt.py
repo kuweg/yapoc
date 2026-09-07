@@ -59,8 +59,8 @@ class CreateAgentTool(BaseTool):
             },
             "model": {
                 "type": "string",
-                "description": "LLM model to use (default: claude-sonnet-4-6)",
-                "default": "claude-sonnet-4-6",
+                "description": "LLM model to use (default: claude-sonnet-5)",
+                "default": "claude-sonnet-5",
             },
             "adapter": {
                 "type": "string",
@@ -93,7 +93,7 @@ class CreateAgentTool(BaseTool):
     async def execute(self, **params: Any) -> str:
         name = params["name"]
         prompt = params["prompt"]
-        model = params.get("model", "claude-sonnet-4-6")
+        model = params.get("model", "claude-sonnet-5")
         adapter = params.get("adapter", "anthropic")
         tools = params.get("tools", _DEFAULT_TOOLS)
         modules = params.get("modules") or []

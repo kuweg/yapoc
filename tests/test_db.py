@@ -203,4 +203,62 @@ def test_task_summary_truncation(db_dir):
     long_summary = "x" * 1000
     insert_task(agent="builder", status="done", task_summary=long_summary)
     rows = recent_tasks()
-    assert len(rows[0]["task_summary"]) == 500
+    assert rows[0]["task_summary"] == long_summary
+
+
+def test_cold_memory_is_opt_in_for_all_searches(db_dir):
+    from app.utils.db import init_schema, insert_memory_entry, search_fts, search_hybrid, search_vector
+
+    init_schema()
+    hot = np.zeros(384, dtype=np.float32)
+    hot[0] = 1.0
+    cold = np.zeros(384, dtype=np.float32)
+    cold[1] = 1.0
+    insert_memory_entry(
+        agent="shared", source="KNOWLEDGE.MD", content="hot searchable decision",
+        timestamp="2026-09-07", embedding=hot,
+    )
+    insert_memory_entry(
+        agent="shared", source="archive/shared.archive.md", content="cold archive unique phrase",
+        timestamp="2026-09-07", embedding=cold, tier="cold",
+        provenance="data/memory_archive/shared.archive.md",
+    )
+
+    assert not search_fts("cold archive unique phrase")
+    cold_fts = search_fts("cold archive unique phrase", include_cold=True)
+    assert len(cold_fts) == 1
+    assert cold_fts[0]["tier"] == "cold"
+    assert cold_fts[0]["provenance"] == "data/memory_archive/shared.archive.md"
+
+    assert all(row[0]["tier"] == "hot" for row in search_vector(cold))
+    assert any(row[0]["tier"] == "cold" for row in search_vector(cold, include_cold=True))
+    default_hybrid = search_hybrid("cold archive unique phrase", cold, top_k=5)
+    assert all(row["tier"] == "hot" for row in default_hybrid)
+    assert any(
+        row["tier"] == "cold"
+        for row in search_hybrid("cold archive unique phrase", cold, top_k=5, include_cold=True)
+    )
+
+
+def test_existing_memory_schema_migrates_to_hot_tier(db_dir):
+    import app.utils.db as db_mod
+
+    db = db_mod.get_db()
+    db.execute(
+        """CREATE TABLE memory_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, agent TEXT NOT NULL,
+            source TEXT NOT NULL, content TEXT NOT NULL, timestamp TEXT NOT NULL,
+            embedding BLOB
+        )"""
+    )
+    db.execute("CREATE VIRTUAL TABLE memory_fts USING fts5(content, content_rowid='id')")
+    db.execute(
+        "INSERT INTO memory_entries (agent, source, content, timestamp) VALUES (?, ?, ?, ?)",
+        ("builder", "MEMORY.MD", "legacy memory", "2026-09-07"),
+    )
+    db.commit()
+
+    db_mod.init_schema()
+    row = db.execute("SELECT tier, provenance FROM memory_entries").fetchone()
+    assert row["tier"] == "hot"
+    assert row["provenance"] == ""

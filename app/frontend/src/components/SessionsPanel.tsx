@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSessionStore } from '../store/session'
 import { useAppStore } from '../store/appStore'
-import { summarizeSession } from '../api/client'
-import type { Message } from '../api/types'
+import { getActiveTimes, summarizeSession } from '../api/client'
+import type { ActiveTimeSession, Message } from '../api/types'
+import { RunningTimer } from './RunningTimer'
 
 export function SessionsPanel() {
   const sessions = useSessionStore((s) => s.sessions)
@@ -17,6 +18,25 @@ export function SessionsPanel() {
   const [bulkBusy, setBulkBusy] = useState<null | 'summarize' | 'delete'>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+
+  // Active running-time per session — fetched once (timers tick client-side).
+  const [activeMap, setActiveMap] = useState<Record<string, ActiveTimeSession>>({})
+  useEffect(() => {
+    let cancelled = false
+    getActiveTimes()
+      .then((res) => {
+        if (cancelled) return
+        const map: Record<string, ActiveTimeSession> = {}
+        for (const s of res.sessions) map[s.name] = s
+        setActiveMap(map)
+      })
+      .catch(() => {
+        /* swallow — timers just stay hidden */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Most-recent-first; sessions are already inserted in this order, but sort
   // defensively so the panel stays correct if the store ever changes shape.
@@ -267,6 +287,14 @@ export function SessionsPanel() {
                   <div className="text-[13px] text-zinc-500 font-mono">
                     {s.history.length} msg{s.history.length === 1 ? '' : 's'} ·{' '}
                     {fmtDate(s.createdAt)}
+                    {activeMap[s.id] && (
+                      <>
+                        {' '}· ⏱ <RunningTimer
+                          totalSeconds={activeMap[s.id].total_active_s ?? 0}
+                          running={activeMap[s.id].running ?? false}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
 

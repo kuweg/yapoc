@@ -1,4 +1,10 @@
 import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo, useEffect } from 'react'
+import { listUploads } from '../api/client'
+import type { Attachment } from '../api/types'
+import { listArtifacts } from '../artifacts/api'
+import type { Artifact } from '../artifacts/types'
+import { resolveMentions } from '../lib/mentions'
+import { useWorkspaceStore } from '../store/workspaceStore'
 
 export interface ChatInputHandle {
   setText: (text: string) => void
@@ -8,7 +14,7 @@ export interface ChatInputHandle {
 }
 
 interface ChatInputProps {
-  onSubmit: (text: string, files: File[]) => void
+  onSubmit: (text: string, files: File[], attachmentIds?: string[]) => void
   disabled?: boolean
   placeholder?: string
 }
@@ -36,8 +42,13 @@ const SLASH_COMMANDS = [
 ]
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
+const PDF_RE = /\.pdf$/i
 function isImage(file: File): boolean {
   return file.type.startsWith('image/') || IMG_RE.test(file.name)
+}
+
+function isPdf(file: File): boolean {
+  return file.type === 'application/pdf' || PDF_RE.test(file.name)
 }
 
 /**
@@ -52,14 +63,28 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [text, setText] = useState('')
     const [showAutocomplete, setShowAutocomplete] = useState(false)
     const [selectedIndex, setSelectedIndex] = useState(0)
+    const [mentionSuggestions, setMentionSuggestions] = useState<Array<{ value: string; desc: string }>>([])
+    const [showMentions, setShowMentions] = useState(false)
+    const [mentionIndex, setMentionIndex] = useState(0)
+    const [uploads, setUploads] = useState<Attachment[]>([])
+    const [artifacts, setArtifacts] = useState<Artifact[]>([])
     const [pending, setPending] = useState<File[]>([])
     const [expanded, setExpanded] = useState(false)
     const [dragOver, setDragOver] = useState(false)
+    const pendingInsertion = useWorkspaceStore((state) => state.pendingInsertion)
+    const consumePendingInsertion = useWorkspaceStore((state) => state.consumePendingInsertion)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const autocompleteRef = useRef<HTMLDivElement>(null)
     // File -> object URL (preview). WeakMap so URLs are reclaimable with files.
     const previews = useRef<WeakMap<File, string>>(new WeakMap())
+
+    useEffect(() => {
+      const insertion = consumePendingInsertion()
+      if (!insertion) return
+      setText((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${insertion}`)
+      textareaRef.current?.focus()
+    }, [pendingInsertion, consumePendingInsertion])
 
     const previewFor = useCallback((file: File): string | null => {
       if (!isImage(file)) return null
@@ -137,22 +162,51 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const doSubmit = useCallback(() => {
       const trimmed = text.trim()
       if ((!trimmed && pending.length === 0) || disabled) return
-      onSubmit(trimmed, pending)
+      const resolved = resolveMentions(trimmed, uploads, artifacts)
+      onSubmit(resolved.cleanedText, pending, resolved.attachmentIds)
       setText('')
       setShowAutocomplete(false)
+      setShowMentions(false)
       // Keep object URLs valid for the optimistic bubble; the parent owns them now.
       setPending([])
       setExpanded(false)
-    }, [text, disabled, onSubmit, pending])
+    }, [text, disabled, onSubmit, pending, uploads, artifacts])
 
     useImperativeHandle(ref, () => ({
       setText,
-      clear: () => { setText(''); setShowAutocomplete(false) },
+      clear: () => { setText(''); setShowAutocomplete(false); setShowMentions(false) },
       focus: () => textareaRef.current?.focus(),
       submit: doSubmit,
     }), [setText, doSubmit])
 
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+      if (showMentions && mentionSuggestions.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setMentionIndex((prev) => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+          return
+        }
+        if (e.key === 'Tab' || e.key === 'Enter') {
+          const selected = mentionSuggestions[mentionIndex]
+          if (selected) {
+            e.preventDefault()
+            setText(selected.value)
+            setShowMentions(false)
+            setMentionIndex(0)
+            return
+          }
+        }
+        if (e.key === 'Escape') {
+          setShowMentions(false)
+          setMentionIndex(0)
+          return
+        }
+      }
       if (showAutocomplete && filteredCommands.length > 0) {
         if (e.key === 'ArrowDown') {
           e.preventDefault()
@@ -196,6 +250,45 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       } else {
         setShowAutocomplete(false)
       }
+
+      const mentionMatch = newText.match(/(?:^|\s)@(file|artifact)?(?:\s+([^\n@]*))?$/i)
+      if (!mentionMatch) {
+        setShowMentions(false)
+        return
+      }
+      const kind = mentionMatch[1]?.toLowerCase()
+      const query = (mentionMatch[2] ?? '').trim().toLowerCase()
+      if (!kind) {
+        setMentionSuggestions([
+          { value: `${newText}file `, desc: 'Reference an uploaded file' },
+          { value: `${newText}repo`, desc: 'Reference the project repository' },
+          { value: `${newText}artifact `, desc: 'Reference a registered artifact' },
+        ])
+        setShowMentions(true)
+        setMentionIndex(0)
+        return
+      }
+      if (kind === 'repo') {
+        setShowMentions(false)
+        return
+      }
+      if (kind === 'file') {
+        void listUploads().then(({ files }) => {
+          setUploads(files)
+          const matches = files.filter((file) => file.name.toLowerCase().includes(query)).slice(0, 8)
+          setMentionSuggestions(matches.map((file) => ({ value: newText.replace(/[^\s]*$/, file.name), desc: file.mime || 'Uploaded file' })))
+          setShowMentions(matches.length > 0)
+          setMentionIndex(0)
+        }).catch(() => setShowMentions(false))
+        return
+      }
+      void listArtifacts().then((items) => {
+        setArtifacts(items)
+        const matches = items.filter((artifact) => artifact.name.toLowerCase().includes(query)).slice(0, 8)
+        setMentionSuggestions(matches.map((artifact) => ({ value: newText.replace(/[^\s]*$/, artifact.name), desc: artifact.path })))
+        setShowMentions(matches.length > 0)
+        setMentionIndex(0)
+      }).catch(() => setShowMentions(false))
     }
 
     const collapsed = pending.length > 3 && !expanded
@@ -238,7 +331,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     {url ? (
                       <img src={url} alt={file.name} className="max-h-12 max-w-[80px] rounded object-cover" />
                     ) : (
-                      <span className="text-zinc-400 text-xs font-mono truncate">📄 {file.name}</span>
+                      <span className="text-zinc-400 text-xs font-mono truncate">{isPdf(file) ? '📕' : '📄'} {file.name}</span>
                     )}
                     <button
                       onClick={() => removePending(idx)}
@@ -249,6 +342,23 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 )
               })
             )}
+          </div>
+        )}
+
+        {/* Mention autocomplete dropdown */}
+        {showMentions && mentionSuggestions.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden z-50">
+            {mentionSuggestions.map((suggestion, i) => (
+              <button
+                key={`${suggestion.value}-${i}`}
+                onClick={() => { setText(suggestion.value); setShowMentions(false); setMentionIndex(0); textareaRef.current?.focus() }}
+                onMouseEnter={() => setMentionIndex(i)}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${i === mentionIndex ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800'}`}
+              >
+                <span className="font-mono text-[#FFB633] font-semibold truncate">{suggestion.value.trim()}</span>
+                <span className="text-zinc-500 truncate">{suggestion.desc}</span>
+              </button>
+            ))}
           </div>
         )}
 

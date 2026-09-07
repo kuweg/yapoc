@@ -1,0 +1,25 @@
+name: evaluator_autofix_loop
+summary: Apply evaluator [AUTO-FIX] items after each self-eval notification; surface [NEEDS_APPROVAL] items to the user.
+level_1: "Master-side consumption of an evaluator self-eval notification: read REPORT.MD, auto-apply every [AUTO-FIX] item (config via keeper, prompt edits direct), surface [NEEDS_APPROVAL] items to the user, log what was applied."
+level_2: |
+  Inputs:
+  - A [SYSTEM NOTIFICATION] from evaluator (or any self-eval completion signal).
+  - File: app/agents/evaluator/REPORT.MD (authoritative source — the notify_parent 3-line summary is a signal only).
+  - Markers: `[AUTO-FIX]` items (pre-authorized self-maintenance) and `[NEEDS_APPROVAL]` items (require user decision).
+  
+  Outputs:
+  - Applied config/prompt changes (via keeper or direct file_edit).
+  - A summary of applied AUTO-FIX items and deferred NEEDS_APPROVAL items.
+  - memory_append / health_log entries recording what changed.
+level_3: |
+  1. On evaluator notification, immediately file_read app/agents/evaluator/REPORT.MD — do NOT rely on the notify_parent summary.
+  2. Extract all `[AUTO-FIX]` items from the latest round's action-items section.
+  3. Apply each `[AUTO-FIX]` in order, no user approval:
+     - agent-settings.json changes → spawn_agent("keeper", task="<exact before/after change>") and wait_for_agent.
+     - agent CONFIG.yaml changes → spawn_agent("keeper", ...) (agent sandboxes often forbid self-edit); or file_edit directly if it is a single-value flip.
+     - prompt edits (PROMPT.MD / MEMORY.MD) → file_edit directly.
+     - wait for each keeper/builder to finish before starting the next.
+  4. Collect `[NEEDS_APPROVAL]` items; do NOT apply them. Summarize with options for the user.
+  5. Verify each applied change landed on disk (file_read the target) before claiming success.
+  6. Log applied fixes via memory_append (and health_log if a fix addressed a health issue).
+  7. Do not restart the backend unless a fix touches backend code paths (use backend_restart_decision); single-field JSON config and prompt edits take effect on next spawn/turn.

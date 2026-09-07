@@ -5,6 +5,12 @@ import { useAgentChatStore } from './store/agentChatStore'
 import { AgentSidebar } from './components/AgentSidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { AgentFlowPane } from './components/AgentFlowPane'
+import { FileViewerPane } from './components/FileViewerPane'
+import { useFileViewerStore } from './store/fileViewerStore'
+import { useArtifactsStore } from './store/artifactsStore'
+import { useWorkspaceStore } from './store/workspaceStore'
+import { ArtifactsPanel } from './artifacts/ArtifactsPanel'
+import { WorkspacePanel } from './components/WorkspacePanel'
 import { AgentDashboard } from './agent-status'
 import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
@@ -36,6 +42,9 @@ function Workspace() {
   const closeWindow = useWindowsStore((s) => s.closeWindow)
   const selectedFlowAgent = useAgentChatStore((s) => s.selectedLogAgent)
   const setSelectedFlowAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
+  const selectedFile = useFileViewerStore((s) => s.selectedFile)
+  const artifactsOpen = useArtifactsStore((s) => s.open)
+  const workspaceOpen = useWorkspaceStore((s) => s.open)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   function NavButton({ id, label }: { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string }) {
@@ -140,6 +149,18 @@ function Workspace() {
             >
               + NEW
             </button>
+            <button
+              onClick={() => useArtifactsStore.getState().toggle()}
+              className="px-3 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
+            >
+              ARTIFACTS
+            </button>
+            <button
+              onClick={() => useWorkspaceStore.getState().toggle()}
+              className="px-3 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
+            >
+              WORKSPACE
+            </button>
           </div>
 
           {/* Theme toggle — right side of header */}
@@ -181,6 +202,9 @@ function Workspace() {
               onClose={() => setSelectedFlowAgent(null)}
             />
           )}
+          {artifactsOpen && <ArtifactsPanel />}
+          {workspaceOpen && <WorkspacePanel />}
+          {selectedFile && <FileViewerPane />}
         </main>
       </div>
 

@@ -32,6 +32,7 @@ tools:
   - check_task_status
   - delegate_task
   - search_negative_knowledge
+  - execute_code
 delegation_targets:
   - builder
   - keeper

@@ -13,8 +13,12 @@ class ApiPrefixMiddleware:
     async def __call__(self, scope, receive, send):
         if scope['type'] == 'http' and scope['path'].startswith('/api/'):
             scope = dict(scope)
-            scope['path'] = scope['path'][4:]
-            scope['raw_path'] = scope['path'].encode('utf-8')
+            original_path = scope['path']
+            scope['path'] = original_path[4:]
+            raw_path = scope.get('raw_path', original_path.encode('utf-8'))
+            query_start = raw_path.find(b'?')
+            query = raw_path[query_start:] if query_start >= 0 else b''
+            scope['raw_path'] = scope['path'].encode('utf-8') + query
         await self.app(scope, receive, send)
 
 

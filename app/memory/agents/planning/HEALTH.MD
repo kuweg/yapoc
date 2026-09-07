@@ -86,3 +86,6 @@ Traceback (most recent call last):
     raise RuntimeError(f"Task incomplete: reached the {max_turns}-turn limit")
 RuntimeError: Task incomplete: reached the 45-turn limit
 
+[2026-09-07 21:30] INFO: Delegating Telegram plot-image feature: Phase 1 = send_telegram_media tool + chart-to-PNG export via playwright. Research complete: send_media exists in TelegramBot, render_chart is ECharts-JSON-only, matplotlib missing but playwright+chromium available.
+[2026-09-07 21:32] INFO: Phase 1 verified: send_telegram_media tool landed (telegram.py + registry + master tool list). Delegating Phase 2: chart-to-PNG export via playwright headless chromium.
+[2026-09-07 21:48] INFO: Implemented markdown Preview button in FileViewerPane (the Preview tab). Added ReactMarkdown+remarkGfm rendering with a Preview/Raw toggle for .md/.markdown files, reusing existing .vault-md-preview dark-mode CSS. Build passes (exit 0, 1916 modules).

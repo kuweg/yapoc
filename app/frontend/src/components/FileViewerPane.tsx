@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useFileViewerStore } from '../store/fileViewerStore'
 
 type FileKind = 'text' | 'image' | 'pdf' | 'pptx' | 'binary'
@@ -24,6 +26,7 @@ export function FileViewerPane() {
   const [preview, setPreview] = useState<FilePreview | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [renderMarkdown, setRenderMarkdown] = useState(false)
 
   useEffect(() => {
     if (!selectedFile) {
@@ -35,6 +38,7 @@ export function FileViewerPane() {
     setLoading(true)
     setError('')
     setPreview(null)
+    setRenderMarkdown(false)
     fetch(`/api/files/preview?path=${encodeURIComponent(selectedFile.path)}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
@@ -58,6 +62,7 @@ export function FileViewerPane() {
   const name = preview?.name || selectedFile.name || selectedFile.path.split('/').pop() || selectedFile.path
   const inlineUrl = `/api/files/download?path=${encodeURIComponent(selectedFile.path)}&inline=1`
   const downloadUrl = `/api/files/download?path=${encodeURIComponent(selectedFile.path)}`
+  const isMarkdown = preview?.kind === 'text' && (preview.ext === '.md' || preview.ext === '.markdown')
 
   return (
     <aside className="file-viewer-pane flex h-full min-w-0 flex-col border-l border-zinc-700 bg-zinc-900" aria-label="File viewer">
@@ -66,13 +71,28 @@ export function FileViewerPane() {
           <div className="truncate text-sm font-medium text-zinc-100" title={selectedFile.path}>{name}</div>
           {preview && <div className="truncate text-xs text-zinc-500">{preview.ext || preview.kind} · {formatSize(preview.size)}</div>}
         </div>
+        {isMarkdown && (
+          <button
+            type="button"
+            onClick={() => setRenderMarkdown((v) => !v)}
+            className={`rounded px-2 py-1 text-xs transition-colors ${renderMarkdown ? 'bg-[#FFB633] text-zinc-900' : 'text-zinc-300 hover:bg-zinc-700'}`}
+            aria-pressed={renderMarkdown}
+          >
+            {renderMarkdown ? 'Raw' : 'Preview'}
+          </button>
+        )}
         <a href={downloadUrl} download={name} className="rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700" title="Download file">Download</a>
         <button type="button" onClick={closeFile} className="rounded px-2 py-1 text-sm text-zinc-300 hover:bg-zinc-700" aria-label="Close file viewer">×</button>
       </header>
       <div className="min-h-0 flex-1 overflow-auto">
         {loading && <div className="p-4 text-sm text-zinc-400">Loading preview…</div>}
         {error && <div className="p-4 text-sm text-red-400">{error}</div>}
-        {preview?.kind === 'text' && <pre className="whitespace-pre-wrap break-words p-4 text-xs leading-relaxed text-zinc-200">{preview.content || '(empty file)'}</pre>}
+        {preview?.kind === 'text' && isMarkdown && renderMarkdown && (
+          <div className="vault-md-preview p-4">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.content || ''}</ReactMarkdown>
+          </div>
+        )}
+        {preview?.kind === 'text' && !(isMarkdown && renderMarkdown) && <pre className="whitespace-pre-wrap break-words p-4 text-xs leading-relaxed text-zinc-200">{preview.content || '(empty file)'}</pre>}
         {preview?.kind === 'image' && <div className="flex h-full items-center justify-center p-4"><img src={inlineUrl} alt={name} className="max-h-full max-w-full object-contain" /></div>}
         {preview?.kind === 'pdf' && <iframe src={inlineUrl} title={name} className="h-full min-h-[480px] w-full border-0 bg-white" />}
         {preview?.kind === 'pptx' && <div className="p-4 text-sm text-zinc-400">Presentation preview is unavailable here. Use Download to open it locally.</div>}

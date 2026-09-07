@@ -1,6 +1,9 @@
-"""SendTelegramMessageTool — allows agents to send messages via Telegram."""
+"""Telegram tools for sending text messages and media files."""
 
+from pathlib import Path
 from typing import Any
+
+from app.config import settings
 
 from . import BaseTool
 
@@ -70,3 +73,75 @@ class SendTelegramMessageTool(BaseTool):
                 return f"ERROR: Failed to send Telegram message to chat {chat_id}"
         except Exception as exc:
             return f"ERROR: send_telegram_message failed — {exc}"
+
+
+class SendTelegramMediaTool(BaseTool):
+    name = "send_telegram_media"
+    description = (
+        "Send an image or document file to the user via Telegram. Use this to send "
+        "generated plot/chart images, screenshots, or any file. Accepts a "
+        "project-root-relative file path (or absolute path under project root). "
+        "Only works if the Telegram bot is configured."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Project-root-relative path to the file to send, e.g. data/generated/foo.png",
+            },
+            "caption": {
+                "type": "string",
+                "description": "Optional caption for the Telegram media",
+            },
+            "media_type": {
+                "type": "string",
+                "enum": ["photo", "document"],
+                "default": "photo",
+                "description": "Telegram media type; defaults to photo",
+            },
+        },
+        "required": ["path"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        raw_path = params.get("path", "")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            return "ERROR: send_telegram_media failed — path is required"
+
+        try:
+            project_root = settings.project_root.resolve()
+            candidate = Path(raw_path).expanduser()
+            file_path = candidate.resolve() if candidate.is_absolute() else (project_root / candidate).resolve()
+            try:
+                file_path.relative_to(project_root)
+            except ValueError:
+                return f"ERROR: file path must be under project root: {raw_path}"
+
+            if not file_path.is_file():
+                return f"ERROR: file not found: {raw_path}"
+
+            file_bytes = file_path.read_bytes()
+            filename = file_path.name
+            media_type = params.get("media_type", "photo")
+            if media_type not in {"photo", "document"}:
+                return "ERROR: send_telegram_media failed — media_type must be photo or document"
+            caption = params.get("caption")
+
+            from app.backend.telegram_bot import get_telegram_bot_instance
+
+            bot = get_telegram_bot_instance()
+            if bot is None:
+                return "ERROR: Telegram bot is not configured or not running"
+
+            all_authorized = bot._auth._authorized_chats | bot._auth._whitelist
+            if not all_authorized:
+                return "ERROR: No authorized Telegram chats found"
+
+            chat_id = next(iter(all_authorized))
+            msg_id = await bot.send_media(chat_id, media_type, file_bytes, filename, caption=caption)
+            if msg_id is None:
+                return "ERROR: Failed to send Telegram media"
+            return f"✅ Telegram {media_type} sent to chat {chat_id} (message_id: {msg_id})"
+        except Exception as exc:
+            return f"ERROR: send_telegram_media failed — {exc}"

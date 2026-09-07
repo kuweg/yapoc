@@ -100,16 +100,17 @@ def _run_sync(coro):
     `asyncio.run()` raises inside a running loop, and the surrounding
     `except Exception` would have turned that into a SKIPPED check — a gate that
     silently stops checking when called from async code is exactly the kind of
-    quiet rubber stamp this module exists to avoid. Falls back to a worker
-    thread with its own loop.
+    quiet rubber stamp this module exists to avoid.
     """
     import asyncio
     import concurrent.futures
 
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
+    # Always run in a worker thread, even when the caller has no loop of its
+    # own. `asyncio.run()` clears the calling thread's current event loop on
+    # exit — a side effect a reporting helper has no business having. Calling
+    # it directly here broke five unrelated tests that use
+    # `asyncio.get_event_loop()`, purely by having run before them. A worker
+    # thread leaves the caller's loop state exactly as it found it.
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(asyncio.run, coro).result()
 

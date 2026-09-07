@@ -206,7 +206,7 @@ def _do_doctor(args: str = "") -> str:
 # ── Router endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/commands", response_model=CommandResponse)
-async def handle_command(req: CommandRequest) -> CommandResponse:
+def handle_command(req: CommandRequest) -> CommandResponse:
     """Handle a slash command and return the response text."""
     cmd = req.command.lower().strip()
     args = req.args.strip()

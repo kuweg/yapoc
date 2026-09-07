@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time as _time
 import uuid
 from datetime import datetime, timezone
@@ -28,6 +29,10 @@ from loguru import logger
 from app.config import settings
 from app.backend.ttt_game import TicTacToe, render_board
 from app.utils.db import create_queued_task, get_queued_task, clear_session_tasks
+import subprocess
+import tempfile
+from pathlib import Path
+from app.backend.services.voice_service import get_stt_engine, get_tts_engine
 
 # ── Constants ──────────────────────────────────────────────────────────────
 
@@ -242,6 +247,9 @@ class TelegramBot:
         self._streaming_active: set[str] = set()  # task_ids where streaming editor has kicked in
         # Tic-Tac-Toe games keyed by chat_id (int → TicTacToe)
         self._ttt_games: dict[int, TicTacToe] = {}
+        # Per-chat voice-reply mode (chat_id → bool). Persisted so it survives restarts.
+        self._voice_reply_chats: dict[int, bool] = {}
+        self._load_voice_reply_state()
         self._load_ttt_games()
         # Load persisted tracked messages so /clear works across restarts
         TelegramBot._load_tracked_messages()
@@ -315,7 +323,13 @@ class TelegramBot:
             pass
 
     def _save_telegram_state(self) -> None:
-        """Persist current offset + processed update IDs to disk."""
+        """Persist current offset + processed update IDs to disk (atomic).
+
+        Writes to a temp file then ``os.replace`` so a crash mid-write can never
+        leave a corrupt/partial state file. A corrupt file would make the next
+        instance fall back to offset=0 and replay every unconfirmed update —
+        exactly the duplicate-response bug this file exists to prevent.
+        """
         try:
             path = TelegramBot._get_state_path()
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -325,10 +339,64 @@ class TelegramBot:
                 # single restart replay window, bounded for reasonable file size.
                 "processed_ids": sorted(TelegramBot._processed_update_ids_global)[-2000:],
             }
-            with open(path, "w", encoding="utf-8") as f:
+            tmp_path = path.with_suffix(path.suffix + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
         except Exception:
             pass
+
+    # ── Voice-reply mode persistence ────────────────────────────────────────
+
+    @classmethod
+    def _get_voice_reply_state_path(cls):
+        return settings.project_root / "data" / "telegram_voice_reply.json"
+
+    def _load_voice_reply_state(self) -> None:
+        try:
+            path = TelegramBot._get_voice_reply_state_path()
+            if path.exists():
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._voice_reply_chats = {int(k): bool(v) for k, v in data.items()}
+        except Exception:
+            pass
+
+    def _save_voice_reply_state(self) -> None:
+        try:
+            path = TelegramBot._get_voice_reply_state_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = {str(k): bool(v) for k, v in self._voice_reply_chats.items()}
+            tmp_path = path.with_suffix(path.suffix + ".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            pass
+
+    def _voice_reply_enabled(self, chat_id: int) -> bool:
+        """Whether voice replies are on for this chat (explicit toggle or default)."""
+        if chat_id in self._voice_reply_chats:
+            return self._voice_reply_chats[chat_id]
+        return bool(getattr(settings, "telegram_voice_reply_default", False))
+
+    async def _toggle_voice_reply(self, chat_id: int, reply_to_message_id: int | None = None) -> None:
+        """Toggle voice-reply mode for a chat and report the new state."""
+        new_state = not self._voice_reply_enabled(chat_id)
+        self._voice_reply_chats[chat_id] = new_state
+        self._save_voice_reply_state()
+        status = "ON" if new_state else "OFF"
+        msg = (
+            f"🎤 <b>Voice replies: {status}</b>\n\n"
+            + ("I will reply to your messages with a spoken voice message (OpenAI onyx)."
+               if new_state else
+               "I will reply with normal text messages.")
+        )
+        await self._send_message(chat_id, msg, reply_to_message_id=reply_to_message_id)
 
     @classmethod
     def _track_message(cls, chat_id: int, message_id: int) -> None:
@@ -407,6 +475,16 @@ class TelegramBot:
                             continue
                         self._processed_update_ids.add(update_id)
                         self._offset = update_id + 1
+                        # Persist the advanced offset IMMEDIATELY, before
+                        # handling this update. getUpdates is at-least-once:
+                        # an update is only "confirmed" once we poll past its
+                        # update_id. The old code saved the offset only after
+                        # the (up to 300s) handler finished, leaving a window
+                        # where a restart re-served the in-flight message and
+                        # produced a duplicate "⏳ Processing…" + duplicate
+                        # reply. Saving here converts delivery to at-most-once
+                        # across restarts — the actual duplicate-message fix.
+                        self._save_telegram_state()
 
                     message = update.get("message")
                     if message is not None:
@@ -537,7 +615,10 @@ class TelegramBot:
             "commands": [
                 {"command": "start", "description": "Show welcome message"},
                 {"command": "help", "description": "Show available commands"},
+                {"command": "status", "description": "System & model status"},
                 {"command": "clear", "description": "Clear all messages and context"},
+                {"command": "ttt", "description": "Play Tic-Tac-Toe vs YAPOC"},
+                {"command": "voice", "description": "Toggle voice replies"},
                 {"command": "auth", "description": "Authenticate with PIN: /auth <PIN>"},
             ]
         }
@@ -1693,6 +1774,85 @@ class TelegramBot:
         else:
             await self._edit_message(chat_id, message_id, self._ttt_caption(game), reply_markup=self._ttt_keyboard(game.board))
 
+    # ── Voice message transcription + voice-reply helpers ──────────────────
+
+    @staticmethod
+    def _wants_voice_reply(text: str) -> bool:
+        """Return True if the user text explicitly requests a voice/audio reply."""
+        if not text:
+            return False
+        t = text.lower()
+        phrases = (
+            "voice reply", "reply with voice", "respond with voice",
+            "respond by voice", "voice response", "answer by voice",
+            "answer with voice", "reply by voice", "audio reply",
+            "reply with audio", "send a voice reply", "voice answer",
+            "speak the answer", "read it aloud", "read it out loud",
+            "say it out loud", "voice it", "voice message back",
+            "reply in voice", "respond in voice",
+        )
+        for p in phrases:
+            if p in t:
+                return True
+        # A trailing "voice" / "audio" instruction often appears at the end
+        if re.search(r"(?i)(\bvoice\b|\baudio\b)\s*[.!]?\s*$", text.strip()):
+            return True
+        return False
+
+    async def _transcribe_voice(self, audio_bytes: bytes, filename: str) -> str | None:
+        """Transcribe a Telegram voice/audio message via OpenAI Whisper.
+
+        Converts to a Whisper-friendly WAV via ffmpeg (robust against any
+        Telegram codec), then calls the shared STT engine with engine="openai"
+        and language="" so Whisper auto-detects the language (multilingual).
+        Returns transcript text, or None on any failure (caller falls back).
+        """
+        if not audio_bytes:
+            return None
+        # 1) Convert to 16kHz mono WAV with ffmpeg for maximum Whisper compatibility.
+        wav_bytes: bytes | None = None
+        src_path = ""
+        wav_path = ""
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as src_tmp:
+                src_tmp.write(audio_bytes)
+                src_path = src_tmp.name
+            wav_path = src_path + ".wav"
+            proc = subprocess.run(
+                ["ffmpeg", "-y", "-i", src_path, "-ar", "16000", "-ac", "1",
+                 "-f", "wav", wav_path],
+                capture_output=True, timeout=60,
+            )
+            if proc.returncode == 0 and Path(wav_path).exists():
+                wav_bytes = Path(wav_path).read_bytes()
+        except Exception as exc:
+            logger.warning("Telegram bot: ffmpeg voice conversion failed: {}", exc)
+            wav_bytes = None
+        finally:
+            try:
+                Path(src_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+            if wav_path and Path(wav_path).exists():
+                try:
+                    Path(wav_path).unlink()
+                except Exception:
+                    pass
+        # 2) If conversion failed, fall back to the raw bytes (Whisper may still accept ogg/opus).
+        payload = wav_bytes if wav_bytes else audio_bytes
+        try:
+            stt = get_stt_engine()
+            result = stt.transcribe(audio_bytes=payload, engine="openai", language="")
+            text = (result or {}).get("text", "").strip()
+            if text:
+                logger.info("Telegram bot: transcribed voice ({} chars): {!r:.80}", len(text), text)
+                return text
+            logger.warning("Telegram bot: voice transcription returned empty text")
+            return None
+        except Exception as exc:
+            logger.warning("Telegram bot: voice transcription failed: {}", exc)
+            return None
+
     async def _handle_message(self, msg: dict) -> None:
         """Process a single incoming message.
 
@@ -1879,6 +2039,27 @@ class TelegramBot:
                 else:
                     logger.warning("Telegram bot: failed to download media file_id={}", file_id[:16])
 
+        # Voice/audio messages: transcribe via Whisper and treat the transcript
+        # as the message text (multilingual auto-detect). Fall back to generic
+        # media forwarding if transcription fails so the user is never blocked.
+        voice_reply_requested = self._wants_voice_reply(text)
+        if media_type in ("voice", "audio", "video_note") and media_file:
+            transcript = await self._transcribe_voice(media_file, media_filename or "")
+            if transcript:
+                # Use the transcript as the message text.
+                text = transcript
+                # Do NOT forward the raw media file to master (it was just audio).
+                media_file = None
+                media_type = None
+                media_filename = None
+                # Re-check voice-reply intent against the transcript too.
+                voice_reply_requested = voice_reply_requested or self._wants_voice_reply(text)
+            else:
+                logger.warning(
+                    "Telegram bot: voice transcription failed for chat {} — forwarding as media",
+                    chat_id,
+                )
+
         # Regular message — forward to Master via task_queue
         await self._send_chat_action(chat_id, action="typing")
         await self._handle_user_message(
@@ -1887,6 +2068,7 @@ class TelegramBot:
             media_file=media_file,
             media_type=media_type,
             media_filename=media_filename,
+            voice_reply_requested=voice_reply_requested,
         )
 
     async def _handle_edited_message(self, msg: dict) -> None:
@@ -1960,9 +2142,11 @@ class TelegramBot:
                 "<b>Commands:</b>\n"
                 "/start — Show this welcome message\n"
                 "/help — Show available commands\n"
+                "/status — System &amp; model status\n"
                 "/clear — Clear all messages and context for this chat\n"
-                "/auth <PIN> — Authenticate with the bot\n"
-                "/ttt — Play Tic-Tac-Toe vs YAPOC\n\n"
+                "/ttt — Play Tic-Tac-Toe vs YAPOC\n"
+                "/voice — Toggle voice replies (on/off)\n"
+                "/auth &lt;PIN&gt; — Authenticate with the bot\n\n"
                 "<b>How it works:</b>\n"
                 "1. You send a message\n"
                 "2. It's queued for the Master agent\n"
@@ -2036,6 +2220,10 @@ class TelegramBot:
                 if confirmation_msg_id in ids:
                     ids.remove(confirmation_msg_id)
                     TelegramBot._save_tracked_messages()
+        elif command == "/status":
+            await self._handle_status(chat_id, reply_to_message_id=reply_to_message_id)
+        elif command == "/voice":
+            await self._toggle_voice_reply(chat_id, reply_to_message_id=reply_to_message_id)
         elif command == "/ttt":
             await self._start_ttt(chat_id, reply_to_message_id=reply_to_message_id)
         else:
@@ -2044,6 +2232,29 @@ class TelegramBot:
                 f"Unknown command: {command}\n\nSend /help to see available commands.",
                 reply_to_message_id=reply_to_message_id,
             )
+
+    async def _handle_status(self, chat_id: int, reply_to_message_id: int | None = None) -> None:
+        """Report bot + system status (master model, adapter, channel)."""
+        model = "unknown"
+        adapter = "unknown"
+        try:
+            _settings_path = settings.project_root / "config" / "agent-settings.json"
+            _cfg = json.loads(_settings_path.read_text(encoding="utf-8"))
+            _master = _cfg.get("agents", {}).get("master", {})
+            model = _master.get("model", "unknown")
+            adapter = _master.get("adapter", "unknown")
+        except Exception as exc:
+            logger.debug("Telegram bot: /status failed to read model: {}", exc)
+
+        text = (
+            "🟢 <b>YAPOC status</b>\n\n"
+            f"• <b>Master model:</b> <code>{model}</code>\n"
+            f"• <b>Adapter:</b> <code>{adapter}</code>\n"
+            "• <b>Bot:</b> running (polling mode)\n"
+            "• <b>Channel:</b> Telegram\n\n"
+            "<i>Send /help for the full command list.</i>"
+        )
+        await self._send_message(chat_id, text, reply_to_message_id=reply_to_message_id)
 
     async def _handle_auth(self, chat_id: int, text: str, reply_to_message_id: int | None = None) -> None:
         """Handle /auth command — authenticate a user."""
@@ -2142,6 +2353,7 @@ class TelegramBot:
         media_file: bytes | None = None,
         media_type: str | None = None,
         media_filename: str | None = None,
+        voice_reply_requested: bool = False,
     ) -> None:
         """Forward a user message to Master via task_queue and wait for result.
 
@@ -2153,6 +2365,11 @@ class TelegramBot:
             media_type: Type of media ("photo", "document", "voice", etc.).
             media_filename: Original filename of the media.
         """
+        # Honor per-chat voice-reply toggle (set via /voice) in addition to
+        # explicit per-message requests.
+        if self._voice_reply_enabled(chat_id):
+            voice_reply_requested = True
+
         # Dedup: use (chat_id, text) as a simple dedup key within a short window
         # to prevent the same message from being processed twice.
         dedup_key = (chat_id, text)
@@ -2305,6 +2522,7 @@ class TelegramBot:
             media_path_from_result = result_metadata.get("generate_media_path")
             media_type_from_result = result_metadata.get("generate_media_type", "document")
 
+        media_sent = False
         if media_path_from_result:
             # Resolve relative to project root
             full_media_path = settings.project_root / media_path_from_result
@@ -2333,11 +2551,12 @@ class TelegramBot:
                             asyncio.create_task(
                                 self._set_message_reaction(chat_id, reply_to_message_id, "👍")
                             )
-                        return  # Done — media sent with caption
-                    logger.warning(
-                        "Telegram bot: send_media failed for {} in chat {}",
-                        media_path_from_result, chat_id,
-                    )
+                        media_sent = True
+                    else:
+                        logger.warning(
+                            "Telegram bot: send_media failed for {} in chat {}",
+                            media_path_from_result, chat_id,
+                        )
                 except Exception as exc:
                     logger.error(
                         "Telegram bot: error sending media {} to chat {}: {}",
@@ -2350,59 +2569,86 @@ class TelegramBot:
                     media_path_from_result,
                 )
 
-        # Split long responses into multiple messages instead of truncating
+        # Deliver the normal text/media response first, but never return here:
+        # voice mode must synthesize after every successful delivery path.
         max_len = 3800
-        if len(final_text) > max_len:
-            # Delete the ack message so the "⏳ Processing..." placeholder disappears
+        text_delivered = media_sent
+        if not text_delivered and len(final_text) > max_len:
             if ack_msg_id is not None:
                 await self._delete_messages(chat_id, [ack_msg_id])
-                ack_msg_id = None  # Prevent reuse below
-
-            # Split into chunks and send as individual messages
-            chunks = self._split_text_for_telegram(final_text, max_len)
-            for i, chunk in enumerate(chunks):
-                # Only reply to the original user message for the first chunk
-                reply_to = reply_to_message_id if i == 0 else None
-                await self._send_message(chat_id, chunk, reply_to_message_id=reply_to)
-            # React ✅ after response is sent (fire-and-forget, best-effort)
-            if reply_to_message_id is not None:
-                asyncio.create_task(
-                    self._set_message_reaction(chat_id, reply_to_message_id, "👍")
+                ack_msg_id = None
+            for i, chunk in enumerate(self._split_text_for_telegram(final_text, max_len)):
+                await self._send_message(
+                    chat_id, chunk,
+                    reply_to_message_id=reply_to_message_id if i == 0 else None,
                 )
-            return  # Done — multiple messages sent
+            text_delivered = True
+        elif not text_delivered and ack_msg_id is not None:
+            text_delivered = await self._edit_message(chat_id, ack_msg_id, final_text)
+            if not text_delivered:
+                text_delivered = await self._edit_message(
+                    chat_id, ack_msg_id, final_text, parse_mode=None,
+                )
 
-        # Try to edit the acknowledgment message with the final result
-        if ack_msg_id is not None:
-            edited = await self._edit_message(chat_id, ack_msg_id, final_text)
-            if edited:
-                if reply_to_message_id is not None:
-                    asyncio.create_task(
-                        self._set_message_reaction(chat_id, reply_to_message_id, "👍")
-                    )
-                return  # Success — only one message visible
+        if not text_delivered:
+            if ack_msg_id is not None:
+                await self._delete_messages(chat_id, [ack_msg_id])
+                ack_msg_id = None
+            for i, chunk in enumerate(self._split_text_for_telegram(final_text, max_len=3800)):
+                await self._send_message(
+                    chat_id, chunk,
+                    reply_to_message_id=reply_to_message_id if i == 0 else None,
+                )
+            text_delivered = True
 
-            # HTML edit failed (likely HTML-unsafe characters) — try plain text
-            edited = await self._edit_message(chat_id, ack_msg_id, final_text, parse_mode=None)
-            if edited:
-                if reply_to_message_id is not None:
-                    asyncio.create_task(
-                        self._set_message_reaction(chat_id, reply_to_message_id, "👍")
-                    )
-                return  # Success with plain text
-
-        # Fall back to sending a new message — delete the ack (streaming state) first
-        # then split into chunks so nothing is truncated
-        if ack_msg_id is not None:
-            await self._delete_messages(chat_id, [ack_msg_id])
-            ack_msg_id = None
-        fallback_chunks = self._split_text_for_telegram(final_text, max_len=3800)
-        for i, chunk in enumerate(fallback_chunks):
-            reply_to = reply_to_message_id if i == 0 else None
-            await self._send_message(chat_id, chunk, reply_to_message_id=reply_to)
         if reply_to_message_id is not None:
             asyncio.create_task(
                 self._set_message_reaction(chat_id, reply_to_message_id, "👍")
             )
+
+        # ── Voice reply (only when the user explicitly requested it) ─────────
+        # If voice reply was requested, synthesize the response with OpenAI onyx
+        # TTS and send it as a Telegram voice message. On any failure, fall back
+        # to the text response already sent above.
+        if voice_reply_requested and final_text and not final_text.startswith("❌"):
+            try:
+                tts = get_tts_engine()
+                audio = tts.synthesize(
+                    text=final_text,
+                    engine="openai",
+                    voice=settings.openai_tts_voice or "onyx",
+                    speed=1.0,
+                    fmt="opus",
+                )
+                if audio:
+                    # Delete the ack placeholder if still present so the voice
+                    # message is the visible response.
+                    if ack_msg_id is not None:
+                        await self._delete_messages(chat_id, [ack_msg_id])
+                        ack_msg_id = None
+                    sent = await self.send_media(
+                        chat_id,
+                        "voice",
+                        audio,
+                        "reply.ogg",
+                        caption=None,
+                        reply_to_message_id=reply_to_message_id,
+                    )
+                    if sent is not None:
+                        logger.info(
+                            "Telegram bot: sent voice reply to chat {} ({} bytes)",
+                            chat_id, len(audio),
+                        )
+                        if reply_to_message_id is not None:
+                            asyncio.create_task(
+                                self._set_message_reaction(chat_id, reply_to_message_id, "🎤")
+                            )
+                    else:
+                        logger.warning("Telegram bot: sendVoice failed for chat {}", chat_id)
+                else:
+                    logger.warning("Telegram bot: TTS returned empty audio for chat {}", chat_id)
+            except Exception as exc:
+                logger.warning("Telegram bot: voice reply synthesis failed for chat {}: {}", chat_id, exc)
 
     async def _wait_for_result(self, task_id: str, chat_id: int) -> tuple[str | None, dict | None]:
         """Poll task_queue for task completion.

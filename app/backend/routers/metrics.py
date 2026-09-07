@@ -660,6 +660,115 @@ async def get_hierarchy_metrics():
     )
 
 
+# ── Active running time ──────────────────────────────────────────────────────
+
+def _parse_iso(ts: str | None) -> datetime | None:
+    """Parse an ISO-8601 timestamp into a timezone-aware datetime.
+
+    Handles a trailing "Z" (which ``datetime.fromisoformat`` rejects before
+    3.11) by replacing it with the UTC offset "+00:00". Defensive: returns
+    None on any parse failure or falsy input.
+    """
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+class ActiveTimeEntry(BaseModel):
+    name: str
+    running: bool
+    current_elapsed_s: float
+    total_active_s: float
+    task_count: int
+
+
+class ActiveTimesResponse(BaseModel):
+    generated_at: str
+    agents: list[ActiveTimeEntry]
+    sessions: list[ActiveTimeEntry]
+
+
+@router.get("/active-time", response_model=ActiveTimesResponse)
+async def get_active_times():
+    """Return cumulative "active running time" per agent and per session.
+
+    Active time is the wall-clock duration a task actually executed, computed
+    from the task_queue table — no schema change. For each task row:
+      * running and started_at set  -> now - started_at (still accumulating)
+      * completed_at + started_at   -> completed_at - started_at
+      * otherwise                   -> 0
+    Summed per assigned_agent (for agents) and per session_id (skipping NULLs,
+    for sessions).
+    """
+    db = get_db()
+    rows = db.execute(
+        """SELECT id, status, assigned_agent, session_id, started_at, completed_at
+           FROM task_queue"""
+    ).fetchall()
+
+    now = datetime.now(timezone.utc)
+    agents: dict[str, dict] = {}
+    sessions: dict[str, dict] = {}
+
+    def _elapsed(status: str, started: str | None, completed: str | None) -> float:
+        start = _parse_iso(started)
+        if not start:
+            return 0.0
+        if status == "running":
+            return max(0.0, (now - start).total_seconds())
+        end = _parse_iso(completed)
+        if not end:
+            return 0.0
+        return max(0.0, (end - start).total_seconds())
+
+    for r in rows:
+        status = r["status"] or ""
+        started = r["started_at"]
+        completed = r["completed_at"]
+        elapsed = _elapsed(status, started, completed)
+        running = bool(status == "running" and started)
+
+        agent = r["assigned_agent"]
+        if agent:
+            a = agents.setdefault(
+                agent, {"total": 0.0, "count": 0, "current": 0.0, "running": False}
+            )
+            a["total"] += elapsed
+            a["count"] += 1
+            if running:
+                a["running"] = True
+                a["current"] = elapsed
+
+        session_id = r["session_id"]
+        if session_id is not None:
+            s = sessions.setdefault(
+                session_id, {"total": 0.0, "count": 0, "current": 0.0, "running": False}
+            )
+            s["total"] += elapsed
+            s["count"] += 1
+            if running:
+                s["running"] = True
+                s["current"] = elapsed
+
+    def _entry(key: str, agg: dict) -> ActiveTimeEntry:
+        return ActiveTimeEntry(
+            name=key,
+            running=agg["running"],
+            current_elapsed_s=round(agg["current"], 1),
+            total_active_s=round(agg["total"], 1),
+            task_count=agg["count"],
+        )
+
+    return ActiveTimesResponse(
+        generated_at=now.isoformat().replace("+00:00", "Z"),
+        agents=[_entry(k, agents[k]) for k in sorted(agents)],
+        sessions=[_entry(k, sessions[k]) for k in sorted(sessions)],
+    )
+
+
 # The per-agent ``trace-stream`` SSE endpoint that polled LIVE.MD files
 # every 2s was removed. It has been superseded by:
 #   GET /agents/{name}/activity  — hydration snapshot from the relay's

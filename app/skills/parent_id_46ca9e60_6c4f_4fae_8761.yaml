@@ -1,0 +1,16 @@
+name: parent_id_46ca9e60_6c4f_4fae_8761
+summary: ---
+parent_task_id: 46ca9e60-6c4f-4fae-8761-ed4e9177de35
+status: running
+task_id: 64bc28ac-deea-434d-a3ff-6ac0fca60c1b
+s
+level_1: "---
+parent_task_id: 46ca9e60-6c4f-4fae-8761-ed4e9177de35
+status: running
+task_id: 64bc28ac-deea-434d-a3ff-6ac0fca60c1b
+s"
+level_2: |
+  Inputs: the task description and relevant context provided to the agent.
+level_3: |
+  Procedure (auto-captured from a successful run):
+  1. call_pAiq0r0xkXM125dosQI9DVrE: Parent 'master' notified (done).

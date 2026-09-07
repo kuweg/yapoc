@@ -1,18 +1,93 @@
-"""OpenAI model catalog.
+"""OpenAI GPT model catalog.
 
-Primary source: openai_models.json (curated with routing metadata).
-Extended with additional models from the pricing page for completeness.
-
-Source: https://developers.openai.com/api/docs/pricing
+Source: https://developers.openai.com/api/docs/models
+         https://developers.openai.com/api/docs/pricing
 """
 
 from __future__ import annotations
 
 from .base import ModelInfo
 
-# ── Core models (with full routing metadata from openai_models.json) ─────────
+# ── Current models (with full routing metadata) ──────────────────────────────
 
 MODELS: list[ModelInfo] = [
+    ModelInfo(
+        id="gpt-6-astra",
+        context_window=1_050_000,
+        max_output=128_000,
+        input_price=10.0,
+        output_price=50.0,
+        supports_tools=True,
+        supports_vision=True,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="frontier",
+        latency_tier="slow",
+        knowledge_cutoff="2026-04",
+        recommended_tasks=("complex reasoning", "advanced coding", "agent planning", "multimodal analysis"),
+        fallback_models=("gpt-5.6-terra", "gpt-5.6-sol"),
+        quality_rank=1,
+        cost_efficiency_rank=6,
+        description="Most capable GPT model — frontier reasoning, agentic coding, multimodal.",
+    ),
+    ModelInfo(
+        id="gpt-5.6-terra",
+        context_window=1_050_000,
+        max_output=128_000,
+        input_price=2.0,
+        output_price=12.0,
+        supports_tools=True,
+        supports_vision=False,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="advanced",
+        latency_tier="medium",
+        knowledge_cutoff="2026-02",
+        recommended_tasks=("coding", "analysis", "agent pipelines", "data transformation"),
+        fallback_models=("gpt-5.6-luna", "gpt-5.6-sol"),
+        quality_rank=2,
+        cost_efficiency_rank=4,
+        description="Balanced reasoning + tool use (mini tier).",
+    ),
+    ModelInfo(
+        id="gpt-5.6-luna",
+        context_window=1_050_000,
+        max_output=128_000,
+        input_price=0.20,
+        output_price=1.20,
+        supports_tools=True,
+        supports_vision=False,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="lightweight",
+        latency_tier="very_fast",
+        knowledge_cutoff="2026-02",
+        recommended_tasks=("classification", "routing", "intent detection", "cheap chat"),
+        fallback_models=("gpt-5.4-nano",),
+        quality_rank=5,
+        cost_efficiency_rank=1,
+        description="Fast, cheap general model (nano tier).",
+    ),
+    ModelInfo(
+        id="gpt-5.6-sol",
+        context_window=1_050_000,
+        max_output=128_000,
+        input_price=4.0,
+        output_price=16.0,
+        supports_tools=True,
+        supports_vision=True,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="advanced",
+        latency_tier="medium",
+        knowledge_cutoff="2026-02",
+        recommended_tasks=("multimodal reasoning", "vision tasks", "agentic coding"),
+        fallback_models=("gpt-5.6-terra", "gpt-5.6-luna"),
+        quality_rank=4,
+        cost_efficiency_rank=3,
+        description="Cheapest full multimodal reasoning model with tool calling (output price estimated).",
+    ),
+    # ── Previous generation ───────────────────────────────────────────────────
     ModelInfo(
         id="gpt-5.4",
         context_window=1_050_000,
@@ -32,7 +107,45 @@ MODELS: list[ModelInfo] = [
         fallback_models=("gpt-5.2", "gpt-5.1"),
         quality_rank=1,
         cost_efficiency_rank=6,
-        description="Top tier GPT-5 model with maximal reasoning capability and extremely large context window.",
+        description="GPT-5.4 flagship (previous gen).",
+    ),
+    ModelInfo(
+        id="gpt-5.4-mini",
+        context_window=400_000,
+        max_output=128_000,
+        input_price=0.75,
+        output_price=4.50,
+        supports_tools=True,
+        supports_vision=False,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="efficient",
+        latency_tier="fast",
+        knowledge_cutoff="2025-12",
+        recommended_tasks=("classification", "intent detection", "routing", "cheap chat inference"),
+        fallback_models=("gpt-5.4-nano",),
+        quality_rank=5,
+        cost_efficiency_rank=2,
+        description="GPT-5.4 mini tier (previous gen; output price estimated).",
+    ),
+    ModelInfo(
+        id="gpt-5.4-nano",
+        context_window=400_000,
+        max_output=128_000,
+        input_price=0.20,
+        output_price=1.20,
+        supports_tools=True,
+        supports_vision=False,
+        supports_streaming=True,
+        supports_json_mode=True,
+        capability_tier="lightweight",
+        latency_tier="very_fast",
+        knowledge_cutoff="2025-12",
+        recommended_tasks=("intent detection", "classification", "LLM router"),
+        fallback_models=(),
+        quality_rank=6,
+        cost_efficiency_rank=1,
+        description="GPT-5.4 nano tier (previous gen).",
     ),
     ModelInfo(
         id="gpt-5.2",
@@ -53,7 +166,7 @@ MODELS: list[ModelInfo] = [
         fallback_models=("gpt-5.1", "gpt-5-mini"),
         quality_rank=2,
         cost_efficiency_rank=5,
-        description="High capability reasoning model suitable for complex workflows.",
+        description="GPT-5.2 (previous gen).",
     ),
     ModelInfo(
         id="gpt-5.1",
@@ -74,7 +187,7 @@ MODELS: list[ModelInfo] = [
         fallback_models=("gpt-5-mini", "gpt-4.1-mini"),
         quality_rank=3,
         cost_efficiency_rank=4,
-        description="Balanced model offering strong reasoning and stable production performance.",
+        description="GPT-5.1 (previous gen).",
     ),
     ModelInfo(
         id="gpt-5-mini",
@@ -95,8 +208,9 @@ MODELS: list[ModelInfo] = [
         fallback_models=("gpt-4.1-mini", "gpt-4.1-nano"),
         quality_rank=5,
         cost_efficiency_rank=1,
-        description="Fast low-cost model ideal for high throughput workloads.",
+        description="GPT-5 mini (previous gen).",
     ),
+    # ── Legacy ────────────────────────────────────────────────────────────────
     ModelInfo(
         id="gpt-4.1",
         context_window=1_000_000,
@@ -116,7 +230,7 @@ MODELS: list[ModelInfo] = [
         fallback_models=("gpt-4.1-mini",),
         quality_rank=4,
         cost_efficiency_rank=7,
-        description="Large context GPT-4 model for document heavy workloads.",
+        description="GPT-4.1 (legacy).",
     ),
     ModelInfo(
         id="gpt-4.1-mini",
@@ -137,7 +251,7 @@ MODELS: list[ModelInfo] = [
         fallback_models=("gpt-4.1-nano",),
         quality_rank=6,
         cost_efficiency_rank=2,
-        description="Efficient GPT-4 model optimized for chat and summarization.",
+        description="GPT-4.1 mini (legacy).",
     ),
     ModelInfo(
         id="gpt-4.1-nano",
@@ -158,9 +272,8 @@ MODELS: list[ModelInfo] = [
         fallback_models=(),
         quality_rank=7,
         cost_efficiency_rank=3,
-        description="Ultra cheap model for routing and classification.",
+        description="GPT-4.1 nano (legacy).",
     ),
-    # ── Additional models (pricing-only, no routing metadata) ────────────────
     ModelInfo(
         id="gpt-5-nano",
         context_window=400_000,
@@ -169,7 +282,7 @@ MODELS: list[ModelInfo] = [
         output_price=0.40,
         capability_tier="lightweight",
         latency_tier="very_fast",
-        description="Cheapest GPT-5, simple tasks",
+        description="GPT-5 nano (legacy).",
     ),
     ModelInfo(
         id="gpt-5.2-pro",
@@ -179,7 +292,7 @@ MODELS: list[ModelInfo] = [
         output_price=168.0,
         capability_tier="frontier",
         latency_tier="slow",
-        description="GPT-5.2 with maximum compute (premium)",
+        description="GPT-5.2 with maximum compute (legacy premium).",
     ),
     ModelInfo(
         id="gpt-5-pro",
@@ -189,7 +302,7 @@ MODELS: list[ModelInfo] = [
         output_price=120.0,
         capability_tier="frontier",
         latency_tier="slow",
-        description="GPT-5 with maximum compute (premium)",
+        description="GPT-5 with maximum compute (legacy premium).",
     ),
     ModelInfo(
         id="gpt-4o",
@@ -197,7 +310,7 @@ MODELS: list[ModelInfo] = [
         max_output=16_384,
         input_price=2.50,
         output_price=10.0,
-        description="Previous flagship, text + vision",
+        description="GPT-4o (legacy).",
     ),
     ModelInfo(
         id="gpt-4o-mini",
@@ -205,16 +318,15 @@ MODELS: list[ModelInfo] = [
         max_output=16_384,
         input_price=0.15,
         output_price=0.60,
-        description="Fast and cheap, good for focused tasks",
+        description="GPT-4o mini (legacy).",
     ),
-    # o-series (reasoning)
     ModelInfo(
         id="o3",
         context_window=200_000,
         max_output=100_000,
         input_price=2.0,
         output_price=8.0,
-        description="Powerful reasoning, math/science/coding",
+        description="o3 reasoning (legacy).",
     ),
     ModelInfo(
         id="o3-pro",
@@ -222,7 +334,7 @@ MODELS: list[ModelInfo] = [
         max_output=100_000,
         input_price=20.0,
         output_price=80.0,
-        description="o3 with maximum compute (premium)",
+        description="o3 with maximum compute (legacy premium).",
     ),
     ModelInfo(
         id="o3-mini",
@@ -230,7 +342,7 @@ MODELS: list[ModelInfo] = [
         max_output=100_000,
         input_price=1.10,
         output_price=4.40,
-        description="Small o3 reasoning model",
+        description="o3-mini reasoning (legacy).",
     ),
     ModelInfo(
         id="o4-mini",
@@ -238,7 +350,7 @@ MODELS: list[ModelInfo] = [
         max_output=100_000,
         input_price=1.10,
         output_price=4.40,
-        description="Fast reasoning model",
+        description="o4-mini reasoning (legacy).",
     ),
     ModelInfo(
         id="o1",
@@ -246,7 +358,7 @@ MODELS: list[ModelInfo] = [
         max_output=100_000,
         input_price=15.0,
         output_price=60.0,
-        description="Reasoning model (succeeded by o3)",
+        description="o1 reasoning (legacy).",
     ),
     ModelInfo(
         id="o1-mini",
@@ -254,6 +366,6 @@ MODELS: list[ModelInfo] = [
         max_output=100_000,
         input_price=1.10,
         output_price=4.40,
-        description="Small o1 reasoning model",
+        description="o1-mini reasoning (legacy).",
     ),
 ]

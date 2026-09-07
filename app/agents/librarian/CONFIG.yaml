@@ -27,4 +27,4 @@ tools:
   - search_memory
   - grep
 runner:
-  task_timeout: 300
+  task_timeout: 900

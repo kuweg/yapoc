@@ -1427,7 +1427,15 @@ class BaseAgent:
                 _MAX_ANNOUNCE_NUDGES: int = 2
                 self._recent_tools.clear()
                 self._loop_reflected = False
-                max_turns = _as_runner.get("max_turns", _runner.get("max_turns", settings.max_turns))
+                # Per-field precedence: explicit agent-settings.json override →
+                # CONFIG.yaml runner block → global default. ``resolve_runner_settings``
+                # intentionally omits absent JSON keys so CONFIG.yaml max_turns is not
+                # masked by the global default.
+                max_turns = _as_runner.get("max_turns")
+                if max_turns is None:
+                    max_turns = _runner.get("max_turns")
+                if max_turns is None:
+                    max_turns = settings.max_turns
                 if max_turns <= 0:
                     raise ValueError("max_turns must be positive")
                 _ctx_window = adapter.context_window_size()

@@ -140,6 +140,7 @@ async def search_memory(
     q: Annotated[str, Query(min_length=1, max_length=500)],
     agent: Annotated[str, Query()] = "",
     top_k: Annotated[int, Query(ge=1, le=50)] = 10,
+    include_cold: Annotated[bool, Query()] = False,
 ) -> dict:
     """Hybrid (RRF: keyword + cosine) ranked search over indexed memory.
 
@@ -167,7 +168,9 @@ async def search_memory(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Embedding failed: {exc}") from exc
 
-    rows = search_hybrid(q, query_vec, agent=(agent or None), top_k=top_k)
+    rows = search_hybrid(
+        q, query_vec, agent=(agent or None), top_k=top_k, include_cold=include_cold
+    )
     results = [
         {
             "id": r.get("id"),
@@ -176,7 +179,9 @@ async def search_memory(
             "content": r.get("content", ""),
             "timestamp": r.get("timestamp", ""),
             "score": r.get("rrf_score", 0),
+            "tier": r.get("tier", "hot"),
+            "provenance": r.get("provenance", ""),
         }
         for r in rows
     ]
-    return {"query": q, "results": results, "total_indexed": total}
+    return {"query": q, "results": results, "total_indexed": total, "include_cold": include_cold}

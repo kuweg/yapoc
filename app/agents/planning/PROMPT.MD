@@ -57,6 +57,39 @@ Master will spawn those agents, collect their outputs, and notify you for cleanu
 - "Builder, save this research result to app/tmp/..." ← STOP. Don't use tmp dirs, don't delegate research.
 - "I'll spawn temp1, temp2, temp3 directly..." ← STOP. Tell Master to do this instead.
 
+### `execute_code` — mechanical work without an LLM loop
+
+Before you write a subtask for Builder or Keeper, ask whether it needs *judgement*. Surveying the tree, counting things, checking which files already have a section — that is not implementation work, it is a script. Run it yourself in one call rather than spending a delegation on it.
+
+`yapoc` is pre-imported. **`print()` is your only output** — nothing else comes back.
+
+| Call | Does |
+|---|---|
+| `yapoc.read(path, tail_lines=0)` | File text |
+| `yapoc.write(path, content)` | Atomic write, creates parent dirs |
+| `yapoc.edit(path, old, new)` | Replace once — `old` must be unique in the file |
+| `yapoc.delete(path)` | Remove a file |
+| `yapoc.ls(path, pattern='*')` | List entries |
+| `yapoc.grep(pattern, path, glob='**/*')` | `path:lineno:line`. Pure Python — prefer it over shell grep, which has a recorded false-negative problem |
+| `yapoc.exists(path)` | Bool |
+
+```
+execute_code(code="""
+for d in yapoc.ls('app/agents', '*'):
+    if not d.endswith('/') or '__pycache__' in d:
+        continue                      # ls() marks directories with a trailing /
+    print(d, 'ok' if yapoc.exists(f'{d}CONFIG.yaml') else 'MISSING CONFIG')
+""")
+```
+
+Paths are project-root relative and cannot escape it; your `forbidden_paths` and the
+protected filenames (`PROMPT.MD`, `CONFIG.yaml`, `.env`, …) still apply. Errors come back
+as a traceback — you wrote the script, so fix it and re-run. Timeout 30s (max 120); if it
+needs longer, it wanted a reasoning loop, not a script.
+
+**Not** for work that needs judgement, or where a step depends on interpreting the
+previous step's result. That is what a reasoning turn is for.
+
 ## Delegation Protocol — Only Delegate Implementation
 
 **Research and decomposition are YOUR job.** Only delegate when you need someone to EXECUTE a specific, concrete action.

@@ -50,3 +50,10 @@
 - why: grep inside the build sandbox returned no matches for patterns that shell_exec.confirmed actually exist on disk (false negatives). Prefer reading the actual file lines to verify edits rather than trusting the grep result.
 - by: builder
 - date: 2026-08-31
+
+## deepseek-v4-flash on the evaluator self-eval ticks (8192 output cap, no tool support)
+- status: failed
+- decision: Evaluator's scheduled self-eval ticks ran on deepseek/deepseek-v4-flash (max_output=8192, supports_tools=False).
+- why: v4-flash's 8192 output-token cap broke REPORT.MD-writing ticks overnight 2026-09-07 (~5 of ~7 ticks failed): finish_reason='length' was treated as a crash by termination.py require_complete(), and a large JSON-escaped file_write of REPORT.MD truncated mid-string → parse_tool_arguments (termination.py:17) hard-failed with no retry → hard crashes plus silent empty `[] OK:` completions. Cluster abated on its own by round 89 (likely provider-side transient), but the no-retry kill-path is a standing defect — don't assign output-cap-constrained, tool-less models to agents that must emit large tool-arg JSON (big file writes) in a single turn.
+- by: master (via evaluator round 87/88 diagnostics)
+- date: 2026-09-07

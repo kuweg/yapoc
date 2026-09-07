@@ -35,6 +35,11 @@ class SearchMemoryTool(BaseTool):
                 "description": "Number of results to return (default 8)",
                 "default": 8,
             },
+            "include_cold": {
+                "type": "boolean",
+                "description": "Include archived cold-memory records (default false).",
+                "default": False,
+            },
             "scope": {
                 "type": "string",
                 "description": (
@@ -56,6 +61,7 @@ class SearchMemoryTool(BaseTool):
         agent = params.get("agent", "") or None
         top_k = int(params.get("top_k", 8))
         scope = (params.get("scope") or "agent").lower()
+        include_cold = bool(params.get("include_cold", False))
         if scope not in {"agent", "sessions", "user", "project", "all"}:
             scope = "agent"
 
@@ -80,7 +86,7 @@ class SearchMemoryTool(BaseTool):
             # project entries use agent="project".
             results: list[dict[str, Any]] = []
             if scope in ("agent", "all"):
-                agent_hits = search_hybrid(query, query_vec, agent=agent, top_k=top_k)
+                agent_hits = search_hybrid(query, query_vec, agent=agent, top_k=top_k, include_cold=include_cold)
                 # Drop non-agent entries from this branch (defensive; agent=None
                 # means "all agents" which includes "_session", "user", "project").
                 agent_hits = [
@@ -89,13 +95,13 @@ class SearchMemoryTool(BaseTool):
                 ]
                 results.extend(agent_hits)
             if scope in ("sessions", "all"):
-                session_hits = search_hybrid(query, query_vec, agent="_session", top_k=top_k)
+                session_hits = search_hybrid(query, query_vec, agent="_session", top_k=top_k, include_cold=include_cold)
                 results.extend(session_hits)
             if scope in ("user", "all"):
-                user_hits = search_hybrid(query, query_vec, agent="user", top_k=top_k)
+                user_hits = search_hybrid(query, query_vec, agent="user", top_k=top_k, include_cold=include_cold)
                 results.extend(user_hits)
             if scope in ("project", "all"):
-                project_hits = search_hybrid(query, query_vec, agent="project", top_k=top_k)
+                project_hits = search_hybrid(query, query_vec, agent="project", top_k=top_k, include_cold=include_cold)
                 results.extend(project_hits)
 
             if scope == "all" and results:
@@ -115,15 +121,16 @@ class SearchMemoryTool(BaseTool):
             if not results:
                 return f"No results found for query: '{query}' (scope={scope})"
 
-            lines: list[str] = [f"Found {len(results)} results for: '{query}' (scope={scope})\n"]
+            lines: list[str] = [f"Found {len(results)} results for: '{query}' (scope={scope}, include_cold={include_cold})\n"]
             for i, entry in enumerate(results, 1):
                 agent_name = entry.get("agent", "?")
                 source = entry.get("source", "?")
                 ts = entry.get("timestamp", "?")
                 content = entry.get("content", "")
                 score = entry.get("rrf_score", 0)
+                tier = entry.get("tier", "hot")
                 lines.append(
-                    f"**{i}. [{agent_name}/{source}] {ts}** (score: {score})\n"
+                    f"**{i}. [{agent_name}/{source}; tier={tier}] {ts}** (score: {score})\n"
                     f"  {content}\n"
                 )
 

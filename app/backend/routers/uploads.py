@@ -5,11 +5,17 @@ Mounted under the app's ``/api`` proxy convention, so these are reached as
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
+import uuid
 from collections import defaultdict, deque
+from typing import Literal, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
+from pydantic import BaseModel
+
+from app.utils.db import create_queued_task
 from fastapi.responses import FileResponse
 
 from app.backend.services import uploads as store
@@ -82,10 +88,75 @@ async def upload(request: Request, files: list[UploadFile] = File(...)):
     return {"files": results, "errors": errors}
 
 
+@router.get("")
+async def list_uploads(request: Request):
+    """List the current owner's uploaded-file metadata, newest first."""
+    owner = _owner(request)
+    records = [
+        rec for rec in store._load_index().values()
+        if rec.get("owner") == owner
+    ]
+    records.sort(key=lambda rec: str(rec.get("uploaded_at") or ""), reverse=True)
+    return {"files": [store.public_meta(rec) for rec in records]}
+
+
+class ProcessUploadRequest(BaseModel):
+    action: Literal["extract", "summarize", "analyze", "convert", "generate_from"]
+    prompt: Optional[str] = None
+
+
+def _process_prompt(action: str, path: str, detail: Optional[str]) -> str:
+    templates = {
+        "extract": f"Extract the full text and structure content of the file at {path}.",
+        "summarize": f"Summarize the file at {path}.",
+        "analyze": f"Analyze the file at {path}.",
+        "convert": f"Convert the file at {path} to a useful derived format and save the result to data/generated/.",
+        "generate_from": f"Using the file at {path} as input, generate {detail or 'a useful derived output'}.",
+    }
+    prompt = templates[action]
+    if detail and action != "generate_from":
+        prompt += f" Additional instructions: {detail}"
+    return prompt
+
+
+@router.post("/{file_id}/process")
+async def process_upload(request: Request, file_id: str, body: ProcessUploadRequest):
+    """Queue document work for master, retaining source-upload linkage metadata."""
+    owner = _owner(request)
+    record = store.resolve_upload(file_id, owner=owner)
+    if not record:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    task_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())
+    task_prompt = _process_prompt(body.action, store.project_rel_path(record), body.prompt)
+    suffix, attachments = store.build_attachment_injection([file_id], owner=owner)
+    metadata = {
+        "source_file_id": file_id,
+        "source_file_name": record["name"],
+        "action": body.action,
+        "transport": "sse",
+        "attachments": attachments,
+    }
+    create_queued_task(
+        id=task_id,
+        prompt=task_prompt + suffix,
+        source="ui",
+        session_id=session_id,
+        metadata=json.dumps(metadata),
+    )
+    return {"task_id": task_id, "status": "pending", "file_id": file_id, "action": body.action}
+
+
 @router.get("/{file_id}")
-async def serve(request: Request, file_id: str, thumb: int = Query(default=0)):
+async def serve(
+    request: Request,
+    file_id: str,
+    thumb: int = Query(default=0),
+    inline: int = Query(default=0),
+):
     """Serve an uploaded file (owner-scoped). ``?thumb=1`` returns a cached
-    320x320 JPEG thumbnail for images. 404 for missing or not-owned files."""
+    320x320 JPEG thumbnail for images; ``?inline=1`` is suitable for browser
+    preview instead of forcing an attachment download. 404 for missing files."""
     rec = store.resolve_upload(file_id, owner=_owner(request))
     if not rec:
         raise HTTPException(status_code=404, detail="Attachment not found")
@@ -100,7 +171,11 @@ async def serve(request: Request, file_id: str, thumb: int = Query(default=0)):
     path = store.upload_path(rec)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Attachment file missing")
-    return FileResponse(str(path), media_type=rec.get("mime") or "application/octet-stream", filename=rec.get("name"))
+    return FileResponse(
+        str(path),
+        media_type=rec.get("mime") or "application/octet-stream",
+        filename=None if inline else rec.get("name"),
+    )
 
 
 @router.get("/{file_id}/vision")

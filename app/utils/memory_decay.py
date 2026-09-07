@@ -23,6 +23,8 @@ from pathlib import Path
 
 from loguru import logger
 
+from app.config import settings
+
 # Entry format: **N. [YYYY-MM-DD HH:MM] <text>
 _ENTRY_RE = re.compile(
     r"^\*\*?\s*(?:\d+\.)?\s*\["
@@ -195,6 +197,156 @@ def archive_stale_memory(
     return {
         "status": "ok",
         "agent": agent_name,
+        "total_entries": total_entries,
+        "archived": len(archived_blocks),
+        "kept": len(kept_blocks),
+        "archive_path": str(archive_path),
+        "dry_run": False,
+    }
+
+
+# Shared KNOWLEDGE.MD entry format: "## Entry: <category>" block with
+# "- **Time:** YYYY-MM-DD HH:MM" and "- **Content:** ..." fields.
+_ENTRY_HEADER_RE = re.compile(r"^## Entry:\s*(?P<category>\w+)\s*$")
+_ENTRY_TIME_RE = re.compile(r"-\s*\*\*Time:\*\*\s*(?P<date>\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}(?::\d{2})?")
+
+
+def _shared_knowledge_path() -> Path:
+    """Return the path to the shared KNOWLEDGE.MD file."""
+    return Path(settings.agents_dir) / "shared" / "KNOWLEDGE.MD"
+
+
+def _parse_shared_entry_time(block: str) -> datetime | None:
+    """Return the parsed ``**Time:**`` datestamp of a shared entry block.
+
+    Returns ``None`` when the field is missing or unparseable — such entries
+    are kept (never archived) so undated content is never risked.
+    """
+    m = _ENTRY_TIME_RE.search(block)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group("date"), "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def archive_stale_shared_knowledge(
+    max_age_days: int = 30,
+    dry_run: bool = False,
+) -> dict:
+    """Archive shared KNOWLEDGE.MD entries older than *max_age_days* days.
+
+    The shared store is injected into every agent's context every turn, so
+    pruning stale entries has a direct per-turn token cost.  Each entry is a
+    ``## Entry: <category>`` block carrying a ``**Time:**`` datestamp; blocks
+    older than the cutoff are appended to
+    ``data/memory_archive/shared.archive.md`` and the live file is rewritten
+    keeping the header/preamble + recent blocks.
+
+    Entries whose ``**Time:**`` field is missing or unparseable are always
+    kept.
+
+    Parameters
+    ----------
+    max_age_days:
+        Entries older than this many days are archived.  Default ``30``.
+    dry_run:
+        When ``True``, perform no writes and only report what *would* be
+        archived.  Default ``False``.
+
+    Returns
+    -------
+    dict
+        ``{"status": "ok" | "no_file", "agent": "shared", "total_entries",
+        "archived", "kept", "archive_path", "dry_run"}``.
+    """
+    path = _shared_knowledge_path()
+
+    if not path.exists():
+        logger.info("memory_decay: no shared KNOWLEDGE.MD at path={}", path)
+        return {"status": "no_file", "agent": "shared"}
+
+    text = path.read_text(encoding="utf-8", errors="replace")
+
+    # Partition off the header/preamble (everything before the first entry).
+    first_idx = text.find("## Entry:")
+    if first_idx == -1:
+        return {
+            "status": "ok",
+            "agent": "shared",
+            "total_entries": 0,
+            "archived": 0,
+            "kept": 0,
+            "archive_path": str(ARCHIVE_ROOT / "shared.archive.md"),
+            "dry_run": dry_run,
+        }
+    preamble = text[:first_idx]
+    body = text[first_idx:]
+
+    # Split into entry blocks on "## Entry:" boundaries.
+    raw_blocks = re.split(r"(?=## Entry:)", body)
+    blocks = [b.strip("\n") for b in raw_blocks if b.strip()]
+
+    cutoff = datetime.now() - timedelta(days=max_age_days)
+
+    kept_blocks: list[str] = []
+    archived_blocks: list[str] = []
+    stale_dates: list[str] = []
+
+    for block in blocks:
+        dt = _parse_shared_entry_time(block)
+        if dt is None:
+            # Undated → keep (unknown).
+            kept_blocks.append(block)
+        elif dt < cutoff:
+            archived_blocks.append(block)
+            stale_dates.append(dt.strftime("%Y-%m-%d"))
+        else:
+            kept_blocks.append(block)
+
+    total_entries = len(blocks)
+
+    if dry_run:
+        logger.info(
+            "memory_decay: dry_run shared total={} archived={} kept={}",
+            total_entries,
+            len(archived_blocks),
+            len(kept_blocks),
+        )
+        return {
+            "status": "ok",
+            "agent": "shared",
+            "total_entries": total_entries,
+            "archived": len(archived_blocks),
+            "kept": len(kept_blocks),
+            "archive_path": str(ARCHIVE_ROOT / "shared.archive.md"),
+            "dry_run": True,
+            "stale_dates": stale_dates,
+        }
+
+    archive_path = ARCHIVE_ROOT / "shared.archive.md"
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if archived_blocks:
+        archive_entry = "\n\n".join(archived_blocks) + "\n"
+        with open(archive_path, "a", encoding="utf-8") as f:
+            f.write(archive_entry)
+
+    new_text = preamble.rstrip("\n") + "\n"
+    if kept_blocks:
+        new_text += "\n".join(kept_blocks) + "\n"
+    path.write_text(new_text, encoding="utf-8")
+
+    logger.info(
+        "memory_decay: ok shared archived={} kept={} archive={}",
+        len(archived_blocks),
+        len(kept_blocks),
+        archive_path,
+    )
+    return {
+        "status": "ok",
+        "agent": "shared",
         "total_entries": total_entries,
         "archived": len(archived_blocks),
         "kept": len(kept_blocks),

@@ -7,3 +7,5 @@
 [2026-09-02 21:12] INFO: Added auto_capture_skills:bool=True and auto_capture_min_tool_calls:int=5 to Settings class in app/config/settings.py after max_spawn_depth (line 159). File parses clean (python3 import test returned True 5). Nothing else changed.
 [2026-09-02 21:27] INFO: VOICE_ENABLED changed false→true in .env (line 42). Feature flag only, no secrets/API keys touched. Verified via grep.
 [2026-09-02 22:08] INFO: Added skill_verify_enabled:bool=True and skill_verify_threshold:int=3 to Settings class in app/config/settings.py (lines 162-163, after auto_capture_min_tool_calls). Verification: python import printed "True 3". Config-only change.
+[2026-09-07 16:40] task_id mismatch: expected e64efa54, on-disk 743edd77. Aborting stale spawn.
+[2026-09-07 20:03] INFO: planning agent model deepseek-v4-flash→deepseek-v4-pro in agent-settings.json. Reasoning-effort not applied (no supported deepseek field; adapter hardcodes thinking disabled). JSON valid.

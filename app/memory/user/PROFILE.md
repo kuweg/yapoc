@@ -43,6 +43,9 @@
 - **Wants automation without being asked every time** — prefers the system to act automatically rather than prompting for confirmation on routine/reversible work
 - **Wants cron/scheduled-task activity surfaced in the UI chat** — when master processes a cron task (skill-capture-sweep, self-eval, memory-sweep), it should announce it in chat (e.g. "getting updated from cron task, I'll tell you what it's about") rather than only appearing in agent-flow logs
 - **Wants VSCode-theme support** — themes sourced from vscodethemes.com (e.g. github-dark), since YAPOC frontend is CSS-variable-driven
+- **Wants completion proofs for autonomous/overnight runs** — when master runs unattended tasks (e.g. overnight memory consolidation), it should self-fix on failure and deliver a Telegram message with proof of completion/verification once done (escalate to Telegram only if self-healing fails)
+- **Keep openai/gpt-5.6-terra as master's primary model** — when it misbehaves, fix the adapter/config rather than switching models or letting fallback silently take over (e.g. 2026-09-07: "fix that, but keep gpt model as primary" → reasoning_effort 400 fixed in openai.py, model kept primary)
+- **Whenever Master provides a Mermaid diagram, it must invoke render_mermaid** so the diagram is actually rendered in chat — do not only include Mermaid source text (2026-09-07)
 
 ## Schedule
 - Works mostly between **10pm and 2am**

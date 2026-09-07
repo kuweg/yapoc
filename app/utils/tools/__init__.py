@@ -164,17 +164,21 @@ from .agent_mgmt import CreateAgentTool, DeleteAgentTool
 from .agent_settings_tool import HealAgentSettingsTool, ShowAgentSettingsTool
 from .config_update import UpdateConfigTool
 from .model_manager import CheckModelAvailabilityTool, ListModelsTool, UpdateAgentConfigTool
+from .execute_code import ExecuteCodeTool
 from .search import SearchMemoryTool, SearchNegativeKnowledgeTool
 from .evaluator_signals import GetRecentSignalsTool
 from .grep import GrepTool
 from .concilium_deliberate import ConciliumDeliberateTool
 from .skills import CreateSkillTool, DeleteSkillTool, LoadSkillsTool, UpdateSkillTool
 from .chart import RenderChartTool
+from .image_gen import GenerateImageTool
+from .mermaid import RenderMermaidTool
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
     "process_restart": ProcessRestartTool,
     "shell_exec": ShellExecTool,
+    "execute_code": ExecuteCodeTool,
     "file_read": FileReadTool,
     "file_write": FileWriteTool,
     "file_edit": FileEditTool,
@@ -223,6 +227,8 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "grep": GrepTool,
     "concilium_deliberate": ConciliumDeliberateTool,
     "render_chart": RenderChartTool,
+    "generate_image": GenerateImageTool,
+    "render_mermaid": RenderMermaidTool,
 }
 
 # Tools that need agent_dir injected
@@ -244,7 +250,7 @@ _AGENT_DIR_TOOLS = {
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell
 # tools care; reads and delegation are unaffected.
-_SANDBOX_TOOLS = {"file_write", "file_edit", "file_delete", "shell_exec"}
+_SANDBOX_TOOLS = {"file_write", "file_edit", "file_delete", "shell_exec", "execute_code"}
 
 # Session ownership must survive every tool that starts or resumes work.
 _SESSION_TOOLS = {"spawn_agent", "delegate_task", "execute_dag", "server_restart"}

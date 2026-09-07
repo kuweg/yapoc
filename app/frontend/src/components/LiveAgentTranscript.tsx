@@ -34,7 +34,20 @@ export function eventsToChatParts(events: AgentEvent[], sinceIso: string, sessio
         if (part.kind === 'tool' && !part.done && part.name === event.name) {
           const result = String(event.result ?? '')
           parts[i] = { ...part, done: true, result, isError: Boolean(event.is_error) }
-          if (part.name === 'render_chart' && !event.is_error) {
+          if (part.name === 'render_mermaid' && !event.is_error) {
+            try {
+              const payload: unknown = JSON.parse(result)
+              if (
+                payload &&
+                typeof payload === 'object' &&
+                !Array.isArray(payload) &&
+                (payload as Record<string, unknown>).type === 'mermaid' &&
+                typeof (payload as Record<string, unknown>).source === 'string'
+              ) {
+                parts[i] = { kind: 'mermaid', source: (payload as Record<string, unknown>).source as string }
+              }
+            } catch { /* retain the tool output */ }
+          } else if (part.name === 'render_chart' && !event.is_error) {
             try {
               const option = JSON.parse(result)
               if (option && typeof option === 'object' && !Array.isArray(option)) parts[i] = { kind: 'chart', option }

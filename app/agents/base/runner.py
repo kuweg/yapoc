@@ -173,6 +173,43 @@ class AgentRunner:
                 os.unlink(tmp)
             raise
 
+        # Light the live topology on real state transitions. The runner runs
+        # in a subprocess, so the in-memory bus is unreachable — but the bus's
+        # Redis fanout relays the event to the backend's /ws/graph clients.
+        self._emit_status_changed(state)
+
+    def _emit_status_changed(self, new_state: str) -> None:
+        """Fire-and-forget a ``status_changed`` graph event on a real transition.
+
+        Best-effort: a missing event loop or a downed bus must never break the
+        runner's status bookkeeping. The graph already tracks busy state via
+        task_assigned/task_completed; this only sharpens idle↔running edges.
+        """
+        old_state = getattr(self, "_last_state", None)
+        self._last_state = new_state
+        if old_state == new_state:
+            return
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            return
+
+        async def _emit() -> None:
+            try:
+                from app.backend.services.graph_events import graph_event_bus
+                await graph_event_bus.emit_status_changed(
+                    source=self._name,
+                    old_status=old_state or "",
+                    new_status=new_state,
+                )
+            except Exception:
+                pass  # non-fatal — never break status writes
+
+        try:
+            loop.call_soon_threadsafe(lambda: asyncio.ensure_future(_emit()))
+        except Exception:
+            pass
+
     # ── Signal handling ──────────────────────────────────────────────────
 
     def _setup_signals(self) -> None:

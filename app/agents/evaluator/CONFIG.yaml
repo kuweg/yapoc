@@ -34,6 +34,7 @@ tools:
 # a read-only evaluator possible: even if the LLM tries to apply a
 # proposal it shouldn't, the file_write sandbox blocks it.
   - search_negative_knowledge
+  - execute_code
 sandbox:
   forbidden:
     - app/agents/master/

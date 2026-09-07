@@ -122,3 +122,10 @@
 - **Action:** Before proposing ANY feature as missing, grep the ENTIRE repo (shell: `grep -rn CONCEPT app/ --include="*.py"`) across ALL layers: routers, dispatchers/executors, base-agent task-finalization hooks, AND app/utils/*.py helper modules. A feature looks absent when (a) it lives in a dedicated app/utils module with a module docstring I never opened, (b) the inbound router exists but I checked only that file, or (c) the base agent's set_task_status hook already calls the tracker. I produced FALSE 'missing-feature' claims 3 times in one session by reading only one surface each time. Grep across utils/ + base hooks + executors to prove the absence before delegating a build.
 - **Confidence:** high
 
+
+## Rule: Disable incompatible reasoning mode for tool-using models
+- **Observed:** 2026-09-07
+- **Context:** Observed GPT-5.6 Terra became substantially faster and stopped returning OpenAI tool-call 400 errors when requests explicitly set reasoning_effort="none". Some reasoning-capable models default to reasoning modes that are slow or incompatible with function tools.
+- **Action:** When adding or configuring a reasoning-capable model for tool-using agents, explicitly disable reasoning mode (for example, reasoning_effort="none") unless the task explicitly requires extended reasoning. Verify the provider endpoint supports the chosen reasoning/tool combination.
+- **Confidence:** high
+

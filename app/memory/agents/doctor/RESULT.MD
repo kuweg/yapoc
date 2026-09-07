@@ -1,17 +1,14 @@
-Completed 24h HEALTH.MD scan.
+Scanned available `app/agents/*/HEALTH.MD` files.
 
 Summary:
-- No new unresolved HEALTH.MD errors found for agents with HEALTH.MD present.
-- Coverage is limited: most agent HEALTH.MD files are missing or empty.
-- Notable anomalies remain historical:
-  - master — 2026-06-06 17:12 — rollback entries in HEALTH.MD
-  - doctor — 2026-06-07 15:16 — warning about missing/empty HEALTH.MD coverage
-  - doctor — 2026-06-07 15:16 — historical builder crash: `re.error: bad escape \u`
-  - doctor — 2026-06-07 15:16 — historical master server crash: port 8000 bind conflict and Telegram 409 polling conflict
+- No new unresolved HEALTH.MD errors found in the last 24h from available files.
+- Coverage is incomplete: several agents have missing/empty `HEALTH.MD` files.
+- The only concrete findings surfaced were historical master rollback entries from 2026-06-06:
+  - master | 2026-06-06 17:12 | ROLLBACK: agent=planning ...
+  - master | 2026-06-06 17:13 | ROLLBACK: agent=planning ...
+  - master | 2026-06-06 17:14 | ROLLBACK: agent=planning ...
 
 Actions taken:
 - Wrote `app/agents/doctor/HEALTH_SUMMARY.MD`
 - Appended to `app/agents/doctor/MEMORY.MD`
-- Logged `HEALTH_CHECK_COMPLETE`
-
-No corrective actions were taken.
+- Logged health check completion

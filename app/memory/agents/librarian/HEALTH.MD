@@ -58,3 +58,67 @@ Traceback (most recent call last):
     raise TimeoutError from exc_val
 TimeoutError
 
+[2026-09-07 14:38] [STUCK LOOP #1] turn 15 retrying — detected repeated substring " me look at the master's recent memory and the most recen..."
+[2026-09-07 15:34] ERROR: Task timed out after 600s
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1909, in run_stream_with_tools
+    results = await asyncio.gather(*coros)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1116, in _execute_tool
+    output = await tool.execute(**tc.input)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/Projects/yapoc/app/utils/tools/file.py", line 128, in execute
+    lines, total = await self._read_lines_range(resolved, start_line, count)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/Projects/yapoc/app/utils/tools/file.py", line 78, in _read_lines_range
+    async for line in f:
+  File "/home/kuweg/.cache/pypoetry/virtualenvs/yapoc-BKvU9FD_-py3.12/lib/python3.12/site-packages/aiofiles/base.py", line 38, in __anext__
+    if line := await self.readline():
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/.cache/pypoetry/virtualenvs/yapoc-BKvU9FD_-py3.12/lib/python3.12/site-packages/aiofiles/threadpool/utils.py", line 43, in method
+    return await self._loop.run_in_executor(self._executor, cb)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1352, in run_stream_with_tools
+    async with asyncio.timeout(_timeout_value):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/.local/share/mise/installs/python/3.12.14/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+
+[2026-09-07 16:26] [STUCK LOOP #1] turn 12 retrying — detected repeated substring ".\n\nLet me check the master's recent session JSONL files (..."
+[2026-09-07 18:05] ERROR: Task timed out after 600s
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1917, in run_stream_with_tools
+    results = await asyncio.gather(*coros)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1116, in _execute_tool
+    output = await tool.execute(**tc.input)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/Projects/yapoc/app/utils/tools/file.py", line 128, in execute
+    lines, total = await self._read_lines_range(resolved, start_line, count)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/Projects/yapoc/app/utils/tools/file.py", line 78, in _read_lines_range
+    async for line in f:
+  File "/home/kuweg/.cache/pypoetry/virtualenvs/yapoc-BKvU9FD_-py3.12/lib/python3.12/site-packages/aiofiles/base.py", line 38, in __anext__
+    if line := await self.readline():
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/.cache/pypoetry/virtualenvs/yapoc-BKvU9FD_-py3.12/lib/python3.12/site-packages/aiofiles/threadpool/utils.py", line 43, in method
+    return await self._loop.run_in_executor(self._executor, cb)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1352, in run_stream_with_tools
+    async with asyncio.timeout(_timeout_value):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kuweg/.local/share/mise/installs/python/3.12.14/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
+

@@ -1,4 +1,5 @@
 from .agents import router as agents_router
+from .artifacts import router as artifacts_router
 from .files import router as files_router
 from .health import router as health_router
 from .memory_graph import router as memory_graph_router
@@ -18,11 +19,13 @@ from .commands import router as commands_router
 from .concilium import concilium_router
 from .graph import router as graph_router
 from .observability import router as observability_router
+from .pptx import router as pptx_router
 from .uploads import router as uploads_router
 from .skills import router as skills_router
 from .mcp import router as mcp_router
 
 __all__ = [
+    "artifacts_router",
     "health_router",
     "tasks_router",
     "agents_router",
@@ -43,6 +46,7 @@ __all__ = [
     "concilium_router",
     "graph_router",
     "observability_router",
+    "pptx_router",
     "uploads_router",
     "skills_router",
     "mcp_router",

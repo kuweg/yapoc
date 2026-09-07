@@ -80,7 +80,9 @@ def init_schema() -> None:
             source      TEXT NOT NULL,
             content     TEXT NOT NULL,
             timestamp   TEXT NOT NULL,
-            embedding   BLOB
+            embedding   BLOB,
+            tier        TEXT NOT NULL DEFAULT 'hot',
+            provenance  TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_mem_agent  ON memory_entries(agent);
         CREATE INDEX IF NOT EXISTS idx_mem_source ON memory_entries(agent, source);
@@ -120,12 +122,19 @@ def init_schema() -> None:
             PRIMARY KEY (agent, source)
         );
     """)
-    # Migration: add content_hash column to existing DBs
-    try:
-        db.execute("ALTER TABLE index_checkpoints ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''")
-        db.commit()
-    except Exception:
-        pass  # column already exists
+    # Additive migrations for databases created before these columns existed.
+    # SQLite lacks ADD COLUMN IF NOT EXISTS, so duplicate-column errors are safe.
+    for statement in (
+        "ALTER TABLE index_checkpoints ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE memory_entries ADD COLUMN tier TEXT NOT NULL DEFAULT 'hot'",
+        "ALTER TABLE memory_entries ADD COLUMN provenance TEXT NOT NULL DEFAULT ''",
+    ):
+        try:
+            db.execute(statement)
+            db.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
+    db.execute("CREATE INDEX IF NOT EXISTS idx_mem_tier ON memory_entries(tier)")
 
     db.execute("""
         CREATE TABLE IF NOT EXISTS indexer_state (
@@ -265,13 +274,19 @@ def insert_memory_entry(
     content: str,
     timestamp: str,
     embedding: np.ndarray | None = None,
+    tier: str = "hot",
+    provenance: str = "",
 ) -> int:
     """Insert a memory entry with optional embedding. Returns row id."""
     db = get_db()
     blob = embedding.astype(np.float32).tobytes() if embedding is not None else None
+    if tier not in {"hot", "cold"}:
+        raise ValueError("tier must be 'hot' or 'cold'")
     cur = db.execute(
-        "INSERT INTO memory_entries (agent, source, content, timestamp, embedding) VALUES (?, ?, ?, ?, ?)",
-        (agent, source, content, timestamp, blob),
+        """INSERT INTO memory_entries
+           (agent, source, content, timestamp, embedding, tier, provenance)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (agent, source, content, timestamp, blob, tier, provenance),
     )
     rowid = cur.lastrowid
     # Keep FTS5 in sync
@@ -346,29 +361,29 @@ def delete_agent_source_entries(agent: str, source: str) -> int:
     return len(rows)
 
 
-def search_fts(query: str, agent: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+def search_fts(
+    query: str,
+    agent: str | None = None,
+    limit: int = 20,
+    include_cold: bool = False,
+) -> list[dict[str, Any]]:
     """Full-text keyword search via FTS5. Returns memory_entries rows."""
     db = get_db()
+    conditions = ["memory_fts MATCH ?"]
+    params: list[Any] = [query]
     if agent:
-        rows = db.execute(
-            """SELECT m.*, rank
-               FROM memory_fts f
-               JOIN memory_entries m ON m.id = f.rowid
-               WHERE memory_fts MATCH ? AND m.agent = ?
-               ORDER BY rank
-               LIMIT ?""",
-            (query, agent, limit),
-        ).fetchall()
-    else:
-        rows = db.execute(
-            """SELECT m.*, rank
-               FROM memory_fts f
-               JOIN memory_entries m ON m.id = f.rowid
-               WHERE memory_fts MATCH ?
-               ORDER BY rank
-               LIMIT ?""",
-            (query, limit),
-        ).fetchall()
+        conditions.append("m.agent = ?")
+        params.append(agent)
+    if not include_cold:
+        conditions.append("m.tier = 'hot'")
+    params.append(limit)
+    rows = db.execute(
+        """SELECT m.*, rank
+           FROM memory_fts f
+           JOIN memory_entries m ON m.id = f.rowid
+           WHERE """ + " AND ".join(conditions) + " ORDER BY rank LIMIT ?",
+        params,
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -376,21 +391,24 @@ def search_vector(
     query_embedding: np.ndarray,
     agent: str | None = None,
     limit: int = 20,
+    include_cold: bool = False,
 ) -> list[tuple[dict[str, Any], float]]:
     """Brute-force cosine similarity search over stored embeddings.
 
     Returns list of (row_dict, similarity_score) sorted desc.
     """
     db = get_db()
+    conditions = ["embedding IS NOT NULL"]
+    params: list[Any] = []
     if agent:
-        rows = db.execute(
-            "SELECT * FROM memory_entries WHERE embedding IS NOT NULL AND agent = ?",
-            (agent,),
-        ).fetchall()
-    else:
-        rows = db.execute(
-            "SELECT * FROM memory_entries WHERE embedding IS NOT NULL"
-        ).fetchall()
+        conditions.append("agent = ?")
+        params.append(agent)
+    if not include_cold:
+        conditions.append("tier = 'hot'")
+    rows = db.execute(
+        "SELECT * FROM memory_entries WHERE " + " AND ".join(conditions),
+        params,
+    ).fetchall()
 
     if not rows:
         return []
@@ -506,6 +524,7 @@ def search_hybrid(
     query_embedding: np.ndarray,
     agent: str | None = None,
     top_k: int = 10,
+    include_cold: bool = False,
 ) -> list[dict[str, Any]]:
     """Reciprocal Rank Fusion of FTS5 keyword + cosine vector results.
 
@@ -516,9 +535,13 @@ def search_hybrid(
     K = 60  # RRF constant
 
     # Keyword results (agent-filtered when specified)
-    fts_results = search_fts(query, agent=agent, limit=top_k * 3)
+    fts_results = search_fts(
+        query, agent=agent, limit=top_k * 3, include_cold=include_cold
+    )
     # Vector results
-    vec_results = search_vector(query_embedding, agent=agent, limit=top_k * 3)
+    vec_results = search_vector(
+        query_embedding, agent=agent, limit=top_k * 3, include_cold=include_cold
+    )
 
     # Build RRF scores keyed by memory_entries.id
     rrf_scores: dict[int, float] = {}

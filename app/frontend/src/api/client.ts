@@ -1,9 +1,15 @@
-import type { AgentStatus, ChannelsResponse, ChannelSessionMessagesResponse, CommandResponse, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
+import type { ActiveTimesResponse, AgentStatus, Attachment, ChannelsResponse, ChannelSessionMessagesResponse, CommandResponse, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
 
 export async function getAgents(): Promise<AgentStatus[]> {
   const res = await fetch('/api/agents')
   if (!res.ok) throw new Error(`GET /agents: ${res.status}`)
   return res.json() as Promise<AgentStatus[]>
+}
+
+export async function getActiveTimes(): Promise<ActiveTimesResponse> {
+  const res = await fetch('/api/metrics/active-time')
+  if (!res.ok) throw new Error(`GET /metrics/active-time: ${res.status}`)
+  return res.json() as Promise<ActiveTimesResponse>
 }
 
 export async function spawnAgent(name: string): Promise<{ status: string; name: string; pid?: number }> {
@@ -54,6 +60,12 @@ export async function getTasks(limit = 50, status?: string): Promise<QueuedTask[
   const res = await fetch(`/api/tasks?${qs.toString()}`)
   if (!res.ok) throw new Error(`GET /tasks: ${res.status}`)
   return res.json() as Promise<QueuedTask[]>
+}
+
+export async function getTask(taskId: string): Promise<QueuedTask> {
+  const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`)
+  if (!res.ok) throw new Error(`GET /tasks/${taskId}: ${res.status}`)
+  return res.json() as Promise<QueuedTask>
 }
 
 export async function getMasterResult(): Promise<{ name: string; content: string }> {
@@ -199,6 +211,40 @@ export interface UploadedAttachment {
   width?: number
   height?: number
   is_duplicate?: boolean
+}
+
+export async function listUploads(): Promise<{ files: Attachment[] }> {
+  const res = await fetch('/api/upload')
+  if (!res.ok) throw new Error(`GET /upload: ${res.status}`)
+  return res.json() as Promise<{ files: Attachment[] }>
+}
+
+export async function processUpload(
+  fileId: string,
+  action: string,
+  prompt?: string,
+): Promise<{ task_id: string; status: string; file_id: string; action: string }> {
+  const res = await fetch(`/api/upload/${encodeURIComponent(fileId)}/process`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, prompt: prompt ?? null }),
+  })
+  if (!res.ok) throw new Error(`POST /upload/${fileId}/process: ${res.status}`)
+  return res.json() as Promise<{ task_id: string; status: string; file_id: string; action: string }>
+}
+
+export async function linkArtifactSource(
+  artifactId: string,
+  sourceFileId: string,
+  sourceFileName: string,
+): Promise<unknown> {
+  const res = await fetch(`/api/artifacts/${encodeURIComponent(artifactId)}/link-source`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_file_id: sourceFileId, source_file_name: sourceFileName }),
+  })
+  if (!res.ok) throw new Error(`POST /artifacts/${artifactId}/link-source: ${res.status}`)
+  return res.json()
 }
 
 export async function uploadFiles(

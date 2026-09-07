@@ -14,7 +14,7 @@ Schema (v2)::
       "agents": {
         "master": {
           "adapter": "anthropic",
-          "model": "claude-sonnet-4-6",
+          "model": "claude-sonnet-5",
           "temperature": 0.3,
           "max_tokens": 8096,
           "task_timeout": 1800,    // optional, seconds; falls back to settings.task_timeout (300)
@@ -82,7 +82,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
     "agents": {
         "master": {
             "adapter": "anthropic",
-            "model": "claude-sonnet-4-6",
+            "model": "claude-sonnet-5",
             "temperature": 0.3,
             "max_tokens": 8096,
             "fallbacks": [
@@ -93,7 +93,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         },
         "planning": {
             "adapter": "anthropic",
-            "model": "claude-sonnet-4-6",
+            "model": "claude-sonnet-5",
             "temperature": 0.3,
             "max_tokens": 8096,
             "fallbacks": [
@@ -104,11 +104,11 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
         },
         "builder": {
             "adapter": "anthropic",
-            "model": "claude-sonnet-4-6",
+            "model": "claude-sonnet-5",
             "temperature": 0.2,
             "max_tokens": 8096,
             "fallbacks": [
-                {"adapter": "anthropic", "model": "claude-opus-4-6"},
+                {"adapter": "anthropic", "model": "claude-opus-5"},
                 {"adapter": "openai", "model": "gpt-5.2"},
                 {"adapter": "google", "model": "gemini-2.5-pro"},
             ],
@@ -119,7 +119,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
             "temperature": 0.2,
             "max_tokens": 4096,
             "fallbacks": [
-                {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+                {"adapter": "anthropic", "model": "claude-sonnet-5"},
                 {"adapter": "openai", "model": "gpt-4o-mini"},
                 {"adapter": "google", "model": "gemini-2.5-flash-lite"},
             ],
@@ -130,7 +130,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
             "temperature": 0.2,
             "max_tokens": 4096,
             "fallbacks": [
-                {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+                {"adapter": "anthropic", "model": "claude-sonnet-5"},
                 {"adapter": "openai", "model": "gpt-4o-mini"},
                 {"adapter": "google", "model": "gemini-2.5-flash-lite"},
             ],
@@ -143,7 +143,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
             "fallbacks": [
                 {"adapter": "openai", "model": "gpt-4o-mini"},
                 {"adapter": "google", "model": "gemini-2.5-flash"},
-                {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+                {"adapter": "anthropic", "model": "claude-sonnet-5"},
             ],
         },
         "model_manager": {
@@ -154,7 +154,7 @@ _DEFAULT_SETTINGS: dict[str, Any] = {
             "fallbacks": [
                 {"adapter": "openai", "model": "gpt-4o-mini"},
                 {"adapter": "google", "model": "gemini-2.5-flash-lite"},
-                {"adapter": "anthropic", "model": "claude-sonnet-4-6"},
+                {"adapter": "anthropic", "model": "claude-sonnet-5"},
             ],
         },
     },
@@ -287,38 +287,30 @@ def resolve_agent(agent_name: str) -> dict[str, Any] | None:
 
 
 def resolve_runner_settings(agent_name: str) -> dict[str, int]:
-    """Return ``{task_timeout, idle_timeout}`` for an agent.
+    """Return explicit runner overrides from ``agent-settings.json``.
 
-    Lookup order:
-      1. ``app/config/agent-settings.json`` — per-agent ``task_timeout`` /
-         ``idle_timeout`` keys, if present.
-      2. ``app.config.settings`` defaults (``task_timeout``,
-         ``agent_idle_timeout``).
-
-    The CONFIG.yaml ``runner:`` block also defines ``task_timeout`` but is
-    resolved separately by ``_parse_runner_config`` at the call site in
-    ``BaseAgent.run_stream_with_tools``. Callers should prefer the value
-    here when both are present (agent-settings.json is authoritative for
-    cross-cutting runtime config; CONFIG.yaml is the legacy fallback).
+    Only keys actually present in the per-agent entry are returned. This lets
+    callers fall back field-by-field to the agent's ``CONFIG.yaml`` runner
+    block, then global settings. In particular, an absent ``max_turns`` must
+    not be converted to ``settings.max_turns`` here, or it would mask a
+    ``CONFIG.yaml`` value. Explicit JSON values remain authoritative.
     """
-    data = _read()
-    agents = _agents_map(data)
-    entry = agents.get(agent_name) or {}
+    entry = _agents_map(_read()).get(agent_name) or {}
 
-    def _coerce_int(value: Any, fallback: int) -> int:
+    def _coerce_int(value: Any) -> int | None:
         try:
             return int(value)
         except (TypeError, ValueError):
-            return fallback
+            return None
 
-    return {
-        "task_timeout": _coerce_int(
-            entry.get("task_timeout"), settings.task_timeout
-        ),
-        "idle_timeout": _coerce_int(
-            entry.get("idle_timeout"), settings.agent_idle_timeout
-        ),
-    }
+    resolved: dict[str, int] = {}
+    for key in ("max_turns", "task_timeout", "idle_timeout"):
+        if key not in entry:
+            continue
+        value = _coerce_int(entry[key])
+        if value is not None:
+            resolved[key] = value
+    return resolved
 
 
 def build_adapter_chain(agent_name: str) -> list[AgentConfig] | None:

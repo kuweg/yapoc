@@ -114,6 +114,8 @@ export function useGraphSocket(enabled = true): GraphSocketState {
 
     const connect = () => {
       if (closed) return
+      const current = wsRef.current
+      if (current && (current.readyState === WebSocket.OPEN || current.readyState === WebSocket.CONNECTING)) return
       let ws: WebSocket
       try {
         ws = new WebSocket(wsUrl())

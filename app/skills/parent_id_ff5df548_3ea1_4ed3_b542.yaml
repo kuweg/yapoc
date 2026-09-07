@@ -1,0 +1,16 @@
+name: parent_id_ff5df548_3ea1_4ed3_b542
+summary: ---
+parent_task_id: ff5df548-3ea1-4ed3-b542-fc6f210ba96f
+status: running
+task_id: 960f5285-7e61-4c89-a68a-ccbf8901a250
+s
+level_1: "---
+parent_task_id: ff5df548-3ea1-4ed3-b542-fc6f210ba96f
+status: running
+task_id: 960f5285-7e61-4c89-a68a-ccbf8901a250
+s"
+level_2: |
+  Inputs: the task description and relevant context provided to the agent.
+level_3: |
+  Procedure (auto-captured from a successful run):
+  1. call_NSFyTQlzkqbLZm8bjeLWBesk: Parent 'master' notified (done).

@@ -55,6 +55,19 @@ def _needs_max_completion_tokens(model: str) -> bool:
     )
 
 
+def _needs_reasoning_effort_none(model: str) -> bool:
+    """Check if a model defaults to reasoning mode that conflicts with function tools.
+
+    GPT-5.6+ and GPT-6 models default ``reasoning_effort`` to a reasoning level; when
+    function tools are present the /v1/chat/completions endpoint rejects the request
+    unless ``reasoning_effort`` is explicitly set to ``"none"`` (or /v1/responses is used).
+    """
+    normalized = model.lower()
+    if "/" in normalized:
+        normalized = normalized.split("/", 1)[1]
+    return normalized.startswith("gpt-5") or normalized.startswith("gpt-6")
+
+
 def _raise_with_detail(response: httpx.Response) -> None:
     """Raise an HTTPStatusError that includes OpenAI's error message."""
     if response.is_success:
@@ -215,6 +228,8 @@ class OpenAIAdapter(BaseLLMAdapter):
         }
         if openai_tools:
             payload["tools"] = openai_tools
+            if _needs_reasoning_effort_none(self._config.model):
+                payload["reasoning_effort"] = "none"
 
         from app.utils.adapters.termination import require_complete, parse_tool_arguments
         finish_reason = None

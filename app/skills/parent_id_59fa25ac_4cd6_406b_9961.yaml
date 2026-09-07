@@ -1,0 +1,16 @@
+name: parent_id_59fa25ac_4cd6_406b_9961
+summary: ---
+parent_task_id: 59fa25ac-4cd6-406b-9961-0e935b676188
+status: running
+task_id: 7fd461b1-151c-4bd9-ae3c-0332db97d656
+s
+level_1: "---
+parent_task_id: 59fa25ac-4cd6-406b-9961-0e935b676188
+status: running
+task_id: 7fd461b1-151c-4bd9-ae3c-0332db97d656
+s"
+level_2: |
+  Inputs: the task description and relevant context provided to the agent.
+level_3: |
+  Procedure (auto-captured from a successful run):
+  1. call_AHuLjmGFXZ00r9n6MfsjQTi5: Parent 'planning' notified (done).

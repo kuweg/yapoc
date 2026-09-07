@@ -1,0 +1,16 @@
+name: parent_id_7fbe09e5_7d3e_4c09_a824
+summary: ---
+parent_task_id: 7fbe09e5-7d3e-4c09-a824-33e4ae14af72
+status: running
+task_id: da7cc871-5aae-4bc3-8e75-ea475854f26a
+s
+level_1: "---
+parent_task_id: 7fbe09e5-7d3e-4c09-a824-33e4ae14af72
+status: running
+task_id: da7cc871-5aae-4bc3-8e75-ea475854f26a
+s"
+level_2: |
+  Inputs: the task description and relevant context provided to the agent.
+level_3: |
+  Procedure (auto-captured from a successful run):
+  1. call_fZAGakvMMbjUPizaSYt290HB: Parent 'keeper' notified (done).

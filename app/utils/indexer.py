@@ -33,6 +33,24 @@ _SKIP_DIRS = {"base", "__pycache__"}
 _MIN_CONTENT_LEN = 20
 
 
+def _provenance(path: Path) -> str:
+    """Repo-relative path a memory row came from, for `memory_entries.provenance`.
+
+    The column existed but was written by exactly one of the eleven index sites
+    (the archive), leaving it empty for 2,473 of 2,480 rows — so there was no
+    way to answer "where did this memory come from?" for anything retrieval
+    surfaced. A plain relative path is stored rather than a JSON blob because
+    `agent`, `source` and `timestamp` are already their own columns; the file
+    path is the only fact that was actually missing, and a path stays greppable.
+
+    Falls back to the absolute path when it lies outside the project root.
+    """
+    try:
+        return str(path.resolve().relative_to(settings.project_root.resolve()))
+    except (ValueError, OSError):
+        return str(path)
+
+
 def _parse_memory_line(line: str) -> tuple[str, str]:
     """Extract timestamp and content from a MEMORY.MD line.
 
@@ -90,6 +108,7 @@ def index_agent_memory(agent_name: str, memory_dir: Path) -> int:
             insert_memory_entry(
                 agent=agent_name,
                 source="MEMORY.MD",
+                provenance=_provenance(memory_path),
                 content=content,
                 timestamp=ts,
                 embedding=emb,
@@ -214,6 +233,7 @@ def index_agent_notes(agent_name: str, memory_dir: Path) -> int:
             insert_memory_entry(
                 agent=agent_name,
                 source="NOTES.MD",
+                provenance=_provenance(notes_path),
                 content=section,
                 timestamp=now,
                 embedding=emb,
@@ -259,6 +279,7 @@ def index_agent_learnings(agent_name: str, memory_dir: Path) -> int:
             insert_memory_entry(
                 agent=agent_name,
                 source="LEARNINGS.MD",
+                provenance=_provenance(learnings_path),
                 content=section,
                 timestamp=now,
                 embedding=emb,
@@ -304,6 +325,7 @@ def index_shared_knowledge() -> int:
             insert_memory_entry(
                 agent="shared",
                 source="KNOWLEDGE.MD",
+                provenance=_provenance(knowledge_path),
                 content=section,
                 timestamp=now,
                 embedding=emb,
@@ -388,6 +410,7 @@ def index_agent_tasks(agent_name: str, agent_dir: Path) -> int:
         insert_memory_entry(
             agent=agent_name,
             source="TASK.MD",
+            provenance=_provenance(task_path),
             content=entry_text,
             timestamp=now,
             embedding=embeddings[0],
@@ -479,6 +502,7 @@ def index_agent_report(agent_name: str, agent_dir: Path) -> int:
             insert_memory_entry(
                 agent=agent_name,
                 source="REPORT.MD",
+                provenance=_provenance(report_path),
                 content=section_text,
                 timestamp=ts,
                 embedding=emb,
@@ -566,6 +590,7 @@ def index_session_jsonl(session_path: Path) -> int:
             insert_memory_entry(
                 agent="_session",
                 source=src,
+                provenance=_provenance(session_path),
                 content=text,
                 timestamp=ts,
                 embedding=emb,
@@ -637,6 +662,7 @@ def index_user_memory() -> int:
                             insert_memory_entry(
                                 agent="user",
                                 source="PROFILE.md",
+                                provenance=_provenance(profile_path),
                                 content=section,
                                 timestamp=now,
                                 embedding=emb,
@@ -684,6 +710,7 @@ def index_user_memory() -> int:
                         insert_memory_entry(
                             agent="user",
                             source="HISTORY.md",
+                            provenance=_provenance(history_path),
                             content=content,
                             timestamp=ts,
                             embedding=emb,
@@ -750,6 +777,7 @@ def index_project_memory() -> int:
                 insert_memory_entry(
                     agent="project",
                     source=src,
+                    provenance=_provenance(path),
                     content=section,
                     timestamp=now,
                     embedding=emb,

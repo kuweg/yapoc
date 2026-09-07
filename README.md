@@ -188,7 +188,11 @@ Per-agent model bindings live in `app/config/agent-settings.json`. Edit there to
 - **Poetry only.** Never `pip install`. Always `poetry add` / `poetry install` / `poetry remove`.
 - **Centralized settings.** Never `os.environ.get(...)`; import `settings`.
 - **Docs in `docs/` are authoritative** — when behavior contradicts documentation, the docs are right and the code needs a fix.
-- **No tests yet.** MVP phase; tests are not part of the default flow.
+- **Tests run in CI.** `poetry run pytest tests/ app/backend/tests/` — 255 tests,
+  expected fully green. `.github/workflows/tests.yml` runs them plus a frontend
+  typecheck and build on every push. This rule used to read "no tests yet";
+  that was wrong for a long time — 27 test files existed while nothing ran
+  them, and 32 were failing unnoticed.
 
 See `CLAUDE.md` for the working agreement used when running Claude Code in this repo, and `app/agents/*/CLAUDE.md` for per-subsystem briefings.
 

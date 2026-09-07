@@ -4,8 +4,8 @@ Tests for app/utils/helpers.py
 Covers:
 - format_timestamp: iso / human / unix formats, default format, None input,
   unknown format, timezone-aware datetime.
-- truncate_text: shorter / equal / longer text, custom suffix, None input,
-  empty string, max_length edge cases.
+- truncate_text: verifies it is a pass-through no-op (truncation caps were
+  removed in 1b02284); None / empty input still round-trip correctly.
 - parse_yaml_block: valid frontmatter, multiple fields, None / empty / no
   frontmatter, malformed YAML, only opening delimiter.
 """
@@ -95,11 +95,15 @@ class TestFormatTimestamp:
 # ===========================================================================
 
 class TestTruncateText:
-    """Tests for truncate_text()."""
+    """Tests for truncate_text().
 
-    # -----------------------------------------------------------------------
-    # Normal cases
-    # -----------------------------------------------------------------------
+    NOTE: `truncate_text` has been an intentional no-op pass-through since
+    1b02284 (2026-05-16) — "All truncation caps have been removed" — and has no
+    callers anywhere in the app. This class previously asserted the old
+    truncating behaviour and so failed on every run; it now pins the contract
+    the function actually documents. If truncation is ever reintroduced, these
+    are the tests to rewrite first.
+    """
 
     def test_shorter_than_max_returned_unchanged(self):
         assert truncate_text("Hello", 10) == "Hello"
@@ -107,28 +111,17 @@ class TestTruncateText:
     def test_exactly_max_length_returned_unchanged(self):
         assert truncate_text("Hello", 5) == "Hello"
 
-    def test_longer_than_max_truncated_with_default_suffix(self):
-        result = truncate_text("Hello, world!", 8)
-        assert result == "Hello..."
-        assert len(result) == 8
+    def test_longer_than_max_is_returned_unchanged(self):
+        """The whole point of the no-op: long text is NOT cut."""
+        assert truncate_text("Hello, world!", 8) == "Hello, world!"
 
-    def test_longer_than_max_truncated_with_custom_suffix(self):
-        result = truncate_text("Hello, world!", 7, suffix="--")
-        assert result == "Hello--"
-        assert len(result) == 7
+    def test_suffix_is_never_appended(self):
+        assert truncate_text("Hello, world!", 7, suffix="--") == "Hello, world!"
 
-    def test_truncated_length_does_not_exceed_max(self):
-        """Length invariant holds when max_length >= len(suffix).
-
-        When max_length < len(suffix) the cut is clamped to 0 and the suffix
-        itself is returned (documented behaviour), so the invariant is only
-        asserted for the normal range.
-        """
+    def test_max_length_is_ignored_entirely(self):
         text = "A" * 100
-        suffix = "..."
-        for max_len in range(len(suffix), 20):
-            result = truncate_text(text, max_len, suffix=suffix)
-            assert len(result) <= max_len, f"len={len(result)} > max_length={max_len}"
+        for max_len in (0, -5, 3, 50, 1000):
+            assert truncate_text(text, max_len) == text
 
     # -----------------------------------------------------------------------
     # Edge cases
@@ -140,34 +133,11 @@ class TestTruncateText:
     def test_empty_string_returns_empty_string(self):
         assert truncate_text("", 10) == ""
 
-    def test_max_length_zero_returns_empty_string(self):
-        assert truncate_text("Hello", 0) == ""
-
-    def test_max_length_negative_returns_empty_string(self):
-        assert truncate_text("Hello", -5) == ""
-
-    def test_max_length_equals_suffix_length_returns_suffix_or_empty(self):
-        """max_length == len(suffix): cut=0, result is suffix (length == max_length)."""
-        result = truncate_text("Hello, world!", 3, suffix="...")
-        # cut = max(0, 3-3) = 0 → "" + "..." = "..."
-        assert result == "..."
-        assert len(result) == 3
-
-    def test_max_length_less_than_suffix_length_no_crash(self):
-        """max_length < len(suffix): cut clamped to 0, result is suffix (may exceed max_length)."""
-        # This should not raise; the suffix itself is returned as-is.
-        result = truncate_text("Hello, world!", 1, suffix="...")
-        # cut = max(0, 1-3) = 0 → "" + "..." = "..."
-        assert isinstance(result, str)
-        assert not result.startswith("Hello")  # definitely truncated
-
-    def test_empty_suffix(self):
-        result = truncate_text("Hello, world!", 5, suffix="")
-        assert result == "Hello"
-
     def test_none_text_with_zero_max_length_returns_none(self):
-        """None text always returns None regardless of max_length."""
         assert truncate_text(None, 0) is None
+
+    def test_empty_suffix_changes_nothing(self):
+        assert truncate_text("Hello, world!", 5, suffix="") == "Hello, world!"
 
 
 # ===========================================================================

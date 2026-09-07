@@ -197,3 +197,87 @@ async def test_dashboard_reports_zero_when_there_is_nothing_wrong(
     assert dash.totals.task_failure_count == 0
     assert dash.totals.recent_error_count == 0
     assert dash.totals.agents_with_errors == 0
+
+
+# ── Reliability scorecard (Phase 2.2) ──────────────────────────────────────
+
+
+def test_failure_classification_buckets():
+    assert M._classify_failure("Task timed out") == "timeout"
+    assert M._classify_failure("Task incomplete: reached the 45-turn limit") == "turn_limit"
+    assert M._classify_failure("All 4 adapters in the fallback chain failed") == "provider_config"
+    assert M._classify_failure("400 INVALID_ARGUMENT thinking budget") == "provider_config"
+    assert M._classify_failure("Incomplete provider response: length") == "malformed_output"
+    assert M._classify_failure("something nobody predicted") == "other"
+    assert M._classify_failure("") == "unlabelled"
+    assert M._classify_failure(None) == "unlabelled"
+
+
+async def test_scorecard_window_changes_the_failure_ranking(seeded_db):
+    """The window is the whole point — pooling all time inverts the ranking.
+
+    This is the mistake that produced a wrong first draft of the roadmap:
+    old, long-fixed provider bugs outnumbered the live problem when counted
+    over all time. A 2-day window must show the live problem on top.
+    """
+    for i in range(5):
+        _add_task(seeded_db, "planning", "error", NOW - timedelta(hours=2),
+                  err="Task incomplete: reached the 45-turn limit", task_id=f"new{i}")
+    for i in range(20):
+        _add_task(seeded_db, "builder", "error", NOW - timedelta(days=60),
+                  err="All 4 adapters in the fallback chain failed", task_id=f"old{i}")
+    # `assigned_at` drives the window; _add_task only sets completed_at.
+    seeded_db.execute("UPDATE tasks SET assigned_at = completed_at")
+    seeded_db.commit()
+
+    recent = await M.get_reliability_scorecard(days=2)
+    assert recent.failed == 5
+    assert max(recent.failure_mix, key=recent.failure_mix.get) == "turn_limit"
+
+    alltime = await M.get_reliability_scorecard(days=365)
+    assert alltime.failed == 25
+    assert max(alltime.failure_mix, key=alltime.failure_mix.get) == "provider_config"
+    assert recent.window_days == 2 and alltime.window_days == 365
+
+
+async def test_scorecard_failure_rate_excludes_partial(seeded_db):
+    """`partial` has no outcome yet, so it belongs in neither numerator nor
+    denominator — otherwise continuations would move the rate on their own."""
+    _add_task(seeded_db, "planning", "done", NOW - timedelta(hours=1), task_id="a")
+    _add_task(seeded_db, "planning", "done", NOW - timedelta(hours=1), task_id="b")
+    _add_task(seeded_db, "planning", "error", NOW - timedelta(hours=1), task_id="c")
+    _add_task(seeded_db, "planning", "partial", NOW - timedelta(hours=1), task_id="d", cont=1)
+    seeded_db.execute("UPDATE tasks SET assigned_at = completed_at")
+    seeded_db.commit()
+
+    s = await M.get_reliability_scorecard(days=7)
+    assert (s.completed, s.failed, s.partial) == (2, 1, 1)
+    assert s.failure_rate == round(1 / 3, 4)  # not 1/4
+    assert s.by_agent[0].continuations == 1
+
+
+async def test_scorecard_cost_per_completed_task(seeded_db):
+    seeded_db.execute(
+        "INSERT INTO tasks (agent, task_id, status, assigned_at, completed_at, cost_usd, continuation)"
+        " VALUES ('builder','x','done',?,?,0.10,0)", (_iso(NOW), _iso(NOW)))
+    seeded_db.execute(
+        "INSERT INTO tasks (agent, task_id, status, assigned_at, completed_at, cost_usd, continuation)"
+        " VALUES ('builder','y','done',?,?,0.30,0)", (_iso(NOW), _iso(NOW)))
+    seeded_db.execute(
+        "INSERT INTO tasks (agent, task_id, status, assigned_at, completed_at, cost_usd, continuation)"
+        " VALUES ('builder','z','partial',?,?,0.20,1)", (_iso(NOW), _iso(NOW)))
+    seeded_db.commit()
+
+    s = await M.get_reliability_scorecard(days=7)
+    assert s.total_cost_usd == pytest.approx(0.60)
+    assert s.cost_per_completed_task == pytest.approx(0.30)  # 0.60 / 2 completed
+    # Only the continuation row's spend counts as continuation cost.
+    assert s.continuation_cost_usd == pytest.approx(0.20)
+
+
+async def test_scorecard_empty_window_does_not_claim_free_work(seeded_db):
+    """No completions must give None, not 0.0 — 0.0 reads as 'costs nothing'."""
+    s = await M.get_reliability_scorecard(days=7)
+    assert s.tasks == 0
+    assert s.failure_rate == 0.0
+    assert s.cost_per_completed_task is None

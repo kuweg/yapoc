@@ -433,6 +433,44 @@ function DetailStat({ label, value, accent }: { label: string; value: string; ac
   )
 }
 
+interface ReliabilityAgent {
+  name: string
+  tasks: number
+  failures: number
+  failure_rate: number
+  continuations: number
+  cost_usd: number
+  p50_duration_s: number
+  p95_duration_s: number
+}
+
+interface ReliabilityScorecard {
+  window_days: number
+  window_start: string
+  tasks: number
+  completed: number
+  failed: number
+  partial: number
+  failure_rate: number
+  failure_mix: Record<string, number>
+  total_cost_usd: number
+  cost_per_completed_task: number | null
+  continuation_cost_usd: number
+  queue_tasks: number
+  queue_failed: number
+  queue_cost_usd: number
+  by_agent: ReliabilityAgent[]
+}
+
+const FAILURE_CLASS_LABELS: Record<string, string> = {
+  timeout: 'Timeout',
+  turn_limit: 'Turn limit',
+  provider_config: 'Provider/config',
+  malformed_output: 'Malformed output',
+  unlabelled: 'Unlabelled',
+  other: 'Other',
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function ObservabilityTab() {
@@ -446,6 +484,10 @@ export function ObservabilityTab() {
   const [showCostChart, setShowCostChart] = useState(true)
   const [showLiveTrace, setShowLiveTrace] = useState(false)
   const [traceAgent, setTraceAgent] = useState<string>('')
+  const [reliability, setReliability] = useState<ReliabilityScorecard | null>(null)
+  // Default 7 days, never all-time: pooling long-fixed bugs with live ones
+  // inverts the failure ranking. See docs/harness-roadmap-2026-09.md §1.
+  const [windowDays, setWindowDays] = useState(7)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -462,6 +504,16 @@ export function ObservabilityTab() {
     }
   }, [])
 
+  const loadReliability = useCallback(async (days: number) => {
+    try {
+      const res = await fetch(`/api/metrics/reliability?days=${days}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setReliability((await res.json()) as ReliabilityScorecard)
+    } catch {
+      setReliability(null)
+    }
+  }, [])
+
   const loadCostHistory = useCallback(async () => {
     setCostLoading(true)
     try {
@@ -475,6 +527,10 @@ export function ObservabilityTab() {
       setCostLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    loadReliability(windowDays)
+  }, [loadReliability, windowDays])
 
   useEffect(() => {
     load()
@@ -571,6 +627,86 @@ export function ObservabilityTab() {
 
         {data && (
           <>
+            {/* Reliability scorecard — windowed, never all-time */}
+            {reliability && (
+              <section className="border border-zinc-800 bg-zinc-900/40">
+                <div className="flex items-center gap-3 px-3 py-2 border-b border-zinc-800">
+                  <span className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
+                    Reliability
+                  </span>
+                  <div className="flex gap-1">
+                    {[2, 7, 30].map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setWindowDays(d)}
+                        className={`px-2 py-0.5 text-[12px] font-mono border ${
+                          windowDays === d
+                            ? 'border-[#FFB633] text-[#FFB633]'
+                            : 'border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                  <span
+                    className="text-[12px] text-zinc-600 font-mono"
+                    title="Failure ranking is window-dependent: pooling all time buries the live problem under bugs that were fixed months ago."
+                  >
+                    since {reliability.window_start.slice(0, 10)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">
+                  <Stat
+                    label="Failure rate"
+                    value={`${(reliability.failure_rate * 100).toFixed(1)}%`}
+                    accent={
+                      reliability.failure_rate > 0.04 ? 'text-red-400' : 'text-green-400'
+                    }
+                  />
+                  <Stat label="Completed" value={String(reliability.completed)} />
+                  <Stat
+                    label="Failed"
+                    value={String(reliability.failed)}
+                    accent={reliability.failed > 0 ? 'text-red-400' : undefined}
+                  />
+                  <Stat
+                    label="Continuations"
+                    value={String(reliability.partial)}
+                    accent={reliability.partial > 0 ? 'text-amber-400' : undefined}
+                  />
+                  <Stat
+                    label="Cost / completed"
+                    value={
+                      reliability.cost_per_completed_task === null
+                        ? '—'
+                        : fmtCost(reliability.cost_per_completed_task)
+                    }
+                  />
+                </div>
+
+                {Object.keys(reliability.failure_mix).length > 0 && (
+                  <div className="px-3 pb-3">
+                    <div className="text-[12px] uppercase tracking-wider text-zinc-500 font-mono mb-1">
+                      Failure mix
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(reliability.failure_mix).map(([cls, n]) => (
+                        <span
+                          key={cls}
+                          className="px-2 py-0.5 text-xs font-mono border border-zinc-700 text-zinc-300"
+                        >
+                          {FAILURE_CLASS_LABELS[cls] ?? cls}
+                          <span className="ml-1.5 text-red-400">{n}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Totals strip */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <Stat label="Total spend" value={fmtCost(data.totals.total_cost_usd)} accent="text-[#FFB633]" />

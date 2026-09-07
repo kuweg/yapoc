@@ -1,0 +1,29 @@
+adapter: openai
+model: gpt-5.6-terra
+temperature: 0.3
+tools:
+  - shell_exec
+  - execute_code
+  - web_search
+  - fetch_page
+  - image_read
+  - render_chart
+  - render_mermaid
+  - notify_parent
+  - file_read
+  - file_write
+  - file_edit
+  - file_delete
+  - file_list
+  - memory_append
+  - notes_read
+  - notes_write
+  - health_log
+  - learnings_append
+runner:
+  max_turns: 20
+  task_timeout: 300
+  poll_interval: 30
+  retry_attempts: 3
+  context_memory_limit: 50
+  context_health_limit: 10

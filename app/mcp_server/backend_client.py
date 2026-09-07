@@ -70,9 +70,10 @@ async def search_memory(
     query: str,
     agent: str = "",
     top_k: int = 8,
+    include_cold: bool = False,
 ) -> dict[str, Any]:
     """Search backend memory via GET {base}/memory/search."""
-    params: dict[str, Any] = {"q": query, "top_k": top_k}
+    params: dict[str, Any] = {"q": query, "top_k": top_k, "include_cold": include_cold}
     if agent:
         params["agent"] = agent
     async with httpx.AsyncClient(timeout=30) as client:

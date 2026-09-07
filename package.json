@@ -4,7 +4,7 @@
   "description": "Guided YAPOC installation for Linux, Windows and macOS",
   "type": "module",
   "engines": {"node": ">=22"},
-  "bin": {"yapoc-install": "index.mjs"},
-  "files": ["index.mjs", "README.md"],
-  "scripts": {"check": "node --check index.mjs"}
+  "bin": {"yapoc-install": "installer/index.mjs"},
+  "files": ["installer/index.mjs", "installer/README.md"],
+  "scripts": {"check:installer": "node --check installer/index.mjs"}
 }

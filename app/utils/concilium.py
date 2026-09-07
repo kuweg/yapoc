@@ -75,7 +75,7 @@ DEFAULT_SYNTHESIZER = "architect"
 # scores); kept purely so the dataclass/status surface stays stable.
 COUNSELOR_ROLES: dict[str, dict[str, Any]] = {
     "architect": {
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "temperature": 0.2,
         "focus": "Technical soundness, scalability, design patterns, structure",
         "weight": 0.30,
@@ -93,7 +93,7 @@ COUNSELOR_ROLES: dict[str, dict[str, Any]] = {
         ),
     },
     "critic": {
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "temperature": 0.4,
         "focus": "Edge cases, failure modes, logical gaps, ambiguous requirements",
         "weight": 0.25,
@@ -110,7 +110,7 @@ COUNSELOR_ROLES: dict[str, dict[str, Any]] = {
         ),
     },
     "security": {
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "temperature": 0.0,
         "focus": "Credentials, access control, sandbox rules, sensitive data",
         "weight": 0.20,
@@ -128,7 +128,7 @@ COUNSELOR_ROLES: dict[str, dict[str, Any]] = {
         ),
     },
     "cost_analyst": {
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "temperature": 0.2,
         "focus": "Token spend, model choice, runtime/budget realism",
         "weight": 0.15,
@@ -144,7 +144,7 @@ COUNSELOR_ROLES: dict[str, dict[str, Any]] = {
         ),
     },
     "ux_advocate": {
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "temperature": 0.3,
         "focus": "User impact, error handling, recovery/rollback paths",
         "weight": 0.10,
@@ -358,7 +358,7 @@ async def _call_adapter(
     try:
         cfg = resolve_agent("concilium") or {}
         adapter_name = cfg.get("adapter") or "deepseek"
-        model_name = cfg.get("model") or cfg.get("default_model") or "deepseek-chat"
+        model_name = cfg.get("model") or cfg.get("default_model") or "deepseek-v4-flash"
         role_default_temp = float(COUNSELOR_ROLES.get(role_name, {}).get("temperature", 0.2))
         try:
             temperature = float(cfg.get("temperature", role_default_temp))

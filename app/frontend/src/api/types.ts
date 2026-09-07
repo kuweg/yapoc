@@ -93,6 +93,7 @@ export type TaskPart =
     }
   | { kind: 'compact'; id: string; tokensBefore: number; tokensAfter: number; reason: string }
   | { kind: 'chart'; option: Record<string, unknown> }
+  | { kind: 'mermaid'; source: string }
 
 export interface Attachment {
   id?: string          // server upload id (present after upload)
@@ -135,6 +136,26 @@ export interface Session {
   createdAt: string
   history: Message[]
   source?: string  // 'ui' | 'cli' | 'telegram' | etc.
+}
+
+export interface ActiveTimeAgent {
+  name: string
+  running: boolean
+  current_elapsed_s: number
+  total_active_s: number
+  task_count: number
+}
+export interface ActiveTimeSession {
+  name: string
+  running: boolean
+  current_elapsed_s: number
+  total_active_s: number
+  task_count: number
+}
+export interface ActiveTimesResponse {
+  generated_at: string
+  agents: ActiveTimeAgent[]
+  sessions: ActiveTimeSession[]
 }
 
 // Voice API types

@@ -4,7 +4,7 @@
       "name": "playwright",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp"],
+      "args": ["-y", "@playwright/mcp", "--headless"],
       "tools_allowlist": ["*"],
       "auth": "none",
       "timeout_s": 60,

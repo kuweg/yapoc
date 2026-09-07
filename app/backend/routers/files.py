@@ -34,6 +34,17 @@ _BINARY_EXTENSIONS = {
     ".pdf", ".db", ".sqlite",
 }
 
+# Textual file extensions that can be previewed inline in the chat sidebar.
+_TEXT_EXTENSIONS = {
+    ".md", ".markdown", ".txt", ".text", ".rst",
+    ".json", ".jsonl", ".csv", ".tsv", ".yaml", ".yml", ".xml", ".toml", ".ini", ".cfg", ".conf",
+    ".html", ".htm", ".css", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx",
+    ".py", ".pyw", ".sh", ".bash", ".zsh", ".rb", ".go", ".rs", ".java", ".c", ".h", ".cpp", ".hpp",
+    ".sql", ".log", ".gitignore", ".dockerfile",
+}
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+_PREVIEW_MAX_CHARS = 200_000
+
 
 class FileNode(BaseModel):
     name: str
@@ -111,6 +122,26 @@ def _sandbox(path: str) -> Path:
     return resolved
 
 
+def _classify(abs_path: Path) -> str:
+    """Classify a file for the chat sidebar: text|image|pdf|pptx|binary."""
+    suffix = abs_path.suffix.lower()
+    if suffix in _TEXT_EXTENSIONS:
+        return "text"
+    if suffix in _IMAGE_EXTENSIONS:
+        return "image"
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix == ".pptx":
+        return "pptx"
+    return "binary"
+
+
+def _media_type(abs_path: Path) -> str:
+    """Best-effort MIME type for serving a file; octet-stream fallback."""
+    import mimetypes
+    return mimetypes.guess_type(str(abs_path))[0] or "application/octet-stream"
+
+
 def _build_tree(abs_path: Path, rel_base: Path, depth: int, max_depth: int) -> list[FileNode]:
     nodes: list[FileNode] = []
     try:
@@ -171,3 +202,57 @@ async def read_file(path: str = Query(..., description="Path relative to project
         "content": content,
         "size": len(content),
     }
+
+
+@router.get("/download")
+async def download_file(
+    path: str = Query(..., description="Path relative to project root"),
+    inline: int = Query(default=0, description="Serve inline (browser preview) instead of attachment download"),
+):
+    """Serve a sandboxed project file. Default is an attachment download; pass
+    inline=1 to stream it inline (used for PDF/image preview in an iframe)."""
+    try:
+        abs_path = _sandbox(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not abs_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    if abs_path.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path is a directory: {path}")
+    return FileResponse(
+        str(abs_path),
+        media_type=_media_type(abs_path),
+        filename=None if inline else abs_path.name,
+    )
+
+
+@router.get("/preview")
+async def preview_file(path: str = Query(..., description="Path relative to project root")):
+    """Return metadata + (for text files) content for the chat file-viewer sidebar."""
+    try:
+        abs_path = _sandbox(path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not abs_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    if abs_path.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path is a directory: {path}")
+
+    kind = _classify(abs_path)
+    size = abs_path.stat().st_size
+    result = {
+        "path": path,
+        "name": abs_path.name,
+        "size": size,
+        "ext": abs_path.suffix.lower(),
+        "kind": kind,
+    }
+    if kind == "text":
+        try:
+            content = abs_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        if len(content) > _PREVIEW_MAX_CHARS:
+            content = content[:_PREVIEW_MAX_CHARS] + f"\n\n[... truncated: {len(content) - _PREVIEW_MAX_CHARS} more chars]"
+        result["content"] = content
+    return result

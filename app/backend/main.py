@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.backend.routers import (
     admin_router,
     agents_router,
+    artifacts_router,
     commands_router,
     concilium_router,
     costs_router,
@@ -26,6 +27,7 @@ from app.backend.routers import (
     models_router,
     notification_trace_router,
     observability_router,
+    pptx_router,
     sessions_router,
     skills_router,
     stale_tasks_router,
@@ -694,7 +696,7 @@ async def _memory_decay_tick() -> None:
     Without this the decay module was dead code: it could archive, but nothing
     ever asked it to, so hot memory kept growing.
     """
-    from app.utils.memory_decay import archive_stale_memory
+    from app.utils.memory_decay import archive_stale_memory, archive_stale_shared_knowledge
 
     max_age = int(getattr(settings, "memory_decay_days", 30) or 30)
     memory_root = settings.project_root / "app" / "memory" / "agents"
@@ -728,6 +730,18 @@ async def _memory_decay_tick() -> None:
             )
     except Exception as exc:
         logger.warning("memory decay tick failed: {}", exc)
+
+    # Also decay the always-on shared store (injected into every agent's
+    # context every turn, so pruning it has a direct per-turn token cost).
+    try:
+        shared_res = await asyncio.to_thread(
+            archive_stale_shared_knowledge, max_age_days=max_age
+        )
+        n = int((shared_res or {}).get("archived") or 0)
+        if n:
+            logger.info("memory decay: archived {} shared KNOWLEDGE.MD entries", n)
+    except Exception as exc:
+        logger.warning("memory decay (shared) failed: {}", exc)
 
 
 async def _cron_tick() -> None:
@@ -1191,6 +1205,7 @@ app.websocket("/ws")(websocket_endpoint)
 app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(agents_router)
+app.include_router(artifacts_router)
 app.include_router(metrics_router)
 app.include_router(files_router)
 app.include_router(uploads_router)
@@ -1210,6 +1225,7 @@ app.include_router(graph_router)
 app.include_router(concilium_router)
 app.include_router(admin_router)
 app.include_router(mcp_router)
+app.include_router(pptx_router)
 
 # Release installs serve the prebuilt UI without Node or a Vite process.
 from app.backend.dashboard import mount_dashboard

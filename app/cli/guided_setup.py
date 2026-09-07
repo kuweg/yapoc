@@ -69,7 +69,7 @@ def configure_agents(root: Path, provider: str, model: str) -> None:
         cfg.update(adapter=provider, model=model)
         # A new user authorized this provider only. Do not inherit the
         # developer's cross-provider fallback chain from the release template.
-        cfg["fallbacks"] = [f for f in cfg.get("fallbacks", []) if f.get("adapter") == provider and f.get("model") == model]
+        cfg["fallbacks"] = []
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
@@ -101,7 +101,7 @@ def run_guided_setup() -> int:
         key, base_url = _collect_credentials(provider)
         if not key:
             return 1
-        key = _validate_loop(provider, key, base_url)
+        key = _validate_loop(provider, key, base_url, strict=True)
         if key is None:
             return 1
         model = _pick_model(provider)
@@ -134,7 +134,8 @@ def run_guided_setup() -> int:
         existing = dotenv_values(env_path, interpolate=False) if env_path.exists() else {}
         access_token = existing.get("BACKEND_API_TOKEN") or secrets.token_urlsafe(32)
         updates = {"BACKEND_API_TOKEN": access_token, "HOST": "0.0.0.0", "PORT": "8000",
-                   "REDIS_URL": "redis://redis:6379", "MANAGED_RESTART": "true", **telegram}
+                   "REDIS_URL": "redis://redis:6379", "MANAGED_RESTART": "true",
+                   "CONTEXT_COMPACT_MODEL": model, **telegram}
         _write_env(env_path, provider, key, base_url, model, updates)
         configure_agents(root, provider, model)
         _ensure_data_dirs()

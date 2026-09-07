@@ -65,10 +65,14 @@ async def yapoc_delegate(agent: str, task: str, timeout_s: int = 0) -> str:
 
 
 @mcp.tool()
-async def yapoc_memory(query: str, agent: str = "", top_k: int = 8) -> str:
+async def yapoc_memory(
+    query: str, agent: str = "", top_k: int = 8, include_cold: bool = False
+) -> str:
     """Search YAPOC's persistent agent-memory index (hybrid keyword+semantic) for past learnings, notes, and outcomes. Useful before acting so you can reuse what YAPOC already knows. agent optionally restricts to one agent's memory. Returns a numbered list of agent / source / content snippets."""
     try:
-        data = await backend_client.search_memory(query=query, agent=agent, top_k=top_k)
+        data = await backend_client.search_memory(
+            query=query, agent=agent, top_k=top_k, include_cold=include_cold
+        )
     except Exception as exc:  # noqa: BLE001
         return f"yapoc_memory error: {exc}"
 
@@ -84,7 +88,8 @@ async def yapoc_memory(query: str, agent: str = "", top_k: int = 8) -> str:
         content = (r.get("content") or "").strip()
         if len(content) > 300:
             content = content[:297] + "..."
-        lines.append(f"{i}. agent={agent_s} | source={source_s}\n   {content}")
+        tier_s = (r.get("tier") or "hot").strip() or "hot"
+        lines.append(f"{i}. agent={agent_s} | source={source_s} | tier={tier_s}\n   {content}")
     return "\n".join(lines)
 
 

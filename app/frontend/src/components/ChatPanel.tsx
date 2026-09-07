@@ -14,6 +14,7 @@ import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { CompactionMarker } from './ContextGauge'
 import { groupParts } from './groupParts'
 import ChartBlock from './ChartBlock'
+import MermaidBlock from './MermaidBlock'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { SubAgentActivity } from './SubAgentActivity'
 import { useLiveAgentParts } from './LiveAgentTranscript'
@@ -95,6 +96,31 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
         .reverse()
         .find(({ p }) => p.kind === 'tool' && !(p as { kind: 'tool'; id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean; done: boolean }).done && p.name === event.name)
       if (target) {
+        if (event.name === 'render_mermaid' && !event.isError) {
+          // render_mermaid returns a validated JSON payload. Replace its tool
+          // card with a diagram part so the source is never displayed as a
+          // raw tool result in the chat.
+          try {
+            const parsed: unknown = JSON.parse(event.result)
+            if (
+              typeof parsed === 'object' &&
+              parsed !== null &&
+              !Array.isArray(parsed) &&
+              (parsed as Record<string, unknown>).type === 'mermaid' &&
+              typeof (parsed as Record<string, unknown>).source === 'string'
+            ) {
+              const updated = [...parts]
+              updated[target.i] = {
+                kind: 'mermaid',
+                source: (parsed as Record<string, unknown>).source as string,
+              }
+              parts = updated
+              continue
+            }
+          } catch {
+            // fall through to the normal tool result so failures remain visible
+          }
+        }
         if (event.name === 'render_chart' && !event.isError) {
           // A successful render_chart resolves to an interactive ECharts option
           // payload (normalized compact JSON). Try to parse it and, on success,
@@ -313,6 +339,9 @@ function PartsChain({
         }
         if (part.kind === 'chart') {
           return <ChartBlock key={`chart-${i}`} option={part.option} />
+        }
+        if (part.kind === 'mermaid') {
+          return <MermaidBlock key={`mermaid-${i}`} source={part.source} />
         }
         return (
           <ToolCallBlock
@@ -676,81 +705,90 @@ export function ChatPanel() {
   // WebSocket notification: when a background task completes, persist to history
   useEffect(() => {
     if (!lastCompletedTask || !activeId) return
-    const result = lastCompletedTask.result?.trim()
-    const hasError = Boolean(lastCompletedTask.error)
-    const targetSession = lastCompletedTask.session_id
-    // Service work remains in Notifications/Tasks. A result with an owner is
-    // appended to that owner's conversation even if another chat is open.
-    if (!targetSession || !useSessionStore.getState().sessions.some((s) => s.id === targetSession)) {
-      clearLastCompletedTask()
-      return
-    }
-
-    // Same completion delivered twice (live event + a state_sync replay after a
-    // reconnect) previously rendered two "Task completed" cards.
-    const completionId = lastCompletedTask.task_id
-    if (completionId) {
-      const owner = useSessionStore.getState().sessions.find((s) => s.id === targetSession)
-      if (appendedCompletionsRef.current.has(completionId) || owner?.completionIds?.some((id) => id.startsWith(`${completionId}:`)) || owner?.history.some((m) => m.completionId?.startsWith(`${completionId}:`))) {
+    // Reconnect snapshots can queue hundreds of completions. Consuming the
+    // head synchronously inside this effect exposes the next head and runs
+    // the effect again, eventually hitting React's nested-update limit even
+    // though the queue is finite. Yield between deliveries so catch-up cannot
+    // unmount the app. Cancel stale work on unmount/session changes (including
+    // StrictMode's effect replay); the queued task remains available to retry.
+    const deliveryTimer = window.setTimeout(() => {
+      const result = lastCompletedTask.result?.trim()
+      const hasError = Boolean(lastCompletedTask.error)
+      const targetSession = lastCompletedTask.session_id
+      // Service work remains in Notifications/Tasks. A result with an owner is
+      // appended to that owner's conversation even if another chat is open.
+      if (!targetSession || !useSessionStore.getState().sessions.some((s) => s.id === targetSession)) {
         clearLastCompletedTask()
         return
       }
-      appendedCompletionsRef.current.add(completionId)
-    }
 
-    if (!awaitingNotification || !taskGroups.some((g) => g.status === 'running') || targetSession !== activeId || lastCompletedTask.source === 'resume') {
-      const finalText = hasError
-        ? `${result ? `${result}\n\n` : ''}Task failed: ${lastCompletedTask.error}`
-        : result || '_Task completed_'
-      // A completion whose session IS this chat is master talking to the user —
-      // a post-restart resume of something they asked for. Render it as an
-      // ordinary assistant message, not a "task completed" card: a card reads
-      // as a job report and, for longer work, hides master's own words behind a
-      // summary the user must wait for.
-      //
-      // Multi-turn output arrives pre-split on turn boundaries. Append each
-      // as its own message so the chat reads as a conversation rather than one
-      // concatenated paragraph.
-      const blocks = hasError ? [] : (lastCompletedTask.messages ?? []).filter((m) => m && m.trim())
-      if (blocks.length > 1) {
-        blocks.forEach((m, i) => appendMessage('assistant', m, undefined, undefined, targetSession, undefined, `${completionId}:${i}`))
-      } else {
-        appendMessage('assistant', finalText, undefined, undefined, targetSession, undefined, `${completionId}:0`)
+      // Same completion delivered twice (live event + a state_sync replay after a
+      // reconnect) previously rendered two "Task completed" cards.
+      const completionId = lastCompletedTask.task_id
+      if (completionId) {
+        const owner = useSessionStore.getState().sessions.find((s) => s.id === targetSession)
+        if (appendedCompletionsRef.current.has(completionId) || owner?.completionIds?.some((id) => id.startsWith(`${completionId}:`)) || owner?.history.some((m) => m.completionId?.startsWith(`${completionId}:`))) {
+          clearLastCompletedTask()
+          return
+        }
+        appendedCompletionsRef.current.add(completionId)
       }
-      if (targetSession === activeId) {
-        setAwaitingNotification(false)
-        setBackgroundActivity('')
+
+      if (!awaitingNotification || !taskGroups.some((g) => g.status === 'running') || targetSession !== activeId || lastCompletedTask.source === 'resume') {
+        const finalText = hasError
+          ? `${result ? `${result}\n\n` : ''}Task failed: ${lastCompletedTask.error}`
+          : result || '_Task completed_'
+        // A completion whose session IS this chat is master talking to the user —
+        // a post-restart resume of something they asked for. Render it as an
+        // ordinary assistant message, not a "task completed" card: a card reads
+        // as a job report and, for longer work, hides master's own words behind a
+        // summary the user must wait for.
+        //
+        // Multi-turn output arrives pre-split on turn boundaries. Append each
+        // as its own message so the chat reads as a conversation rather than one
+        // concatenated paragraph.
+        const blocks = hasError ? [] : (lastCompletedTask.messages ?? []).filter((m) => m && m.trim())
+        if (blocks.length > 1) {
+          blocks.forEach((m, i) => appendMessage('assistant', m, undefined, undefined, targetSession, undefined, `${completionId}:${i}`))
+        } else {
+          appendMessage('assistant', finalText, undefined, undefined, targetSession, undefined, `${completionId}:0`)
+        }
+        if (targetSession === activeId) {
+          setAwaitingNotification(false)
+          setBackgroundActivity('')
+        }
+        clearLastCompletedTask()
+        return
       }
+
+      // Interactive delegation: only drop a result whose session genuinely isn't
+      // this chat's (i.e. the user switched chats mid-delegation).
+      if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
+
+      setTaskGroups((prev) => {
+        const idx = findLastIndex(prev, (g) => g.status === 'running')
+        if (idx < 0) return prev
+        const group = prev[idx]
+        const errorText = lastCompletedTask.error
+        const isGenericError = hasError && (!errorText || errorText === 'unknown' || errorText.trim() === '')
+        const finalText = result || (hasError
+          ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
+          : '_Task completed_')
+        const completedGroup: TaskGroup = {
+          ...group,
+          finalText,
+          status: hasError ? 'error' : 'done',
+        }
+        // Schedule persistence via setTimeout to avoid setState-during-render
+        setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
+        return prev.filter((g) => g.id !== group.id)
+      })
+
+      setAwaitingNotification(false)
+      setBackgroundActivity('')
       clearLastCompletedTask()
-      return
-    }
-
-    // Interactive delegation: only drop a result whose session genuinely isn't
-    // this chat's (i.e. the user switched chats mid-delegation).
-    if (lastCompletedTask.session_id && lastCompletedTask.session_id !== activeId) return
-
-    setTaskGroups((prev) => {
-      const idx = findLastIndex(prev, (g) => g.status === 'running')
-      if (idx < 0) return prev
-      const group = prev[idx]
-      const errorText = lastCompletedTask.error
-      const isGenericError = hasError && (!errorText || errorText === 'unknown' || errorText.trim() === '')
-      const finalText = result || (hasError
-        ? (isGenericError ? '_Task failed — check agent health logs_' : `_Background task error: ${errorText}_`)
-        : '_Task completed_')
-      const completedGroup: TaskGroup = {
-        ...group,
-        finalText,
-        status: hasError ? 'error' : 'done',
-      }
-      // Schedule persistence via setTimeout to avoid setState-during-render
-      setTimeout(() => persistTaskGroupToHistory(completedGroup), 0)
-      return prev.filter((g) => g.id !== group.id)
-    })
-
-    setAwaitingNotification(false)
-    setBackgroundActivity('')
-    clearLastCompletedTask()
+    }, 0)
+    return () => window.clearTimeout(deliveryTimer)
   }, [lastCompletedTask, awaitingNotification, taskGroups, activeId, clearLastCompletedTask, persistTaskGroupToHistory, appendMessage])
 
   useEffect(() => {
@@ -905,7 +943,7 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatInput])
 
-  const sendMessage = useCallback(async (rawText: string, files: File[] = []) => {
+  const sendMessage = useCallback(async (rawText: string, files: File[] = [], referencedAttachmentIds: string[] = []) => {
     const text = rawText.trim()
     const displayText = text
     if (!text && files.length === 0) return
@@ -914,15 +952,15 @@ export function ChatPanel() {
     // Two-phase: upload staged files first, then send the message carrying only
     // their IDs. The server resolves IDs (owner-scoped) and injects image_read
     // markers + inline text — the chat request never carries file bytes.
-    let attachmentIds: string[] = []
+    let attachmentIds: string[] = [...referencedAttachmentIds]
     let attachments: Attachment[] | undefined
     if (files.length > 0) {
       try {
         const { files: uploaded, errors } = await uploadFiles(files)
-        attachmentIds = uploaded.map((u) => u.id)
         attachments = uploaded.map((u) => ({
           id: u.id, name: u.name, mime: u.mime, size: u.size, width: u.width, height: u.height,
         }))
+        attachmentIds = [...new Set([...attachmentIds, ...uploaded.map((u) => u.id)])]
         if (errors.length) {
           appendMessage('assistant', `_Some files were rejected: ${errors.map((e) => `${e.name}: ${e.error}`).join('; ')}_`)
         }
@@ -1156,6 +1194,13 @@ export function ChatPanel() {
               welcomeReady ? 'welcome-ready' : 'splash-hidden'
             }`}
           >
+            <img
+              className="welcome-logo"
+              src="/logo.png"
+              alt="YAPOC octopus logo"
+              width={192}
+              height={192}
+            />
             <div
               className="welcome-name text-4xl font-bold tracking-[0.2em] font-mono"
               style={{ color: 'var(--color-text-primary, #FFB633)' }}
@@ -1303,7 +1348,7 @@ export function ChatPanel() {
         <div className="flex flex-wrap gap-2 items-end">
           <ChatInput
             ref={chatInputRef}
-            onSubmit={(text, files) => sendMessage(text, files)}
+            onSubmit={(text, files, attachmentIds) => sendMessage(text, files, attachmentIds)}
             disabled={isStreaming}
           />
           {micSupported && voiceEnabled && (

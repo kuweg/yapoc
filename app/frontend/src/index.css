@@ -1104,6 +1104,26 @@ canvas {
 .welcome-ready .welcome-name {
   animation: welcome-name-reveal 0.55s cubic-bezier(0.34, 1.32, 0.55, 1) both;
 }
+
+/* Empty-chat octopus mark. The source image is served from public/logo.png,
+   which is the user-provided upload copied into the frontend public assets. */
+.welcome-logo {
+  width: clamp(7rem, 18vw, 12rem);
+  height: auto;
+  max-height: 28vh;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
+}
+[data-theme="dark"] .welcome-logo,
+:root .welcome-logo {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.5));
+}
+@media (max-width: 480px) {
+  .welcome-logo {
+    width: clamp(6rem, 32vw, 9rem);
+    max-height: 22vh;
+  }
+}
 /* Keep splash hidden until JS sets .welcome-ready */
 .splash-hidden { opacity: 0; }
 
@@ -1787,6 +1807,31 @@ body.sidebar-auto-railed aside {
   pointer-events: none;
 }
 .sphere-ring.is-visible { animation: sphere-ring 1.2s ease-out infinite; }
+
+/* ── Chat file viewer ───────────────────────────────────────────────────── */
+.file-viewer-pane { width: min(42vw, 560px); }
+@media (max-width: 767px) {
+  .file-viewer-pane {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    width: 100%;
+    border-left: 0;
+  }
+}
+
+/* ── Chat side panels (artifacts / workspace) ───────────────────────────── */
+.artifacts-pane, .workspace-pane { width: min(42vw, 560px); }
+@media (max-width: 767px) {
+  .artifacts-pane,
+  .workspace-pane {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    width: 100%;
+    border-left: 0;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sphere-speaking,

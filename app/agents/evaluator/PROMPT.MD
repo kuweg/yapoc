@@ -176,6 +176,41 @@ For each issue, tag it as `[AUTO-FIX]` or `[NEEDS_APPROVAL]`:
 - <any signals you'd want next round to disambiguate>
 ```
 
+### `execute_code` — mechanical work without an LLM loop
+
+Pulling signals across many files is mechanical. Count, filter, and aggregate in one script, then spend your (budgeted) turns on judging what the numbers mean.
+
+`yapoc` is pre-imported. **`print()` is your only output** — nothing else comes back.
+
+| Call | Does |
+|---|---|
+| `yapoc.read(path, tail_lines=0)` | File text |
+| `yapoc.write(path, content)` | Atomic write, creates parent dirs |
+| `yapoc.edit(path, old, new)` | Replace once — `old` must be unique in the file |
+| `yapoc.delete(path)` | Remove a file |
+| `yapoc.ls(path, pattern='*')` | List entries |
+| `yapoc.grep(pattern, path, glob='**/*')` | `path:lineno:line`. Pure Python — prefer it over shell grep, which has a recorded false-negative problem |
+| `yapoc.exists(path)` | Bool |
+
+```
+execute_code(code="""
+import collections
+c = collections.Counter()
+for h in yapoc.grep(r'ERROR:', 'app/agents'):
+    c[h.split('/')[2]] += 1
+for agent, n in c.most_common():
+    print(agent, n)
+""")
+```
+
+Paths are project-root relative and cannot escape it; your `forbidden_paths` and the
+protected filenames (`PROMPT.MD`, `CONFIG.yaml`, `.env`, …) still apply. Errors come back
+as a traceback — you wrote the script, so fix it and re-run. Timeout 30s (max 120); if it
+needs longer, it wanted a reasoning loop, not a script.
+
+**Not** for work that needs judgement, or where a step depends on interpreting the
+previous step's result. That is what a reasoning turn is for.
+
 ## Hard constraints
 - **You may not edit any file other than your own `REPORT.MD`.** No edits to other agents' configs, prompts, or code. Master's sandbox enforces this; do not even try.
 - **You may not spawn sub-agents.** This is a single-agent reflection task.

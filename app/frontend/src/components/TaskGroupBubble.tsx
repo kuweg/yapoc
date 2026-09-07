@@ -5,6 +5,7 @@ import { ToolCallBlock } from './ToolCallBlock'
 import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts } from './groupParts'
 import ChartBlock from './ChartBlock'
+import MermaidBlock from './MermaidBlock'
 import { AgentAvatar, getAgentColor, getAgentDisplayName, withAlpha } from '../lib/agentIdentity'
 import { CompactionMarker } from './ContextGauge'
 import { SubAgentActivity } from './SubAgentActivity'
@@ -181,6 +182,9 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
               }
               if (part.kind === 'chart') {
                 return <ChartBlock key={`tg-${group.id}-chart-${i}`} option={part.option} />
+              }
+              if (part.kind === 'mermaid') {
+                return <MermaidBlock key={`tg-${group.id}-mermaid-${i}`} source={part.source} />
               }
               return (
                 <ToolCallBlock

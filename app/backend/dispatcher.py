@@ -422,10 +422,15 @@ async def _execute_task_body(task_id: str) -> None:
         # Webhook callback delivery
         await _deliver_webhook_callback(task_id, result_text)
 
-    except TimeoutError:
+    except TimeoutError as exc:
         if get_queued_task(task_id)["status"] != "running":
             return
-        error_text = f"Task chain timed out after {_chain_ctx_timeout}s"
+        # Two distinct timeout sources land here: the dispatcher's own chain
+        # timeout (a bare TimeoutError, message empty) and the agent's internal
+        # task_timeout (raised as TimeoutError("Task timed out after Ns")). Use
+        # the agent's message when present so foreground tasks aren't mislabeled
+        # as "chain timed out after None".
+        error_text = str(exc) or f"Task chain timed out after {_chain_ctx_timeout}s"
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         update_queued_task(task_id, status="timeout", error=error_text, completed_at=completed_at)
         await ws_manager.push_event("task_error", {
@@ -510,7 +515,7 @@ async def _execute_task_body(task_id: str) -> None:
                         )
             except Exception:
                 pass
-        logger.warning(f"Task {task_id[:8]}… chain timeout after {_chain_timeout}s")
+        logger.warning(f"Task {task_id[:8]}… chain timeout after {_chain_ctx_timeout}s")
         # Webhook callback delivery (timeout status)
         await _deliver_webhook_callback(task_id, error_text)
 

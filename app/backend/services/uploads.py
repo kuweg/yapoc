@@ -15,11 +15,16 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import mailbox
 import mimetypes
 import os
 import re
+import tarfile
 import threading
 import uuid
+import zipfile
+from email import policy
+from email.parser import BytesParser
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -39,7 +44,6 @@ try:
 except Exception:  # pragma: no cover
     _HAVE_PIL = False
 
-MAX_SIZE = 10 * 1024 * 1024  # 10 MB
 THUMB_SIZE = (320, 320)
 
 # Reject obviously dangerous executables/scripts (defence in depth — these are
@@ -160,8 +164,6 @@ def store_upload(filename: str, content: bytes, owner: str, client_ip: str = "")
 
     Raises ValueError on validation failure (caller maps to HTTP 4xx).
     """
-    if len(content) > MAX_SIZE:
-        raise ValueError(f"File too large (max {MAX_SIZE // (1024 * 1024)}MB)")
     if len(content) == 0:
         raise ValueError("Empty file")
 
@@ -228,6 +230,23 @@ def resolve_upload(file_id: str, owner: Optional[str] = None) -> Optional[dict[s
         return dict(rec)
 
 
+def resolve_upload_by_ref(ref: str, owner: str) -> Optional[dict[str, Any]]:
+    """Resolve a raw upload id or an ``@file:<id|name>`` reference for an owner."""
+    value = (ref or "").strip()
+    if value.startswith("@file:"):
+        value = value[len("@file:"):].strip()
+    record = resolve_upload(value, owner=owner)
+    if record:
+        return record
+    if not value:
+        return None
+    with _lock:
+        for candidate in _load_index().values():
+            if candidate.get("owner") == owner and candidate.get("name") == value:
+                return dict(candidate)
+    return None
+
+
 def upload_path(rec: dict[str, Any]) -> Path:
     return _root() / rec["path"]
 
@@ -267,6 +286,14 @@ def touch_accessed(file_id: str) -> None:
 
 # ── message injection (Phase 1 — image_read marker path + inline text) ───────
 TEXT_BUDGET = 24_000  # total inlined chars across all attachments in one message
+PDF_MAX_PAGES = 100  # bound CPU/work for malformed or unusually large PDFs
+PDF_TEXT_BUDGET = 24_000  # bound extraction before the message-level budget is applied
+XLSX_MAX_ROWS = 500  # cap rows read per sheet
+XLSX_MAX_CELLS = 20_000  # hard cap on total cells across all sheets
+ARCHIVE_MAX_ENTRIES = 500  # cap entries listed in an archive
+ARCHIVE_MAX_TOTAL_BYTES = 50 * 1024 * 1024  # 50MB cap on uncompressed archive size
+EMAIL_MAX_CHARS = 24_000  # per-message text budget
+ICS_MAX_EVENTS = 200
 _TEXT_MIMES = ("text/", "application/json", "application/xml", "application/x-yaml")
 
 
@@ -277,9 +304,200 @@ def project_rel_path(rec: dict[str, Any]) -> str:
     return f"data/uploads/{rec['path']}"
 
 
+def _extract_xlsx(path: Path) -> Optional[str]:
+    """Read a bounded, value-only workbook preview as Markdown tables."""
+    try:
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(path, read_only=True, data_only=True)
+        if not workbook.worksheets:
+            return None
+        total_cells = 0
+        sections: list[str] = []
+        exhausted = False
+        for sheet in workbook.worksheets:
+            rows: list[list[str]] = []
+            for row_index, row in enumerate(sheet.iter_rows(values_only=True)):
+                if row_index >= XLSX_MAX_ROWS or exhausted:
+                    break
+                total_cells += len(row)
+                if total_cells > XLSX_MAX_CELLS:
+                    exhausted = True
+                    break
+                values = ["" if value is None else str(value) for value in row]
+                if any(value.strip() for value in values):
+                    rows.append(values)
+            if not rows:
+                continue
+            width = max(len(row) for row in rows)
+            normalized = [row + [""] * (width - len(row)) for row in rows]
+            header = normalized[0]
+            table = [
+                f"## Sheet: {sheet.title}",
+                "| " + " | ".join(value.replace("|", "\\|") for value in header) + " |",
+                "| " + " | ".join("---" for _ in header) + " |",
+            ]
+            table.extend(
+                "| " + " | ".join(value.replace("|", "\\|") for value in row) + " |"
+                for row in normalized[1:]
+            )
+            sections.append("\n".join(table))
+            if exhausted:
+                break
+        workbook.close()
+        return "\n\n".join(sections) or None
+    except Exception:
+        return None
+
+
+def _walk_pptx_shapes(shapes: Any) -> list[str]:
+    """Collect visible text from shapes, tables, and nested group shapes."""
+    text: list[str] = []
+    for shape in shapes:
+        if getattr(shape, "has_text_frame", False):
+            text.extend(paragraph.text for paragraph in shape.text_frame.paragraphs if paragraph.text)
+        if getattr(shape, "has_table", False):
+            for row in shape.table.rows:
+                values = [cell.text.strip() for cell in row.cells]
+                if any(values):
+                    text.append(" | ".join(values))
+        if hasattr(shape, "shapes"):
+            text.extend(_walk_pptx_shapes(shape.shapes))
+    return text
+
+
+def _extract_pptx(path: Path) -> Optional[str]:
+    try:
+        from pptx import Presentation
+
+        presentation = Presentation(str(path))
+        sections: list[str] = []
+        remaining = 24_000
+        for index, slide in enumerate(presentation.slides, start=1):
+            if remaining <= 0:
+                break
+            body = "\n".join(_walk_pptx_shapes(slide.shapes))
+            section = f"## Slide {index}\n{body}" if body else f"## Slide {index}"
+            sections.append(section[:remaining])
+            remaining -= len(section)
+        return "\n\n".join(sections) or None
+    except Exception:
+        return None
+
+
+def _email_message_text(message: Any) -> str:
+    headers = "\n".join(
+        f"{header}: {message.get(header, '')}" for header in ("From", "To", "Subject", "Date")
+    )
+    plain: list[str] = []
+    html: list[str] = []
+    for part in message.walk() if message.is_multipart() else [message]:
+        if part.is_multipart() or part.get_content_disposition() == "attachment":
+            continue
+        content_type = part.get_content_type()
+        if content_type not in ("text/plain", "text/html"):
+            continue
+        try:
+            payload = part.get_content()
+            if not isinstance(payload, str):
+                payload = str(payload)
+        except Exception:
+            continue
+        if content_type == "text/plain":
+            plain.append(payload)
+        else:
+            html.append(re.sub(r"<[^>]+>", " ", payload))
+    body = "\n".join(plain) or "\n".join(html)
+    return f"{headers}\n\n{body}".strip()
+
+
+def _extract_email(path: Path, mime: str, name: str) -> Optional[str]:
+    try:
+        if name.lower().endswith(".mbox"):
+            messages: list[str] = []
+            remaining = EMAIL_MAX_CHARS
+            box = mailbox.mbox(str(path), create=False)
+            try:
+                for index, message in enumerate(box, start=1):
+                    if index > 50 or remaining <= 0:
+                        break
+                    block = f"--- Message {index} ---\n{_email_message_text(message)}"
+                    messages.append(block[:remaining])
+                    remaining -= len(block)
+            finally:
+                box.close()
+            return "\n\n".join(messages) or None
+        message = BytesParser(policy=policy.default).parsebytes(path.read_bytes())
+        return _email_message_text(message)[:EMAIL_MAX_CHARS] or None
+    except Exception:
+        return None
+
+
+def _extract_ics(path: Path) -> Optional[str]:
+    try:
+        from icalendar import Calendar
+
+        calendar = Calendar.from_ical(path.read_bytes())
+        events: list[str] = []
+        for component in calendar.walk("VEVENT"):
+            if len(events) >= ICS_MAX_EVENTS:
+                break
+            fields: list[str] = []
+            for field in ("SUMMARY", "DTSTART", "DTEND", "LOCATION", "DESCRIPTION"):
+                value = component.get(field)
+                if value is not None:
+                    fields.append(f"{field}: {value}")
+            events.append("\n".join(fields) or "VEVENT")
+        return "\n\n".join(events) or None
+    except Exception:
+        return None
+
+
+def _unsafe_archive_path(member_name: str) -> bool:
+    normalized = member_name.replace("\\", "/")
+    return normalized.startswith("/") or any(part == ".." for part in normalized.split("/"))
+
+
+def _extract_archive_listing(path: Path, mime: str, name: str) -> Optional[str]:
+    """List archive metadata only; never extract or write archive members."""
+    try:
+        lower_name = name.lower()
+        entries: list[tuple[str, int, bool, bool]] = []
+        if lower_name.endswith(".zip"):
+            with zipfile.ZipFile(path) as archive:
+                for info in archive.infolist()[:ARCHIVE_MAX_ENTRIES]:
+                    entries.append((info.filename, info.file_size, info.is_dir(), _unsafe_archive_path(info.filename)))
+        elif lower_name.endswith((".tar", ".tar.gz", ".tgz")):
+            with tarfile.open(path, mode="r:*") as archive:
+                for member in archive.getmembers()[:ARCHIVE_MAX_ENTRIES]:
+                    entries.append((member.name, member.size, member.isdir(), _unsafe_archive_path(member.name)))
+        elif lower_name.endswith(".7z"):
+            import py7zr
+
+            with py7zr.SevenZipFile(path, mode="r") as archive:
+                for entry in archive.list()[:ARCHIVE_MAX_ENTRIES]:
+                    entry_name = getattr(entry, "filename", "")
+                    entries.append((entry_name, int(getattr(entry, "uncompressed", 0) or 0), bool(getattr(entry, "is_directory", False)), _unsafe_archive_path(entry_name)))
+        else:
+            return None
+        total_bytes = sum(size for _, size, _, _ in entries)
+        lines = [f"Archive: {name} ({len(entries)} entries, total {total_bytes} bytes)"]
+        for member_name, size, is_dir, unsafe in entries:
+            suffix = " [directory]" if is_dir else ""
+            if unsafe:
+                suffix += " skipped (unsafe path)"
+            lines.append(f"  {member_name}  ({size} bytes){suffix}")
+        if total_bytes > ARCHIVE_MAX_TOTAL_BYTES:
+            lines.append("Extraction refused: total uncompressed size exceeds 50MB safety cap.")
+        lines.append("Listing only — no contents extracted. Use the archive_inspect tool to extract a specific safe entry.")
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
 def _extract_text(rec: dict[str, Any]) -> Optional[str]:
-    """Best-effort text extraction for Phase 1 (text/code/markdown/docx). Returns
-    None for formats handled by later phases (pdf/office-non-docx/audio)."""
+    """Best-effort text extraction for text/code/markdown/docx/PDF attachments.
+    Returns None when extraction is unsupported, unsafe, or fails."""
     mime = (rec.get("mime") or "").lower()
     name = (rec.get("name") or "").lower()
     path = upload_path(rec)
@@ -300,6 +518,60 @@ def _extract_text(rec: dict[str, Any]) -> Optional[str]:
             import docx  # python-docx
             doc = docx.Document(_io.BytesIO(path.read_bytes()))
             return "\n".join(p.text for p in doc.paragraphs)
+        except Exception:
+            return None
+    if mime == "application/pdf" or name.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+
+            # pypdf reads directly from disk; do not execute PDF JavaScript or
+            # render embedded content. Extraction is capped to keep uploads
+            # from consuming unbounded CPU or context budget.
+            reader = PdfReader(str(path), strict=False)
+            if reader.is_encrypted:
+                try:
+                    if reader.decrypt("") == 0:
+                        return None
+                except Exception:
+                    return None
+            pages: list[str] = []
+            remaining = PDF_TEXT_BUDGET
+            for page in reader.pages[:PDF_MAX_PAGES]:
+                if remaining <= 0:
+                    break
+                try:
+                    text = page.extract_text() or ""
+                except Exception:
+                    continue
+                if text:
+                    pages.append(text[:remaining])
+                    remaining -= len(text)
+            return "\n\n".join(pages)
+        except Exception:
+            return None
+    if name.endswith(".xlsx") or mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        try:
+            return _extract_xlsx(path)
+        except Exception:
+            return None
+    if name.endswith(".pptx") or mime == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+        try:
+            return _extract_pptx(path)
+        except Exception:
+            return None
+    if name.endswith(".eml") or mime == "message/rfc822" or name.endswith(".mbox"):
+        try:
+            return _extract_email(path, mime, name)
+        except Exception:
+            return None
+    if name.endswith(".ics") or mime == "text/calendar":
+        try:
+            return _extract_ics(path)
+        except Exception:
+            return None
+    if name.endswith((".zip", ".tar", ".tar.gz", ".tgz", ".7z")):
+        try:
+            return _extract_archive_listing(path, mime, name)
         except Exception:
             return None
     return None

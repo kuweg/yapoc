@@ -10,8 +10,8 @@
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 
-adapter: deepseek
-model: deepseek-chat
+adapter: openai
+model: gpt-5.6-terra
 temperature: 1.0
 tools:
   - file_read
@@ -35,6 +35,7 @@ tools:
   - notes_write
   - notes_append
   - health_log
+  - execute_code
 delegation_targets:
   - keeper
 sandbox:
@@ -85,7 +86,7 @@ sandbox:
     - .env
     - pyproject.toml
 runner:
-  max_turns: 15
+  max_turns: 30
   task_timeout: 300
   poll_interval: 30
   retry_attempts: 3

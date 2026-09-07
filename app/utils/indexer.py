@@ -104,6 +104,67 @@ def index_agent_memory(agent_name: str, memory_dir: Path) -> int:
     return count
 
 
+def index_memory_archive() -> int:
+    """Index ``data/memory_archive/*.archive.md`` as cold, searchable records.
+
+    Archive files are hash-indexed as sections and replaced atomically when
+    their source changes. They are never injected automatically because all
+    normal retrieval paths exclude ``tier='cold'`` unless explicitly requested.
+    """
+    archive_dir = settings.project_root / "data" / "memory_archive"
+    if not archive_dir.exists():
+        return 0
+
+    total = 0
+    for archive_path in sorted(archive_dir.glob("*.archive.md")):
+        if not archive_path.is_file():
+            continue
+        agent_name = archive_path.name.removesuffix(".archive.md") or "archive"
+        source = f"archive/{archive_path.name}"
+        content = archive_path.read_text(encoding="utf-8", errors="replace").strip()
+        content_hash = hashlib.md5(content.encode()).hexdigest()
+        if get_checkpoint_hash(agent_name, source) == content_hash:
+            continue
+
+        delete_agent_source_entries(agent_name, source)
+        if not content:
+            set_checkpoint_hash(agent_name, source, content_hash)
+            continue
+
+        sections = _split_notes_sections(content)
+        sections = [section for section in sections if len(section.strip()) >= _MIN_CONTENT_LEN]
+        if not sections:
+            set_checkpoint_hash(agent_name, source, content_hash)
+            continue
+        try:
+            embeddings = embed_batch(sections)
+        except Exception as exc:
+            _log.error("Embedding failed for archive {}: {}", archive_path.name, exc)
+            continue
+
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        count = 0
+        for section, emb in zip(sections, embeddings):
+            try:
+                insert_memory_entry(
+                    agent=agent_name,
+                    source=source,
+                    content=section,
+                    timestamp=now,
+                    embedding=emb,
+                    tier="cold",
+                    provenance=str(archive_path.relative_to(settings.project_root)),
+                )
+                count += 1
+            except Exception as exc:
+                _log.warning("Failed to index archive {}: {}", archive_path.name, exc)
+        set_checkpoint_hash(agent_name, source, content_hash)
+        total += count
+        if count:
+            _log.info("Indexed {} cold archive section(s) from {}", count, archive_path.name)
+    return total
+
+
 def _split_notes_sections(content: str) -> list[str]:
     """Split NOTES.MD into sections by ## headers for granular embedding.
 
@@ -706,8 +767,8 @@ def index_project_memory() -> int:
 
 def run_indexer() -> int:
     """Index all agents' MEMORY.MD, NOTES.MD, LEARNINGS.MD, TASK.MD, and
-    REPORT.MD files plus shared/KNOWLEDGE.MD, user memory, project memory,
-    and chat session JSONLs.
+    REPORT.MD files plus cold archive files, shared/KNOWLEDGE.MD, user memory,
+    project memory, and chat session JSONLs.
     Returns total entries indexed."""
     init_schema()
     total = 0
@@ -729,6 +790,12 @@ def run_indexer() -> int:
             total += index_agent_report(agent_dir.name, agent_dir)
         except Exception as exc:
             _log.error("Indexer error for agent '{}': {}", agent_dir.name, exc)
+
+    # Index cold archive files. These remain opt-in at retrieval time.
+    try:
+        total += index_memory_archive()
+    except Exception as exc:
+        _log.error("Indexer error for memory archive: {}", exc)
 
     # Index shared knowledge base
     try:

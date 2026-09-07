@@ -11,22 +11,29 @@ from .base import ModelInfo
 # ── Current models ───────────────────────────────────────────────────────────
 
 MODELS: list[ModelInfo] = [
-    # Latest generation
     ModelInfo(
-        id="claude-opus-4-6",
+        id="claude-opus-5",
         context_window=1_000_000,
         max_output=128_000,
         input_price=5.0,
         output_price=25.0,
-        description="Most intelligent model for agents and coding",
+        description="Most capable Claude model for deep reasoning and agentic tasks",
     ),
     ModelInfo(
-        id="claude-sonnet-4-6",
+        id="claude-sonnet-5",
         context_window=1_000_000,
-        max_output=64_000,
-        input_price=3.0,
-        output_price=15.0,
+        max_output=128_000,
+        input_price=2.0,
+        output_price=10.0,
         description="Best combination of speed and intelligence",
+    ),
+    ModelInfo(
+        id="claude-fable-5-1",
+        context_window=1_000_000,
+        max_output=128_000,
+        input_price=10.0,
+        output_price=50.0,
+        description="Premium reasoning for demanding long-horizon agentic work",
     ),
     ModelInfo(
         id="claude-haiku-4-5-20251001",
@@ -34,9 +41,25 @@ MODELS: list[ModelInfo] = [
         max_output=64_000,
         input_price=1.0,
         output_price=5.0,
-        description="Fastest model with near-frontier intelligence",
+        description="Fastest model with near-frontier intelligence (alias claude-haiku-4-5)",
     ),
     # Previous generation
+    ModelInfo(
+        id="claude-opus-4-6",
+        context_window=1_000_000,
+        max_output=128_000,
+        input_price=5.0,
+        output_price=25.0,
+        description="Previous-gen Opus",
+    ),
+    ModelInfo(
+        id="claude-sonnet-4-6",
+        context_window=1_000_000,
+        max_output=64_000,
+        input_price=3.0,
+        output_price=15.0,
+        description="Previous-gen Sonnet",
+    ),
     ModelInfo(
         id="claude-sonnet-4-5-20250929",
         context_window=1_000_000,

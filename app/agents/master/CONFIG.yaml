@@ -55,11 +55,14 @@ tools:
   - delegate_task
   - search_negative_knowledge
   - render_chart
+  - generate_image
+  - render_mermaid
   # ── Skills ───────────────────────────────────────────────────────────
   - load_skills
   - create_skill
   - update_skill
   - delete_skill
+  - execute_code
 sandbox:
 
 runner:

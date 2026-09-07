@@ -1,1 +1,1 @@
-Memory sweep completed. No new durable facts, preferences, project decisions, or reusable patterns were found, and no stores were updated.
+Librarian memory sweep completed successfully. No new durable facts, user preferences, project decisions, or reusable patterns were found. Existing entries were already captured, so no memory stores were updated.

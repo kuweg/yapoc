@@ -1,14 +1,9 @@
-I'll proceed with Option 2 — full visual refresh with restructured navigation. Let me first map the exact files I need to touch so I can write a precise plan.Let me read the key files that define the current layout and styling.I have a thorough understanding now. This is a large redesign. Let me check the appStore to understand the tab state model, and check the remaining CSS tail to understand what other component styles exist.I now have a complete picture. This is a substantial redesign touching the app shell (App.tsx), the CSS design system (index.css), and the nav structure. Complexity ~8. I'll route through planning, which will decompose and execute via builder.
+I'll verify the build completed cleanly before reporting.Done. The agents list now lives on the **right side** of the Chat tab.
 
-Let me write a precise, complete task spec for planning so the implementation is unambiguous.Planning is now decomposing and executing the redesign. I'll let you know when it's done.
+**What changed:**
+- `App.tsx` — moved `<AgentSidebar />` from before the chat `main` to after it, so it renders as a right-hand panel.
+- `AgentSidebar.tsx` — flipped its border from `border-r` to `border-l` so the divider sits on the correct (left) edge.
 
-While that runs, here's what's happening:
+**Result:** The Chat tab now has a single left rail (nav) + chat in the middle + agents list on the right — no more double-left-column clump.
 
-**The plan (Option 2 — full visual refresh + restructured nav):**
-
-1. **Navigation un-clump** — replace the 11 flat tabs with a clean left **icon rail + collapsible sidebar** (Linear/Vercel-style), grouped into Primary / Insights / Knowledge / Comms sections.
-2. **Visual refresh** — swap the retro-terminal look for a modern design system: sans-serif body text (mono kept for code/labels), softer rounded corners, more generous spacing, subtle shadows, no scanlines/pixel-art.
-3. **Unify the header** — collapse the two duplicated header blocks into one clean header.
-4. **Build + verify** — `npm run build`, no TypeScript errors.
-
-I'll report back with the result and how to see it (just refresh the page — no backend restart needed).
+Build passed clean (`tsc -b && vite build`, exit 0). Frontend-only — **refresh the page** to see it.

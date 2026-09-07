@@ -18,7 +18,7 @@ from watchdog.observers import Observer
 from app.config import settings
 from app.agents.base import BaseAgent, TurnLimitReached
 from app.agents.base.context import _parse_runner_config
-from app.utils.adapters import UsageStats
+from app.utils.adapters import ToolStart, UsageStats
 
 
 # Stale task_result messages claimed from a Redis consumer group's pending
@@ -332,6 +332,9 @@ class AgentRunner:
             self._recent_task_ids.append(effective_task_id)
         # Opening balance for this task's cost attribution.
         _spend_before = self._spend_snapshot()
+        # Verification gate: every mutating tool call this task makes, in order.
+        _mutations: list[str] = []
+        _checkpoint = self._checkpoint_sha()
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None
@@ -406,7 +409,11 @@ class AgentRunner:
                 notifications_context=notifications_context,
                 blocked_tools=_blocked,
             ):
-                if isinstance(event, UsageStats):
+                if isinstance(event, ToolStart):
+                    record = self._mutation_from_event(event)
+                    if record and record not in _mutations:
+                        _mutations.append(record)
+                elif isinstance(event, UsageStats):
                     last_tps = event.tokens_per_second
                     last_input = event.input_tokens
                     last_output = event.output_tokens
@@ -442,6 +449,9 @@ class AgentRunner:
                     assigned_at=_done_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
                     result_summary=result_text,
+                    changed_files=json.dumps(_mutations),
+                    checkpoint_sha=_checkpoint,
+                    verification=self._verification_verdict(_mutations, _checkpoint),
                     cost_usd=self._spend_snapshot() - _spend_before,
                     continuation=self._continuation_count(_done_fm),
                 )
@@ -483,6 +493,9 @@ class AgentRunner:
                     task_summary=task_body,
                     result_summary=_timeout_partial,
                     error_summary="Task timed out",
+                    changed_files=json.dumps(_mutations),
+                    checkpoint_sha=_checkpoint,
+                    verification=self._verification_verdict(_mutations, _checkpoint),
                     cost_usd=self._spend_snapshot() - _spend_before,
                     continuation=self._continuation_count(_err_fm),
                 )
@@ -503,7 +516,8 @@ class AgentRunner:
             # was discarded. Turn-limit errors were 19 of the 28 failures in the
             # current release and 100% of them lost their work.
             await self._handle_turn_limit(
-                exc, task_body, _fm, self._spend_snapshot() - _spend_before
+                exc, task_body, _fm, self._spend_snapshot() - _spend_before,
+                _mutations, _checkpoint,
             )
             if task_body.startswith("[Process incoming"):
                 await self._agent.mark_task_consumed()
@@ -527,6 +541,9 @@ class AgentRunner:
                     task_summary=task_body,
                     result_summary=_exc_partial,
                     error_summary=str(exc),
+                    changed_files=json.dumps(_mutations),
+                    checkpoint_sha=_checkpoint,
+                    verification=self._verification_verdict(_mutations, _checkpoint),
                     cost_usd=self._spend_snapshot() - _spend_before,
                     continuation=self._continuation_count(_exc_fm),
                 )
@@ -551,6 +568,67 @@ class AgentRunner:
                 _hb_task.cancel()
             except Exception:
                 _hb_task.cancel()
+
+    # ── Verification gate (roadmap 2.5) ────────────────────────────────
+
+    # Tools that mutate the working tree. The agent's own calls to these are
+    # the authoritative record of what a task changed — better than diffing
+    # `git status`, which is global and would cross-attribute between agents
+    # running concurrently.
+    _MUTATING_TOOLS: dict[str, tuple[str, ...]] = {
+        "file_write": ("path",),
+        "file_edit": ("path",),
+        "file_delete": ("path",),
+        "create_skill": ("name",),
+        "update_skill": ("name",),
+        "delete_skill": ("name",),
+    }
+    # Mutations we can see happened but cannot enumerate: a shell command may
+    # touch anything. Recorded so a task is never reported as "changed nothing"
+    # when it in fact ran opaque commands.
+    _OPAQUE_TOOLS: frozenset[str] = frozenset({"shell_exec", "execute_code"})
+
+    @classmethod
+    def _mutation_from_event(cls, event: "ToolStart") -> str | None:
+        """Return a record of one mutating tool call, or None if not mutating."""
+        name = getattr(event, "name", "") or ""
+        params = getattr(event, "input", None) or {}
+        keys = cls._MUTATING_TOOLS.get(name)
+        if keys:
+            for key in keys:
+                value = params.get(key)
+                if value:
+                    return f"{name}:{value}"
+            return f"{name}:<unknown>"
+        if name in cls._OPAQUE_TOOLS:
+            return f"{name}:<opaque>"
+        return None
+
+    def _checkpoint_sha(self) -> str:
+        """SHA this task can be rolled back to, or '' when checkpointing is off."""
+        try:
+            from app.backend import git_safety
+            handle = git_safety.read_checkpoint(self._name)
+            if handle and handle.enabled and handle.sha:
+                return handle.sha
+        except Exception:
+            pass
+        return ""
+
+    @staticmethod
+    def _verification_verdict(mutations: list[str], checkpoint: str) -> str:
+        """Classify a task's verifiability. Recorded on the task row.
+
+        - `none`       the task changed nothing
+        - `verified`   changes are enumerable AND a rollback point exists
+        - `unanchored` changes are enumerable but there is no checkpoint
+        - `opaque`     the task ran shell/code, so the change set is unknown
+        """
+        if not mutations:
+            return "none"
+        if any(m.endswith(":<opaque>") for m in mutations):
+            return "opaque" if not checkpoint else "opaque+checkpoint"
+        return "verified" if checkpoint else "unanchored"
 
     # ── Per-task cost attribution ──────────────────────────────────────
 
@@ -606,6 +684,8 @@ class AgentRunner:
         task_body: str,
         fm: dict[str, str],
         cost_usd: float = 0.0,
+        mutations: list[str] | None = None,
+        checkpoint_sha: str = "",
     ) -> None:
         """Record an out-of-turns task as `partial` and re-enqueue a continuation.
 
@@ -682,6 +762,9 @@ class AgentRunner:
                 cost_usd=cost_usd,
                 # `used` is the attempt this row IS, not the next one.
                 continuation=used,
+                changed_files=json.dumps(mutations or []),
+                checkpoint_sha=checkpoint_sha,
+                verification=self._verification_verdict(mutations or [], checkpoint_sha),
             )
         except Exception as _db_exc:
             _log.bind(agent=self._name).warning(

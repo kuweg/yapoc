@@ -1,0 +1,26 @@
+{
+  "_comment": "Phase 3.6 release gates. Thresholds live here rather than in code so raising or lowering a bar is a reviewable diff with a reason attached. Run: poetry run python -m app.utils.release_gate",
+  "reliability": {
+    "window_days": 7,
+    "min_tasks": 20,
+    "_min_tasks_why": "Below this the window says nothing. A gate that passes because no tasks ran would wave through a broken system, so it reports SKIPPED instead of PASS.",
+    "max_failure_rate": 0.04,
+    "_max_failure_rate_why": "Roadmap 30-day target. Measured 5.7% over 7d before Phase 0/1 landed; 4% is the next step down, not the end state (90-day target is 2%).",
+    "max_turn_limit_failures": 0,
+    "_max_turn_limit_why": "Phase 0 converts turn exhaustion into continuations, so ANY turn-limit failure is a regression of that mechanism rather than a tuning issue.",
+    "max_provider_failures": 0,
+    "_max_provider_why": "Zero since 2026-09-01. This gate holds that line.",
+    "max_cost_per_completed_task": 0.5,
+    "_max_cost_why": "Guards against continuations silently multiplying spend. Generous on purpose: it is a runaway detector, not a budget."
+  },
+  "telemetry": {
+    "_why": "Phase 1 found the dashboard reporting 0 errors while 41 tasks had failed. That class of bug makes every other gate meaningless, because the system would be optimising against false health."
+  },
+  "retrieval": {
+    "collapse": true,
+    "min_recall_at_5": 0.90,
+    "min_mrr": 0.88,
+    "max_misses": 0,
+    "_why": "Phase 3.1 baseline with collapse is recall 0.975 / MRR 0.963 / 0 misses. Floors sit below that because the embedding model is pinned by name, not hash, so a model update may move scores slightly."
+  }
+}

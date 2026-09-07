@@ -330,6 +330,8 @@ class AgentRunner:
         # delivery from the other path skips cleanly at the dedup guard above.
         if effective_task_id:
             self._recent_task_ids.append(effective_task_id)
+        # Opening balance for this task's cost attribution.
+        _spend_before = self._spend_snapshot()
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None
@@ -440,6 +442,8 @@ class AgentRunner:
                     assigned_at=_done_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
                     result_summary=result_text,
+                    cost_usd=self._spend_snapshot() - _spend_before,
+                    continuation=self._continuation_count(_done_fm),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -454,6 +458,17 @@ class AgentRunner:
                 await self._agent.mark_task_consumed()
 
         except TimeoutError:
+            # Salvage, same principle as turn exhaustion: BaseAgent's `finally`
+            # has already written whatever the agent produced to RESULT.MD, so
+            # read it back rather than discarding it. A timed-out task ran for
+            # its full budget (librarian's was 900s) and used to be recorded
+            # with nothing but the string "Task timed out" — no way to see how
+            # far it got, or whether the work was nearly done.
+            _timeout_partial = ""
+            try:
+                _timeout_partial = (await self._agent._read_file("RESULT.MD")).strip()
+            except Exception:
+                _timeout_partial = ""
             await self._agent.set_task_status("error", error="Task timed out (exceeded configured timeout)")
             _err_fm = self._parse_task_frontmatter()
             try:
@@ -466,7 +481,10 @@ class AgentRunner:
                     assigned_by=_err_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_err_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
+                    result_summary=_timeout_partial,
                     error_summary="Task timed out",
+                    cost_usd=self._spend_snapshot() - _spend_before,
+                    continuation=self._continuation_count(_err_fm),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -484,10 +502,17 @@ class AgentRunner:
             # `error`, the parent got only the message, and every turn of work
             # was discarded. Turn-limit errors were 19 of the 28 failures in the
             # current release and 100% of them lost their work.
-            await self._handle_turn_limit(exc, task_body, _fm)
+            await self._handle_turn_limit(
+                exc, task_body, _fm, self._spend_snapshot() - _spend_before
+            )
             if task_body.startswith("[Process incoming"):
                 await self._agent.mark_task_consumed()
         except Exception as exc:
+            _exc_partial = ""
+            try:
+                _exc_partial = (await self._agent._read_file("RESULT.MD")).strip()
+            except Exception:
+                _exc_partial = ""
             await self._agent.set_task_status("error", error=str(exc) or repr(exc))
             _exc_fm = self._parse_task_frontmatter()
             try:
@@ -500,7 +525,10 @@ class AgentRunner:
                     assigned_by=_exc_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_exc_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
+                    result_summary=_exc_partial,
                     error_summary=str(exc),
+                    cost_usd=self._spend_snapshot() - _spend_before,
+                    continuation=self._continuation_count(_exc_fm),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -523,6 +551,21 @@ class AgentRunner:
                 _hb_task.cancel()
             except Exception:
                 _hb_task.cancel()
+
+    # ── Per-task cost attribution ──────────────────────────────────────
+
+    def _spend_snapshot(self) -> float:
+        """This agent's lifetime spend from USAGE.json, or 0.0 if unreadable.
+
+        An agent runs exactly one task at a time, so the delta of this value
+        across a task IS that task's cost — no cross-task overlap to untangle.
+        That is what makes `tasks.cost_usd` exact, unlike `task_queue.cost_usd`
+        which spans a whole delegation tree.
+        """
+        try:
+            return float(self._agent._usage.snapshot().get("total_cost_usd", 0.0) or 0.0)
+        except Exception:
+            return 0.0
 
     # ── Turn-exhaustion salvage + continuation ─────────────────────────
 
@@ -558,7 +601,11 @@ class AgentRunner:
             return 0
 
     async def _handle_turn_limit(
-        self, exc: TurnLimitReached, task_body: str, fm: dict[str, str]
+        self,
+        exc: TurnLimitReached,
+        task_body: str,
+        fm: dict[str, str],
+        cost_usd: float = 0.0,
     ) -> None:
         """Record an out-of-turns task as `partial` and re-enqueue a continuation.
 
@@ -632,6 +679,9 @@ class AgentRunner:
                 task_summary=task_body,
                 result_summary=partial,
                 error_summary=note,
+                cost_usd=cost_usd,
+                # `used` is the attempt this row IS, not the next one.
+                continuation=used,
             )
         except Exception as _db_exc:
             _log.bind(agent=self._name).warning(

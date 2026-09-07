@@ -91,7 +91,7 @@ This is the single behavior behind 19 of 28 current-release failures.
 
 | # | Item | Where | Detail |
 |---|---|---|---|
-| 0.1 | **Partial-result salvage** | `runner.py:456-475`, `base/__init__.py:2096` | On timeout and on turn exhaustion, persist what the agent produced (text so far, turns used, last tool call) to `RESULT.MD` and record `status='partial'` instead of discarding. |
+| 0.1 | **Partial-result salvage** ✅ | `runner.py:456-475`, `base/__init__.py:2096` | On turn exhaustion, persist what the agent produced and record `status='partial'`. Extended in Phase 1 to the timeout and crash paths, which now also read RESULT.MD back into `result_summary` instead of recording the bare string "Task timed out". |
 | 0.2 | **Continuation on turn exhaustion** | `base/__init__.py:1455` turn loop | At `max_turns`, compact the transcript and re-enqueue as a continuation task carrying a continuation counter, up to a bounded number of continuations. Turns become a *pacing* limit rather than a *kill* limit. |
 | 0.3 | **`partial` as a first-class status** | `db.py`, `agent_failure_tracker.py`, dispatcher | `partial` must not be folded into `done` (it would hide the regression) nor into `error` (it would keep firing false alerts). It must not reset the consecutive-failure counter. |
 | 0.4 | **Do not raise caps as the fix** | `CONFIG.yaml` per agent | Explicitly out of scope. 2026-09-07 walked 15 → 30 → 45 and failed at every step. Caps stay; continuation absorbs the overflow. |
@@ -111,15 +111,31 @@ Not yet measured against live traffic — the exit numbers above need a trailing
 re-query once the change has been running. Phase 1.3 (continuation telemetry) is what
 makes that measurable, and it is the natural next task.
 
-### Phase 1 — Make failure visible (weeks 2-4)
+### Phase 1 — Make failure visible (weeks 2-4) — LANDED 2026-09-07
+
+**Headline result.** Measured against the live system before the change, the
+Observability dashboard reported **0 errors in the last 24 hours while 41 tasks
+had actually failed**. Not under-counted — zero. The tiles read "all healthy"
+during a real failure rate of ~10%. After the fix the same endpoint reports 41,
+broken down as master 16, planning 12, evaluator 6, builder 4, librarian 2,
+keeper 1.
+
+Two items turned out to be already fixed, found by checking dates before
+writing code — the same discipline §1 exists to enforce:
+
+- **1.4 (evaluator truncation)** — `require_complete` already tolerates
+  `length`, and `_repair_truncated_json` recovers truncated tool arguments.
+  Both landed in `c64e8d7` (2026-09-07 21:29); all 5 failures predate it, and
+  there have been **zero** occurrences since. Closed without new code.
+- **Phase 0's adapter items** — same story, recorded in §1.
 
 | # | Item | Where | Detail |
 |---|---|---|---|
-| 1.1 | **Unify failure accounting** (P0) | `metrics.py:444-447` | `agents_with_errors` / `recent_error_count` must union `HEALTH.MD` with `tasks.status IN ('error','partial')` and `task_queue.status IN ('error','timeout')`, deduped by `task_id`. Add a reconciliation test asserting dashboard counts == DB counts. |
-| 1.2 | **Per-task cost attribution** (P0) | `db.py:106`, dispatcher | Populate `task_queue.cost_usd` at finalization. Currently 0.0 for all 1,175 rows; prerequisite for every cost metric here, including measuring what continuations cost. |
-| 1.3 | **Continuation telemetry** (P0) | scorecard | Continuations used per task, continuation success rate, cost delta vs a straight completion. Without this, 0.2 could quietly triple spend. |
-| 1.4 | **Investigate evaluator output truncation** (P1) | `evaluator` | 5 failures from `Incomplete provider response: length` / `invalid tool argument JSON`, all evaluator, all since 2026-09-06. Second-largest current class. Likely `max_tokens: 8096` against a large report write. |
-| 1.5 | **Librarian timeouts** (P1) | `agent-settings.json` | The only remaining timeout source (3 failures, `task_timeout: 900`). Re-measure p95 once 0.1 lands and salvage makes overruns cheap. |
+| 1.1 | **Unify failure accounting** (P0) ✅ | `metrics.py` | Counters now union `HEALTH.MD` with `tasks.status='error'` and `task_queue.status IN ('error','timeout')`, deduped by (agent, minute, message-prefix) with the DB record winning. **Correction to this row as first written:** it said to include `partial` in the failure union. That is wrong — `partial` means the agent ran out of turns and was re-enqueued, so the work is still in flight, and counting it would inflate the failure rate with healthy work and make Phase 0 look like a regression. It is reported separately as `continuation_count`. A reconciliation test asserts dashboard counts equal DB counts. |
+| 1.2 | **Per-task cost attribution** (P0) ✅ | `db.py`, `dispatcher.py`, `runner.py` | Two levels, because they answer different questions. `task_queue.cost_usd` is the delta of all-agent spend across the task, so it prices a whole delegation tree (was 0.0 for all 1,175 rows — the dispatcher had a literal `pass` where accumulation belonged). New `tasks.cost_usd` is the delta of one agent's USAGE.json across one task, which is **exact** because an agent runs one task at a time. |
+| 1.3 | **Continuation telemetry** (P0) ✅ | `metrics.py`, `tasks` table | `tasks.continuation` records which attempt each row is, and the dashboard exposes `continuation_count` plus a per-agent `continuations`. Combined with 1.2's `tasks.cost_usd`, the cost of a continuation chain is now sum-able by task_id — which is what stops 0.2 from quietly tripling spend unnoticed. |
+| 1.4 | **Evaluator output truncation** (P1) ✅ already fixed | `evaluator` | 5 failures from `Incomplete provider response: length` / `invalid tool argument JSON`, all evaluator, all since 2026-09-06. Second-largest current class. Likely `max_tokens: 8096` against a large report write. |
+| 1.5 | **Librarian timeouts** (P1) ✅ | `agent-settings.json` | Done. Measured: librarian's successful tasks have p95 137s and a slowest-ever 161s across 71 samples, against a 900s timeout. Its timeouts are therefore *stuck* tasks, not slow ones — 900s only meant burning 15 minutes before failing. Cut to 300s (~2x the slowest success ever). Raising it would have been exactly wrong. |
 | 1.6 | **Task-class routing** (P2) | master prompt + classifier | Worth doing as a cost/latency optimization — planning carries 253 tasks of overhead — but it is no longer the fix for turn exhaustion. Demoted from the first draft's P1. |
 
 ### Phase 2 — Make it measurable (weeks 5-8)

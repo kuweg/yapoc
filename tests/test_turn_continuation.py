@@ -13,6 +13,8 @@ continue from its own progress.
 
 import re
 
+import pytest
+
 from app.agents.base import TurnLimitReached
 from app.agents.base.runner import AgentRunner
 
@@ -460,3 +462,66 @@ async def test_turn_limit_propagates_from_agent_loop_to_continuation(
     assert AgentRunner._CONTINUATION_HEADER in _get_task_body(task_md)
     # Parent not told of a failure — the task is still in flight.
     assert notified == []
+
+
+# ── Per-task cost attribution (Phase 1.2) ──────────────────────────────────
+
+
+async def test_agent_task_records_its_cost_delta(tmp_path, monkeypatch):
+    """`tasks.cost_usd` must be this agent-task's spend, not a lifetime total.
+
+    An agent runs one task at a time, so the delta of its USAGE.json across the
+    task is exactly that task's cost. Before this, the column did not exist and
+    `task_queue.cost_usd` was 0.0 for all 1,175 rows in the live database.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "max_task_continuations", 3)
+    runner, agent_dir, memory_dir = _make_runner(tmp_path, monkeypatch, "costagent")
+
+    # Lifetime spend: $1.50 before the task, $1.75 after -> $0.25 for the task.
+    spends = iter([1.50, 1.75])
+    monkeypatch.setattr(runner, "_spend_snapshot", lambda: next(spends))
+
+    recorded = []
+    monkeypatch.setattr(
+        "app.utils.db.insert_task", lambda **kw: recorded.append(kw) or 1
+    )
+
+    async def _fake_notify(text, status):
+        pass
+
+    monkeypatch.setattr(runner, "_notify_parent_via_bus", _fake_notify)
+
+    await runner._handle_turn_limit(
+        TurnLimitReached(30, "x"), "Do it.", {}, 1.75 - 1.50
+    )
+
+    assert recorded[0]["cost_usd"] == pytest.approx(0.25)
+    assert recorded[0]["status"] == "partial"
+
+
+async def test_continuation_number_is_recorded_on_the_task_row(tmp_path, monkeypatch):
+    """Each row records which attempt it was, so continuation cost is sum-able."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "max_task_continuations", 3)
+    runner, agent_dir, memory_dir = _make_runner(
+        tmp_path, monkeypatch, "contnum", continuation="2"
+    )
+
+    recorded = []
+    monkeypatch.setattr(
+        "app.utils.db.insert_task", lambda **kw: recorded.append(kw) or 1
+    )
+
+    async def _fake_notify(text, status):
+        pass
+
+    monkeypatch.setattr(runner, "_notify_parent_via_bus", _fake_notify)
+
+    await runner._handle_turn_limit(TurnLimitReached(45, "x"), "Do it.", {})
+
+    # This row IS attempt 2; the next enqueue becomes attempt 3.
+    assert recorded[0]["continuation"] == 2
+    assert "continuation: 3" in (agent_dir / "TASK.MD").read_text()

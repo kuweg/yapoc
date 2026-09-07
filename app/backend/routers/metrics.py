@@ -367,6 +367,11 @@ class ObservabilityTask(BaseModel):
     error_summary: str
     cost_usd: float = 0.0
     continuation: int = 0
+    # Verification gate (roadmap 2.5): what the task changed, the checkpoint it
+    # can be rolled back to, and how verifiable those changes are.
+    changed_files: list[str] = []
+    checkpoint_sha: str = ""
+    verification: str = ""
 
 
 class ObservabilityDashboard(BaseModel):
@@ -473,6 +478,17 @@ def _recent_task_incidents(hours: int = 24) -> tuple[list[ObservabilityError], d
         )
 
     return incidents, failures, continuations
+
+
+def _parse_changed_files(raw: str | None) -> list[str]:
+    """Decode the JSON list a task row stores, tolerating legacy empty values."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return [str(x) for x in parsed] if isinstance(parsed, list) else []
 
 
 def _to_health_ts(iso: str | None) -> str:
@@ -625,7 +641,8 @@ async def get_observability_dashboard():
     rows = db.execute(
         """SELECT agent, task_id, status, assigned_by, assigned_at,
                   completed_at, task_summary, error_summary,
-                  cost_usd, continuation
+                  cost_usd, continuation, changed_files, checkpoint_sha,
+                  verification
            FROM tasks
            ORDER BY id DESC
            LIMIT 20"""
@@ -655,6 +672,9 @@ async def get_observability_dashboard():
                 error_summary=r["error_summary"] or "",
                 cost_usd=round(float(r["cost_usd"] or 0.0), 6),
                 continuation=int(r["continuation"] or 0),
+                changed_files=_parse_changed_files(r["changed_files"]),
+                checkpoint_sha=(r["checkpoint_sha"] or "")[:12],
+                verification=r["verification"] or "",
             )
         )
 

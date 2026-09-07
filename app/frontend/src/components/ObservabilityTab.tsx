@@ -47,6 +47,11 @@ interface ObservabilityTask {
   duration_s: number | null
   task_summary: string
   error_summary: string
+  cost_usd?: number
+  continuation?: number
+  changed_files?: string[]
+  checkpoint_sha?: string
+  verification?: string
 }
 
 interface ObservabilityDashboard {
@@ -469,6 +474,17 @@ const FAILURE_CLASS_LABELS: Record<string, string> = {
   malformed_output: 'Malformed output',
   unlabelled: 'Unlabelled',
   other: 'Other',
+}
+
+// Verification verdict -> colour. `opaque` means the task ran shell/code, so
+// its change set is unknown; that is a weaker claim than `verified` and the UI
+// should not let the two look alike.
+const VERIFICATION_STYLES: Record<string, string> = {
+  verified: 'text-green-400 border-green-800',
+  'opaque+checkpoint': 'text-amber-400 border-amber-800',
+  opaque: 'text-amber-400 border-amber-800',
+  unanchored: 'text-orange-400 border-orange-800',
+  none: 'text-zinc-600 border-zinc-800',
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -907,6 +923,38 @@ export function ObservabilityTab() {
                           {t.error_summary && (
                             <div className="text-red-400 mt-1 break-words line-clamp-2" title={t.error_summary}>
                               {t.error_summary}
+                            </div>
+                          )}
+                          {(t.verification && t.verification !== 'none') && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[12px]">
+                              <span
+                                className={`px-1.5 py-0.5 border ${VERIFICATION_STYLES[t.verification] ?? 'text-zinc-500 border-zinc-800'}`}
+                                title={
+                                  t.verification === 'verified'
+                                    ? 'Changes are enumerable and a rollback point exists'
+                                    : t.verification === 'unanchored'
+                                    ? 'Changes are known but there is no checkpoint to roll back to'
+                                    : 'Ran shell or code — the full change set is unknown'
+                                }
+                              >
+                                {t.verification}
+                              </span>
+                              {(t.changed_files?.length ?? 0) > 0 && (
+                                <span
+                                  className="text-zinc-500"
+                                  title={t.changed_files!.join('\n')}
+                                >
+                                  {t.changed_files!.length} change{t.changed_files!.length === 1 ? '' : 's'}
+                                </span>
+                              )}
+                              {t.checkpoint_sha && (
+                                <span className="text-zinc-600" title="Checkpoint to roll back to">
+                                  @{t.checkpoint_sha}
+                                </span>
+                              )}
+                              {(t.continuation ?? 0) > 0 && (
+                                <span className="text-amber-400">cont {t.continuation}</span>
+                              )}
                             </div>
                           )}
                         </li>

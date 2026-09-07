@@ -6,6 +6,11 @@ interface ObservabilityTotals {
   active_agents: number
   agents_with_errors: number
   recent_error_count: number
+  // Terminal task failures from SQLite. The old counters read HEALTH.MD only,
+  // which reported 0 errors while 41 tasks were failing.
+  task_failure_count: number
+  // Tasks re-enqueued after running out of turns. In flight, NOT failures.
+  continuation_count: number
 }
 
 interface ObservabilityAgent {
@@ -19,6 +24,8 @@ interface ObservabilityAgent {
   health_issues: number
   last_active_at: string | null
   models: string[]
+  task_failures: number
+  continuations: number
 }
 
 interface ObservabilityError {
@@ -26,6 +33,8 @@ interface ObservabilityError {
   timestamp: string
   level: string
   message: string
+  source: string
+  task_id: string
 }
 
 interface ObservabilityTask {
@@ -388,6 +397,8 @@ function AgentDetailPanel({
         <DetailStat label="Input tokens" value={fmtTokens(agent.input_tokens)} />
         <DetailStat label="Output tokens" value={fmtTokens(agent.output_tokens)} />
         <DetailStat label="Tasks" value={String(agent.task_count)} />
+        <DetailStat label="Task failures" value={String(agent.task_failures ?? 0)} accent={(agent.task_failures ?? 0) > 0 ? 'text-red-400' : undefined} />
+        <DetailStat label="Continuations" value={String(agent.continuations ?? 0)} accent={(agent.continuations ?? 0) > 0 ? 'text-amber-400' : undefined} />
         <DetailStat label="Health issues" value={String(agent.health_issues)} accent={agent.health_issues > 0 ? 'text-red-400' : undefined} />
         <DetailStat label="Last active" value={agent.last_active_at ? fmtTimestamp(agent.last_active_at) : '—'} />
         <DetailStat label="Models" value={agent.models.join(', ') || '—'} />
@@ -488,7 +499,7 @@ export function ObservabilityTab() {
       case 'tasks':
         return b.task_count - a.task_count
       case 'errors':
-        return b.health_issues - a.health_issues
+        return ((b.task_failures ?? 0) + b.health_issues) - ((a.task_failures ?? 0) + a.health_issues)
       case 'cost':
       default:
         return b.cost_usd - a.cost_usd
@@ -571,6 +582,7 @@ export function ObservabilityTab() {
                 accent={data.totals.agents_with_errors > 0 ? 'text-red-400' : undefined}
               />
               <Stat label="Recent errors" value={String(data.totals.recent_error_count)} />
+              <Stat label="Continuations" value={String(data.totals.continuation_count ?? 0)} />
             </div>
 
             {/* Cost chart */}
@@ -637,6 +649,7 @@ export function ObservabilityTab() {
                       <th className="px-3 py-2 font-normal text-right">Out</th>
                       <th className="px-3 py-2 font-normal text-right">Tasks</th>
                       <th className="px-3 py-2 font-normal text-right">Errors</th>
+                      <th className="px-3 py-2 font-normal text-right" title="Tasks re-enqueued after running out of turns — in flight, not failures">Cont.</th>
                       <th className="px-3 py-2 font-normal">Models</th>
                     </tr>
                   </thead>
@@ -662,8 +675,16 @@ export function ObservabilityTab() {
                           <td className="px-3 py-2 text-right text-zinc-400">{fmtTokens(a.input_tokens)}</td>
                           <td className="px-3 py-2 text-right text-zinc-400">{fmtTokens(a.output_tokens)}</td>
                           <td className="px-3 py-2 text-right text-zinc-400">{a.task_count}</td>
-                          <td className={`px-3 py-2 text-right ${a.health_issues > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
-                            {a.health_issues}
+                          <td
+                            className={`px-3 py-2 text-right ${
+                              (a.task_failures ?? 0) + a.health_issues > 0 ? 'text-red-400' : 'text-zinc-500'
+                            }`}
+                            title={`${a.task_failures ?? 0} task failure(s), ${a.health_issues} health log entry(ies)`}
+                          >
+                            {(a.task_failures ?? 0) + a.health_issues}
+                          </td>
+                          <td className={`px-3 py-2 text-right ${(a.continuations ?? 0) > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                            {a.continuations ?? 0}
                           </td>
                           <td className="px-3 py-2 text-zinc-500 truncate max-w-[200px]" title={a.models.join(', ')}>
                             {a.models.length === 0 ? '—' : a.models.length === 1 ? a.models[0] : `${a.models[0]} +${a.models.length - 1}`}

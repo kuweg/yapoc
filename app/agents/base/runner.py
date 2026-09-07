@@ -16,9 +16,9 @@ from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 from watchdog.observers import Observer
 
 from app.config import settings
-from app.agents.base import BaseAgent
+from app.agents.base import BaseAgent, TurnLimitReached
 from app.agents.base.context import _parse_runner_config
-from app.utils.adapters import UsageStats
+from app.utils.adapters import ToolStart, UsageStats
 
 
 # Stale task_result messages claimed from a Redis consumer group's pending
@@ -330,6 +330,11 @@ class AgentRunner:
         # delivery from the other path skips cleanly at the dedup guard above.
         if effective_task_id:
             self._recent_task_ids.append(effective_task_id)
+        # Opening balance for this task's cost attribution.
+        _spend_before = self._spend_snapshot()
+        # Verification gate: every mutating tool call this task makes, in order.
+        _mutations: list[str] = []
+        _checkpoint = self._checkpoint_sha()
         # Propagate session binding into this subprocess so turn-level
         # events from child agents stream back to the same UI session.
         self._agent._session_id = _fm.get("session_id") or None
@@ -404,7 +409,11 @@ class AgentRunner:
                 notifications_context=notifications_context,
                 blocked_tools=_blocked,
             ):
-                if isinstance(event, UsageStats):
+                if isinstance(event, ToolStart):
+                    record = self._mutation_from_event(event)
+                    if record and record not in _mutations:
+                        _mutations.append(record)
+                elif isinstance(event, UsageStats):
                     last_tps = event.tokens_per_second
                     last_input = event.input_tokens
                     last_output = event.output_tokens
@@ -440,11 +449,34 @@ class AgentRunner:
                     assigned_at=_done_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
                     result_summary=result_text,
+                    changed_files=json.dumps(_mutations),
+                    checkpoint_sha=_checkpoint,
+                    verification=self._verification_verdict(_mutations, _checkpoint),
+                    cost_usd=self._spend_snapshot() - _spend_before,
+                    continuation=self._continuation_count(_done_fm),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
                     "DB insert_task(done) failed (task still completed): {}", _db_exc
                 )
+
+            # ── Evaluator signal-ledger refresh (roadmap 3.2) ───────────
+            # `update_ledger()` was only ever called from `propose_goals()`,
+            # which only runs when a human types `yapoc propose-goals`. So the
+            # ledger drifted behind REPORT.MD — it sat at round 93 against a
+            # round-103 report, and a signal the evaluator had already raised
+            # ("observability error counters still blind to task-level
+            # failures") stayed open long after the underlying bug was fixed.
+            # Refreshing here means a finished evaluation always reconciles
+            # its own findings. Never allowed to fail the task.
+            if self._name == "evaluator":
+                try:
+                    from app.utils.signal_ledger import update_ledger
+                    await asyncio.to_thread(update_ledger)
+                except Exception as _ledger_exc:
+                    _log.bind(agent=self._name).warning(
+                        "signal ledger refresh failed (non-fatal): {}", _ledger_exc
+                    )
 
             # Publish result to parent's Redis inbox (non-blocking)
             await self._notify_parent_via_bus(result_text, "done")
@@ -454,6 +486,17 @@ class AgentRunner:
                 await self._agent.mark_task_consumed()
 
         except TimeoutError:
+            # Salvage, same principle as turn exhaustion: BaseAgent's `finally`
+            # has already written whatever the agent produced to RESULT.MD, so
+            # read it back rather than discarding it. A timed-out task ran for
+            # its full budget (librarian's was 900s) and used to be recorded
+            # with nothing but the string "Task timed out" — no way to see how
+            # far it got, or whether the work was nearly done.
+            _timeout_partial = ""
+            try:
+                _timeout_partial = (await self._agent._read_file("RESULT.MD")).strip()
+            except Exception:
+                _timeout_partial = ""
             await self._agent.set_task_status("error", error="Task timed out (exceeded configured timeout)")
             _err_fm = self._parse_task_frontmatter()
             try:
@@ -466,7 +509,13 @@ class AgentRunner:
                     assigned_by=_err_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_err_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
+                    result_summary=_timeout_partial,
                     error_summary="Task timed out",
+                    changed_files=json.dumps(_mutations),
+                    checkpoint_sha=_checkpoint,
+                    verification=self._verification_verdict(_mutations, _checkpoint),
+                    cost_usd=self._spend_snapshot() - _spend_before,
+                    continuation=self._continuation_count(_err_fm),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -475,7 +524,27 @@ class AgentRunner:
             await self._notify_parent_via_bus("Task timed out", "error")
             if task_body.startswith("[Process incoming"):
                 await self._agent.mark_task_consumed()
+        except TurnLimitReached as exc:
+            # Turn exhaustion is a budget event, not a failed task. Salvage the
+            # work and hand it back as `partial`, then re-enqueue a continuation
+            # so the agent resumes from its own progress instead of restarting.
+            #
+            # Before this, `except Exception` below caught it: the task became
+            # `error`, the parent got only the message, and every turn of work
+            # was discarded. Turn-limit errors were 19 of the 28 failures in the
+            # current release and 100% of them lost their work.
+            await self._handle_turn_limit(
+                exc, task_body, _fm, self._spend_snapshot() - _spend_before,
+                _mutations, _checkpoint,
+            )
+            if task_body.startswith("[Process incoming"):
+                await self._agent.mark_task_consumed()
         except Exception as exc:
+            _exc_partial = ""
+            try:
+                _exc_partial = (await self._agent._read_file("RESULT.MD")).strip()
+            except Exception:
+                _exc_partial = ""
             await self._agent.set_task_status("error", error=str(exc) or repr(exc))
             _exc_fm = self._parse_task_frontmatter()
             try:
@@ -488,7 +557,13 @@ class AgentRunner:
                     assigned_by=_exc_fm.get("assigned_by", "") or _fm.get("assigned_by", ""),
                     assigned_at=_exc_fm.get("assigned_at", "") or _fm.get("assigned_at", ""),
                     task_summary=task_body,
+                    result_summary=_exc_partial,
                     error_summary=str(exc),
+                    changed_files=json.dumps(_mutations),
+                    checkpoint_sha=_checkpoint,
+                    verification=self._verification_verdict(_mutations, _checkpoint),
+                    cost_usd=self._spend_snapshot() - _spend_before,
+                    continuation=self._continuation_count(_exc_fm),
                 )
             except Exception as _db_exc:
                 _log.bind(agent=self._name).warning(
@@ -511,6 +586,285 @@ class AgentRunner:
                 _hb_task.cancel()
             except Exception:
                 _hb_task.cancel()
+
+    # ── Verification gate (roadmap 2.5) ────────────────────────────────
+
+    # Tools that mutate the working tree. The agent's own calls to these are
+    # the authoritative record of what a task changed — better than diffing
+    # `git status`, which is global and would cross-attribute between agents
+    # running concurrently.
+    _MUTATING_TOOLS: dict[str, tuple[str, ...]] = {
+        "file_write": ("path",),
+        "file_edit": ("path",),
+        "file_delete": ("path",),
+        "create_skill": ("name",),
+        "update_skill": ("name",),
+        "delete_skill": ("name",),
+    }
+    # Mutations we can see happened but cannot enumerate: a shell command may
+    # touch anything. Recorded so a task is never reported as "changed nothing"
+    # when it in fact ran opaque commands.
+    _OPAQUE_TOOLS: frozenset[str] = frozenset({"shell_exec", "execute_code"})
+
+    @classmethod
+    def _mutation_from_event(cls, event: "ToolStart") -> str | None:
+        """Return a record of one mutating tool call, or None if not mutating."""
+        name = getattr(event, "name", "") or ""
+        params = getattr(event, "input", None) or {}
+        keys = cls._MUTATING_TOOLS.get(name)
+        if keys:
+            for key in keys:
+                value = params.get(key)
+                if value:
+                    return f"{name}:{value}"
+            return f"{name}:<unknown>"
+        if name in cls._OPAQUE_TOOLS:
+            return f"{name}:<opaque>"
+        return None
+
+    def _checkpoint_sha(self) -> str:
+        """SHA this task can be rolled back to, or '' when checkpointing is off."""
+        try:
+            from app.backend import git_safety
+            handle = git_safety.read_checkpoint(self._name)
+            if handle and handle.enabled and handle.sha:
+                return handle.sha
+        except Exception:
+            pass
+        return ""
+
+    @staticmethod
+    def _verification_verdict(mutations: list[str], checkpoint: str) -> str:
+        """Classify a task's verifiability. Recorded on the task row.
+
+        - `none`       the task changed nothing
+        - `verified`   changes are enumerable AND a rollback point exists
+        - `unanchored` changes are enumerable but there is no checkpoint
+        - `opaque`     the task ran shell/code, so the change set is unknown
+        """
+        if not mutations:
+            return "none"
+        if any(m.endswith(":<opaque>") for m in mutations):
+            return "opaque" if not checkpoint else "opaque+checkpoint"
+        return "verified" if checkpoint else "unanchored"
+
+    # ── Per-task cost attribution ──────────────────────────────────────
+
+    def _spend_snapshot(self) -> float:
+        """This agent's lifetime spend from USAGE.json, or 0.0 if unreadable.
+
+        An agent runs exactly one task at a time, so the delta of this value
+        across a task IS that task's cost — no cross-task overlap to untangle.
+        That is what makes `tasks.cost_usd` exact, unlike `task_queue.cost_usd`
+        which spans a whole delegation tree.
+        """
+        try:
+            return float(self._agent._usage.snapshot().get("total_cost_usd", 0.0) or 0.0)
+        except Exception:
+            return 0.0
+
+    # ── Turn-exhaustion salvage + continuation ─────────────────────────
+
+    # Marker line prefixed to a continuation's ## Task body. Used to detect an
+    # already-continued task on re-entry and to keep the original instruction
+    # visible to the agent alongside what it already achieved.
+    _CONTINUATION_HEADER = "[CONTINUATION]"
+    # Section markers inside the continuation body. These deliberately do NOT
+    # start with "## ": `BaseAgent.get_task_body` extracts the `## Task` section
+    # with `(?=\n## |\Z)`, so a "## "-prefixed subheader here would terminate
+    # the section early and the agent would receive the preamble with neither
+    # the original instruction nor its own progress.
+    _ORIGINAL_MARKER = "=== ORIGINAL TASK ==="
+    _PROGRESS_MARKER = "=== PROGRESS SO FAR ==="
+
+    @staticmethod
+    def _neutralize_headers(text: str) -> str:
+        """Blockquote line-leading markdown headers in salvaged agent output.
+
+        Same hazard as the markers above, but from the other direction: a
+        partial result that happens to contain a line like "## Findings" would
+        truncate the rebuilt `## Task` section at exactly that line, silently
+        cutting the agent's own progress in half. Prefixing with "> " keeps the
+        text readable and valid markdown while ensuring no line starts with "#".
+        """
+        return re.sub(r"^(#{1,6} )", r"> \1", text, flags=re.MULTILINE)
+
+    def _continuation_count(self, fm: dict[str, str]) -> int:
+        """Read the continuation counter from TASK.MD frontmatter (0 when absent)."""
+        try:
+            return max(0, int(str(fm.get("continuation", "0")).strip() or "0"))
+        except (TypeError, ValueError):
+            return 0
+
+    async def _handle_turn_limit(
+        self,
+        exc: TurnLimitReached,
+        task_body: str,
+        fm: dict[str, str],
+        cost_usd: float = 0.0,
+        mutations: list[str] | None = None,
+        checkpoint_sha: str = "",
+    ) -> None:
+        """Record an out-of-turns task as `partial` and re-enqueue a continuation.
+
+        Three things happen here, in order, each independently guarded so a
+        failure in one does not lose the others:
+
+        1. Salvage — RESULT.MD already holds the partial text (BaseAgent's
+           `finally` writes it on every exit path), so the text is read back
+           rather than reconstructed. `exc.partial_text` is the fallback.
+        2. Record — a `partial` row in `tasks` carrying BOTH result_summary and
+           error_summary, so the reliability scorecard can count continuations
+           without mistaking them for either successes or hard failures.
+        3. Continue — rewrite TASK.MD as `pending` with an incremented
+           `continuation` counter; the runner's own poll loop picks it up.
+
+        Exhausting the continuation budget is a LOUDER failure than the old
+        turn-limit error, not a quieter one: the task finalizes as `error`, which
+        feeds the consecutive-failure alert that `partial` deliberately does not.
+        """
+        partial = ""
+        try:
+            partial = (await self._agent._read_file("RESULT.MD")).strip()
+        except Exception as _read_exc:
+            _log.bind(agent=self._name).warning(
+                "could not read RESULT.MD for turn-limit salvage: {}", _read_exc
+            )
+        if not partial:
+            partial = (exc.partial_text or "").strip()
+
+        used = self._continuation_count(self._parse_task_frontmatter() or fm)
+        budget = int(getattr(settings, "max_task_continuations", 0) or 0)
+        can_continue = bool(partial) and used < budget
+
+        _log.bind(agent=self._name, continuation=used, budget=budget).info(
+            "turn limit reached ({} turns), salvaged {} chars, continuing={}",
+            exc.max_turns, len(partial), can_continue,
+        )
+
+        status = "partial" if can_continue else "error"
+        note = (
+            f"Reached the {exc.max_turns}-turn limit "
+            f"(continuation {used}/{budget})."
+        )
+        if not can_continue:
+            note += (
+                " Continuation budget exhausted."
+                if partial
+                else " No partial output to continue from."
+            )
+
+        try:
+            if status == "partial":
+                await self._agent.set_task_status("partial", result=partial)
+            else:
+                await self._agent.set_task_status("error", error=note)
+        except Exception as _st_exc:
+            _log.bind(agent=self._name).warning(
+                "failed to write turn-limit task status: {}", _st_exc
+            )
+
+        _tl_fm = self._parse_task_frontmatter()
+        try:
+            from app.utils.db import init_schema, insert_task
+            init_schema()
+            insert_task(
+                agent=self._name,
+                task_id=_tl_fm.get("task_id", "") or fm.get("task_id", ""),
+                status=status,
+                assigned_by=_tl_fm.get("assigned_by", "") or fm.get("assigned_by", ""),
+                assigned_at=_tl_fm.get("assigned_at", "") or fm.get("assigned_at", ""),
+                task_summary=task_body,
+                result_summary=partial,
+                error_summary=note,
+                cost_usd=cost_usd,
+                # `used` is the attempt this row IS, not the next one.
+                continuation=used,
+                changed_files=json.dumps(mutations or []),
+                checkpoint_sha=checkpoint_sha,
+                verification=self._verification_verdict(mutations or [], checkpoint_sha),
+            )
+        except Exception as _db_exc:
+            _log.bind(agent=self._name).warning(
+                "DB insert_task({}) failed: {}", status, _db_exc
+            )
+
+        if not can_continue:
+            # Terminal: tell the parent it failed, exactly as before.
+            await self._notify_parent_via_bus(note, "error")
+            return
+
+        # Re-enqueue. The parent is intentionally NOT notified — from its point
+        # of view the task is still in flight, which is true.
+        try:
+            await self._enqueue_continuation(task_body, partial, used + 1, exc.max_turns)
+        except Exception as _cont_exc:
+            _log.bind(agent=self._name).warning(
+                "continuation enqueue failed; finalizing as error: {}", _cont_exc
+            )
+            await self._agent.set_task_status("error", error=note)
+            await self._notify_parent_via_bus(note, "error")
+
+    async def _enqueue_continuation(
+        self, task_body: str, partial: str, attempt: int, max_turns: int
+    ) -> None:
+        """Rewrite TASK.MD as a pending continuation of the same task.
+
+        The task_id is preserved so the whole continuation chain stays one task
+        to the parent, to `wait_for_agent`, and in the DB. Only `status`,
+        `continuation` and the body change.
+        """
+        task_id = str(self._parse_task_frontmatter().get("task_id", "") or "")
+
+        original = task_body
+        marker = self._CONTINUATION_HEADER
+        if original.startswith(marker):
+            # Already a continuation — recover the original instruction so the
+            # body does not grow by one nested copy per attempt.
+            _, _, rest = original.partition(self._ORIGINAL_MARKER + "\n")
+            if rest:
+                original = rest.split("\n" + self._PROGRESS_MARKER)[0].strip()
+
+        body = (
+            f"{marker} attempt {attempt} of "
+            f"{int(getattr(settings, 'max_task_continuations', 0) or 0)}.\n"
+            f"You previously ran out of turns ({max_turns}) on this task. "
+            f"Your own progress is below — continue from it, do not start over, "
+            f"and do not repeat work already done.\n\n"
+            f"{self._ORIGINAL_MARKER}\n{original}\n\n"
+            f"{self._PROGRESS_MARKER}\n{self._neutralize_headers(partial)}\n"
+        )
+
+        content = await self._agent._read_file("TASK.MD")
+        content = self._agent._update_frontmatter(
+            content, status="pending", continuation=str(attempt)
+        )
+        # Replace the ## Task section with the continuation body. Callable
+        # replacement so the partial text is treated as literal, never as a
+        # regex template (same hazard set_task_status documents).
+        _body = body
+        content = re.sub(
+            r"(## Task\n).*?(?=\n## |\Z)",
+            lambda m: m.group(1) + _body,
+            content,
+            flags=re.DOTALL,
+        )
+        await self._agent._write_file("TASK.MD", content)
+
+        # A continuation deliberately keeps the ORIGINAL task_id so the parent,
+        # `wait_for_agent` and the DB all still see one task. But `_run_task`
+        # records every executed id in `_recent_task_ids` and skips repeats as
+        # cross-path duplicate deliveries — which would silently swallow this
+        # continuation. Retire the id from that window so the re-run is allowed.
+        try:
+            while self._recent_task_ids and task_id in self._recent_task_ids:
+                self._recent_task_ids.remove(task_id)
+        except ValueError:
+            pass
+
+        _log.bind(agent=self._name, attempt=attempt).info(
+            "re-enqueued task as continuation {}", attempt
+        )
 
     async def _check_task(self) -> bool:
         """Check TASK.MD for pending status. Returns True if a task was executed."""

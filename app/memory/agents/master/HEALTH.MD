@@ -1034,3 +1034,12 @@ Traceback (most recent call last):
     raise RuntimeError("Task incomplete: provider returned no answer or tool calls")
 RuntimeError: Task incomplete: provider returned no answer or tool calls
 
+[2026-09-07 22:50] ERROR: Task incomplete: provider returned no answer or tool calls
+Traceback (most recent call last):
+  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1876, in run_stream_with_tools
+    raise RuntimeError("Task incomplete: provider returned no answer or tool calls")
+RuntimeError: Task incomplete: provider returned no answer or tool calls
+
+[2026-09-07 22:52] CONFIG_CHANGE: adapter: 'openai' -> 'deepseek', model: 'gpt-5.6-terra' -> 'deepseek-v4-pro'
+[2026-09-07 23:24] ERROR: compaction failed, trimmed context instead: TypeError: sequence item 0: expected str instance, list found
+[2026-09-07 23:26] ERROR: compaction failed, trimmed context instead: TypeError: sequence item 0: expected str instance, list found

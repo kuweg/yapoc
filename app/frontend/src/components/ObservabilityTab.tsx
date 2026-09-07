@@ -6,6 +6,11 @@ interface ObservabilityTotals {
   active_agents: number
   agents_with_errors: number
   recent_error_count: number
+  // Terminal task failures from SQLite. The old counters read HEALTH.MD only,
+  // which reported 0 errors while 41 tasks were failing.
+  task_failure_count: number
+  // Tasks re-enqueued after running out of turns. In flight, NOT failures.
+  continuation_count: number
 }
 
 interface ObservabilityAgent {
@@ -19,6 +24,8 @@ interface ObservabilityAgent {
   health_issues: number
   last_active_at: string | null
   models: string[]
+  task_failures: number
+  continuations: number
 }
 
 interface ObservabilityError {
@@ -26,6 +33,8 @@ interface ObservabilityError {
   timestamp: string
   level: string
   message: string
+  source: string
+  task_id: string
 }
 
 interface ObservabilityTask {
@@ -38,6 +47,11 @@ interface ObservabilityTask {
   duration_s: number | null
   task_summary: string
   error_summary: string
+  cost_usd?: number
+  continuation?: number
+  changed_files?: string[]
+  checkpoint_sha?: string
+  verification?: string
 }
 
 interface ObservabilityDashboard {
@@ -388,6 +402,8 @@ function AgentDetailPanel({
         <DetailStat label="Input tokens" value={fmtTokens(agent.input_tokens)} />
         <DetailStat label="Output tokens" value={fmtTokens(agent.output_tokens)} />
         <DetailStat label="Tasks" value={String(agent.task_count)} />
+        <DetailStat label="Task failures" value={String(agent.task_failures ?? 0)} accent={(agent.task_failures ?? 0) > 0 ? 'text-red-400' : undefined} />
+        <DetailStat label="Continuations" value={String(agent.continuations ?? 0)} accent={(agent.continuations ?? 0) > 0 ? 'text-amber-400' : undefined} />
         <DetailStat label="Health issues" value={String(agent.health_issues)} accent={agent.health_issues > 0 ? 'text-red-400' : undefined} />
         <DetailStat label="Last active" value={agent.last_active_at ? fmtTimestamp(agent.last_active_at) : '—'} />
         <DetailStat label="Models" value={agent.models.join(', ') || '—'} />
@@ -422,6 +438,55 @@ function DetailStat({ label, value, accent }: { label: string; value: string; ac
   )
 }
 
+interface ReliabilityAgent {
+  name: string
+  tasks: number
+  failures: number
+  failure_rate: number
+  continuations: number
+  cost_usd: number
+  p50_duration_s: number
+  p95_duration_s: number
+}
+
+interface ReliabilityScorecard {
+  window_days: number
+  window_start: string
+  tasks: number
+  completed: number
+  failed: number
+  partial: number
+  failure_rate: number
+  failure_mix: Record<string, number>
+  total_cost_usd: number
+  cost_per_completed_task: number | null
+  continuation_cost_usd: number
+  queue_tasks: number
+  queue_failed: number
+  queue_cost_usd: number
+  by_agent: ReliabilityAgent[]
+}
+
+const FAILURE_CLASS_LABELS: Record<string, string> = {
+  timeout: 'Timeout',
+  turn_limit: 'Turn limit',
+  provider_config: 'Provider/config',
+  malformed_output: 'Malformed output',
+  unlabelled: 'Unlabelled',
+  other: 'Other',
+}
+
+// Verification verdict -> colour. `opaque` means the task ran shell/code, so
+// its change set is unknown; that is a weaker claim than `verified` and the UI
+// should not let the two look alike.
+const VERIFICATION_STYLES: Record<string, string> = {
+  verified: 'text-green-400 border-green-800',
+  'opaque+checkpoint': 'text-amber-400 border-amber-800',
+  opaque: 'text-amber-400 border-amber-800',
+  unanchored: 'text-orange-400 border-orange-800',
+  none: 'text-zinc-600 border-zinc-800',
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function ObservabilityTab() {
@@ -435,6 +500,10 @@ export function ObservabilityTab() {
   const [showCostChart, setShowCostChart] = useState(true)
   const [showLiveTrace, setShowLiveTrace] = useState(false)
   const [traceAgent, setTraceAgent] = useState<string>('')
+  const [reliability, setReliability] = useState<ReliabilityScorecard | null>(null)
+  // Default 7 days, never all-time: pooling long-fixed bugs with live ones
+  // inverts the failure ranking. See docs/harness-roadmap-2026-09.md §1.
+  const [windowDays, setWindowDays] = useState(7)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -451,6 +520,16 @@ export function ObservabilityTab() {
     }
   }, [])
 
+  const loadReliability = useCallback(async (days: number) => {
+    try {
+      const res = await fetch(`/api/metrics/reliability?days=${days}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setReliability((await res.json()) as ReliabilityScorecard)
+    } catch {
+      setReliability(null)
+    }
+  }, [])
+
   const loadCostHistory = useCallback(async () => {
     setCostLoading(true)
     try {
@@ -464,6 +543,10 @@ export function ObservabilityTab() {
       setCostLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    loadReliability(windowDays)
+  }, [loadReliability, windowDays])
 
   useEffect(() => {
     load()
@@ -488,7 +571,7 @@ export function ObservabilityTab() {
       case 'tasks':
         return b.task_count - a.task_count
       case 'errors':
-        return b.health_issues - a.health_issues
+        return ((b.task_failures ?? 0) + b.health_issues) - ((a.task_failures ?? 0) + a.health_issues)
       case 'cost':
       default:
         return b.cost_usd - a.cost_usd
@@ -560,6 +643,86 @@ export function ObservabilityTab() {
 
         {data && (
           <>
+            {/* Reliability scorecard — windowed, never all-time */}
+            {reliability && (
+              <section className="border border-zinc-800 bg-zinc-900/40">
+                <div className="flex items-center gap-3 px-3 py-2 border-b border-zinc-800">
+                  <span className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
+                    Reliability
+                  </span>
+                  <div className="flex gap-1">
+                    {[2, 7, 30].map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setWindowDays(d)}
+                        className={`px-2 py-0.5 text-[12px] font-mono border ${
+                          windowDays === d
+                            ? 'border-[#FFB633] text-[#FFB633]'
+                            : 'border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                  <span
+                    className="text-[12px] text-zinc-600 font-mono"
+                    title="Failure ranking is window-dependent: pooling all time buries the live problem under bugs that were fixed months ago."
+                  >
+                    since {reliability.window_start.slice(0, 10)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 p-3">
+                  <Stat
+                    label="Failure rate"
+                    value={`${(reliability.failure_rate * 100).toFixed(1)}%`}
+                    accent={
+                      reliability.failure_rate > 0.04 ? 'text-red-400' : 'text-green-400'
+                    }
+                  />
+                  <Stat label="Completed" value={String(reliability.completed)} />
+                  <Stat
+                    label="Failed"
+                    value={String(reliability.failed)}
+                    accent={reliability.failed > 0 ? 'text-red-400' : undefined}
+                  />
+                  <Stat
+                    label="Continuations"
+                    value={String(reliability.partial)}
+                    accent={reliability.partial > 0 ? 'text-amber-400' : undefined}
+                  />
+                  <Stat
+                    label="Cost / completed"
+                    value={
+                      reliability.cost_per_completed_task === null
+                        ? '—'
+                        : fmtCost(reliability.cost_per_completed_task)
+                    }
+                  />
+                </div>
+
+                {Object.keys(reliability.failure_mix).length > 0 && (
+                  <div className="px-3 pb-3">
+                    <div className="text-[12px] uppercase tracking-wider text-zinc-500 font-mono mb-1">
+                      Failure mix
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(reliability.failure_mix).map(([cls, n]) => (
+                        <span
+                          key={cls}
+                          className="px-2 py-0.5 text-xs font-mono border border-zinc-700 text-zinc-300"
+                        >
+                          {FAILURE_CLASS_LABELS[cls] ?? cls}
+                          <span className="ml-1.5 text-red-400">{n}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Totals strip */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <Stat label="Total spend" value={fmtCost(data.totals.total_cost_usd)} accent="text-[#FFB633]" />
@@ -571,6 +734,7 @@ export function ObservabilityTab() {
                 accent={data.totals.agents_with_errors > 0 ? 'text-red-400' : undefined}
               />
               <Stat label="Recent errors" value={String(data.totals.recent_error_count)} />
+              <Stat label="Continuations" value={String(data.totals.continuation_count ?? 0)} />
             </div>
 
             {/* Cost chart */}
@@ -637,6 +801,7 @@ export function ObservabilityTab() {
                       <th className="px-3 py-2 font-normal text-right">Out</th>
                       <th className="px-3 py-2 font-normal text-right">Tasks</th>
                       <th className="px-3 py-2 font-normal text-right">Errors</th>
+                      <th className="px-3 py-2 font-normal text-right" title="Tasks re-enqueued after running out of turns — in flight, not failures">Cont.</th>
                       <th className="px-3 py-2 font-normal">Models</th>
                     </tr>
                   </thead>
@@ -662,8 +827,16 @@ export function ObservabilityTab() {
                           <td className="px-3 py-2 text-right text-zinc-400">{fmtTokens(a.input_tokens)}</td>
                           <td className="px-3 py-2 text-right text-zinc-400">{fmtTokens(a.output_tokens)}</td>
                           <td className="px-3 py-2 text-right text-zinc-400">{a.task_count}</td>
-                          <td className={`px-3 py-2 text-right ${a.health_issues > 0 ? 'text-red-400' : 'text-zinc-500'}`}>
-                            {a.health_issues}
+                          <td
+                            className={`px-3 py-2 text-right ${
+                              (a.task_failures ?? 0) + a.health_issues > 0 ? 'text-red-400' : 'text-zinc-500'
+                            }`}
+                            title={`${a.task_failures ?? 0} task failure(s), ${a.health_issues} health log entry(ies)`}
+                          >
+                            {(a.task_failures ?? 0) + a.health_issues}
+                          </td>
+                          <td className={`px-3 py-2 text-right ${(a.continuations ?? 0) > 0 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                            {a.continuations ?? 0}
                           </td>
                           <td className="px-3 py-2 text-zinc-500 truncate max-w-[200px]" title={a.models.join(', ')}>
                             {a.models.length === 0 ? '—' : a.models.length === 1 ? a.models[0] : `${a.models[0]} +${a.models.length - 1}`}
@@ -750,6 +923,38 @@ export function ObservabilityTab() {
                           {t.error_summary && (
                             <div className="text-red-400 mt-1 break-words line-clamp-2" title={t.error_summary}>
                               {t.error_summary}
+                            </div>
+                          )}
+                          {(t.verification && t.verification !== 'none') && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[12px]">
+                              <span
+                                className={`px-1.5 py-0.5 border ${VERIFICATION_STYLES[t.verification] ?? 'text-zinc-500 border-zinc-800'}`}
+                                title={
+                                  t.verification === 'verified'
+                                    ? 'Changes are enumerable and a rollback point exists'
+                                    : t.verification === 'unanchored'
+                                    ? 'Changes are known but there is no checkpoint to roll back to'
+                                    : 'Ran shell or code — the full change set is unknown'
+                                }
+                              >
+                                {t.verification}
+                              </span>
+                              {(t.changed_files?.length ?? 0) > 0 && (
+                                <span
+                                  className="text-zinc-500"
+                                  title={t.changed_files!.join('\n')}
+                                >
+                                  {t.changed_files!.length} change{t.changed_files!.length === 1 ? '' : 's'}
+                                </span>
+                              )}
+                              {t.checkpoint_sha && (
+                                <span className="text-zinc-600" title="Checkpoint to roll back to">
+                                  @{t.checkpoint_sha}
+                                </span>
+                              )}
+                              {(t.continuation ?? 0) > 0 && (
+                                <span className="text-amber-400">cont {t.continuation}</span>
+                              )}
                             </div>
                           )}
                         </li>

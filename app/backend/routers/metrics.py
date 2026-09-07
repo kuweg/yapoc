@@ -1148,3 +1148,95 @@ async def get_reliability_scorecard(days: int = 7):
         queue_cost_usd=round(queue_cost, 6),
         by_agent=by_agent,
     )
+
+
+# ── Evaluator signal ledger (Phase 3.2) ─────────────────────────────────────
+
+
+class LedgerSignal(BaseModel):
+    signal_id: str
+    title: str
+    impact: str
+    status: str
+    rounds_open: int
+    first_seen_round: int
+    last_seen_round: int
+    last_seen_ts: str
+
+
+class SignalLedgerResponse(BaseModel):
+    generated_at: str
+    total: int
+    open_count: int
+    resolved_count: int
+    # Rounds between the ledger and the newest evaluator report. Non-zero means
+    # findings are being judged against stale data — the failure mode that left
+    # an already-fixed bug showing as an open signal.
+    staleness_rounds: int
+    latest_report_round: int
+    ledger_round: int
+    open_signals: list[LedgerSignal]
+
+
+@router.get("/signals", response_model=SignalLedgerResponse)
+async def get_signal_ledger():
+    """Open evaluator findings, and how far behind the ledger has drifted.
+
+    The ledger already tracked resolution, but nothing surfaced it: the only
+    consumer was `propose_goals()`, invoked by hand. Findings could sit "open"
+    indefinitely after the underlying bug was fixed, with nobody able to see it.
+    """
+    from app.utils.signal_ledger import _load_ledger, scan_findings
+
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # `ledger_snapshot()` returns aggregate counts only; the per-signal detail
+    # this endpoint exists to surface lives in the raw ledger.
+    try:
+        entries = _load_ledger()
+    except Exception:
+        entries = {}
+    if not isinstance(entries, dict):
+        entries = {}
+
+    signals: list[LedgerSignal] = []
+    open_count = resolved_count = 0
+    ledger_round = 0
+    for sid, raw in entries.items():
+        if not isinstance(raw, dict):
+            continue
+        status = str(raw.get("status", "open"))
+        ledger_round = max(ledger_round, int(raw.get("last_seen_round", 0) or 0))
+        if status == "resolved":
+            resolved_count += 1
+            continue
+        open_count += 1
+        signals.append(
+            LedgerSignal(
+                signal_id=str(raw.get("signal_id", sid)),
+                title=str(raw.get("title", "")),
+                impact=str(raw.get("impact", "")),
+                status=status,
+                rounds_open=int(raw.get("rounds_open", 0) or 0),
+                first_seen_round=int(raw.get("first_seen_round", 0) or 0),
+                last_seen_round=int(raw.get("last_seen_round", 0) or 0),
+                last_seen_ts=str(raw.get("last_seen_ts", "")),
+            )
+        )
+
+    try:
+        latest_round = max((f.round_number for f in scan_findings()), default=0)
+    except Exception:
+        latest_round = 0
+
+    signals.sort(key=lambda s: (-s.rounds_open, s.title))
+    return SignalLedgerResponse(
+        generated_at=generated_at,
+        total=len(entries),
+        open_count=open_count,
+        resolved_count=resolved_count,
+        staleness_rounds=max(0, latest_round - ledger_round),
+        latest_report_round=latest_round,
+        ledger_round=ledger_round,
+        open_signals=signals,
+    )

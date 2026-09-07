@@ -1,5 +1,5 @@
-adapter: openai
-model: gpt-5.6-terra
+adapter: google
+model: gemini-2.5-flash
 temperature: 0.3
 tools:
   - shell_exec

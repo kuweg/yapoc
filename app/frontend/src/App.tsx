@@ -249,7 +249,6 @@ function Workspace() {
         className="flex flex-1 overflow-hidden"
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
-        <AgentSidebar />
         {/* Chat + agent-flow tile in one row: ChatPanel (flex-1) shrinks to make
             room for the flow pane, and the draggable seam between them sets the
             ratio. */}
@@ -267,6 +266,7 @@ function Workspace() {
           {workspaceOpen && <WorkspacePanel />}
           {selectedFile && <FileViewerPane />}
         </main>
+        <AgentSidebar />
       </div>
 
       {/* ── Agents tab ── */}

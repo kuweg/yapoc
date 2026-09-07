@@ -157,7 +157,7 @@ defect that had gone unnoticed precisely because nothing ever ran them:
 | 2.2 | **Reliability scorecard** (P0) ✅ | `GET /api/metrics/reliability?days=N` plus an Observability panel with 2d/7d/30d toggles. Defaults to 7 days and always states the window it used. It reproduces the §1 lesson by construction: over 2 days `turn_limit` is 70% of failures, while over 120 days `timeout` leads and `provider_config` reappears — the exact artifact that misled the first draft. Reports failure rate (excluding `partial`, which has no outcome yet), failure mix, cost per completed task, continuation cost, and per-agent p50/p95. |
 | 2.3 | **Finish provenance** (P0) ✅ | Only 1 of 11 `insert_memory_entry` sites wrote it, leaving 2,473 of 2,480 rows empty. All 11 now pass a repo-relative source path. **Deviation from this row as first written:** it specified a `{source_file, agent, task_id, indexed_at}` blob, but `agent`, `source` and `timestamp` are already their own columns — the file path was the only missing fact, and a plain path stays greppable. A test fails if any future index site omits it. |
 | 2.4 | **Retrieval benchmark** (P1) ✅ | `app/utils/retrieval_benchmark.py` + a checked-in fixture (56 docs / 40 queries), runnable as `poetry run python -m app.utils.retrieval_benchmark`. Published baseline at k=5: **hybrid recall 0.963 / MRR 0.944**, fts 0.950 / 0.892, vector 0.925 / 0.912. Thresholds are enforced by tests. Deliberately NOT run against live memory — live memory changes every few minutes, so its scores are not comparable across runs and cannot detect a regression. |
-| 2.5 | **Verification gates** (P1) | Every modifying task attaches changed files, check run, result, checkpoint ref. |
+| 2.5 | **Verification gates** (P1) ✅ | Every task row now carries `changed_files`, `checkpoint_sha` and a `verification` verdict, enforced in the runner and shown per task in the Observability feed. Change sets come from the agent's **own mutating tool calls**, not a `git status` diff — git status is global, so two agents running concurrently would each be credited with the other's edits. |
 | 2.6 | **Security regression suite** (P1) ✅ | Done, and it **found six working bypasses of the gate**, all fixed and pinned by 85 tests. See below. |
 
 #### 2.6 findings — six live bypasses
@@ -211,6 +211,21 @@ That gives 3.1 a measurable target rather than a design preference: retention
 and demotion rules should collapse repetitive entries, and the benchmark will
 say whether it worked. A test currently asserts the weakness still exists; when
 3.1 fixes it, that test fails and is flipped to assert the correct behaviour.
+
+#### 2.5 — the verdict is deliberately four-valued
+
+A boolean "verified" would be a lie for most tasks. The recorded verdict is:
+
+| Verdict | Meaning |
+|---|---|
+| `none` | the task changed nothing |
+| `verified` | changes are enumerable **and** a rollback point exists |
+| `unanchored` | changes are known, but there is no checkpoint to undo them |
+| `opaque` / `opaque+checkpoint` | the task ran `shell_exec` or `execute_code`, so the change set cannot be claimed |
+
+`opaque` is the honest case a naive implementation would report as a clean,
+fully-known edit while arbitrary commands ran underneath it. Any task that shells
+out gets it, regardless of how many file tools it also called.
 
 ### Phase 3 — Make it smarter (weeks 9-13)
 

@@ -71,7 +71,10 @@ def init_schema() -> None:
             result_summary  TEXT,
             error_summary   TEXT,
             cost_usd        REAL NOT NULL DEFAULT 0.0,
-            continuation    INTEGER NOT NULL DEFAULT 0
+            continuation    INTEGER NOT NULL DEFAULT 0,
+            changed_files   TEXT NOT NULL DEFAULT '',
+            checkpoint_sha  TEXT NOT NULL DEFAULT '',
+            verification    TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agent, status);
         CREATE INDEX IF NOT EXISTS idx_tasks_time  ON tasks(assigned_at DESC);
@@ -136,6 +139,11 @@ def init_schema() -> None:
         "ALTER TABLE tasks ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0.0",
         # Which continuation attempt this row is (0 = the original run).
         "ALTER TABLE tasks ADD COLUMN continuation INTEGER NOT NULL DEFAULT 0",
+        # Verification gate (roadmap 2.5): what a modifying task actually
+        # touched, and the checkpoint it can be rolled back to.
+        "ALTER TABLE tasks ADD COLUMN changed_files TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN checkpoint_sha TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE tasks ADD COLUMN verification TEXT NOT NULL DEFAULT ''",
     ):
         try:
             db.execute(statement)
@@ -234,6 +242,9 @@ def insert_task(
     error_summary: str = "",
     cost_usd: float = 0.0,
     continuation: int = 0,
+    changed_files: str = "",
+    checkpoint_sha: str = "",
+    verification: str = "",
 ) -> int:
     """Insert a completed task record. Returns the row id."""
     db = get_db()
@@ -241,8 +252,9 @@ def insert_task(
     cur = db.execute(
         """INSERT INTO tasks
            (agent, task_id, status, assigned_by, assigned_at, completed_at,
-            task_summary, result_summary, error_summary, cost_usd, continuation)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            task_summary, result_summary, error_summary, cost_usd, continuation,
+            changed_files, checkpoint_sha, verification)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             agent,
             task_id,
@@ -255,6 +267,9 @@ def insert_task(
             error_summary,
             float(cost_usd or 0.0),
             int(continuation or 0),
+            changed_files or "",
+            checkpoint_sha or "",
+            verification or "",
         ),
     )
     db.commit()

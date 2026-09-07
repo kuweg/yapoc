@@ -207,7 +207,16 @@ async def _execute_task_body(task_id: str) -> None:
     # Completed logical messages, split on MessageBoundary.
     message_blocks: list[str] = []
     _msg_start = 0
-    total_cost = 0.0
+    # Opening balance for this task's cost. A queue task spans a delegation
+    # tree (master + every sub-agent it spawns), so the only way to price it is
+    # the delta of total spend across all agents. `task_queue.cost_usd` was
+    # 0.0 for all 1175 historical rows because nothing ever wrote it.
+    from app.utils.usage_tracker import total_spend_all_agents
+    _spend_before = total_spend_all_agents()
+
+    def _task_cost() -> float:
+        """Spend attributable to this task, never negative."""
+        return max(0.0, total_spend_all_agents() - _spend_before)
 
     # Telegram streaming: push partial text to the bot as it generates
     telegram_bot = None
@@ -256,7 +265,10 @@ async def _execute_task_body(task_id: str) -> None:
                             logger.debug(
                                 f"Dispatcher: no telegram bot, buffering text for task {task_id[:8]}...")
                 elif isinstance(event, UsageStats):
-                    # Accumulate cost if available
+                    # Cost is not carried on UsageStats and cannot be derived
+                    # here (the event has no model to price against), and it
+                    # would miss sub-agent spend anyway. Priced at finalize
+                    # from the all-agent delta instead — see _task_cost().
                     pass
 
         _tail = "".join(response_parts[_msg_start:]).strip()
@@ -282,6 +294,7 @@ async def _execute_task_body(task_id: str) -> None:
             status="done",
             result=result_text,
             completed_at=completed_at,
+            cost_usd=_task_cost(),
             metadata=json.dumps({**meta, "messages": message_blocks}),
         )
         if meta.get("notification"):
@@ -432,7 +445,8 @@ async def _execute_task_body(task_id: str) -> None:
         # as "chain timed out after None".
         error_text = str(exc) or f"Task chain timed out after {_chain_ctx_timeout}s"
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        update_queued_task(task_id, status="timeout", error=error_text, completed_at=completed_at)
+        update_queued_task(task_id, status="timeout", error=error_text,
+                           completed_at=completed_at, cost_usd=_task_cost())
         await ws_manager.push_event("task_error", {
             "task_id": task_id,
             "status": "timeout",
@@ -531,6 +545,7 @@ async def _execute_task_body(task_id: str) -> None:
             error=error_text,
             result="".join(response_parts),
             completed_at=completed_at,
+            cost_usd=_task_cost(),
         )
         await ws_manager.push_event("task_error", {
             "task_id": task_id,

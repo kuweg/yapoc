@@ -31,6 +31,22 @@ import { MasterProgressPill } from './components/MasterProgressPill'
 import SpeakingSphere from './components/SpeakingSphere'
 import { useWindowsStore } from './store/windowsStore'
 import { useWebSocket } from './hooks/useWebSocket'
+import {
+  ChatBubbleLeftRightIcon,
+  UsersIcon,
+  ClipboardDocumentListIcon,
+  ChartBarIcon,
+  EyeIcon,
+  ScaleIcon,
+  CircleStackIcon,
+  ArchiveBoxIcon,
+  PuzzlePieceIcon,
+  Bars3Icon,
+  SignalIcon,
+  PlusIcon,
+  Squares2X2Icon,
+  FolderOpenIcon,
+} from '@heroicons/react/24/outline'
 
 function Workspace() {
   // Establish persistent WebSocket connection for real-time events
@@ -47,58 +63,140 @@ function Workspace() {
   const workspaceOpen = useWorkspaceStore((s) => s.open)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
-  function NavButton({ id, label }: { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string }) {
-    const active = tab === id
+  const [sidebarExpanded, setSidebarExpanded] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true
+  )
+
+  type NavItem = { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string; icon: typeof ChatBubbleLeftRightIcon }
+  const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
+    {
+      title: 'Primary',
+      items: [
+        { id: 'chat', label: 'Chat', icon: ChatBubbleLeftRightIcon },
+        { id: 'agents', label: 'Agents', icon: UsersIcon },
+        { id: 'tasks', label: 'Tasks', icon: ClipboardDocumentListIcon },
+      ],
+    },
+    {
+      title: 'Insights',
+      items: [
+        { id: 'insights', label: 'Insights', icon: ChartBarIcon },
+        { id: 'observability', label: 'Observability', icon: EyeIcon },
+        { id: 'concilium', label: 'Concilium', icon: ScaleIcon },
+      ],
+    },
+    {
+      title: 'Knowledge',
+      items: [
+        { id: 'graph', label: 'Memory', icon: CircleStackIcon },
+        { id: 'vault', label: 'Vault', icon: ArchiveBoxIcon },
+        { id: 'skills', label: 'Skills', icon: PuzzlePieceIcon },
+      ],
+    },
+    {
+      title: 'Comms',
+      items: [
+        { id: 'sessions', label: 'Sessions', icon: Bars3Icon },
+        { id: 'channels', label: 'Channels', icon: SignalIcon },
+      ],
+    },
+  ]
+
+  function AppSidebar() {
     return (
-      <button
-        onClick={() => setTab(id)}
+      <aside
         className={[
-          'px-3 py-1.5 text-xs font-mono tracking-wider uppercase transition-colors border flex-shrink-0 whitespace-nowrap',
-          active
-            ? 'bg-zinc-700 text-[#FFB633] border-[#FFB633]'
-            : 'text-zinc-400 border-transparent hover:text-[#FFB633] hover:border-[#2a2a1a]',
+          'flex flex-col bg-zinc-900 border-r border-zinc-700 flex-shrink-0 overflow-y-auto transition-all',
+          sidebarExpanded ? 'w-56' : 'w-14',
         ].join(' ')}
       >
-        {label}
-      </button>
-    )
-  }
-
-  // Shared header component
-  function AppHeader() {
-    return (
-      <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
-        <SpeakingSphere />
-        <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
-        <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5 overflow-x-auto max-w-full nav-scroll" role="tablist" aria-label="Main sections">
-          <NavButton id="chat" label="Chat" />
-          <NavButton id="agents" label="Agents" />
-          <NavButton id="tasks" label="Tasks" />
-          <NavButton id="insights" label="Insights" />
-          <NavButton id="observability" label="Obs" />
-          <NavButton id="concilium" label="Concilium" />
-          <NavButton id="graph" label="Memory" />
-          <NavButton id="vault" label="Vault" />
-          <NavButton id="sessions" label="Sessions" />
-          <NavButton id="channels" label="Channels" />
-          <NavButton id="skills" label="Skills" />
+        {/* Chat actions */}
+        <div className="p-2 flex flex-col gap-1">
+          <button
+            onClick={newSession}
+            title="New session"
+            className={[
+              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-zinc-200 bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 transition-colors',
+              sidebarExpanded ? 'justify-start' : 'justify-center',
+            ].join(' ')}
+          >
+            <PlusIcon className="w-4 h-4 flex-shrink-0" />
+            {sidebarExpanded && <span>NEW</span>}
+          </button>
+          <button
+            onClick={() => useArtifactsStore.getState().toggle()}
+            title="Artifacts"
+            className={[
+              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors',
+              sidebarExpanded ? 'justify-start' : 'justify-center',
+            ].join(' ')}
+          >
+            <Squares2X2Icon className="w-4 h-4 flex-shrink-0" />
+            {sidebarExpanded && <span>ARTIFACTS</span>}
+          </button>
+          <button
+            onClick={() => useWorkspaceStore.getState().toggle()}
+            title="Workspace"
+            className={[
+              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors',
+              sidebarExpanded ? 'justify-start' : 'justify-center',
+            ].join(' ')}
+          >
+            <FolderOpenIcon className="w-4 h-4 flex-shrink-0" />
+            {sidebarExpanded && <span>WORKSPACE</span>}
+          </button>
         </div>
-        <div className="flex-1" />
-        <MasterProgressPill />
-        {/* The palette existed but nothing advertised it — an invisible
-            shortcut is not a feature. */}
-        <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-          title="Command palette (Ctrl+K)"
-          aria-label="Open command palette"
-          className="px-2 py-1.5 text-xs font-mono text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-        >
-          ⌘K
-        </button>
-        <ConnectionStatus showAge={false} />
-        <NotificationBell onClick={() => setNotificationsOpen(true)} />
-        <ThemeToggle />
-      </header>
+
+        {/* Nav sections */}
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title} className="px-2 pb-2">
+            {sidebarExpanded && (
+              <div className="px-2 pt-2 pb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                {section.title}
+              </div>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const active = tab === item.id
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setTab(item.id)}
+                    title={item.label}
+                    className={[
+                      'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider transition-colors border-l-2',
+                      sidebarExpanded ? 'justify-start' : 'justify-center',
+                      active
+                        ? 'bg-zinc-800 text-[#FFB633] border-l-[#FFB633]'
+                        : 'text-zinc-400 border-l-transparent hover:text-[#FFB633] hover:bg-zinc-800/50',
+                    ].join(' ')}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    {sidebarExpanded && <span>{item.label}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Collapse toggle */}
+        <div className="mt-auto p-2 border-t border-zinc-700">
+          <button
+            onClick={() => setSidebarExpanded((v) => !v)}
+            title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+            className={[
+              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono text-zinc-400 hover:text-[#FFB633] transition-colors w-full',
+              sidebarExpanded ? 'justify-start' : 'justify-center',
+            ].join(' ')}
+          >
+            <Bars3Icon className="w-4 h-4 flex-shrink-0" />
+            {sidebarExpanded && <span>Collapse</span>}
+          </button>
+        </div>
+      </aside>
     )
   }
 
@@ -121,74 +219,36 @@ function Workspace() {
         />
       ))}
 
-      {/* ── Chat tab header (only visible when chat is active) ── */}
-      {tab === 'chat' ? (
-        <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
-          <SpeakingSphere />
-          <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
+      {/* ── Unified header (top bar) ── */}
+      <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
+        <SpeakingSphere />
+        <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
+        <div className="flex-1" />
+        <MasterProgressPill />
+        <button
+          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+          title="Command palette (Ctrl+K)"
+          aria-label="Open command palette"
+          className="px-2 py-1.5 text-xs font-mono text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
+        >
+          ⌘K
+        </button>
+        <ConnectionStatus showAge={false} />
+        <NotificationBell onClick={() => setNotificationsOpen(true)} />
+        <ThemeToggle />
+      </header>
 
-          {/* Nav tabs */}
-          <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5 overflow-x-auto max-w-full nav-scroll" role="tablist" aria-label="Main sections">
-            <NavButton id="chat" label="Chat" />
-            <NavButton id="agents" label="Agents" />
-            <NavButton id="tasks" label="Tasks" />
-            <NavButton id="insights" label="Insights" />
-            <NavButton id="observability" label="Obs" />
-            <NavButton id="concilium" label="Concilium" />
-            <NavButton id="graph" label="Memory" />
-            <NavButton id="vault" label="Vault" />
-            <NavButton id="sessions" label="Sessions" />
-            <NavButton id="channels" label="Channels" />
-            <NavButton id="skills" label="Skills" />
-          </div>
+      {/* ── App shell: sidebar rail + main content ── */}
+      <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
+        <AppSidebar />
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
 
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button
-              onClick={newSession}
-              className="px-3 py-1.5 bg-zinc-700 text-zinc-200 text-xs hover:bg-zinc-600 border border-zinc-600 font-mono tracking-wider flex-shrink-0 whitespace-nowrap"
-            >
-              + NEW
-            </button>
-            <button
-              onClick={() => useArtifactsStore.getState().toggle()}
-              className="px-3 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-            >
-              ARTIFACTS
-            </button>
-            <button
-              onClick={() => useWorkspaceStore.getState().toggle()}
-              className="px-3 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-            >
-              WORKSPACE
-            </button>
-          </div>
-
-          {/* Theme toggle — right side of header */}
-        {/* The palette existed but nothing advertised it — an invisible
-              shortcut is not a feature. */}
-          <button
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-            title="Command palette (Ctrl+K)"
-            aria-label="Open command palette"
-            className="px-2 py-1.5 text-xs font-mono text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-          >
-            ⌘K
-          </button>
-          <ConnectionStatus showAge={false} />
-          <NotificationBell onClick={() => setNotificationsOpen(true)} />
-          <ThemeToggle />
-        </header>
-      ) : (
-        /* Shared header for all other tabs */
-        <AppHeader />
-      )}
 
       {/* ── Chat tab content — always mounted, hidden when inactive ── */}
       <div
         className="flex flex-1 overflow-hidden"
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
-        <AgentSidebar />
         {/* Chat + agent-flow tile in one row: ChatPanel (flex-1) shrinks to make
             room for the flow pane, and the draggable seam between them sets the
             ratio. */}
@@ -206,6 +266,7 @@ function Workspace() {
           {workspaceOpen && <WorkspacePanel />}
           {selectedFile && <FileViewerPane />}
         </main>
+        <AgentSidebar />
       </div>
 
       {/* ── Agents tab ── */}
@@ -286,6 +347,9 @@ function Workspace() {
         style={{ display: tab === 'skills' ? 'flex' : 'none', minHeight: 0 }}
       >
         <SkillsTab />
+      </div>
+
+        </div>
       </div>
 
       {/* ── Live topology HUD — pinned below every tab ── */}

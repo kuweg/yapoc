@@ -321,6 +321,13 @@ class ObservabilityTotals(BaseModel):
     active_agents: int
     agents_with_errors: int
     recent_error_count: int
+    # Terminal task failures from SQLite in the last 24h. Counted separately
+    # from `recent_error_count` (which is the deduped union with HEALTH.MD) so
+    # a dashboard/DB reconciliation check has something exact to compare.
+    task_failure_count: int = 0
+    # Tasks that ran out of turns and were re-enqueued to continue. NOT
+    # failures — the work is still in flight.
+    continuation_count: int = 0
 
 
 class ObservabilityAgent(BaseModel):
@@ -334,6 +341,8 @@ class ObservabilityAgent(BaseModel):
     health_issues: int
     last_active_at: str | None
     models: list[str]
+    task_failures: int = 0
+    continuations: int = 0
 
 
 class ObservabilityError(BaseModel):
@@ -341,6 +350,9 @@ class ObservabilityError(BaseModel):
     timestamp: str
     level: str
     message: str
+    # Which system reported it: "health" (HEALTH.MD), "tasks", or "task_queue".
+    source: str = "health"
+    task_id: str = ""
 
 
 class ObservabilityTask(BaseModel):
@@ -353,6 +365,13 @@ class ObservabilityTask(BaseModel):
     duration_s: float | None
     task_summary: str
     error_summary: str
+    cost_usd: float = 0.0
+    continuation: int = 0
+    # Verification gate (roadmap 2.5): what the task changed, the checkpoint it
+    # can be rolled back to, and how verifiable those changes are.
+    changed_files: list[str] = []
+    checkpoint_sha: str = ""
+    verification: str = ""
 
 
 class ObservabilityDashboard(BaseModel):
@@ -368,6 +387,143 @@ _HEALTH_LINE_RE = (
     r"^\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s+"
     r"(?P<level>[A-Z][A-Z_]*):\s*(?P<msg>.+)$"
 )
+
+
+def _recent_task_incidents(hours: int = 24) -> tuple[list[ObservabilityError], dict[str, int], dict[str, int]]:
+    """Terminal task failures from SQLite, as incidents the dashboard can count.
+
+    This is the fix for the counters lying. `agents_with_errors` and
+    `recent_error_count` used to be derived from HEALTH.MD alone, so a task that
+    failed in the queue and never wrote a health line was invisible — the
+    dashboard could read "zero errors" while tasks were failing.
+
+    Two tables are terminal-failure sources:
+
+    * ``tasks``      — per-agent task rows, status ``error``
+    * ``task_queue`` — queue-level rows, status ``error`` or ``timeout``
+
+    ``partial`` is deliberately NOT a failure. It means the agent ran out of
+    turns and was re-enqueued to continue, so the work is still in flight;
+    counting it as an error would inflate the failure rate with healthy work.
+    It is returned separately as the continuation count.
+
+    Returns ``(incidents, failures_by_agent, continuations_by_agent)``.
+    """
+    from app.utils.db import get_db, init_schema
+
+    incidents: list[ObservabilityError] = []
+    failures: dict[str, int] = {}
+    continuations: dict[str, int] = {}
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=hours)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    try:
+        init_schema()
+        db = get_db()
+    except Exception:
+        return incidents, failures, continuations
+
+    try:
+        rows = db.execute(
+            """SELECT agent, task_id, status, completed_at, error_summary
+               FROM tasks
+               WHERE status IN ('error', 'partial') AND completed_at >= ?
+               ORDER BY completed_at DESC LIMIT 200""",
+            (cutoff,),
+        ).fetchall()
+    except Exception:
+        rows = []
+
+    for r in rows:
+        agent = r["agent"] or "unknown"
+        if (r["status"] or "") == "partial":
+            continuations[agent] = continuations.get(agent, 0) + 1
+            continue
+        failures[agent] = failures.get(agent, 0) + 1
+        incidents.append(
+            ObservabilityError(
+                agent=agent,
+                timestamp=_to_health_ts(r["completed_at"]),
+                level="ERROR",
+                message=(r["error_summary"] or "Task failed").strip()[:300],
+                source="tasks",
+                task_id=(r["task_id"] or ""),
+            )
+        )
+
+    try:
+        qrows = db.execute(
+            """SELECT id, status, assigned_agent, completed_at, error
+               FROM task_queue
+               WHERE status IN ('error', 'timeout') AND completed_at >= ?
+               ORDER BY completed_at DESC LIMIT 200""",
+            (cutoff,),
+        ).fetchall()
+    except Exception:
+        qrows = []
+
+    for r in qrows:
+        agent = r["assigned_agent"] or "master"
+        failures[agent] = failures.get(agent, 0) + 1
+        incidents.append(
+            ObservabilityError(
+                agent=agent,
+                timestamp=_to_health_ts(r["completed_at"]),
+                level=(r["status"] or "error").upper(),
+                message=(r["error"] or "Queue task failed").strip()[:300],
+                source="task_queue",
+                task_id=(r["id"] or ""),
+            )
+        )
+
+    return incidents, failures, continuations
+
+
+def _parse_changed_files(raw: str | None) -> list[str]:
+    """Decode the JSON list a task row stores, tolerating legacy empty values."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return [str(x) for x in parsed] if isinstance(parsed, list) else []
+
+
+def _to_health_ts(iso: str | None) -> str:
+    """Normalize an ISO timestamp to the HEALTH.MD display format."""
+    if not iso:
+        return ""
+    try:
+        return datetime.fromisoformat(
+            iso.replace("Z", "+00:00")
+        ).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return str(iso)[:16].replace("T", " ")
+
+
+def _dedupe_incidents(items: list[ObservabilityError]) -> list[ObservabilityError]:
+    """Collapse the same failure reported by two sources into one incident.
+
+    A failing task usually writes BOTH a HEALTH.MD line and a `tasks` row, so a
+    naive union double-counts every failure — which would replace one wrong
+    number with another. Two entries are the same incident when they share an
+    agent, a minute, and the opening of their message. The DB record wins,
+    because it carries the task_id.
+    """
+    by_key: dict[tuple[str, str, str], ObservabilityError] = {}
+    ordered: list[ObservabilityError] = []
+    for item in items:
+        key = (item.agent, item.timestamp, item.message[:60].strip().lower())
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = item
+            ordered.append(item)
+        elif existing.source == "health" and item.source != "health":
+            ordered[ordered.index(existing)] = item
+            by_key[key] = item
+    return ordered
 
 
 def _recent_health_lines(agent_dir: Path, max_lines: int = 50) -> list[ObservabilityError]:
@@ -426,6 +582,12 @@ async def get_observability_dashboard():
     active_count = 0
     agents_with_errors = 0
 
+    # Terminal failures recorded in SQLite. Previously the dashboard counted
+    # only HEALTH.MD lines, so a task that failed without writing one was
+    # invisible and the tiles could read "zero errors" during real failures.
+    task_incidents, task_failures, task_continuations = _recent_task_incidents()
+    all_errors.extend(task_incidents)
+
     for agent_dir in sorted(AGENTS_DIR.iterdir()):
         if not agent_dir.is_dir() or agent_dir.name.startswith("_"):
             continue
@@ -442,7 +604,8 @@ async def get_observability_dashboard():
             active_count += 1
 
         health_issues = _count_health_issues(agent_dir)
-        if health_issues:
+        agent_task_failures = task_failures.get(agent_dir.name, 0)
+        if health_issues or agent_task_failures:
             agents_with_errors += 1
         all_errors.extend(_recent_health_lines(agent_dir))
 
@@ -458,12 +621,17 @@ async def get_observability_dashboard():
                 health_issues=health_issues,
                 last_active_at=_last_active_at(agent_dir),
                 models=models,
+                task_failures=agent_task_failures,
+                continuations=task_continuations.get(agent_dir.name, 0),
             )
         )
 
     # Order leaderboard by cost desc; ties broken by task_count desc.
     agents.sort(key=lambda a: (-a.cost_usd, -a.task_count, a.name))
 
+    # HEALTH.MD and the task tables both report the same failure, so the union
+    # must be deduped or every failure is counted twice.
+    all_errors = _dedupe_incidents(all_errors)
     all_errors.sort(key=lambda e: e.timestamp, reverse=True)
     recent_errors = all_errors[:20]
 
@@ -472,7 +640,9 @@ async def get_observability_dashboard():
     db = get_db()
     rows = db.execute(
         """SELECT agent, task_id, status, assigned_by, assigned_at,
-                  completed_at, task_summary, error_summary
+                  completed_at, task_summary, error_summary,
+                  cost_usd, continuation, changed_files, checkpoint_sha,
+                  verification
            FROM tasks
            ORDER BY id DESC
            LIMIT 20"""
@@ -500,6 +670,11 @@ async def get_observability_dashboard():
                 duration_s=duration,
                 task_summary=r["task_summary"] or "",
                 error_summary=r["error_summary"] or "",
+                cost_usd=round(float(r["cost_usd"] or 0.0), 6),
+                continuation=int(r["continuation"] or 0),
+                changed_files=_parse_changed_files(r["changed_files"]),
+                checkpoint_sha=(r["checkpoint_sha"] or "")[:12],
+                verification=r["verification"] or "",
             )
         )
 
@@ -512,7 +687,11 @@ async def get_observability_dashboard():
             total_tasks=int(total_tasks or 0),
             active_agents=active_count,
             agents_with_errors=agents_with_errors,
-            recent_error_count=len(recent_errors),
+            # Deduped union across HEALTH.MD + both task tables, not a slice of
+            # it: the tile must reflect every incident, not just the 20 shown.
+            recent_error_count=len(all_errors),
+            task_failure_count=sum(task_failures.values()),
+            continuation_count=sum(task_continuations.values()),
         ),
         agents=agents,
         recent_errors=recent_errors,
@@ -775,3 +954,289 @@ async def get_active_times():
 #                                   in-memory ring buffer
 #   WebSocket {"type": "subscribe_agent", "agent": name}
 #                               — live push of per-agent activity events
+
+
+# ── Reliability scorecard (Phase 2.2) ───────────────────────────────────────
+#
+# Turns the targets table in docs/harness-roadmap-2026-09.md into something the
+# system reports about itself, instead of numbers a human re-derives with ad-hoc
+# SQL. Every figure is windowed and the window is part of the response.
+#
+# The window is not a detail. Ranking failure causes over ALL time is exactly
+# the mistake that produced a wrong first draft of that roadmap: pooling years
+# of history with long-fixed bugs put turn exhaustion third when, over the
+# current release, it was 68% of failures. Hence `days` defaults to 7 and the
+# response always states the window it used.
+
+_FAILURE_CLASSES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("timeout", ("timed out",)),
+    ("turn_limit", ("turn limit", "turn-limit")),
+    (
+        "provider_config",
+        ("fallback chain", "api error", "credit balance", "invalid_argument",
+         "400", "401", "429"),
+    ),
+    ("malformed_output", ("incomplete provider response",)),
+)
+
+
+def _classify_failure(error_summary: str) -> str:
+    """Bucket a failure by its error text. Order matters: first match wins."""
+    text = (error_summary or "").lower()
+    if not text.strip():
+        return "unlabelled"
+    for name, needles in _FAILURE_CLASSES:
+        if any(n in text for n in needles):
+            return name
+    return "other"
+
+
+class ReliabilityAgent(BaseModel):
+    name: str
+    tasks: int
+    failures: int
+    failure_rate: float
+    continuations: int
+    cost_usd: float
+    p50_duration_s: float
+    p95_duration_s: float
+
+
+class ReliabilityScorecard(BaseModel):
+    generated_at: str
+    window_days: int
+    window_start: str
+    # Totals over the window.
+    tasks: int
+    completed: int
+    failed: int
+    partial: int
+    failure_rate: float
+    # Failure mix, newest window only — never all-time. See the note above.
+    failure_mix: dict[str, int]
+    # Cost. `cost_per_completed_task` is the number the roadmap tracks; it is
+    # None rather than 0.0 when nothing completed, so an empty window cannot be
+    # mistaken for free work.
+    total_cost_usd: float
+    cost_per_completed_task: float | None
+    continuation_cost_usd: float
+    # Queue-level view (a whole delegation tree per row).
+    queue_tasks: int
+    queue_failed: int
+    queue_cost_usd: float
+    by_agent: list[ReliabilityAgent]
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, int(len(ordered) * pct))
+    return round(ordered[idx], 1)
+
+
+@router.get("/reliability", response_model=ReliabilityScorecard)
+async def get_reliability_scorecard(days: int = 7):
+    """Reliability, cost and continuation metrics over a trailing window."""
+    from app.utils.db import get_db, init_schema
+
+    days = max(1, min(int(days or 7), 365))
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=days)
+    start_s = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    init_schema()
+    db = get_db()
+
+    rows = db.execute(
+        """SELECT agent, status, error_summary, cost_usd, continuation,
+                  assigned_at, completed_at
+           FROM tasks WHERE assigned_at >= ?""",
+        (start_s,),
+    ).fetchall()
+
+    per_agent: dict[str, dict] = {}
+    failure_mix: dict[str, int] = {}
+    completed = failed = partial = 0
+    total_cost = 0.0
+    continuation_cost = 0.0
+
+    for r in rows:
+        agent = r["agent"] or "unknown"
+        status = (r["status"] or "").lower()
+        cost = float(r["cost_usd"] or 0.0)
+        bucket = per_agent.setdefault(
+            agent,
+            {"tasks": 0, "failures": 0, "continuations": 0, "cost": 0.0, "durations": []},
+        )
+        bucket["tasks"] += 1
+        bucket["cost"] += cost
+        total_cost += cost
+
+        if int(r["continuation"] or 0) > 0:
+            continuation_cost += cost
+
+        if status == "done":
+            completed += 1
+        elif status == "partial":
+            partial += 1
+            bucket["continuations"] += 1
+        elif status == "error":
+            failed += 1
+            bucket["failures"] += 1
+            cls = _classify_failure(r["error_summary"] or "")
+            failure_mix[cls] = failure_mix.get(cls, 0) + 1
+
+        if r["assigned_at"] and r["completed_at"]:
+            try:
+                a = datetime.fromisoformat(r["assigned_at"].replace("Z", "+00:00"))
+                c = datetime.fromisoformat(r["completed_at"].replace("Z", "+00:00"))
+                delta = (c - a).total_seconds()
+                if delta > 0:
+                    bucket["durations"].append(delta)
+            except (ValueError, TypeError):
+                pass
+
+    qrows = db.execute(
+        "SELECT status, cost_usd FROM task_queue WHERE created_at >= ?", (start_s,)
+    ).fetchall()
+    queue_failed = sum(
+        1 for q in qrows if (q["status"] or "") in ("error", "timeout")
+    )
+    queue_cost = sum(float(q["cost_usd"] or 0.0) for q in qrows)
+
+    # Denominator excludes `partial`: those tasks have not reached an outcome
+    # yet, so counting them either way would misstate the rate.
+    terminal = completed + failed
+    failure_rate = round(failed / terminal, 4) if terminal else 0.0
+
+    by_agent = [
+        ReliabilityAgent(
+            name=name,
+            tasks=b["tasks"],
+            failures=b["failures"],
+            failure_rate=round(
+                b["failures"] / b["tasks"], 4
+            ) if b["tasks"] else 0.0,
+            continuations=b["continuations"],
+            cost_usd=round(b["cost"], 6),
+            p50_duration_s=_percentile(b["durations"], 0.50),
+            p95_duration_s=_percentile(b["durations"], 0.95),
+        )
+        for name, b in sorted(
+            per_agent.items(), key=lambda kv: (-kv[1]["failures"], kv[0])
+        )
+    ]
+
+    return ReliabilityScorecard(
+        generated_at=now.isoformat().replace("+00:00", "Z"),
+        window_days=days,
+        window_start=start_s,
+        tasks=len(rows),
+        completed=completed,
+        failed=failed,
+        partial=partial,
+        failure_rate=failure_rate,
+        failure_mix=dict(sorted(failure_mix.items(), key=lambda kv: -kv[1])),
+        total_cost_usd=round(total_cost, 6),
+        cost_per_completed_task=(
+            round(total_cost / completed, 6) if completed else None
+        ),
+        continuation_cost_usd=round(continuation_cost, 6),
+        queue_tasks=len(qrows),
+        queue_failed=queue_failed,
+        queue_cost_usd=round(queue_cost, 6),
+        by_agent=by_agent,
+    )
+
+
+# ── Evaluator signal ledger (Phase 3.2) ─────────────────────────────────────
+
+
+class LedgerSignal(BaseModel):
+    signal_id: str
+    title: str
+    impact: str
+    status: str
+    rounds_open: int
+    first_seen_round: int
+    last_seen_round: int
+    last_seen_ts: str
+
+
+class SignalLedgerResponse(BaseModel):
+    generated_at: str
+    total: int
+    open_count: int
+    resolved_count: int
+    # Rounds between the ledger and the newest evaluator report. Non-zero means
+    # findings are being judged against stale data — the failure mode that left
+    # an already-fixed bug showing as an open signal.
+    staleness_rounds: int
+    latest_report_round: int
+    ledger_round: int
+    open_signals: list[LedgerSignal]
+
+
+@router.get("/signals", response_model=SignalLedgerResponse)
+async def get_signal_ledger():
+    """Open evaluator findings, and how far behind the ledger has drifted.
+
+    The ledger already tracked resolution, but nothing surfaced it: the only
+    consumer was `propose_goals()`, invoked by hand. Findings could sit "open"
+    indefinitely after the underlying bug was fixed, with nobody able to see it.
+    """
+    from app.utils.signal_ledger import _load_ledger, scan_findings
+
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # `ledger_snapshot()` returns aggregate counts only; the per-signal detail
+    # this endpoint exists to surface lives in the raw ledger.
+    try:
+        entries = _load_ledger()
+    except Exception:
+        entries = {}
+    if not isinstance(entries, dict):
+        entries = {}
+
+    signals: list[LedgerSignal] = []
+    open_count = resolved_count = 0
+    ledger_round = 0
+    for sid, raw in entries.items():
+        if not isinstance(raw, dict):
+            continue
+        status = str(raw.get("status", "open"))
+        ledger_round = max(ledger_round, int(raw.get("last_seen_round", 0) or 0))
+        if status == "resolved":
+            resolved_count += 1
+            continue
+        open_count += 1
+        signals.append(
+            LedgerSignal(
+                signal_id=str(raw.get("signal_id", sid)),
+                title=str(raw.get("title", "")),
+                impact=str(raw.get("impact", "")),
+                status=status,
+                rounds_open=int(raw.get("rounds_open", 0) or 0),
+                first_seen_round=int(raw.get("first_seen_round", 0) or 0),
+                last_seen_round=int(raw.get("last_seen_round", 0) or 0),
+                last_seen_ts=str(raw.get("last_seen_ts", "")),
+            )
+        )
+
+    try:
+        latest_round = max((f.round_number for f in scan_findings()), default=0)
+    except Exception:
+        latest_round = 0
+
+    signals.sort(key=lambda s: (-s.rounds_open, s.title))
+    return SignalLedgerResponse(
+        generated_at=generated_at,
+        total=len(entries),
+        open_count=open_count,
+        resolved_count=resolved_count,
+        staleness_rounds=max(0, latest_round - ledger_round),
+        latest_report_round=latest_round,
+        ledger_round=ledger_round,
+        open_signals=signals,
+    )

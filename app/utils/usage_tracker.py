@@ -237,3 +237,42 @@ class UsageTracker:
             self._write(_empty_usage())
         except Exception as exc:
             _log.warning("usage_tracker.reset failed: {}", exc)
+
+
+def total_spend_all_agents() -> float:
+    """Sum ``total_cost_usd`` across every agent's ``USAGE.json``.
+
+    Used to attribute cost to a *queue* task, which spans a whole delegation
+    tree: master plus every sub-agent it spawned. Taking this before and after
+    a task and recording the delta captures the tree's spend, which per-agent
+    lifetime totals cannot express on their own.
+
+    Caveat: this is a global counter, so two queue tasks running concurrently
+    will each be attributed the other's spend. YAPOC's dispatcher runs queue
+    tasks serially, which is what makes the delta meaningful; if that ever
+    changes, this attribution needs to become per-tree rather than global.
+    For exact, overlap-free numbers use ``tasks.cost_usd``, which is recorded
+    per agent-task and cannot overlap because an agent runs one task at a time.
+    """
+    from app.config import settings
+
+    total = 0.0
+    try:
+        agents_dir = settings.agents_dir
+        if not agents_dir.is_dir():
+            return 0.0
+        for agent_dir in agents_dir.iterdir():
+            if not agent_dir.is_dir() or agent_dir.name.startswith("_"):
+                continue
+            path = agent_dir / USAGE_FILE
+            if not path.exists():
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+                total += float(data.get("total_cost_usd", 0.0) or 0.0)
+            except (OSError, ValueError, TypeError):
+                continue
+    except Exception as exc:  # pragma: no cover - defensive
+        _log.warning("total_spend_all_agents failed: {}", exc)
+        return 0.0
+    return total

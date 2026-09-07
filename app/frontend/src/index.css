@@ -11,10 +11,10 @@
 :root,
 [data-theme="dark"] {
   /* Backgrounds — neutral near-black with very faint warm undertone */
-  --color-bg-primary:   #1a1a1a;
-  --color-bg-secondary: #1f1f1f;
-  --color-bg-tertiary:  #262626;
-  --color-bg-panel:     #1e1e1e;
+  --color-bg-primary:   #18181b;
+  --color-bg-secondary: #1e1e22;
+  --color-bg-tertiary:  #26262b;
+  --color-bg-panel:     #1e1e22;
 
   /* Legacy aliases */
   --color-bg-base:       #1a1a1a;
@@ -24,9 +24,9 @@
   --color-bg-muted:      #1f1f1f;
 
   /* Borders — subtle warm grey */
-  --color-border:         #303030;
+  --color-border:         #2a2a2a;
   --color-border-accent:  #d97757;
-  --color-border-default: #303030;
+  --color-border-default: #2a2a2a;
   --color-border-muted:   #262626;
   --color-border-subtle:  #3a3a3a;
 
@@ -37,17 +37,17 @@
   --color-text-disabled:  #3a3633;
 
   /* Accent — Anthropic orange (claude.ai brand) */
-  --color-accent:         #d97757;
-  --color-accent-dim:     #a04a2a;
-  --color-accent-glow:    rgba(217, 119, 87, 0.18);
+  --color-accent:         #e07a5f;
+  --color-accent-dim:     #b05a3a;
+  --color-accent-glow:    rgba(224, 122, 95, 0.16);
 
   /* Legacy accent aliases — keep semantic colors but softer */
-  --color-accent-blue:    #d97757;
+  --color-accent-blue:    #e07a5f;
   --color-accent-green:   #7fb886;
   --color-accent-yellow:  #d4a017;
   --color-accent-red:     #c45a4a;
   --color-accent-purple:  #a78bfa;
-  --color-accent-orange:  #d97757;
+  --color-accent-orange:  #e07a5f;
 
   /* Status */
   --color-success: #7fb886;
@@ -66,11 +66,11 @@
   --color-status-idle-border:    #303030;
 
   /* Zinc-scale aliases (used by sidebar/chat components) */
-  --color-zinc-950: #161616;
-  --color-zinc-900: #1a1a1a;
-  --color-zinc-800: #1f1f1f;
-  --color-zinc-700: #262626;
-  --color-zinc-600: #303030;
+  --color-zinc-950: #141417;
+  --color-zinc-900: #18181b;
+  --color-zinc-800: #1e1e22;
+  --color-zinc-700: #26262b;
+  --color-zinc-600: #2a2a2e;
   --color-zinc-500: #6e6862;
   --color-zinc-400: #a8a39a;
   --color-zinc-300: #c8c4be;
@@ -78,8 +78,8 @@
   --color-zinc-100: #e8e6e3;
 
   /* Shadows — softer */
-  --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.5);
-  --shadow-card:  0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-panel: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --shadow-card:  0 2px 12px rgba(0, 0, 0, 0.28);
 
   /* SVG / chart text */
   --color-chart-text:     #6e6862;
@@ -90,6 +90,7 @@
 
   /* Typography */
   --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
+  --font-sans:        system-ui, -apple-system, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', Arial, sans-serif;
   --border-terminal:  1px solid var(--color-border);
   --border-accent:    1px solid var(--color-border-accent);
   /* No CRT scanlines in Claude Code style */
@@ -180,7 +181,7 @@
   --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
   --border-terminal:  1px solid var(--color-border);
   --border-accent:    1px solid var(--color-border-accent);
-  --scanline-opacity: 0.015;
+  --scanline-opacity: 0;
 }
 
 /* ── Claude theme — Warm Terracotta ──────────────────────────────────────────── */
@@ -267,7 +268,7 @@
   --font-mono:        Monaco, 'Share Tech Mono', 'Courier New', monospace;
   --border-terminal:  1px solid var(--color-border);
   --border-accent:    1px solid var(--color-border-accent);
-  --scanline-opacity: 0.012;
+  --scanline-opacity: 0;
 }
 
 /* ── Base styles ─────────────────────────────────────────────────────────────── */
@@ -285,18 +286,10 @@ html, body {
   overflow-y: auto;
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
   transition: background-color 0.2s ease, color 0.2s ease;
-  /* Subtle scanline effect */
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, var(--scanline-opacity)) 2px,
-    rgba(0, 0, 0, var(--scanline-opacity)) 4px
-  );
   /* Standard anti-aliasing for smooth, readable text */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -340,7 +333,7 @@ html, body {
 .card, .panel {
   border: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
-  border-radius: 0;
+  border-radius: 12px;
 }
 .card:hover {
   border-color: var(--color-accent);
@@ -349,7 +342,7 @@ html, body {
 
 /* ── Retro buttons ───────────────────────────────────────────────────────────── */
 button, .btn {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 /* ── Status badges — clean Claude-Code style ────────────────────────────────── */
@@ -365,10 +358,10 @@ button, .btn {
 
 /* ── Terminal prompt headings ────────────────────────────────────────────────── */
 h1, h2, h3 {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--color-accent);
-  text-transform: uppercase;
-  letter-spacing: 2px;
+  text-transform: none;
+  letter-spacing: 0.5px;
 }
 
 /* ── Input fields ────────────────────────────────────────────────────────────── */
@@ -898,17 +891,28 @@ select {
 /* Let Tailwind's rounded classes keep their natural radii (light rounding).
    The previous "boxy terminal" override forced everything to radius:0; we
    relax that so cards/buttons/inputs get a hint of softness. */
-.rounded     { border-radius: 3px !important; }
-.rounded-md  { border-radius: 4px !important; }
-.rounded-lg  { border-radius: 6px !important; }
-.rounded-xl  { border-radius: 8px !important; }
-.rounded-2xl { border-radius: 10px !important; }
+.rounded     { border-radius: 8px !important; }
+.rounded-md  { border-radius: 10px !important; }
+.rounded-lg  { border-radius: 12px !important; }
+.rounded-xl  { border-radius: 14px !important; }
+.rounded-2xl { border-radius: 18px !important; }
 .rounded-full { border-radius: 9999px !important; }
 
 /* ── Retro font enforcement ───────────────────────────────────────────────────── */
-/* Ensure monospace font propagates to all text elements */
-*, input, textarea, select, button {
+/* Mono is scoped to code, labels, badges, and terminal surfaces only.
+   Body text and headings use the sans-serif stack. */
+code, pre, kbd, samp,
+.font-mono,
+.status-badge,
+.terminal-window,
+.vault-code-pre,
+.vault-editor-textarea,
+.vault-md-preview code,
+.vault-md-preview pre {
   font-family: var(--font-mono);
+}
+input, textarea, select, button {
+  font-family: var(--font-sans);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -919,9 +923,7 @@ select {
 
 /* ── Pixel-crisp rendering for all raster images ─────────────────────────────── */
 img {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
 }
 
 /* ── SVG icons — smooth modern rendering (Claude Code is not pixel-art) ─────── */
@@ -932,9 +934,7 @@ svg {
 
 /* ── Canvas elements — pixel-perfect ─────────────────────────────────────────── */
 canvas {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
+  image-rendering: auto;
 }
 
 /* ── Utility class: .pixel-art ───────────────────────────────────────────────── */
@@ -996,10 +996,8 @@ canvas {
 [class*="icon"],
 [class*="Icon"],
 [aria-hidden="true"] svg {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  shape-rendering: crispEdges;
+  image-rendering: auto;
+  shape-rendering: geometricPrecision;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

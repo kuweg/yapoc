@@ -101,7 +101,12 @@ def _parse_server(raw: Any) -> MCPServerConfig:
 
     args = raw.get("args")
     if isinstance(args, list):
-        cfg.args = [str(a) for a in args if isinstance(a, (str, int, float))]
+        # Args go through _resolve like every other string field, so a server
+        # entry can carry a machine-dependent value (a browser path, a port)
+        # as ${VAR:-default} instead of hard-coding one developer's layout.
+        cfg.args = [
+            _resolve(str(a)) for a in args if isinstance(a, (str, int, float))
+        ]
 
     tools_allow = raw.get("tools_allowlist")
     if isinstance(tools_allow, list):

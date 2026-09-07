@@ -277,7 +277,7 @@ against noise.
 | 3.3 | **Scenario suite** (P1) | Representative coding / research / config / recovery / adversarial tasks in isolated fixtures, run on schedule via `cron`. |
 | 3.4 | **Policy-driven routing** (P2) | Select agent/model/depth from historical success + cost by task class. Needs 1.2 and 2.2 first. |
 | 3.5 | **Architecture doc** (P2) ✅ | Fill `README.md:9-15`; author `docs/architecture.mmd`. |
-| 3.6 | **Release gates** (P2) | Block promotion on regression against the 2.2 scorecard. |
+| 3.6 | **Release gates** (P2) ✅ | `poetry run python -m app.utils.release_gate` — exits non-zero on regression, thresholds in a checked-in `release_gates.json` with a recorded rationale per bar. Reads the same sources as the Observability surfaces, so it cannot drift from what the UI shows. Wired into CI as a **reported, not enforced** step. |
 
 ---
 
@@ -324,6 +324,44 @@ noting that the evaluator reached that finding independently — "grep this run
 confirms metrics.py still contains ZERO `status='error'` references" — which is
 the same defect this roadmap found from the other direction. That file now has
 2 such references and reads both task tables.
+
+#### 3.6 — the gate fails today, on purpose
+
+Run against the live system it reports:
+
+```
+[FAIL] failure_rate: 5.9% over 7d (max 4.0%, n=493)
+[FAIL] turn_limit_failures: 19 in 7d (max 0)
+[FAIL] provider_failures: 1 in 7d (max 0)
+[PASS] cost_per_completed_task: $0.0122
+[PASS] telemetry_reconciliation: dashboard 41 == tables 41
+[PASS] retrieval_recall / mrr / misses
+GATE FAILED — 3 failure(s)
+```
+
+That is correct behaviour, not a defect. The Phase 0/1 fixes are hours old and a
+7-day trailing window still contains pre-fix history — all 19 turn-limit
+failures predate the continuation mechanism. The number to watch is whether they
+fall out of the window over the coming week; a gate rubber-stamped to pass today
+would tell nobody anything.
+
+Two design decisions worth keeping:
+
+- **An empty window is not a pass.** Below `min_tasks` the reliability checks
+  return `SKIPPED`, because "0 failures because nothing ran" is exactly how a
+  broken system gets waved through. `--strict` turns skips into failures for a
+  release where silence is unacceptable.
+- **CI reports rather than enforces.** CI has no production task history, so
+  the reliability checks skip there and only retrieval and telemetry carry
+  signal. Enforcing on an empty window would be the same mistake the `min_tasks`
+  rule exists to prevent.
+
+**The gate immediately found something real.** `provider_failures: 1` is
+`OpenAI API error (429): You have no credits remaining` at 21:24 today. All 14
+configured agents carry OpenAI in their fallback chains, so after the keeper
+agent moved every primary to DeepSeek, the remaining cross-provider redundancy
+is partly dead — a DeepSeek outage now burns a failed OpenAI attempt before
+reaching a working fallback.
 
 ## 3. Targets
 

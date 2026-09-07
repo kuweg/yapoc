@@ -51,6 +51,34 @@ jobs:
           BACKEND_API_TOKEN: ''
         run: poetry run pytest tests/ app/backend/tests/ -q --maxfail=0
 
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction
+
+      # Reported, not enforced, for now. CI has no production task history, so
+      # the reliability checks will SKIP here (too few tasks) and only the
+      # retrieval and telemetry checks carry signal. Flip `continue-on-error`
+      # to false once the gate is run against a real window — running it
+      # against an empty one and calling that a pass is the failure mode the
+      # gate's own min_tasks rule exists to prevent.
+      - name: Release gate
+        continue-on-error: true
+        run: poetry run python -m app.utils.release_gate
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20

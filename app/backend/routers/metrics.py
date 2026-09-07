@@ -321,6 +321,13 @@ class ObservabilityTotals(BaseModel):
     active_agents: int
     agents_with_errors: int
     recent_error_count: int
+    # Terminal task failures from SQLite in the last 24h. Counted separately
+    # from `recent_error_count` (which is the deduped union with HEALTH.MD) so
+    # a dashboard/DB reconciliation check has something exact to compare.
+    task_failure_count: int = 0
+    # Tasks that ran out of turns and were re-enqueued to continue. NOT
+    # failures — the work is still in flight.
+    continuation_count: int = 0
 
 
 class ObservabilityAgent(BaseModel):
@@ -334,6 +341,8 @@ class ObservabilityAgent(BaseModel):
     health_issues: int
     last_active_at: str | None
     models: list[str]
+    task_failures: int = 0
+    continuations: int = 0
 
 
 class ObservabilityError(BaseModel):
@@ -341,6 +350,9 @@ class ObservabilityError(BaseModel):
     timestamp: str
     level: str
     message: str
+    # Which system reported it: "health" (HEALTH.MD), "tasks", or "task_queue".
+    source: str = "health"
+    task_id: str = ""
 
 
 class ObservabilityTask(BaseModel):
@@ -353,6 +365,8 @@ class ObservabilityTask(BaseModel):
     duration_s: float | None
     task_summary: str
     error_summary: str
+    cost_usd: float = 0.0
+    continuation: int = 0
 
 
 class ObservabilityDashboard(BaseModel):
@@ -368,6 +382,132 @@ _HEALTH_LINE_RE = (
     r"^\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s+"
     r"(?P<level>[A-Z][A-Z_]*):\s*(?P<msg>.+)$"
 )
+
+
+def _recent_task_incidents(hours: int = 24) -> tuple[list[ObservabilityError], dict[str, int], dict[str, int]]:
+    """Terminal task failures from SQLite, as incidents the dashboard can count.
+
+    This is the fix for the counters lying. `agents_with_errors` and
+    `recent_error_count` used to be derived from HEALTH.MD alone, so a task that
+    failed in the queue and never wrote a health line was invisible — the
+    dashboard could read "zero errors" while tasks were failing.
+
+    Two tables are terminal-failure sources:
+
+    * ``tasks``      — per-agent task rows, status ``error``
+    * ``task_queue`` — queue-level rows, status ``error`` or ``timeout``
+
+    ``partial`` is deliberately NOT a failure. It means the agent ran out of
+    turns and was re-enqueued to continue, so the work is still in flight;
+    counting it as an error would inflate the failure rate with healthy work.
+    It is returned separately as the continuation count.
+
+    Returns ``(incidents, failures_by_agent, continuations_by_agent)``.
+    """
+    from app.utils.db import get_db, init_schema
+
+    incidents: list[ObservabilityError] = []
+    failures: dict[str, int] = {}
+    continuations: dict[str, int] = {}
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(hours=hours)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    try:
+        init_schema()
+        db = get_db()
+    except Exception:
+        return incidents, failures, continuations
+
+    try:
+        rows = db.execute(
+            """SELECT agent, task_id, status, completed_at, error_summary
+               FROM tasks
+               WHERE status IN ('error', 'partial') AND completed_at >= ?
+               ORDER BY completed_at DESC LIMIT 200""",
+            (cutoff,),
+        ).fetchall()
+    except Exception:
+        rows = []
+
+    for r in rows:
+        agent = r["agent"] or "unknown"
+        if (r["status"] or "") == "partial":
+            continuations[agent] = continuations.get(agent, 0) + 1
+            continue
+        failures[agent] = failures.get(agent, 0) + 1
+        incidents.append(
+            ObservabilityError(
+                agent=agent,
+                timestamp=_to_health_ts(r["completed_at"]),
+                level="ERROR",
+                message=(r["error_summary"] or "Task failed").strip()[:300],
+                source="tasks",
+                task_id=(r["task_id"] or ""),
+            )
+        )
+
+    try:
+        qrows = db.execute(
+            """SELECT id, status, assigned_agent, completed_at, error
+               FROM task_queue
+               WHERE status IN ('error', 'timeout') AND completed_at >= ?
+               ORDER BY completed_at DESC LIMIT 200""",
+            (cutoff,),
+        ).fetchall()
+    except Exception:
+        qrows = []
+
+    for r in qrows:
+        agent = r["assigned_agent"] or "master"
+        failures[agent] = failures.get(agent, 0) + 1
+        incidents.append(
+            ObservabilityError(
+                agent=agent,
+                timestamp=_to_health_ts(r["completed_at"]),
+                level=(r["status"] or "error").upper(),
+                message=(r["error"] or "Queue task failed").strip()[:300],
+                source="task_queue",
+                task_id=(r["id"] or ""),
+            )
+        )
+
+    return incidents, failures, continuations
+
+
+def _to_health_ts(iso: str | None) -> str:
+    """Normalize an ISO timestamp to the HEALTH.MD display format."""
+    if not iso:
+        return ""
+    try:
+        return datetime.fromisoformat(
+            iso.replace("Z", "+00:00")
+        ).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return str(iso)[:16].replace("T", " ")
+
+
+def _dedupe_incidents(items: list[ObservabilityError]) -> list[ObservabilityError]:
+    """Collapse the same failure reported by two sources into one incident.
+
+    A failing task usually writes BOTH a HEALTH.MD line and a `tasks` row, so a
+    naive union double-counts every failure — which would replace one wrong
+    number with another. Two entries are the same incident when they share an
+    agent, a minute, and the opening of their message. The DB record wins,
+    because it carries the task_id.
+    """
+    by_key: dict[tuple[str, str, str], ObservabilityError] = {}
+    ordered: list[ObservabilityError] = []
+    for item in items:
+        key = (item.agent, item.timestamp, item.message[:60].strip().lower())
+        existing = by_key.get(key)
+        if existing is None:
+            by_key[key] = item
+            ordered.append(item)
+        elif existing.source == "health" and item.source != "health":
+            ordered[ordered.index(existing)] = item
+            by_key[key] = item
+    return ordered
 
 
 def _recent_health_lines(agent_dir: Path, max_lines: int = 50) -> list[ObservabilityError]:
@@ -426,6 +566,12 @@ async def get_observability_dashboard():
     active_count = 0
     agents_with_errors = 0
 
+    # Terminal failures recorded in SQLite. Previously the dashboard counted
+    # only HEALTH.MD lines, so a task that failed without writing one was
+    # invisible and the tiles could read "zero errors" during real failures.
+    task_incidents, task_failures, task_continuations = _recent_task_incidents()
+    all_errors.extend(task_incidents)
+
     for agent_dir in sorted(AGENTS_DIR.iterdir()):
         if not agent_dir.is_dir() or agent_dir.name.startswith("_"):
             continue
@@ -442,7 +588,8 @@ async def get_observability_dashboard():
             active_count += 1
 
         health_issues = _count_health_issues(agent_dir)
-        if health_issues:
+        agent_task_failures = task_failures.get(agent_dir.name, 0)
+        if health_issues or agent_task_failures:
             agents_with_errors += 1
         all_errors.extend(_recent_health_lines(agent_dir))
 
@@ -458,12 +605,17 @@ async def get_observability_dashboard():
                 health_issues=health_issues,
                 last_active_at=_last_active_at(agent_dir),
                 models=models,
+                task_failures=agent_task_failures,
+                continuations=task_continuations.get(agent_dir.name, 0),
             )
         )
 
     # Order leaderboard by cost desc; ties broken by task_count desc.
     agents.sort(key=lambda a: (-a.cost_usd, -a.task_count, a.name))
 
+    # HEALTH.MD and the task tables both report the same failure, so the union
+    # must be deduped or every failure is counted twice.
+    all_errors = _dedupe_incidents(all_errors)
     all_errors.sort(key=lambda e: e.timestamp, reverse=True)
     recent_errors = all_errors[:20]
 
@@ -472,7 +624,8 @@ async def get_observability_dashboard():
     db = get_db()
     rows = db.execute(
         """SELECT agent, task_id, status, assigned_by, assigned_at,
-                  completed_at, task_summary, error_summary
+                  completed_at, task_summary, error_summary,
+                  cost_usd, continuation
            FROM tasks
            ORDER BY id DESC
            LIMIT 20"""
@@ -500,6 +653,8 @@ async def get_observability_dashboard():
                 duration_s=duration,
                 task_summary=r["task_summary"] or "",
                 error_summary=r["error_summary"] or "",
+                cost_usd=round(float(r["cost_usd"] or 0.0), 6),
+                continuation=int(r["continuation"] or 0),
             )
         )
 
@@ -512,7 +667,11 @@ async def get_observability_dashboard():
             total_tasks=int(total_tasks or 0),
             active_agents=active_count,
             agents_with_errors=agents_with_errors,
-            recent_error_count=len(recent_errors),
+            # Deduped union across HEALTH.MD + both task tables, not a slice of
+            # it: the tile must reflect every incident, not just the 20 shown.
+            recent_error_count=len(all_errors),
+            task_failure_count=sum(task_failures.values()),
+            continuation_count=sum(task_continuations.values()),
         ),
         agents=agents,
         recent_errors=recent_errors,

@@ -69,7 +69,9 @@ def init_schema() -> None:
             completed_at    TEXT,
             task_summary    TEXT,
             result_summary  TEXT,
-            error_summary   TEXT
+            error_summary   TEXT,
+            cost_usd        REAL NOT NULL DEFAULT 0.0,
+            continuation    INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agent, status);
         CREATE INDEX IF NOT EXISTS idx_tasks_time  ON tasks(assigned_at DESC);
@@ -128,6 +130,12 @@ def init_schema() -> None:
         "ALTER TABLE index_checkpoints ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE memory_entries ADD COLUMN tier TEXT NOT NULL DEFAULT 'hot'",
         "ALTER TABLE memory_entries ADD COLUMN provenance TEXT NOT NULL DEFAULT ''",
+        # Per-agent-task cost. An agent runs one task at a time, so the delta of
+        # its USAGE.json across the task is exactly that task's spend — unlike
+        # task_queue.cost_usd, which spans a whole delegation tree.
+        "ALTER TABLE tasks ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0.0",
+        # Which continuation attempt this row is (0 = the original run).
+        "ALTER TABLE tasks ADD COLUMN continuation INTEGER NOT NULL DEFAULT 0",
     ):
         try:
             db.execute(statement)
@@ -224,6 +232,8 @@ def insert_task(
     task_summary: str = "",
     result_summary: str = "",
     error_summary: str = "",
+    cost_usd: float = 0.0,
+    continuation: int = 0,
 ) -> int:
     """Insert a completed task record. Returns the row id."""
     db = get_db()
@@ -231,8 +241,8 @@ def insert_task(
     cur = db.execute(
         """INSERT INTO tasks
            (agent, task_id, status, assigned_by, assigned_at, completed_at,
-            task_summary, result_summary, error_summary)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            task_summary, result_summary, error_summary, cost_usd, continuation)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             agent,
             task_id,
@@ -243,6 +253,8 @@ def insert_task(
             task_summary,
             result_summary,
             error_summary,
+            float(cost_usd or 0.0),
+            int(continuation or 0),
         ),
     )
     db.commit()

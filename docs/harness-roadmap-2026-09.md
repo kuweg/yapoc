@@ -158,7 +158,39 @@ defect that had gone unnoticed precisely because nothing ever ran them:
 | 2.3 | **Finish provenance** (P0) ✅ | Only 1 of 11 `insert_memory_entry` sites wrote it, leaving 2,473 of 2,480 rows empty. All 11 now pass a repo-relative source path. **Deviation from this row as first written:** it specified a `{source_file, agent, task_id, indexed_at}` blob, but `agent`, `source` and `timestamp` are already their own columns — the file path was the only missing fact, and a plain path stays greppable. A test fails if any future index site omits it. |
 | 2.4 | **Retrieval benchmark** (P1) | ~40 fixed queries with known-good answers from real `MEMORY.MD` history; measure recall@k before/after decay and consolidation. |
 | 2.5 | **Verification gates** (P1) | Every modifying task attaches changed files, check run, result, checkpoint ref. |
-| 2.6 | **Security regression suite** (P1) | `security_policy.py` is 401 lines of heuristics with zero tests. Adversarial fixtures: traversal, absolute paths, destructive shell, core-agent deletion. |
+| 2.6 | **Security regression suite** (P1) ✅ | Done, and it **found six working bypasses of the gate**, all fixed and pinned by 85 tests. See below. |
+
+#### 2.6 findings — six live bypasses
+
+Writing adversarial fixtures against `security_policy.py` (~400 lines of
+substring and regex heuristics, previously zero tests) found six inputs the
+gate allowed and should not have. Verified side-by-side against the pre-fix
+module: 6 of 8 attacks flipped `allow` → `deny`.
+
+| Bypass | Why it worked |
+|---|---|
+| `app/agents/planning/../security/PROMPT.MD` | Rules match on path *substrings*; the traversal form contains no `/agents/security/` |
+| `app//agents//security//PROMPT.MD` | Same, via duplicate separators |
+| `rm -fr /` | The pattern matched only the literal spelling `rm -rf` |
+| `rm -r -f /` | Flags split across tokens |
+| `rm --recursive --force /` | Long flags |
+| `sh -c 'rm -rf /'` | Quoted: `/` is followed by `'`, so both the `\s\|$` and `/[a-zA-Z]` anchors missed |
+
+The first two matter most: that write lock exists specifically so the gate
+cannot be rewritten from inside the system, and both paths resolve to the real
+protected file.
+
+Fixes: `_normalize_path` (textual `os.path.normpath`, so it works on paths that
+do not exist yet) applied before every substring rule; and `_rm_hits_root`,
+which tokenizes the command — treating quotes as separators — instead of
+matching one spelling, making the check independent of flag order, spelling and
+quoting. Verified against 10 legitimate commands to confirm no false positives.
+
+Also corrected: `hardcoded_check`'s docstring claimed DENY is checked before
+ALLOW. The code has always done the opposite. In a security gate a stale
+ordering claim is worse than none, because allow-first means every ALLOW
+matcher must carry its own safety conjunctions — a test now fails if any ALLOW
+rule is caller-agnostic.
 
 ### Phase 3 — Make it smarter (weeks 9-13)
 

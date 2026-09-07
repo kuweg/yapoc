@@ -4,8 +4,14 @@
       "name": "playwright",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp", "--headless"],
-      "tools_allowlist": ["*"],
+      "args": [
+        "-y",
+        "@playwright/mcp",
+        "--headless"
+      ],
+      "tools_allowlist": [
+        "*"
+      ],
       "auth": "none",
       "timeout_s": 60,
       "enabled": true,
@@ -15,9 +21,32 @@
       "name": "context7",
       "transport": "streamable_http",
       "url": "https://mcp.context7.com/mcp",
-      "tools_allowlist": ["*"],
+      "tools_allowlist": [
+        "*"
+      ],
       "auth": "none",
       "timeout_s": 60,
+      "enabled": true,
+      "auto_reconnect": true
+    },
+    {
+      "name": "chrome-devtools",
+      "transport": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--headless",
+        "--no-usage-statistics",
+        "--isolated",
+        "--executablePath",
+        "${CHROME_PATH:-/usr/bin/chromium}"
+      ],
+      "tools_allowlist": [
+        "*"
+      ],
+      "auth": "none",
+      "timeout_s": 120,
       "enabled": true,
       "auto_reconnect": true
     }

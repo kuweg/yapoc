@@ -274,8 +274,8 @@ against noise.
 |---|---|---|
 | 3.1 | **Typed memory layers** (P0) ✅ | Cheap once 2.3 lands: extend `tier` from hot/cold to working / episodic / project / preference / archival with retention and promotion rules. Gate on the 2.4 benchmark. |
 | 3.2 | **Refresh the evaluator ledger** (P1) ✅ | Works but trails ~10 rounds (93 vs 103). Fire `update_ledger` every round; surface the 3 open signals in the UI. |
-| 3.3 | **Scenario suite** (P1) | Representative coding / research / config / recovery / adversarial tasks in isolated fixtures, run on schedule via `cron`. |
-| 3.4 | **Policy-driven routing** (P2) | Select agent/model/depth from historical success + cost by task class. Needs 1.2 and 2.2 first. |
+| 3.3 | **Scenario suite** (P1) ✅ | `python -m app.utils.scenario_suite`. Split into **offline** scenarios (security, config, recovery, retrieval — free, model-free, CI-safe; 7 of them, all passing) and **live** scenarios that dispatch real tasks. Live runs refuse without `--confirm-spend` and are **not** scheduled: putting a suite that spends the user's API budget on a timer is not a decision this code gets to make. |
+| 3.4 | **Policy-driven routing** (P2) ✅ | `python -m app.utils.routing_policy`. Classifies a task and recommends a target **with its evidence**. It advises rather than overriding master: the classifier is a prompt heuristic, and acting on it silently would turn a misclassification into an untraceable wrong route. Falls back to the existing default below 10 samples — a routing decision from four data points is noise wearing a number. |
 | 3.5 | **Architecture doc** (P2) ✅ | Fill `README.md:9-15`; author `docs/architecture.mmd`. |
 | 3.6 | **Release gates** (P2) ✅ | `poetry run python -m app.utils.release_gate` — exits non-zero on regression, thresholds in a checked-in `release_gates.json` with a recorded rationale per bar. Reads the same sources as the Observability surfaces, so it cannot drift from what the UI shows. Wired into CI as a **reported, not enforced** step. |
 
@@ -362,6 +362,32 @@ configured agents carry OpenAI in their fallback chains, so after the keeper
 agent moved every primary to DeepSeek, the remaining cross-provider redundancy
 is partly dead — a DeepSeek outage now burns a failed OpenAI attempt before
 reaching a working fallback.
+
+#### 3.4 — the original report's routing argument, now with numbers
+
+Measured over 30 days of real tasks:
+
+| agent | n | success | avg cost | avg duration |
+|---|---:|---:|---:|---:|
+| builder | 236 | **97%** | **$0.0103** | **37s** |
+| planning | 80 | 85% | $0.0288 | 84s |
+
+Planning costs ~2.8x more, takes ~2.3x longer and fails ~4x as often. For work
+that needs no decomposition, routing through it buys nothing and costs all
+three. The original harness report argued this from four observed failures;
+Phases 1 and 2 turned it into a measurement.
+
+Phase 1 demoted routing to P2 on the grounds that continuations, not routing,
+were the fix for turn exhaustion. That still holds — this is a cost and latency
+optimisation, not a reliability fix, and it is scoped accordingly.
+
+#### 3.3 — why the scenario suite is not on a schedule
+
+The roadmap suggested running it via `cron`. The offline half could be, and is
+CI-safe. The live half dispatches real tasks against the user's account, and a
+suite that can be triggered by a scheduler, an import, or a default flag is a
+way to spend someone else's money by accident. It requires `--confirm-spend`,
+and the scheduling decision is left to the user.
 
 ## 3. Targets
 

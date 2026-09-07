@@ -52,6 +52,7 @@ tools:
   - shared_knowledge_append
   - image_read
   - send_telegram_message
+  - send_telegram_media
   - delegate_task
   - search_negative_knowledge
   - render_chart

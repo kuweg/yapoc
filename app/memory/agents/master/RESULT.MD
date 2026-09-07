@@ -1,9 +1,7 @@
-I'll verify the build completed cleanly before reporting.Done. The agents list now lives on the **right side** of the Chat tab.
+Builder completed the task:
 
-**What changed:**
-- `App.tsx` — moved `<AgentSidebar />` from before the chat `main` to after it, so it renders as a right-hand panel.
-- `AgentSidebar.tsx` — flipped its border from `border-r` to `border-l` so the divider sits on the correct (left) edge.
+- Created `app/tmp/phase25_check.txt` with exact content `VERIFY-OK` (9 bytes, no trailing newline/whitespace).
+- Verified via `wc -c` and `od -c`.
+- Notified master.
 
-**Result:** The Chat tab now has a single left rail (nav) + chat in the middle + agents list on the right — no more double-left-column clump.
-
-Build passed clean (`tsc -b && vite build`, exit 0). Frontend-only — **refresh the page** to see it.
+Done.

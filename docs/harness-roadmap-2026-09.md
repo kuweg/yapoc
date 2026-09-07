@@ -227,6 +227,20 @@ A boolean "verified" would be a lie for most tasks. The recorded verdict is:
 fully-known edit while arbitrary commands ran underneath it. Any task that shells
 out gets it, regardless of how many file tools it also called.
 
+Confirmed live. A delegated task asked builder to create a file and confirm it
+exists; the recorded row was:
+
+```
+builder done verdict='opaque'
+  files=["file_write:app/tmp/phase25_check.txt", "shell_exec:<opaque>"]
+```
+
+Builder wrote the file *and* shelled out to check it, so the change set cannot
+be fully claimed — a boolean gate would have reported this as cleanly verified.
+A second builder task running concurrently recorded its own separate edit
+(`AgentSidebar.tsx`) on its own row, with no cross-attribution: the evidence
+for preferring tool-call capture over a global `git status` diff.
+
 ### Phase 3 — Make it smarter (weeks 9-13)
 
 Deliberately last. Adaptive orchestration on top of untruthful telemetry optimizes

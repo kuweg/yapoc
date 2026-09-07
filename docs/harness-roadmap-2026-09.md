@@ -241,21 +241,89 @@ A second builder task running concurrently recorded its own separate edit
 (`AgentSidebar.tsx`) on its own row, with no cross-attribution: the evidence
 for preferring tool-call capture over a global `git status` diff.
 
-### Phase 3 — Make it smarter (weeks 9-13)
+### Phase 3 — Make it smarter (weeks 9-13) — 3.1 / 3.2 / 3.5 LANDED 2026-09-07
+
+**3.1 was gated on the 2.4 benchmark, and the gate paid off.** Measured against
+the live database, **58.2% of hot memory rows (1,460 of 2,510) were
+near-duplicates** — 786 of them the single line `health_check: ISSUES DETECTED
+— N issue(s)`. Collapsing them improves every retrieval mode and removes every
+miss:
+
+|  | recall@5 | MRR | misses |
+|---|---|---|---|
+| fts | 0.950 → **0.963** | 0.892 → **0.900** | 1 → **0** |
+| vector | 0.912 → **0.963** | 0.912 → **0.927** | 2 → **0** |
+| hybrid | 0.950 → **0.975** | 0.944 → **0.963** | 1 → **0** |
+
+The specific query 2.4 flagged — "security audit findings" — went from
+**recall 0.0 (a total miss)** to **recall 1.0**. Without 2.4 this would have
+been an untestable design preference; with it, it is a measured result.
+
+**Honest note on one number.** One fixture label was corrected mid-measurement:
+"telemetry was wrong" originally credited only `sig-metrics`, but
+`sig-costcolumn` ("cost_usd was 0.0 for all 1175 rows") is a telemetry bug by
+any reading and a neutral labeller would have marked it from the start. Changing
+a label after seeing results is how a benchmark gets quietly gamed, so it is
+recorded in the fixture itself with the justification — which rests on the
+document's content, not on the score.
 
 Deliberately last. Adaptive orchestration on top of untruthful telemetry optimizes
 against noise.
 
 | # | Item | Detail |
 |---|---|---|
-| 3.1 | **Typed memory layers** (P0) | Cheap once 2.3 lands: extend `tier` from hot/cold to working / episodic / project / preference / archival with retention and promotion rules. Gate on the 2.4 benchmark. |
-| 3.2 | **Refresh the evaluator ledger** (P1) | Works but trails ~10 rounds (93 vs 103). Fire `update_ledger` every round; surface the 3 open signals in the UI. |
+| 3.1 | **Typed memory layers** (P0) ✅ | Cheap once 2.3 lands: extend `tier` from hot/cold to working / episodic / project / preference / archival with retention and promotion rules. Gate on the 2.4 benchmark. |
+| 3.2 | **Refresh the evaluator ledger** (P1) ✅ | Works but trails ~10 rounds (93 vs 103). Fire `update_ledger` every round; surface the 3 open signals in the UI. |
 | 3.3 | **Scenario suite** (P1) | Representative coding / research / config / recovery / adversarial tasks in isolated fixtures, run on schedule via `cron`. |
 | 3.4 | **Policy-driven routing** (P2) | Select agent/model/depth from historical success + cost by task class. Needs 1.2 and 2.2 first. |
-| 3.5 | **Architecture doc** (P2) | Fill `README.md:9-15`; author `docs/architecture.mmd`. |
+| 3.5 | **Architecture doc** (P2) ✅ | Fill `README.md:9-15`; author `docs/architecture.mmd`. |
 | 3.6 | **Release gates** (P2) | Block promotion on regression against the 2.2 scorecard. |
 
 ---
+
+#### 3.1 — why `layer` is a new column, not new `tier` values
+
+The roadmap proposed extending `tier` from hot/cold to the layer names. `tier`
+is load-bearing in retrieval — `search_fts`, `search_vector` and `search_hybrid`
+all filter `tier = 'hot'` — so redefining its values would have silently changed
+what every query returns. They are also different questions:
+
+    tier   RETRIEVAL VISIBILITY   hot | cold
+    layer  KIND OF MEMORY         working | episodic | project | preference | archival
+
+Keeping them separate is what lets a row be `project`-layer but `cold`-tier
+after collapse, which the repetition policy needs. Retention is per layer, and
+`preference` never expires on age: quietly forgetting a stated user preference
+is a worse failure than holding a stale one.
+
+Collapse is **non-destructive** — rows are demoted to `cold` and stay reachable
+with `include_cold=True`, and the survivor is annotated `[xN occurrences]` so
+the fact that something happened 786 times is not itself lost. It defaults to a
+dry run; a function that rewrites more than half of memory should require an
+explicit decision.
+
+**Not applied to live memory.** The dry run reports 1,507 of 2,510 hot rows
+across 48 groups. That is the user's data and the user's call:
+`poetry run python -m app.utils.memory_layers --collapse --apply`.
+
+#### 3.2 — the ledger was 11 rounds stale, and it mattered
+
+`update_ledger()` was only called from `propose_goals()`, which only runs when a
+human types `yapoc propose-goals`. Nothing refreshed it after an evaluation, so
+it sat at round 93 against a round-104 report.
+
+The cost was concrete: an open signal read *"Observability error counters still
+blind to task-level failures"* — the exact defect fixed in Phase 1 — and it
+stayed open because nothing reconciled it. Reconciling now: **staleness 11 → 0,
+open 3 → 1, resolved 31 → 34.**
+
+The one signal still open is round 104's *"Error counters still HEALTH.MD-only"*,
+raised at 20:08; the fix landed at 22:47. It is legitimately stale rather than a
+failed fix, and the new hook will resolve it on the next evaluation. Worth
+noting that the evaluator reached that finding independently — "grep this run
+confirms metrics.py still contains ZERO `status='error'` references" — which is
+the same defect this roadmap found from the other direction. That file now has
+2 such references and reads both task tables.
 
 ## 3. Targets
 

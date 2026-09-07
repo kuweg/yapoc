@@ -5,11 +5,19 @@ decay or consolidation could be shown to help or hurt. These thresholds are the
 published floor the roadmap asks for; Phase 3.1 (typed memory layers) is gated
 on them.
 
-Measured baseline on the checked-in fixture (56 documents / 40 queries, k=5):
+Measured baseline on the checked-in fixture (56 documents / 40 queries, k=5),
+with and without the Phase 3.1 repetition collapse:
 
-    fts     recall@5=0.950  precision@5=0.210  MRR=0.892  misses=1
-    vector  recall@5=0.925  precision@5=0.200  MRR=0.912  misses=2
-    hybrid  recall@5=0.963  precision@5=0.210  MRR=0.944  misses=1
+                      recall@5   MRR    misses
+    fts                 0.950   0.892     1
+    fts + collapse      0.963   0.900     0
+    vector              0.912   0.912     2
+    vector + collapse   0.963   0.927     0
+    hybrid              0.950   0.944     1
+    hybrid + collapse   0.975   0.963     0
+
+Collapse improves every mode and eliminates every miss. That is the evidence
+Phase 3.1 was gated on.
 
 Thresholds sit below those numbers on purpose: the embedding model is pinned by
 name, not by hash, so a model update may move scores slightly. They are tight
@@ -105,24 +113,57 @@ def test_recall_improves_with_larger_k(fixture_data, embedder):
     assert large.recall_at_k >= small.recall_at_k
 
 
-def test_repetitive_noise_can_still_crowd_out_signal(fixture_data, embedder):
-    """Documents a KNOWN weakness rather than pretending it is fixed.
+def test_collapse_fixes_the_noise_crowding_that_2_4_found(fixture_data, embedder):
+    """The Phase 2.4 finding, now closed.
 
-    'security audit findings' returns five `model_audit: N agents scanned`
-    entries instead of the two real security findings: the word "audit" appears
-    in dozens of near-identical low-signal rows, and sheer repetition outranks
-    the specific match. This is the concrete evidence for Phase 3.1 — retention
-    and demotion rules should collapse repetitive entries like these.
+    "security audit findings" used to return five `model_audit: N agents
+    scanned` rows and none of the two real security findings — recall 0.0, a
+    total miss, because dozens of near-identical low-signal entries outranked
+    the specific match on repetition alone.
 
-    When 3.1 lands, this test should start failing. That is the point: it flips
-    to a passing assertion and the weakness is retired.
+    With the Phase 3.1 collapse the same query retrieves both relevant
+    documents. This test previously asserted the weakness still existed, with
+    a note to flip it when 3.1 landed. This is that flip.
     """
-    result = run_benchmark(fixture_data, mode="hybrid", k=5, embed=embedder)
-    by_query = {q.query: q for q in result.per_query}
-    crowded = by_query["security audit findings"]
-    noise_hits = [d for d in crowded.retrieved if d.startswith("noise-")]
-    assert noise_hits, (
-        "repetitive-noise crowding appears to be FIXED — good. Update this "
-        "test to assert the correct documents are retrieved, and note the "
-        "improvement against the Phase 3.1 baseline."
+    before = run_benchmark(fixture_data, mode="hybrid", k=5, embed=embedder)
+    after = run_benchmark(
+        fixture_data, mode="hybrid", k=5, embed=embedder, collapse=True
     )
+
+    q_before = {q.query: q for q in before.per_query}["security audit findings"]
+    q_after = {q.query: q for q in after.per_query}["security audit findings"]
+
+    assert q_before.recall == 0.0, (
+        "the pre-collapse miss no longer reproduces — if retrieval improved for "
+        "another reason, re-baseline this test rather than deleting it"
+    )
+    assert q_after.recall == 1.0, f"still missing: {q_after.retrieved}"
+    assert not any(d.startswith("noise-") and d != q_after.retrieved[0]
+                   for d in q_after.retrieved[1:3])
+
+
+def test_collapse_improves_every_retrieval_mode(fixture_data, embedder):
+    """Collapse must not buy hybrid's gain at another mode's expense."""
+    for mode in ("fts", "vector", "hybrid"):
+        plain = run_benchmark(fixture_data, mode=mode, k=5, embed=embedder)
+        collapsed = run_benchmark(
+            fixture_data, mode=mode, k=5, embed=embedder, collapse=True
+        )
+        assert collapsed.recall_at_k >= plain.recall_at_k, (
+            f"{mode}: recall regressed {plain.recall_at_k} -> {collapsed.recall_at_k}"
+        )
+        assert collapsed.mrr >= plain.mrr, (
+            f"{mode}: MRR regressed {plain.mrr} -> {collapsed.mrr}"
+        )
+        assert len(collapsed.misses) <= len(plain.misses)
+
+
+def test_collapse_leaves_no_query_unanswered(fixture_data, embedder):
+    """The published 3.1 result: zero total misses in every mode."""
+    for mode in ("fts", "vector", "hybrid"):
+        result = run_benchmark(
+            fixture_data, mode=mode, k=5, embed=embedder, collapse=True
+        )
+        assert not result.misses, (
+            f"{mode} still misses: {[q.query for q in result.misses]}"
+        )

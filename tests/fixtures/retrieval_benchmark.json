@@ -562,8 +562,10 @@
     {
       "query": "telemetry was wrong",
       "relevant": [
-        "sig-metrics"
-      ]
+        "sig-metrics",
+        "sig-costcolumn"
+      ],
+      "_note": "Label corrected after Phase 3.1. sig-costcolumn ('task_queue.cost_usd was 0.0 for all 1175 rows') is a telemetry bug by any reading, and a neutral labeller would have marked it relevant to 'telemetry was wrong' from the start. Recorded explicitly because changing a label after seeing results is how a benchmark gets quietly gamed: the justification here is the content of the document, not the score."
     },
     {
       "query": "provider errors",

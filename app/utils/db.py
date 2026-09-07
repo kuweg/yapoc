@@ -87,7 +87,8 @@ def init_schema() -> None:
             timestamp   TEXT NOT NULL,
             embedding   BLOB,
             tier        TEXT NOT NULL DEFAULT 'hot',
-            provenance  TEXT NOT NULL DEFAULT ''
+            provenance  TEXT NOT NULL DEFAULT '',
+            layer       TEXT NOT NULL DEFAULT 'episodic'
         );
         CREATE INDEX IF NOT EXISTS idx_mem_agent  ON memory_entries(agent);
         CREATE INDEX IF NOT EXISTS idx_mem_source ON memory_entries(agent, source);
@@ -133,6 +134,11 @@ def init_schema() -> None:
         "ALTER TABLE index_checkpoints ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE memory_entries ADD COLUMN tier TEXT NOT NULL DEFAULT 'hot'",
         "ALTER TABLE memory_entries ADD COLUMN provenance TEXT NOT NULL DEFAULT ''",
+        # Typed memory layer (roadmap 3.1). Separate from `tier`, which stays
+        # the retrieval-visibility flag: tier answers "is this searchable now",
+        # layer answers "what kind of memory is this". Overloading tier would
+        # have silently changed what every `tier='hot'` query returns.
+        "ALTER TABLE memory_entries ADD COLUMN layer TEXT NOT NULL DEFAULT 'episodic'",
         # Per-agent-task cost. An agent runs one task at a time, so the delta of
         # its USAGE.json across the task is exactly that task's spend — unlike
         # task_queue.cost_usd, which spans a whole delegation tree.
@@ -151,6 +157,7 @@ def init_schema() -> None:
         except sqlite3.OperationalError:
             pass  # column already exists
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_tier ON memory_entries(tier)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_mem_layer ON memory_entries(layer)")
 
     db.execute("""
         CREATE TABLE IF NOT EXISTS indexer_state (
@@ -303,17 +310,25 @@ def insert_memory_entry(
     embedding: np.ndarray | None = None,
     tier: str = "hot",
     provenance: str = "",
+    layer: str | None = None,
 ) -> int:
-    """Insert a memory entry with optional embedding. Returns row id."""
+    """Insert a memory entry with optional embedding. Returns row id.
+
+    ``layer`` is derived from agent/source when not given, so every call site
+    gets a typed layer without having to know the taxonomy.
+    """
     db = get_db()
     blob = embedding.astype(np.float32).tobytes() if embedding is not None else None
     if tier not in {"hot", "cold"}:
         raise ValueError("tier must be 'hot' or 'cold'")
+    if layer is None:
+        from app.utils.memory_layers import classify_layer
+        layer = classify_layer(agent, source, content, tier)
     cur = db.execute(
         """INSERT INTO memory_entries
-           (agent, source, content, timestamp, embedding, tier, provenance)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (agent, source, content, timestamp, blob, tier, provenance),
+           (agent, source, content, timestamp, embedding, tier, provenance, layer)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (agent, source, content, timestamp, blob, tier, provenance, layer),
     )
     rowid = cur.lastrowid
     # Keep FTS5 in sync

@@ -473,6 +473,47 @@ neg-knowledge-sweep spawned with no config`) that nothing had made visible.
 Another independently matches what the release gate found from the other
 direction: `document_processor fallback chain routes to out-of-credits OpenAI`.
 
+### Phase 4C — operational cleanup (2026-09-08)
+
+**Orphan columns — not junk, an abandoned feature with history.** Four columns
+(`task_class`, `route_target`, `verification_required`, `verification_status`)
+existed in the live `tasks` table and in no code. They were not empty: 96 rows
+carried real values (`task_class=code`, `route_target=builder`,
+`verification_status=self_reported`), all written between **2026-04-18 and
+2026-05-14** and nothing since — a routing/verification feature that ran for
+three weeks and was removed from the code, leaving its columns behind.
+
+The actual defect was schema drift: a fresh install got a `tasks` table the
+production one did not match. The 96 rows were archived to
+`data/archive/abandoned_task_columns_2026-09-08.json` before dropping, so
+nothing was destroyed; both are now 15 columns and verified identical.
+
+**Provider credits — the chain failed over but never remembered.** OpenAI
+returns `429: You have no credits remaining`, and it sits in all 14 agents'
+fallback chains. Failover worked, so nothing broke — but every task paid a full
+round-trip to relearn the same failure. Found independently by the release gate
+and by the evaluator, from opposite directions.
+
+An API-key check cannot catch this: the key is set and valid, the account simply
+cannot pay. It has to be learned from responses.
+
+`provider_health` benches a provider on signals meaning *the account cannot
+pay*, with a 30-minute cooldown. The distinction from a rate limit is the whole
+design: both arrive as HTTP 429, and benching a merely rate-limited provider for
+half an hour would turn a brief slowdown into a long outage — so transient
+signals win ties and never bench.
+
+Benched providers are **deprioritised, not removed**: if every provider is
+benched the chain must still attempt one, rather than failing with nothing
+tried. Verified on the real builder chain:
+
+    configured : deepseek, deepseek, openai, google
+    with bench : deepseek, deepseek, google, openai
+    after clear: deepseek, deepseek, openai, google
+
+A new offline scenario reports any live bench, so reduced redundancy is visible
+rather than silent.
+
 ## 3. Targets
 
 Every target is checkable with a query against `data/yapoc.db` or a CI job. **All

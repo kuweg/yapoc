@@ -110,6 +110,52 @@ class FallbackAdapter(BaseLLMAdapter):
         from . import get_adapter
         return get_adapter(self._chain[index])
 
+    def _skip_order(self) -> list[int]:
+        """Chain indices to try, with benched providers moved to the back.
+
+        A provider whose account is out of credits was previously re-attempted
+        on every task, paying a full round-trip to relearn the same failure.
+        Benched entries are *deprioritised rather than removed*: if every
+        provider is benched, the chain must still make an attempt instead of
+        failing with nothing tried. Cooldowns also expire, so a topped-up
+        account recovers without anyone clearing state by hand.
+        """
+        try:
+            from .provider_health import is_exhausted
+        except Exception:
+            return list(range(len(self._chain)))
+
+        healthy: list[int] = []
+        benched: list[int] = []
+        for idx, cfg in enumerate(self._chain):
+            try:
+                (benched if is_exhausted(cfg.adapter) else healthy).append(idx)
+            except Exception:
+                healthy.append(idx)
+        if benched and healthy:
+            log.info(
+                "[fallback] skipping %d benched provider(s): %s",
+                len(benched),
+                ", ".join(self._chain[i].adapter for i in benched),
+            )
+        return healthy + benched
+
+    def _note_outcome(self, index: int, exc: BaseException | None) -> None:
+        """Feed a chain outcome back into provider health. Never raises."""
+        try:
+            from .provider_health import record_error, record_success
+
+            adapter = self._chain[index].adapter
+            if exc is None:
+                record_success(adapter)
+            elif record_error(adapter, exc):
+                log.warning(
+                    "[fallback] %s benched — account appears exhausted: %s",
+                    adapter, str(exc)[:120],
+                )
+        except Exception:
+            pass
+
     def _describe(self, index: int) -> str:
         cfg = self._chain[index]
         return f"{cfg.adapter}:{cfg.model}"
@@ -140,7 +186,7 @@ class FallbackAdapter(BaseLLMAdapter):
         entry fails, the last exception is re-raised.
         """
         last_exc: BaseException | None = None
-        for idx in range(len(self._chain)):
+        for idx in self._skip_order():
             try:
                 adapter = self._build(idx)
             except _FALLOVER_ERRORS as exc:
@@ -150,6 +196,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     exc.__class__.__name__,
                 )
                 last_exc = exc
+                self._note_outcome(idx, exc)
                 continue
             try:
                 result = await call(adapter, self._chain[idx])
@@ -161,6 +208,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     str(exc),
                 )
                 last_exc = exc
+                self._note_outcome(idx, exc)
                 continue
             # Success — remember which one for context_window_size queries.
             self._active_index = idx
@@ -206,7 +254,7 @@ class FallbackAdapter(BaseLLMAdapter):
         rest directly.
         """
         last_exc: BaseException | None = None
-        for idx in range(len(self._chain)):
+        for idx in self._skip_order():
             try:
                 adapter = self._build(idx)
             except _FALLOVER_ERRORS as exc:
@@ -216,6 +264,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     exc.__class__.__name__,
                 )
                 last_exc = exc
+                self._note_outcome(idx, exc)
                 continue
 
             gen = adapter.stream(system_prompt, user_message, history)
@@ -231,11 +280,13 @@ class FallbackAdapter(BaseLLMAdapter):
                     exc.__class__.__name__,
                 )
                 last_exc = exc
+                self._note_outcome(idx, exc)
                 continue
 
             # Committed — this adapter gave us something, use it for the rest.
             self._active_index = idx
             self._active_adapter = adapter
+            self._note_outcome(idx, None)
             if first_chunk is not None:
                 yield first_chunk
             try:
@@ -266,7 +317,7 @@ class FallbackAdapter(BaseLLMAdapter):
         that needs to be resilient to 429/5xx blips.
         """
         last_exc: BaseException | None = None
-        for idx in range(len(self._chain)):
+        for idx in self._skip_order():
             try:
                 adapter = self._build(idx)
             except _FALLOVER_ERRORS as exc:
@@ -276,6 +327,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     exc.__class__.__name__,
                 )
                 last_exc = exc
+                self._note_outcome(idx, exc)
                 continue
 
             gen = adapter.stream_with_tools(system_prompt, messages, tools)
@@ -292,6 +344,7 @@ class FallbackAdapter(BaseLLMAdapter):
                     str(exc),
                 )
                 last_exc = exc
+                self._note_outcome(idx, exc)
                 continue
 
             # Committed.

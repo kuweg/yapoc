@@ -525,3 +525,140 @@ async def test_continuation_number_is_recorded_on_the_task_row(tmp_path, monkeyp
     # This row IS attempt 2; the next enqueue becomes attempt 3.
     assert recorded[0]["continuation"] == 2
     assert "continuation: 3" in (agent_dir / "TASK.MD").read_text()
+
+
+# ── Tool-trail salvage (Phase 4A) ──────────────────────────────────────────
+#
+# Found by running the mechanism in production rather than in a test. With
+# max_turns exhausted, an agent that spent every turn on tool calls produces NO
+# assistant text: RESULT.MD is 0 bytes, the salvage found "0 chars", declined to
+# continue, and discarded the work — the pre-Phase-0 behaviour, on exactly the
+# workload Phase 0 was built for. Every observed turn-limit failure was an agent
+# grinding through tools.
+#
+# The tests above passed because they fed partial TEXT. Reality often has none.
+
+
+def test_tool_trail_is_rendered_as_progress():
+    from app.agents.base import summarize_tool_activity
+
+    messages = [
+        {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "t1", "name": "file_list",
+             "input": {"path": "app/config"}},
+        ]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "t1", "content": "settings.py\n__init__.py"},
+        ]},
+        {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "t2", "name": "file_read",
+             "input": {"path": "app/config/settings.py"}},
+        ]},
+    ]
+    out = summarize_tool_activity(messages)
+    assert "file_list" in out and "file_read" in out
+    assert "app/config" in out
+    assert "settings.py" in out
+
+
+def test_tool_results_are_labelled_ok_or_error():
+    from app.agents.base import summarize_tool_activity
+
+    messages = [
+        {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "t1", "name": "shell_exec", "input": {"command": "ls"}},
+        ]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "t1", "content": "boom", "is_error": True},
+        ]},
+    ]
+    out = summarize_tool_activity(messages)
+    assert "ERROR" in out
+    assert "shell_exec" in out
+
+
+def test_no_tool_activity_yields_empty_not_noise():
+    """An agent that did nothing must not look like it made progress."""
+    from app.agents.base import summarize_tool_activity
+
+    assert summarize_tool_activity([]) == ""
+    assert summarize_tool_activity([{"role": "user", "content": "plain text"}]) == ""
+
+
+def test_long_trails_are_bounded_keeping_the_most_recent():
+    """A resuming agent needs its latest state, not its first move."""
+    from app.agents.base import summarize_tool_activity
+
+    messages = []
+    for i in range(80):
+        messages.append({"role": "assistant", "content": [
+            {"type": "tool_use", "id": f"t{i}", "name": f"tool_{i}", "input": {"n": i}},
+        ]})
+    out = summarize_tool_activity(messages, max_chars=1000, max_calls=10)
+    assert len(out) <= 1200
+    assert "tool_79" in out, "the most recent call must survive truncation"
+    assert "tool_0(" not in out, "the oldest calls should be dropped first"
+    assert "omitted" in out, "truncation must be stated, not silent"
+
+
+async def test_turn_limit_carries_the_trail_when_there_is_no_text(tmp_path, monkeypatch):
+    """End-to-end: exhausting turns on a tool-only run must still continue.
+
+    This is the production failure reproduced. Before the fix the runner logged
+    "salvaged 0 chars, continuing=False" and recorded a terminal error.
+    """
+    from app.config import settings
+    from app.utils.adapters import AgentConfig, ToolCall, TurnComplete
+
+    monkeypatch.setattr(settings, "max_task_continuations", 3)
+    runner, agent_dir, memory_dir = _make_runner(tmp_path, monkeypatch, "toolonly")
+    # No text ever written, exactly like the observed failure.
+    (memory_dir / "RESULT.MD").write_text("")
+    (agent_dir / "CONFIG.yaml").write_text(
+        "adapter: fake\nmodel: fake-1\ntools:\n  - file_list\n"
+        "runner:\n  max_turns: 1\n  task_timeout: 60\n"
+    )
+    (agent_dir / "PROMPT.MD").write_text("test agent")
+
+    class _ToolOnlyAdapter:
+        """Emits a tool call and no text at all, then runs out of turns."""
+
+        def context_window_size(self):
+            return 200_000
+
+        async def stream_with_tools(self, system_prompt, messages, tools):
+            call = ToolCall(id="c1", name="file_list", input={"path": "app/config"})
+            yield TurnComplete(
+                stop_reason="tool_use", tool_calls=[call],
+                assistant_content=[{"type": "tool_use", "id": call.id,
+                                    "name": call.name, "input": call.input}],
+            )
+
+    async def _load_adapter(self, config):
+        return _ToolOnlyAdapter()
+
+    async def _load_config(self, config_raw=None):
+        return AgentConfig(adapter="fake", model="fake-1", temperature=0.0, max_tokens=100)
+
+    monkeypatch.setattr("app.agents.base.BaseAgent._load_adapter", _load_adapter)
+    monkeypatch.setattr("app.agents.base.BaseAgent._load_config", _load_config)
+
+    recorded = []
+    monkeypatch.setattr("app.utils.db.insert_task", lambda **kw: recorded.append(kw) or 1)
+    monkeypatch.setattr("app.utils.db.init_schema", lambda: None)
+
+    async def _noop(text, status):
+        pass
+
+    monkeypatch.setattr(runner, "_notify_parent_via_bus", _noop)
+    monkeypatch.setattr(runner, "_write_status", lambda *a, **k: None)
+
+    await runner._run_task("List the config files.")
+
+    assert recorded, "no task row recorded"
+    row = recorded[-1]
+    assert row["status"] == "partial", (
+        f"tool-only run was not salvaged: {row['status']} / {row['error_summary']}"
+    )
+    assert "file_list" in row["result_summary"], row["result_summary"]
+    assert "status: pending" in (agent_dir / "TASK.MD").read_text()

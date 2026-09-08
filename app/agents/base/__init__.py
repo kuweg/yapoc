@@ -38,6 +38,66 @@ from app.utils.usage_tracker import UsageTracker
 from app.agents.base.context import build_system_context, _parse_runner_config
 
 
+def summarize_tool_activity(
+    messages: list[dict[str, Any]], max_chars: int = 4000, max_calls: int = 25
+) -> str:
+    """Render an agent's tool-call trail as resumable progress text.
+
+    Turn exhaustion salvage originally required non-empty assistant *text*. That
+    is the wrong test: an agent grinding through tool calls — which is exactly
+    what builder and planning do, and exactly what every observed turn-limit
+    failure was — frequently produces no prose at all before running out. Its
+    RESULT.MD is empty, so the salvage found "0 chars", declined to continue,
+    and discarded the work. The mechanism would not have fired on the failures
+    it was built for.
+
+    Tool calls and their results ARE the progress. This walks the conversation
+    and renders them so a continuation can resume from what was actually done
+    rather than starting over.
+
+    Output is bounded: the oldest calls are dropped first, because a resuming
+    agent needs its most recent state far more than its first move.
+    """
+    names: dict[str, str] = {}
+    entries: list[str] = []
+
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type")
+            if btype == "tool_use":
+                names[str(block.get("id", ""))] = str(block.get("name", ""))
+                entries.append(f"- called {block.get('name', '?')}({_compact(block.get('input'))})")
+            elif btype == "tool_result":
+                tool_id = str(block.get("tool_use_id", ""))
+                label = "ERROR" if block.get("is_error") else "ok"
+                entries.append(
+                    f"  -> {names.get(tool_id, tool_id) or 'result'} [{label}]: "
+                    f"{_compact(block.get('content'), 300)}"
+                )
+
+    if not entries:
+        return ""
+    if len(entries) > max_calls:
+        dropped = len(entries) - max_calls
+        entries = [f"- ({dropped} earlier tool call(s) omitted)"] + entries[-max_calls:]
+
+    text = "\n".join(entries)
+    if len(text) > max_chars:
+        text = "- (earlier activity truncated)\n" + text[-max_chars:]
+    return text
+
+
+def _compact(value: Any, limit: int = 160) -> str:
+    """One-line, length-capped rendering of a tool input or result."""
+    text = " ".join(str(value or "").split())
+    return text if len(text) <= limit else text[: limit - 1] + "\u2026"
+
+
 class TurnLimitReached(RuntimeError):
     """Raised when an agent exhausts ``max_turns`` without finishing its task.
 
@@ -2116,7 +2176,15 @@ class BaseAgent:
                     # Turn exhaustion is not a failure of the work, only of the
                     # budget — hand the accumulated text to the runner so it can
                     # be salvaged and continued instead of thrown away.
-                    raise TurnLimitReached(max_turns, "".join(full_text_parts))
+                    # Progress is not only prose: an agent that spent every
+                    # turn on tool calls has made real progress with no text to
+                    # show for it. Fall back to the tool trail so the
+                    # continuation resumes instead of being refused for
+                    # "0 chars salvaged".
+                    _progress = "".join(full_text_parts).strip()
+                    if not _progress:
+                        _progress = summarize_tool_activity(messages)
+                    raise TurnLimitReached(max_turns, _progress)
 
                 # Log and clean up
                 response = "".join(full_text_parts)

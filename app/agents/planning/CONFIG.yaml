@@ -44,7 +44,7 @@ delegation_targets:
   - keeper
   - model_manager
 runner:
-  max_turns: 45
+  max_turns: 60
   task_timeout: 600
   poll_interval: 30
   retry_attempts: 3

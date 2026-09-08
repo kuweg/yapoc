@@ -503,7 +503,16 @@ class BaseAgent:
         self._dir = agent_dir
         self._name = agent_dir.name
         self._memory_dir = settings.project_root / "app" / "memory" / "agents" / self._name
-        self._memory_dir.mkdir(parents=True, exist_ok=True)
+        # Deliberately NOT created here. Constructing an object should not touch
+        # the filesystem: any code that built a BaseAgent over a temp directory
+        # without also patching `settings.project_root` silently created
+        # `app/memory/agents/<temp-dir-name>/` in the real repository. That is
+        # where the 48 empty `tmp*` directories came from, and they were still
+        # accumulating on every test run.
+        #
+        # `_write_file` and `_append_file` already mkdir(parents=True,
+        # exist_ok=True) before writing, so the directory still exists exactly
+        # when it is needed — just no earlier.
         self._last_config: AgentConfig | None = None
         self._usage = UsageTracker(agent_dir)
         self._session_id: str | None = None  # set by dispatcher or caller
@@ -1505,6 +1514,10 @@ class BaseAgent:
                 # Nudges for "announced an action but made no tool call".
                 _nudge_count: int = 0
                 _MAX_ANNOUNCE_NUDGES: int = 2
+                # Retries for a provider returning nothing at all. Bounded, and
+                # each attempt consumes a turn, so max_turns still caps the run.
+                _empty_response_count: int = 0
+                _MAX_EMPTY_RESPONSE_RETRIES: int = 2
                 self._recent_tools.clear()
                 self._loop_reflected = False
                 # Per-field precedence: explicit agent-settings.json override →
@@ -1933,6 +1946,41 @@ class BaseAgent:
                                 f"Task incomplete: provider stopped with {turn_complete.stop_reason!r}"
                             )
                         if not "".join(full_text_parts[_turn_text_start:]).strip() and not _task_tool_count:
+                            # An empty completion — no text, no tool calls — used
+                            # to kill the task outright on the first occurrence.
+                            # That is a one-shot hard failure on a classic
+                            # transient: providers occasionally return nothing,
+                            # and the very next attempt usually succeeds. The
+                            # evaluator reported this against `master` for 12
+                            # rounds ("provider returned no answer or tool
+                            # calls"), 3 times in one 2.5-hour window.
+                            #
+                            # Retry a bounded number of times before giving up,
+                            # mirroring the announce-without-acting nudge below.
+                            # Each retry costs a turn, so max_turns still bounds
+                            # the whole thing.
+                            if _empty_response_count < _MAX_EMPTY_RESPONSE_RETRIES:
+                                _empty_response_count += 1
+                                _log.bind(
+                                    agent=self._name, turn=_turn,
+                                    retry=_empty_response_count,
+                                ).warning(
+                                    "provider returned an empty response — "
+                                    "retrying ({}/{})",
+                                    _empty_response_count,
+                                    _MAX_EMPTY_RESPONSE_RETRIES,
+                                )
+                                messages.append({
+                                    "role": "user",
+                                    "content": (
+                                        "[SYSTEM] Your last response was empty — "
+                                        "no text and no tool call, so nothing "
+                                        "happened. Continue the task now: either "
+                                        "make the next tool call, or give the "
+                                        "final answer if the work is complete."
+                                    ),
+                                })
+                                continue
                             raise RuntimeError("Task incomplete: provider returned no answer or tool calls")
                         _announced = _announced_without_acting(
                             "".join(full_text_parts[_turn_text_start:])

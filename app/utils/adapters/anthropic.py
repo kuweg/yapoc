@@ -70,6 +70,57 @@ def _sanitize_tool_ids_in_messages(messages: list[dict[str, Any]]) -> list[dict[
 _DEFAULT_CONTEXT_WINDOW = 200_000
 
 
+# Model families that take `thinking: {"type": "adaptive"}`. On these,
+# `budget_tokens` is rejected (400) or deprecated, and sampling parameters are
+# rejected on everything newer than 4.6. Anything not listed here is treated as
+# a pre-4.6 model and keeps the fixed-budget form.
+_ADAPTIVE_THINKING_MARKERS: tuple[str, ...] = (
+    "opus-4-6", "opus-4-7", "opus-4-8", "opus-5",
+    "sonnet-4-6", "sonnet-5",
+    "fable-5", "mythos-5",
+)
+
+
+def _supports_adaptive_thinking(model: str) -> bool:
+    """True when ``model`` takes adaptive thinking rather than a token budget."""
+    name = (model or "").lower()
+    return any(marker in name for marker in _ADAPTIVE_THINKING_MARKERS)
+
+
+def build_thinking_kwargs(
+    *, model: str, thinking_enabled: bool, temperature: float, budget_tokens: int
+) -> dict[str, Any]:
+    """Build the request kwargs for thinking, per the target model's API shape.
+
+    Three shapes, and mixing them is a hard 400:
+
+    * adaptive (4.6+) — ``{"type": "adaptive"}`` and NO ``budget_tokens``.
+      ``display`` is set explicitly because it defaults to "omitted" on newer
+      models, which would make the adapter's ThinkingDelta events stream empty
+      strings. Adaptive auto-enables interleaved thinking, so the old beta
+      header is unnecessary. Sampling parameters are rejected on adaptive
+      models newer than 4.6, and adaptive never needed the temperature=1.0 the
+      fixed-budget mode required — so temperature is omitted entirely here.
+    * fixed budget (pre-4.6) — ``{"type": "enabled", "budget_tokens": N}``,
+      with the interleaved beta header and temperature 1.0.
+    * off — the agent's configured temperature, no thinking block.
+
+    The bug this replaces sent ``{"type": "adaptive", "budget_tokens": N}``,
+    which the API rejects with
+    ``thinking.adaptive.budget_tokens: Extra inputs are not permitted`` — so
+    every Anthropic request with thinking enabled was failing outright.
+    """
+    if not thinking_enabled:
+        return {"temperature": temperature}
+    if _supports_adaptive_thinking(model):
+        return {"thinking": {"type": "adaptive", "display": "summarized"}}
+    return {
+        "thinking": {"type": "enabled", "budget_tokens": budget_tokens},
+        "extra_headers": {"anthropic-beta": "interleaved-thinking-2025-05-14"},
+        "temperature": 1.0,
+    }
+
+
 class AnthropicAdapter(BaseLLMAdapter):
     def __init__(self, config: AgentConfig) -> None:
         super().__init__(config)
@@ -242,18 +293,18 @@ class AnthropicAdapter(BaseLLMAdapter):
         output_tokens = 0
 
         thinking_enabled = settings.enable_thinking
-        temperature = 1.0 if thinking_enabled else self._config.temperature
-        extra_kw: dict[str, Any] = {}
-        if thinking_enabled:
-            extra_kw["thinking"] = {"type": "adaptive", "budget_tokens": settings.thinking_budget_tokens}
-            extra_kw["extra_headers"] = {"anthropic-beta": "interleaved-thinking-2025-05-14"}
+        extra_kw: dict[str, Any] = build_thinking_kwargs(
+            model=self._config.model,
+            thinking_enabled=thinking_enabled,
+            temperature=self._config.temperature,
+            budget_tokens=settings.thinking_budget_tokens,
+        )
 
         async with self._client.messages.stream(
             model=self._config.model,
             max_tokens=self._config.max_tokens,
             system=self._cached_system(system_prompt),
             messages=cached_messages,
-            temperature=temperature,
             tools=anthropic_tools,
             **extra_kw,
         ) as stream:

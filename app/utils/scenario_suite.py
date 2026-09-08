@@ -234,6 +234,37 @@ def _sc_no_provider_is_benched() -> tuple[bool, str]:
     return False, f"{len(benched)} provider(s) benched — {detail}"
 
 
+def _sc_no_orphaned_agent_state() -> tuple[bool, str]:
+    """No memory directory should exist without a matching agent directory.
+
+    An agent spawned without a config leaves memory behind and can never run —
+    the evaluator reported one such phantom (`neg-knowledge-sweep`) for 20
+    rounds. Separately, constructing a BaseAgent used to create its memory
+    directory eagerly, so anything building one over a temp path leaked a
+    directory into the repo; 48 empty `tmp*` directories had accumulated.
+    Both leave the same fingerprint, which is what this checks.
+    """
+    from app.config import settings
+
+    agents_dir = settings.agents_dir
+    memory_root = settings.project_root / "app" / "memory" / "agents"
+    if not agents_dir.is_dir() or not memory_root.is_dir():
+        return True, "agent or memory directory not present — nothing to check"
+
+    agents = {
+        d.name for d in agents_dir.iterdir()
+        if d.is_dir() and not d.name.startswith((".", "_"))
+    } - {"base", "shared"}
+    memories = {d.name for d in memory_root.iterdir() if d.is_dir()} - {"shared"}
+
+    orphans = sorted(memories - agents)
+    if orphans:
+        shown = ", ".join(orphans[:6])
+        more = f" (+{len(orphans) - 6} more)" if len(orphans) > 6 else ""
+        return False, f"{len(orphans)} orphaned memory dir(s): {shown}{more}"
+    return True, f"all {len(memories)} memory dir(s) have a matching agent"
+
+
 OFFLINE_SCENARIOS: tuple[Scenario, ...] = (
     Scenario("security/destructive-shell", "offline", "security",
              "Destructive shell commands are refused for every caller",
@@ -259,6 +290,9 @@ OFFLINE_SCENARIOS: tuple[Scenario, ...] = (
     Scenario("config/provider-credits", "offline", "config",
              "No provider is benched for exhausted credits",
              check=_sc_no_provider_is_benched),
+    Scenario("config/no-orphaned-agents", "offline", "config",
+             "Every agent memory directory has a matching agent",
+             check=_sc_no_orphaned_agent_state),
 )
 
 

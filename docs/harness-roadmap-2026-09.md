@@ -389,6 +389,56 @@ suite that can be triggered by a scheduler, an import, or a default flag is a
 way to spend someone else's money by accident. It requires `--confirm-spend`,
 and the scheduling decision is left to the user.
 
+### Phase 4A — prove it in production (2026-09-08)
+
+Phases 0-3 shipped a lot of machinery. Running it for real immediately found
+that the flagship one did not work on the workload it was built for.
+
+**Turn continuations had never fired.** 0 partial tasks, 0 continuations, across
+24 tasks since Phase 0 landed — none happened to exhaust their turns. So the
+mechanism was well tested and entirely unexercised.
+
+Forcing it (scratch agent, `max_turns: 1`, real `runner_entry` process) produced:
+
+```
+turn limit reached (1 turns), salvaged 0 chars, continuing=False
+```
+
+**The salvage required non-empty assistant *text*.** An agent that spends every
+turn on tool calls writes no prose, so `RESULT.MD` is 0 bytes, the salvage found
+nothing to continue from, and the work was discarded — the exact pre-Phase-0
+behaviour. And that is not an edge case: every one of the 19 observed turn-limit
+failures was an agent grinding through tools. The fix would have failed to fire
+on the failures it was built for.
+
+The unit tests passed because they fed partial text. Reality often has none.
+
+**Fix.** `summarize_tool_activity()` renders the tool-call trail — calls, inputs,
+and results labelled ok/ERROR — as resumable progress, used when there is no
+text. Output is bounded, dropping the oldest calls first, because a resuming
+agent needs its latest state far more than its first move.
+
+**Verified end to end**, same scratch agent, one table:
+
+| row | status | continuation | evidence |
+|---|---|---|---|
+| #1583 | `error` | 0 | pre-fix: "No partial output to continue from" |
+| #1584 | `partial` | 0 | salvaged, re-enqueued |
+| #1585 | `partial` | 1 | |
+| #1586 | `partial` | 2 | |
+| #1587 | `error` | 3 | "Continuation budget exhausted" — bounded, no infinite loop |
+
+#1587 carries the trail itself: `- called file_list({'path': 'app/config'})`.
+
+A regression test reproduces the production failure and fails against the
+pre-fix code with the identical error string. The synthetic rows were deleted
+afterwards: left in place they would have counted as two real turn-limit
+failures against the release gate, which is the metric Phase 0 is judged on.
+
+**Still open in 4A:** the remaining steps need a clean 7-day window before the
+release gate can be flipped from reporting to enforcing. As of now the gate
+still fails on history that predates the fixes.
+
 ## 3. Targets
 
 Every target is checkable with a query against `data/yapoc.db` or a CI job. **All

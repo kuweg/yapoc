@@ -598,10 +598,6 @@
             "task_timeout": 300,
             "fallbacks": [
                 {
-                    "adapter": "openai",
-                    "model": "gpt-5.6-luna"
-                },
-                {
                     "adapter": "deepseek",
                     "model": "deepseek-v4-flash"
                 },

@@ -75,6 +75,13 @@ jobs:
       # to false once the gate is run against a real window — running it
       # against an empty one and calling that a pass is the failure mode the
       # gate's own min_tasks rule exists to prevent.
+      # Offline scenarios are free and model-free: security-gate refusals,
+      # core-agent protection, absence of false positives, retrieval baseline.
+      # Enforced, unlike the release gate below, because these do not depend on
+      # production task history — they either hold or they do not.
+      - name: Scenario suite (offline)
+        run: poetry run python -m app.utils.scenario_suite --offline
+
       - name: Release gate
         continue-on-error: true
         run: poetry run python -m app.utils.release_gate

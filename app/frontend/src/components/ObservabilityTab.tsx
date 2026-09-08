@@ -467,6 +467,28 @@ interface ReliabilityScorecard {
   by_agent: ReliabilityAgent[]
 }
 
+interface LedgerSignal {
+  signal_id: string
+  title: string
+  impact: string
+  status: string
+  rounds_open: number
+  last_seen_round: number
+}
+
+interface SignalLedger {
+  total: number
+  open_count: number
+  resolved_count: number
+  // Rounds between the ledger and the newest evaluator report. Non-zero means
+  // findings are judged against stale data — how an already-fixed bug sat
+  // listed as open for 11 rounds.
+  staleness_rounds: number
+  latest_report_round: number
+  ledger_round: number
+  open_signals: LedgerSignal[]
+}
+
 const FAILURE_CLASS_LABELS: Record<string, string> = {
   timeout: 'Timeout',
   turn_limit: 'Turn limit',
@@ -504,6 +526,7 @@ export function ObservabilityTab() {
   // Default 7 days, never all-time: pooling long-fixed bugs with live ones
   // inverts the failure ranking. See docs/harness-roadmap-2026-09.md §1.
   const [windowDays, setWindowDays] = useState(7)
+  const [signals, setSignals] = useState<SignalLedger | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -530,6 +553,16 @@ export function ObservabilityTab() {
     }
   }, [])
 
+  const loadSignals = useCallback(async () => {
+    try {
+      const res = await fetch('/api/metrics/signals')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSignals((await res.json()) as SignalLedger)
+    } catch {
+      setSignals(null)
+    }
+  }, [])
+
   const loadCostHistory = useCallback(async () => {
     setCostLoading(true)
     try {
@@ -547,6 +580,10 @@ export function ObservabilityTab() {
   useEffect(() => {
     loadReliability(windowDays)
   }, [loadReliability, windowDays])
+
+  useEffect(() => {
+    loadSignals()
+  }, [loadSignals])
 
   useEffect(() => {
     load()
@@ -719,6 +756,66 @@ export function ObservabilityTab() {
                       ))}
                     </div>
                   </div>
+                )}
+              </section>
+            )}
+
+            {/* Evaluator signal ledger */}
+            {signals && signals.total > 0 && (
+              <section className="border border-zinc-800 bg-zinc-900/40">
+                <div className="flex items-center gap-3 px-3 py-2 border-b border-zinc-800">
+                  <span className="text-[12px] uppercase tracking-widest text-zinc-500 font-mono">
+                    Evaluator signals
+                  </span>
+                  <span className="text-[12px] font-mono text-zinc-400">
+                    {signals.open_count} open · {signals.resolved_count} resolved
+                  </span>
+                  <span
+                    className={`ml-auto text-[12px] font-mono ${
+                      signals.staleness_rounds > 0 ? 'text-amber-400' : 'text-zinc-600'
+                    }`}
+                    title={
+                      signals.staleness_rounds > 0
+                        ? 'The ledger is behind the newest evaluator report, so these findings are being judged against stale data.'
+                        : 'Ledger is current with the newest evaluator report.'
+                    }
+                  >
+                    {signals.staleness_rounds > 0
+                      ? `${signals.staleness_rounds} round(s) stale`
+                      : 'current'}
+                    {' '}(r{signals.ledger_round}/r{signals.latest_report_round})
+                  </span>
+                </div>
+                {signals.open_signals.length === 0 ? (
+                  <div className="px-3 py-2 text-xs font-mono text-zinc-500">
+                    No open findings.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-zinc-800">
+                    {signals.open_signals.map((sig) => (
+                      <li key={sig.signal_id} className="px-3 py-2 text-xs font-mono">
+                        <div className="flex items-center gap-2 text-[12px]">
+                          <span
+                            className={
+                              sig.impact === 'HIGH'
+                                ? 'text-red-400'
+                                : sig.impact === 'MEDIUM'
+                                ? 'text-amber-400'
+                                : 'text-zinc-500'
+                            }
+                          >
+                            {sig.impact || '—'}
+                          </span>
+                          <span className="text-zinc-600">
+                            open {sig.rounds_open} round{sig.rounds_open === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-zinc-300 break-words" title={sig.title}>
+                          {sig.title}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </section>
             )}

@@ -42,6 +42,32 @@ RISKY_TOOLS: frozenset[str] = frozenset({
     "update_config",
 })
 
+# Tools that act on the OUTSIDE WORLD as the user: sending mail, creating
+# calendar entries. Categorically different from everything above, which can
+# only damage YAPOC or the host — that damage is recoverable (git checkpoints,
+# rollback, a rebuilt agent). An email cannot be unsent, and it goes out under
+# the user's own identity.
+#
+# Every agent currently holds `plugin:gmail:*`, including the ones that run
+# autonomously on a schedule (cron, doctor, librarian). Combined with the
+# researcher's web tools, untrusted fetched content reaching an agent that can
+# both read the user's mail and send mail is the classic exfiltration chain, so
+# these are gated rather than free.
+#
+# Matched by suffix as well as exact name because the plugin loader registers
+# each tool twice: `gmail_send` and the namespaced `plugin:gmail:send`. Gating
+# only one spelling would leave the other as a trivial bypass.
+_OUTWARD_ACTION_SUFFIXES: tuple[str, ...] = (
+    "gmail_send", "mail_send", "calendar_create_event",
+    ":gmail:send", ":mail:send", ":calendar:create_event",
+)
+
+
+def is_outward_facing(tool: str) -> bool:
+    """True for tools that take an irreversible action in the outside world."""
+    name = (tool or "").strip()
+    return any(name == s or name.endswith(s) for s in _OUTWARD_ACTION_SUFFIXES)
+
 # Tools NOT in RISKY_TOOLS but with specific patterns we hard-deny anyway.
 # Used to close the "ask builder to edit security/PROMPT.MD" loophole.
 _PATTERN_DENY_TOOLS: frozenset[str] = frozenset({"file_write", "file_edit"})
@@ -457,7 +483,11 @@ def hardcoded_check(
     `_shell_is_destructive` and `_shell_escapes_project`. A permissive ALLOW
     rule is therefore a security bug, not merely a policy choice.
     """
-    if tool not in RISKY_TOOLS and tool not in _PATTERN_DENY_TOOLS:
+    if (
+        tool not in RISKY_TOOLS
+        and tool not in _PATTERN_DENY_TOOLS
+        and not is_outward_facing(tool)
+    ):
         return "allow", ""
 
     # Pass 1: caller-aware ALLOW rules (fast-path for blessed callers).
@@ -493,6 +523,6 @@ def hardcoded_check(
         if matched:
             return "deny", f"{rule.category}: {rule.reason}"
 
-    if tool in RISKY_TOOLS:
+    if tool in RISKY_TOOLS or is_outward_facing(tool):
         return "ambiguous", ""
     return "allow", ""

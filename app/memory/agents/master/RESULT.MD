@@ -1,5 +1,5 @@
-The memory-sweep task was killed before completing — no result was produced.
+Self-eval round complete. 2 medium issues, 0 high, 0 auto-fix, 2 need approval.
 
-This was a scheduled background task (cron → librarian memory consolidation), not something you asked for directly. No action needed on your end; the next scheduled sweep will pick it up.
+- **master empty-completion** ("no answer or tool calls") — 3 task_queue errors, root cause still unaddressed.
 
-If you'd like, I can re-run the memory sweep now.
+Full report at `app/agents/evaluator/REPORT.MD`. Nothing auto-applied this round.

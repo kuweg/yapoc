@@ -215,6 +215,25 @@ def _sc_config_is_loadable() -> tuple[bool, str]:
     return True, f"all {len(cfg.get('agents', {}))} agent bindings resolve"
 
 
+def _sc_no_provider_is_benched() -> tuple[bool, str]:
+    """No configured provider should be sitting in an exhausted-credit cooldown.
+
+    A benched provider is not an outage — the chain routes around it — but it is
+    silent degradation: redundancy is quietly reduced and nobody is told. This
+    check is what makes that visible.
+    """
+    from app.utils.adapters.provider_health import snapshot
+
+    benched = snapshot()
+    if not benched:
+        return True, "no provider is benched for exhausted credits"
+    detail = "; ".join(
+        f"{name} ({info['seconds_remaining']}s left): {info['reason'][:70]}"
+        for name, info in benched.items()
+    )
+    return False, f"{len(benched)} provider(s) benched — {detail}"
+
+
 OFFLINE_SCENARIOS: tuple[Scenario, ...] = (
     Scenario("security/destructive-shell", "offline", "security",
              "Destructive shell commands are refused for every caller",
@@ -237,6 +256,9 @@ OFFLINE_SCENARIOS: tuple[Scenario, ...] = (
     Scenario("config/bindings-resolve", "offline", "config",
              "Every agent binding names a real adapter and model",
              check=_sc_config_is_loadable),
+    Scenario("config/provider-credits", "offline", "config",
+             "No provider is benched for exhausted credits",
+             check=_sc_no_provider_is_benched),
 )
 
 

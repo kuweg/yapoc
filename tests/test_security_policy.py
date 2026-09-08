@@ -370,3 +370,122 @@ async def test_audit_failure_never_blocks_a_decision(tmp_path, monkeypatch):
 
     decision, _ = await gate.classify("shell_exec", {"command": "rm -rf /"}, "builder")
     assert decision == "deny", "a failing audit write must not change the verdict"
+
+
+# ── Outward-facing tools (plugin system) ───────────────────────────────────
+#
+# The Gmail/Calendar plugins introduced the first tools that act on the OUTSIDE
+# WORLD as the user. Everything the gate guarded before could only damage YAPOC
+# or the host, and that damage is recoverable — git checkpoints, rollback, a
+# rebuilt agent. An email cannot be unsent.
+#
+# When these landed, all 14 agents held `plugin:gmail:*` (including cron,
+# doctor and librarian, which run autonomously) and `gmail_send` was ungated:
+# no review, no audit record.
+
+
+def _patch_failing_provider(monkeypatch):
+    """Make the provider call inside `_classify_via_llm` raise.
+
+    Patching `_classify_via_llm` wholesale would replace the try/except being
+    tested, so the failure is injected one level down at the adapter.
+    """
+    from app.agents.security import security_agent
+
+    class _DeadAdapter:
+        async def complete(self, **kwargs):
+            raise RuntimeError("provider down")
+
+    async def _cfg():
+        return None
+
+    async def _adapter(_cfg_arg):
+        return _DeadAdapter()
+
+    async def _prompt(_name):
+        return "You are the security gate."
+
+    monkeypatch.setattr(security_agent, "_load_config", _cfg)
+    monkeypatch.setattr(security_agent, "_load_adapter", _adapter)
+    monkeypatch.setattr(security_agent, "_read_file", _prompt)
+
+
+
+@pytest.mark.parametrize(
+    "tool",
+    ["gmail_send", "mail_send", "calendar_create_event",
+     "plugin:gmail:send", "plugin:mail:send", "plugin:calendar:create_event"],
+)
+def test_outward_facing_tools_are_gated(tool):
+    """Both spellings must be gated — the loader registers each tool twice."""
+    from app.utils.tools.security_policy import is_outward_facing
+
+    assert is_outward_facing(tool)
+    decision, _ = hardcoded_check(tool, {"to": "someone@example.com"}, "builder")
+    assert decision == "ambiguous", (
+        f"{tool} bypassed the gate — an agent could send as the user unreviewed"
+    )
+
+
+@pytest.mark.parametrize(
+    "tool",
+    ["gmail_read", "gmail_list", "gmail_search", "calendar_list_events",
+     "plugin:gmail:list", "plugin:calendar:list_events"],
+)
+def test_read_only_plugin_tools_stay_free(tool):
+    """Gating reads too would make the integration useless for no safety gain."""
+    from app.utils.tools.security_policy import is_outward_facing
+
+    assert not is_outward_facing(tool)
+    assert hardcoded_check(tool, {}, "builder")[0] == "allow"
+
+
+def test_namespaced_alias_cannot_bypass_the_gate():
+    """Gating one spelling while the loader registers two is a free bypass."""
+    plain, _ = hardcoded_check("gmail_send", {}, "builder")
+    namespaced, _ = hardcoded_check("plugin:gmail:send", {}, "builder")
+    assert plain == namespaced == "ambiguous"
+
+
+async def test_outward_facing_tools_fail_closed_when_review_is_unavailable(audit_log, monkeypatch):
+    """"The reviewer was down" is not a reason to send mail as the user.
+
+    Recoverable tools deliberately fail open — blocking everything on a provider
+    hiccup would halt the system, and that damage is undoable. An email is not.
+    """
+    from app.utils.tools import security_gate as gate
+
+    _patch_failing_provider(monkeypatch)
+
+    decision, reason = await gate.classify(
+        "gmail_send", {"to": "stranger@example.com"}, "cron"
+    )
+    assert decision == "deny", "outward-facing tool was allowed with no review"
+    assert "outward-facing" in reason
+    assert any("decision=deny" in line for line in audit_log())
+
+
+async def test_recoverable_tools_still_fail_open(audit_log, monkeypatch):
+    """The existing tradeoff must survive: don't halt the system on a hiccup."""
+    from app.utils.tools import security_gate as gate
+
+    _patch_failing_provider(monkeypatch)
+
+    decision, _ = await gate.classify("file_delete", {"path": "app/tmp/x"}, "builder")
+    assert decision == "allow"
+
+
+async def test_sending_mail_is_audited(audit_log, monkeypatch):
+    """Every send must leave a forensic record naming the caller."""
+    from app.utils.tools import security_gate as gate
+
+    async def _approve(tool, params, caller):
+        return "allow", "reviewed"
+
+    monkeypatch.setattr(gate, "_classify_via_llm", _approve)  # noqa: E501
+
+    await gate.classify("gmail_send", {"to": "x@example.com"}, "cron")
+    lines = audit_log()
+    assert len(lines) == 1
+    assert "gmail_send" in lines[0]
+    assert "caller=cron" in lines[0]

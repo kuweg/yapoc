@@ -514,6 +514,54 @@ tried. Verified on the real builder chain:
 A new offline scenario reports any live bench, so reduced redundancy is visible
 rather than silent.
 
+### Phase 5 — act on the system's own findings (2026-09-08)
+
+Phases 0-3 built the ability to see, Phase 4 connected it. Phase 5 is the first
+one whose agenda came *from* the system rather than from a human reading code:
+the three findings the newly-surfaced signal ledger showed, two of which had
+been open for 12 and 20 rounds.
+
+**1. Empty provider responses killed tasks outright (open 12 rounds).** A turn
+producing no text and no tool calls raised immediately — a one-shot hard failure
+on a classic transient. Now retried a bounded number of times with a nudge,
+mirroring the existing announce-without-acting pattern; each retry costs a turn,
+so `max_turns` still caps the run.
+
+**2. A phantom agent — and the leak underneath it (open 20 rounds).**
+`neg-knowledge-sweep` had memory but no agent directory. Chasing it found a
+larger problem: **68 memory directories against 16 agents**, 48 of them empty
+`tmp*` leaks, and still accumulating on every test run.
+
+Cause: `BaseAgent.__init__` created its memory directory eagerly, so any code
+building an agent over a temp path wrote into the real repository. The write
+helpers already `mkdir(parents=True, exist_ok=True)`, making the constructor
+call redundant as well as harmful — a constructor should not touch the disk.
+Removed; a full 511-test run now leaks nothing where it previously added several.
+51 orphans cleaned (the phantom's memory archived first), and a new offline
+scenario fails if orphans reappear.
+
+**3. A third provider-config bug, this time Anthropic.** The phantom's HEALTH.MD
+held the actual cause:
+
+    400 - thinking.adaptive.budget_tokens: Extra inputs are not permitted
+
+The adapter sent `{"type": "adaptive", "budget_tokens": N}` — two different API
+shapes merged. Adaptive thinking takes no budget; `budget_tokens` belongs to the
+older `{"type": "enabled"}` form and is rejected outright on 4.6+ models. **Every
+Anthropic request with thinking enabled was a hard 400.**
+
+Fixed model-aware (adaptive for 4.6+, fixed-budget for older), with `display`
+set explicitly — it defaults to "omitted" on newer models, which would have made
+the adapter's ThinkingDelta events stream empty strings — and sampling
+parameters omitted on the adaptive path, where they are rejected. Extracted into
+a pure `build_thinking_kwargs()` so the shapes are testable without a live
+client; the first attempt at these tests scraped source text and matched its own
+comments, which is why they assert real output instead.
+
+This is the third provider-config bug of the same family (Gemini's
+thinking-budget conflict, DeepSeek's model names, now Anthropic's). Each was
+invisible until something specific looked for it.
+
 ## 3. Targets
 
 Every target is checkable with a query against `data/yapoc.db` or a CI job. **All

@@ -26,3 +26,5 @@ Net: agent count grew 8 → 15 as new agents were added (concilium, tester, mcp,
 Issues: concilium/shared/telegram-killer had no CONFIG.yaml (non-runtime agents).
 [2026-09-08 09:12] model_audit: 15 agents scanned, 2 issue(s)
 [2026-09-08 09:13] model_audit: 15 agents scanned, 2 issue(s)
+[2026-09-08 09:45] model_audit: 15 agents scanned, 2 issue(s)
+[2026-09-08 09:46] model_audit: 15 agents scanned, 2 issue(s)

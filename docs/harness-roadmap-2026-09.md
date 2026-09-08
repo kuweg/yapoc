@@ -439,6 +439,40 @@ failures against the release gate, which is the metric Phase 0 is judged on.
 release gate can be flipped from reporting to enforcing. As of now the gate
 still fails on history that predates the fixes.
 
+### Phase 4B — close the loops (2026-09-08)
+
+Phases 0-3 built machinery; several pieces were connected to nothing. This wires
+the three that were dead-ended.
+
+**Routing policy → master.** 3.4 built a policy comparing agents on measured
+success and cost, and nothing consulted it. It is now injected into master's
+task context as a one-line advisory alongside the existing source and
+outstanding-delegation lines. It **advises rather than overrides**: master keeps
+the decision and the reasoning stays visible in the transcript, because a
+statistic that silently rewrites delegation is undebuggable when it misfires.
+It stays silent unless the recommendation is history-backed — restating the
+existing default is noise that trains master to ignore the line.
+
+**Scenario suite → CI *and* cron.** The offline half is free and model-free, so
+it is **enforced** in CI (unlike the release gate, which depends on production
+history). But two of its checks — telemetry reconciliation and agent-binding
+resolution — read *live* state that CI cannot see between pushes, so a daily
+cron entry also runs it against the running system and reports failures without
+attempting to fix them.
+
+**Signal ledger → UI.** The ledger tracked findings correctly and nothing showed
+them. The Observability tab now renders open findings with their impact, how
+many rounds each has been open, and the ledger's staleness against the newest
+report.
+
+Verified live: the ledger is now **current (r125/r125, staleness 0)** — the 3.2
+auto-refresh hook is working, the previously-stuck "observability error
+counters" signal has resolved, and 37 findings are closed against 3 open. The
+panel immediately surfaced a finding **open 20 rounds** (`Phantom agent
+neg-knowledge-sweep spawned with no config`) that nothing had made visible.
+Another independently matches what the release gate found from the other
+direction: `document_processor fallback chain routes to out-of-credits OpenAI`.
+
 ## 3. Targets
 
 Every target is checkable with a query against `data/yapoc.db` or a CI job. **All

@@ -1,22 +1,16 @@
-I'll scan master's MEMORY.MD and related signals for durable facts.Master MEMORY.MD has only 2 entries (both already captured). Evaluator REPORT.MD newest is round 120 (05:08Z) — genuinely NEW, not captured by prior sweeps (103d72ae at 03:10Z captured round 112).
+I'll perform a memory sweep. Let me check the key signals.Round 125 (07:43Z) is genuinely NEW — prior sweep captured round 120. Let me check STATUS.json and session files for any other new signals.Round 125 (07:43Z) is genuinely new. Key new facts vs round 120:
 
-Let me check the user history and profile for any new signals.Round 120 (05:08Z) is genuinely new. Key new durable facts:
+1. **document_processor 429 root cause CONFIRMED + AUTO-FIX APPLIED** — the fallback chain ordering bug is now identified (OpenAI fallback first → dead model), and the AUTO-FIX was applied (removed `openai/gpt-5.6-luna` from document_processor fallbacks). This is a RESOLUTION of a carried issue.
+2. Error counters STILL HEALTH.MD-only (15th proof, unapplied 14 rounds).
+3. Planning turn-limit stays CLOSED.
+4. Spend $493.62 total.
 
-1. **NEW issue** — master "provider returned no answer or tool calls" (3 occurrences, 18:20/18:21/20:50, source task_queue) — a NEW medium issue not in prior sweeps.
-2. Error counters STILL HEALTH.MD-only (now 14th proof, unapplied 13 rounds).
-3. Phantom agent + document_processor 429 issues carried (unchanged).
-4. Planning turn-limit stays CLOSED.
-5. Spend: $487.85 total, master $330.15/67.7%.
+Let me check user HISTORY.md tail and PROFILE.md for any changes.I have all the context I need. Round 125 (07:43Z) is genuinely new. The key new durable fact is the **document_processor 429 root cause CONFIRMED + AUTO-FIX APPLIED** — this resolves a carried issue (the fallback-chain ordering bug was identified and fixed). Let me append the new project-knowledge entry and update HISTORY.md.Memory sweep complete. Summary of what was captured:
 
-Let me append the new project-knowledge entry and update user history.I have the full picture. Round 120 (05:08Z) is genuinely new. The key NEW durable fact is the **master "provider returned no answer or tool calls"** issue (3 occurrences) — a new medium issue not previously captured. The other items (error counters, phantom agent, document_processor 429) are carried/unchanged.
+**New durable facts (round 125, 07:43Z):**
+1. **RESOLVED** — document_processor 429 root cause confirmed + AUTO-FIX applied: the fallback chain in `agent-settings.json` listed out-of-credits `openai/gpt-5.6-luna` FIRST, so every primary-model failure burned a dispatch on a dead model. Removed the OpenAI fallback (now `[deepseek-v4-flash, google/gemini-2.5-pro]`); needs backend restart.
+2. Carried issues unchanged: master "provider returned no answer or tool calls" (3 task_queue errors) + phantom `neg-knowledge-sweep` agent.
+3. Error counters STILL HEALTH.MD-only (15th proof, unapplied 14 rounds).
+4. Planning turn-limit stays CLOSED (max_turns 60); spend $493.62 total.
 
-Let me append the new project-knowledge entry and update user history.Memory sweep complete. Summary of what was captured:
-
-**New durable facts (round 120, 05:08Z):**
-1. **NEW medium issue** — master repeatedly returns "provider returned no answer or tool calls" (3 `task_queue` errors at 18:20/18:21/20:50) — a provider-level empty-completion failure with root cause unaddressed. This is genuinely new, not in prior sweeps.
-2. **Carried issues** (unchanged since r106): phantom agent `neg-knowledge-sweep` and document_processor `image_read` 429.
-3. **Error counters** STILL HEALTH.MD-only (14th independent proof, unapplied 13 rounds).
-4. **Planning turn-limit** stays CLOSED (`max_turns: 60`).
-5. **Spend**: $487.85 total (master $330.15/67.7%).
-
-Stored to `app/agents/shared/KNOWLEDGE.MD` and updated `app/memory/user/HISTORY.md`. No new user-profile preferences, no skill capture needed.
+**Stores updated:** `app/agents/shared/KNOWLEDGE.MD` (1 entry) + `app/memory/user/HISTORY.md` (round 125 resume). No new user-profile preferences or skill captures needed.

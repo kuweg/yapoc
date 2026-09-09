@@ -389,6 +389,9 @@ class AgentRunner:
             )
 
         try:
+            if effective_task_id:
+                from app.utils.db import init_schema
+                init_schema()
             last_tps: float | None = None
             last_input: int | None = None
             last_output: int | None = None
@@ -409,6 +412,12 @@ class AgentRunner:
                 notifications_context=notifications_context,
                 blocked_tools=_blocked,
             ):
+                if effective_task_id:
+                    from app.backend.routers.tasks import _event_to_dict
+                    from app.backend.services.task_runtime import append_event
+                    serialized = _event_to_dict(event)
+                    if serialized:
+                        append_event(effective_task_id, serialized)
                 if isinstance(event, ToolStart):
                     record = self._mutation_from_event(event)
                     if record and record not in _mutations:

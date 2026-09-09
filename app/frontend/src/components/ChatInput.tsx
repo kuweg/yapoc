@@ -10,7 +10,7 @@ export interface ChatInputHandle {
   setText: (text: string) => void
   clear: () => void
   focus: () => void
-  submit: () => void
+  submit: () => void | Promise<void>
 }
 
 interface ChatInputProps {
@@ -159,10 +159,25 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       return () => window.removeEventListener('paste', onPaste)
     }, [addFiles])
 
-    const doSubmit = useCallback(() => {
+    const doSubmit = useCallback(async () => {
       const trimmed = text.trim()
       if ((!trimmed && pending.length === 0) || disabled) return
-      const resolved = resolveMentions(trimmed, uploads, artifacts)
+      // A full `@file:<id>` reference is typed/pasted directly and never goes
+      // through the `@file <name>` autocomplete path, so `uploads` may be empty
+      // and the ID would fail to resolve. Fetch the upload list on demand when
+      // the text contains any `@file:` reference so IDs resolve reliably.
+      let resolvedUploads = uploads
+      if (/@file:/i.test(trimmed) && resolvedUploads.length === 0) {
+        try {
+          const { files } = await listUploads()
+          resolvedUploads = files
+          setUploads(files)
+        } catch {
+          // leave empty — the reference stays literal and the backend fallback
+          // (resolve_upload_by_ref) will still resolve it server-side.
+        }
+      }
+      const resolved = resolveMentions(trimmed, resolvedUploads, artifacts)
       onSubmit(resolved.cleanedText, pending, resolved.attachmentIds)
       setText('')
       setShowAutocomplete(false)

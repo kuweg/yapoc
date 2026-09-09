@@ -1,3 +1,4 @@
+import { StructuredResultCard } from './StructuredResultCard'
 import { useEffect, useState, useRef } from 'react'
 import { getTasks, type QueuedTask } from '../api/client'
 import { AgentAvatar, getAgentColor } from '../lib/agentIdentity'
@@ -203,7 +204,8 @@ export function TasksPanel() {
                 </div>
                 {/* What actually happened — the list used to show only what was
                     asked, so every row looked identical. */}
-                {outcome && (
+                {isOpen && t.structured_result && <StructuredResultCard result={t.structured_result} />}
+                {outcome && !(isOpen && t.structured_result) && (
                   <p
                     className={`text-[13px] mt-1 ${t.error ? 'text-red-400/80' : 'text-zinc-400'} ${
                       isOpen ? 'whitespace-pre-wrap break-words' : 'truncate'

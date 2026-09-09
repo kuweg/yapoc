@@ -1,3 +1,4 @@
+import type { StructuredTaskResult } from '../api/types'
 import { StudioWelcome } from '../studio/StudioWelcome'
 import { createLiveUsage, type LiveUsage } from './liveUsage'
 import { NoteContextBar } from '../notes/NoteContextBar'
@@ -6,6 +7,8 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { streamTask } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
 import { useWsStore, type BackgroundTask } from '../store/wsStore'
+import { ArtifactStrip } from '../artifacts/ArtifactStrip'
+import { useSessionArtifacts, taskIdFromCompletionId } from '../artifacts/useSessionArtifacts'
 import { useAppStore } from '../store/appStore'
 import { useSpeechRecognition, useSpeechSynthesis } from '../hooks/useSpeech'
 import { useBackendSTT } from '../hooks/useBackendSTT'
@@ -411,6 +414,10 @@ export function ChatPanel() {
   const usageRef = useRef<LiveUsage | null>(null)
   useEffect(() => { usageRef.current = usage }, [usage])
   const [masterModel, setMasterModel] = useState<string>('')
+  // Artifacts for the whole conversation, fetched once and grouped by task.
+  // Keyed on isStreaming so a turn that just produced a chart shows it
+  // without the user reloading or opening the Artifacts panel.
+  const { byTask: artifactsByTask } = useSessionArtifacts(activeId, isStreaming)
   const [masterAdapter, setMasterAdapter] = useState<string>('')
   const [awaitingNotification, setAwaitingNotification] = useState(false)
   /** Set when master is busy and this turn is waiting for its lock. */
@@ -803,9 +810,9 @@ export function ChatPanel() {
         // concatenated paragraph.
         const blocks = hasError ? [] : (lastCompletedTask.messages ?? []).filter((m) => m && m.trim())
         if (blocks.length > 1) {
-          blocks.forEach((m, i) => appendMessage('assistant', m, undefined, undefined, targetSession, undefined, `${completionId}:${i}`))
+          blocks.forEach((m, i) => appendMessage('assistant', m, undefined, undefined, targetSession, i === blocks.length - 1 && lastCompletedTask.structured_result ? { structured_result: lastCompletedTask.structured_result } : undefined, `${completionId}:${i}`))
         } else {
-          appendMessage('assistant', finalText, undefined, undefined, targetSession, undefined, `${completionId}:0`)
+          appendMessage('assistant', finalText, undefined, undefined, targetSession, lastCompletedTask.structured_result ? { structured_result: lastCompletedTask.structured_result } : undefined, `${completionId}:0`)
         }
         if (targetSession === activeId) {
           setAwaitingNotification(false)
@@ -1088,6 +1095,7 @@ export function ChatPanel() {
 
     // Track assembled text locally — avoids React ref/useEffect timing races
     let assembledText = ''
+    let structuredResult: StructuredTaskResult | undefined
     const updateLiveUsage = createLiveUsage(usageRef.current)
     setUsage(updateLiveUsage({ type: 'turn_start' }))
     // Track whether any sub-agents were spawned — if so, poll for background results
@@ -1100,7 +1108,9 @@ export function ChatPanel() {
         useSessionStore.getState().sessions.find(s => s.id === sessionId)?.noteContext?.map(n => n.id))) {
         const liveUsage = updateLiveUsage(event)
         if (liveUsage) setUsage(liveUsage)
-        if (event.type === 'message_boundary') {
+        if (event.type === 'task_result') {
+          structuredResult = event.result
+        } else if (event.type === 'message_boundary') {
           enqueueStreamEvent({ kind: 'message_boundary' })
           assembledText += '\n\n'
         } else if (event.type === 'thinking') {
@@ -1195,7 +1205,7 @@ export function ChatPanel() {
       const finalParts = closeOpenParts(streamingPartsRef.current)
 
       const partsToSave = finalParts.length > 0 ? finalParts : undefined
-      appendMessage('assistant', assembledText, partsToSave, undefined, sessionId, undefined, `${runId}:0`)
+      appendMessage('assistant', assembledText, partsToSave, undefined, sessionId, structuredResult ? { structured_result: structuredResult } : undefined, `${runId}:0`)
       if (hadSpawnAgent && !hadInlineResult) setAwaitingNotification(true)
       if (assembledText) {
         const { voiceEnabled: ve, voiceAutoSpeak: vas } = useAppStore.getState()
@@ -1210,11 +1220,11 @@ export function ChatPanel() {
         appendMessage('assistant', `Could not start task: ${(e as Error).message}`, undefined, undefined, sessionId)
       } else if (finished) {
         const text = finished.result || finished.error || '_Task completed_'
-        appendMessage('assistant', text, undefined, undefined, sessionId, undefined, `${runId}:0`)
+        appendMessage('assistant', text, undefined, undefined, sessionId, finished.structured_result ? { structured_result: finished.structured_result } : undefined, `${runId}:0`)
         appendedCompletionsRef.current.add(runId)
       } else if ((e as Error).name === 'AbortError') {
         if (!stoppingRef.current) persistInterruptedPartial(sessionId)
-        else appendMessage('assistant', assembledText + '\n\n_Cancelled._', undefined, undefined, sessionId, undefined, `${runId}:0`)
+        else appendMessage('assistant', assembledText + '\n\n_Cancelled._', undefined, undefined, sessionId, structuredResult ? { structured_result: structuredResult } : undefined, `${runId}:0`)
       } else {
         const errText = `\n\n_Connection interrupted: ${(e as Error).message}. The task remains in the backend; its result will appear here when available._`
         appendMessage('assistant', (assembledText + errText).trim(), undefined, undefined, sessionId)
@@ -1278,7 +1288,7 @@ export function ChatPanel() {
 
         {history.map((msg, i) => (
           <div key={i} className="group relative">
-            {msg.role === 'assistant' && msg.taskCompletion ? (
+            {msg.role === 'assistant' && msg.taskCompletion && !msg.taskCompletion.structured_result ? (
               // A "what just finished" card: the backend completed a background
               // task (resume/notification/goal/cron) that carried structured
               // metadata. Show the rich card instead of the old bare text.
@@ -1296,6 +1306,10 @@ export function ChatPanel() {
                 agentModel={msg.role === 'assistant' ? masterModel : undefined}
                 onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
               />
+            )}
+            {msg.role === 'assistant' && msg.taskCompletion?.structured_result && <TaskCompletionCard task={msg.taskCompletion} />}
+            {msg.role === 'assistant' && (
+              <ArtifactStrip artifacts={artifactsByTask.get(taskIdFromCompletionId(msg.completionId) ?? '')} />
             )}
             {msg.role === 'assistant' && voiceEnabled && (
               <button
@@ -1319,7 +1333,12 @@ export function ChatPanel() {
 
         {/* Completed task groups */}
         {taskGroups.map((group) => (
-          <TaskGroupBubble key={group.id} group={group} masterModel={masterModel} />
+          <TaskGroupBubble
+            key={group.id}
+            group={group}
+            masterModel={masterModel}
+            artifacts={artifactsByTask.get(group.id)}
+          />
         ))}
 
         {/* Streaming assistant response */}

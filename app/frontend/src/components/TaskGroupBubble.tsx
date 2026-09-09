@@ -11,6 +11,8 @@ import { AgentAvatar, getAgentColor, getAgentDisplayName, withAlpha } from '../l
 import { CompactionMarker } from './ContextGauge'
 import { SubAgentActivity } from './SubAgentActivity'
 import type { TaskPart } from '../api/types'
+import { ArtifactStrip } from '../artifacts/ArtifactStrip'
+import type { Artifact } from '../artifacts/types'
 
 export type { TaskPart }
 export interface TaskGroup {
@@ -25,6 +27,8 @@ export interface TaskGroup {
 interface TaskGroupBubbleProps {
   group: TaskGroup
   masterModel?: string
+  /** Files this task produced, attributed via `artifact.source_task`. */
+  artifacts?: Artifact[]
 }
 
 interface Delegation {
@@ -100,7 +104,7 @@ function DelegationNode({ d, idx }: { d: Delegation; idx: number }) {
   )
 }
 
-export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
+export function TaskGroupBubble({ group, masterModel, artifacts }: TaskGroupBubbleProps) {
   // Master's answer is rendered below, outside this trace. When we have an
   // answer to show, the trace starts collapsed so the reply is what the reader
   // sees — the execution log is supporting detail, not the message. With no
@@ -227,6 +231,14 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
             agentName="master"
             agentModel={masterModel}
           />
+        </div>
+      )}
+
+      {/* Artifacts belong to the result, so they sit below the answer and
+          outside the collapsible execution trace. */}
+      {artifacts && artifacts.length > 0 && (
+        <div className="px-1 pb-2">
+          <ArtifactStrip artifacts={artifacts} />
         </div>
       )}
     </div>

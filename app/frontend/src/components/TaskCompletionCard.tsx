@@ -1,3 +1,5 @@
+import { StructuredResultCard } from './StructuredResultCard'
+import type { StructuredTaskResult } from '../api/types'
 import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import type { BackgroundTask } from '../store/wsStore'
 
@@ -20,6 +22,8 @@ import type { BackgroundTask } from '../store/wsStore'
  * an empty/ambiguous body.
  */
 export interface TaskCompletionCardModel {
+  structured_result?: StructuredTaskResult
+
   task_id?: string
   status?: string
   prompt?: string
@@ -93,6 +97,7 @@ function bodySummary(task: TaskCompletionCardModel): string {
 }
 
 export function TaskCompletionCard({ task, title }: TaskCompletionCardProps) {
+  if (task.structured_result?.schema_version === 1) return <StructuredResultCard result={task.structured_result} />
   const status = task.status ?? (task.error ? 'error' : 'done')
   const isError = isErrorStatus(status) || Boolean(task.error)
   const isRunning = !isError && isRunningStatus(status)

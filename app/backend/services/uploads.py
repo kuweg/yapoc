@@ -247,6 +247,23 @@ def resolve_upload_by_ref(ref: str, owner: str) -> Optional[dict[str, Any]]:
     return None
 
 
+def resolve_file_refs_in_text(text: str, owner: str) -> list[str]:
+    """Extract ``@file:<id|name>`` references from a prompt and resolve them to
+    upload IDs (owner-scoped). Returns the deduped list of resolved IDs.
+
+    This is the server-side fallback for references the frontend failed to
+    resolve — e.g. a full ``@file:<hex32>`` pasted directly, which never
+    populates the client's upload list (its autocomplete only fires for the
+    ``@file <name>`` form). Unknown references are silently skipped.
+    """
+    ids: list[str] = []
+    for ref in re.findall(r"@file:(?:[a-f0-9]{32}|[^\s@]+)", text or ""):
+        rec = resolve_upload_by_ref(ref, owner=owner)
+        if rec and rec.get("id") and rec["id"] not in ids:
+            ids.append(rec["id"])
+    return ids
+
+
 def upload_path(rec: dict[str, Any]) -> Path:
     return _root() / rec["path"]
 

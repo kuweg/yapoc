@@ -170,23 +170,23 @@ def load_mcp_config(project_root: Path | None = None) -> MCPConfig:
     config_path = project_root / "mcp-servers.json"
     if not config_path.exists():
         logger.info("mcp-servers.json not found at %s; returning empty MCP config", config_path)
-        return MCPConfig()
+        return _with_github([])
 
     try:
         with config_path.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("Failed to parse %s: %s; returning empty MCP config", config_path, exc)
-        return MCPConfig()
+        return _with_github([])
 
     if not isinstance(data, dict):
         logger.warning("mcp-servers.json root must be an object; returning empty MCP config")
-        return MCPConfig()
+        return _with_github([])
 
     servers_raw = data.get("mcp_servers", [])
     if not isinstance(servers_raw, list):
         logger.warning("'mcp_servers' must be a list; returning empty MCP config")
-        return MCPConfig()
+        return _with_github([])
 
     servers: list[MCPServerConfig] = []
     for raw in servers_raw:
@@ -194,4 +194,14 @@ def load_mcp_config(project_root: Path | None = None) -> MCPConfig:
         if cfg.name:  # drop skipped / unnamed entries
             servers.append(cfg)
 
+    return _with_github(servers)
+
+
+def _with_github(servers):
+    # Reserved name: policy cannot be bypassed through the generic MCP config UI.
+    from app.utils.github.mcp import server_config
+    servers = [server for server in servers if server.name != "github"]
+    github = server_config()
+    if github is not None:
+        servers.append(github)
     return MCPConfig(mcp_servers=servers)

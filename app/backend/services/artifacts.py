@@ -170,6 +170,81 @@ def register_artifact(
         return dict(record)
 
 
+def resolve_provenance(
+    agent_dir: Optional[Path] = None,
+    session_id: Optional[str] = None,
+) -> tuple[str, Optional[str], Optional[str]]:
+    """Work out (agent, task_id, session_id) for an artifact being created now.
+
+    Two execution shapes have to be covered, which is why this is a chain
+    rather than a single lookup:
+
+    * In-process (master, and anything running under the backend dispatcher)
+      the task id is on the ``current_task_id`` ContextVar.
+    * Sub-process agents (``runner_entry.py``) have no ContextVar — the
+      dispatcher that set it lives in another process. Their task id is in
+      TASK.MD frontmatter, which the runner writes.
+
+    Everything is best-effort: an artifact registered with partial provenance
+    beats one registered with none, and beats a tool crashing over metadata.
+    """
+    agent = agent_dir.name if agent_dir is not None else "generated"
+    task_id: Optional[str] = None
+    session: Optional[str] = session_id or None
+
+    try:
+        from app.backend.services.task_runtime import current_task_id
+        task_id = current_task_id.get() or None
+    except Exception:
+        task_id = None
+
+    if (task_id is None or session is None) and agent_dir is not None:
+        try:
+            from app.utils.frontmatter import parse_frontmatter_fields
+            fields = parse_frontmatter_fields((agent_dir / "TASK.MD").read_text(encoding="utf-8"))
+            task_id = task_id or (fields.get("task_id") or None)
+            session = session or (fields.get("session_id") or None)
+        except Exception:
+            pass
+
+    return agent, task_id, session
+
+
+def register_generated(
+    path: str | Path,
+    agent_dir: Optional[Path] = None,
+    session_id: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None,
+) -> Optional[dict[str, Any]]:
+    """Register a file a tool just produced, with provenance filled in.
+
+    This is the entry point every generating tool should use. Registering at
+    creation is the only moment the producing task is knowable — the
+    ``backfill_scan`` fallback that used to be the sole path can see the file
+    but not who made it, which is why every pre-existing record reads
+    ``source_agent: backfill`` with a null task.
+
+    Returns the record, or ``None`` if registration failed. Never raises: a
+    tool that produced a perfectly good chart must not report failure because
+    the bookkeeping around it broke.
+    """
+    try:
+        agent, task_id, session = resolve_provenance(agent_dir, session_id)
+        return register_artifact(
+            path,
+            source_agent=agent,
+            source_task=task_id,
+            source_session=session,
+            metadata=metadata,
+        )
+    except Exception:  # noqa: BLE001 - bookkeeping must never fail the tool
+        import logging
+        logging.getLogger(__name__).warning(
+            "artifacts: could not register %s", path, exc_info=True
+        )
+        return None
+
+
 def backfill_scan() -> int:
     generated = _generated_root()
     if not generated.exists():
@@ -189,6 +264,7 @@ def list_artifacts(
     source_agent: Optional[str] = None,
     kind: Optional[str] = None,
     session: Optional[str] = None,
+    task: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     backfill_scan()
     with _lock:
@@ -199,6 +275,8 @@ def list_artifacts(
         records = [record for record in records if record.get("kind") == kind]
     if session is not None:
         records = [record for record in records if record.get("source_session") == session]
+    if task is not None:
+        records = [record for record in records if record.get("source_task") == task]
     return sorted(records, key=lambda record: record.get("updated_at", ""), reverse=True)
 
 

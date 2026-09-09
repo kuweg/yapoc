@@ -70,7 +70,8 @@ class _AlwaysTimeoutTool(BaseTool):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    # Own the loop: earlier async tests may have closed the policy default.
+    return asyncio.run(coro)
 
 
 def _make_agent(tmp_path):

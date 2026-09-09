@@ -109,6 +109,13 @@ class RenderChartImageTool(BaseTool):
         "required": ["option"],
     }
 
+    def __init__(self, agent_dir: Path | None = None, session_id: str | None = None) -> None:
+        # Provenance context. Registration happens at creation because that is
+        # the only moment the producing task is knowable — see
+        # app/backend/services/artifacts.register_generated.
+        self._agent_dir = agent_dir
+        self._session_id = session_id
+
     async def execute(self, **params: Any) -> str:
         browser = None
         playwright = None
@@ -184,9 +191,12 @@ try {{
             if not image_bytes.startswith(b"\x89PNG"):
                 return "ERROR: chart renderer did not produce a valid PNG"
             path = relative_path.as_posix()
+            from app.backend.services.artifacts import register_generated
+            record = register_generated(output_path, self._agent_dir, self._session_id)
             return json.dumps(
                 {
                     "type": "chart_image",
+                    "artifact_id": (record or {}).get("id"),
                     "path": path,
                     "url": f"/api/files/image?path={path}",
                     "media_type": "image/png",

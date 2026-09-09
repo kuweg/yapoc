@@ -14,6 +14,16 @@ adapter: openai
 model: gpt-5.6-terra
 temperature: 0.3
 tools:
+  # GitHub read-only grants; keep synchronized with agent-settings.json.
+  - github_get_repo
+  - github_get_health_summary
+  - github_list_issues
+  - github_get_issue
+  - github_list_pull_requests
+  - github_get_pull_request
+  - github_list_workflow_runs
+  - github_get_workflow_run
+  - github_list_workflow_jobs
   # ── Reads (safe, do them yourself) ──────────────────────────────────
   - plugin:drive:*
   - plugin:calendar:*
@@ -56,6 +66,7 @@ tools:
   - image_read
   - send_telegram_message
   - send_telegram_media
+  - send_telegram_voice
   - delegate_task
   - search_negative_knowledge
   - list_tools

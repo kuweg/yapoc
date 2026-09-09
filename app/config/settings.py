@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,18 @@ class Settings(BaseSettings):
         extra="ignore",
         populate_by_name=True,
     )
+
+    # GitHub: optional, explicit repository allowlist, no writes by default.
+    github_token: SecretStr = Field(default=SecretStr(""), exclude=True, repr=False)
+    github_enabled: bool = False
+    github_default_owner: str = ""
+    github_default_repo: str = ""
+    github_allowed_repos: str = ""
+    github_write_enabled: bool = False
+    github_self_repo: str = ""
+    github_poll_interval_seconds: int = 0  # 0 disables; scheduler clamps to >=300s
+    github_mcp_enabled: bool = False
+    github_mcp_command: str = "github-mcp-server"
 
     # ── API keys ─────────────────────────────────────────────────────────────
     anthropic_api_key: str = ""

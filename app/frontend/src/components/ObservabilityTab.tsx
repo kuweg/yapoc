@@ -1,3 +1,4 @@
+import { GitHubIntegrationStatus } from './GitHubIntegrationStatus'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface ObservabilityTotals {
@@ -328,6 +329,7 @@ function LiveTraceViewer({ agent, onClose }: { agent: string; onClose: () => voi
 
   return (
     <div className="border border-zinc-800 bg-zinc-900/60">
+      <GitHubIntegrationStatus />
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800">
         <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />

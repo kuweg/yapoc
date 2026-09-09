@@ -146,7 +146,7 @@ from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
 from .web import FetchPageTool, WebSearchTool
 from .browser import FetchPageJsTool
-from .telegram import SendTelegramMessageTool, SendTelegramMediaTool
+from .telegram import SendTelegramMessageTool, SendTelegramMediaTool, SendTelegramVoiceTool
 from .logs import ReadAgentLogsTool
 from .delegation import (
     CheckTaskStatusTool,
@@ -232,6 +232,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "parse_csv": ParseCsvTool,
     "send_telegram_message": SendTelegramMessageTool,
     "send_telegram_media": SendTelegramMediaTool,
+    "send_telegram_voice": SendTelegramVoiceTool,
     "load_skills": LoadSkillsTool,
     "list_tools": ListToolsTool,
     "create_skill": CreateSkillTool,
@@ -269,6 +270,9 @@ _AGENT_DIR_TOOLS = {
     "shared_knowledge_append",
     "server_restart",
     "list_tools",
+    # Artifact producers: they stamp the generating agent onto the record.
+    "render_chart_image",
+    "generate_image",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell
@@ -283,7 +287,13 @@ _SANDBOX_TOOLS = {
 }
 
 # Session ownership must survive every tool that starts or resumes work.
-_SESSION_TOOLS = {"spawn_agent", "delegate_task", "execute_dag", "server_restart"}
+# Session ownership must survive every tool that starts or resumes work, and
+# every tool that produces an artifact — an artifact with no session cannot be
+# shown next to the conversation that asked for it.
+_SESSION_TOOLS = {
+    "spawn_agent", "delegate_task", "execute_dag", "server_restart",
+    "render_chart_image", "generate_image",
+}
 
 
 def resolve_tool_names(names: list[str]) -> list[str]:

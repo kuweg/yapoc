@@ -64,6 +64,10 @@ RISKY_TOOLS: frozenset[str] = frozenset({
 # only one spelling would leave the other as a trivial bypass.
 _OUTWARD_ACTION_SUFFIXES: tuple[str, ...] = (
     "gmail_send", "mail_send", "calendar_create_event",
+    "github_create_draft_pull_request", "github_update_draft_pull_request",
+    ":github:create_draft_pull_request", ":github:update_draft_pull_request",
+    "github_create_issue", "github_comment_on_issue", "github_comment_on_pull_request", "github_update_labels",
+    ":github:create_issue", ":github:comment_on_issue", ":github:comment_on_pull_request", ":github:update_labels",
     ":gmail:send", ":mail:send", ":calendar:create_event",
 )
 

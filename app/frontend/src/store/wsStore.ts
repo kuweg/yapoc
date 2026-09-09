@@ -1,3 +1,4 @@
+import type { StructuredTaskResult } from '../api/types'
 /**
  * WebSocket notification store — receives and dispatches real-time events.
  *
@@ -10,6 +11,8 @@
 import { create } from 'zustand'
 
 export interface BackgroundTask {
+  structured_result?: StructuredTaskResult
+
   task_id: string
   status: string
   prompt?: string
@@ -142,11 +145,12 @@ function findRecoverableCompletion(tasks: BackgroundTask[]): BackgroundTask | nu
     const status = (task.status ?? '').toLowerCase()
     const isError = ['error', 'failed', 'timeout', 'cancelled'].includes(status)
     const isDone = status === 'done'
-    const hasMeaningfulResult = isDone && !!task.result && task.result.trim().length > 0
+    const hasMeaningfulResult = isDone && (!!task.structured_result || (!!task.result && task.result.trim().length > 0))
     if (!isError && !hasMeaningfulResult) continue
 
     if (id) surfacedCompletions.set(id, task.session_id || '')
     return {
+      structured_result: task.structured_result,
       task_id: task.task_id,
       status: task.status,
       result: task.result,
@@ -310,6 +314,7 @@ export const useWsStore = create<WsStore>((set) => ({
       if (!taskId) return
       if (wasSurfaced(taskId, data.session_id as string | undefined)) return
       const completed: BackgroundTask = {
+        structured_result: data.structured_result as StructuredTaskResult | undefined,
         task_id: taskId,
         status: 'done',
         result: data.result as string | undefined,
@@ -343,6 +348,7 @@ export const useWsStore = create<WsStore>((set) => ({
       // Normalize "unknown" / empty errors so the task group still completes
       const cleanedError = rawError?.trim() && rawError !== 'unknown' ? rawError.trim() : 'Task failed — check agent health logs'
       const errTask: BackgroundTask = {
+        structured_result: data.structured_result as StructuredTaskResult | undefined,
         task_id: taskId,
         status: data.status as string ?? 'error',
         error: cleanedError,

@@ -59,6 +59,11 @@ class WebSocketManager:
 
     async def push_event(self, event_type: str, payload: dict[str, Any]) -> None:
         """Broadcast an event to all connected clients."""
+        if event_type in {"task_complete", "task_error"} and payload.get("task_id"):
+            from app.utils.db import get_queued_task
+            task = get_queued_task(payload["task_id"])
+            if task and task.get("structured_result"):
+                payload = {**payload, "structured_result": task["structured_result"]}
         message = json.dumps({"type": event_type, **payload})
         async with self._lock:
             clients = list(self._clients)

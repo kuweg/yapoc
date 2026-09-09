@@ -108,6 +108,8 @@ interface SessionStore {
   deleteMessage: (index: number) => void
   setPendingChatInput: (text: string) => void
   clearPendingChatInput: () => void
+  toggleNoteContext: (note: { id: string; title: string }) => void
+  removeNoteContext: (id: string) => void
 }
 
 // The exact shape that gets persisted to localStorage. Distinguishing it from
@@ -120,6 +122,7 @@ type PersistedState = {
     createdAt: string
     source?: string
     completionIds?: string[]
+    noteContext?: Array<{ id: string; title: string }>
     history: Array<Record<string, unknown>>
   }>
   activeId: string | null
@@ -134,6 +137,15 @@ export const useSessionStore = create<SessionStore>()(
       pendingChatInput: null,
       setPendingChatInput: (text) => set({ pendingChatInput: text }),
       clearPendingChatInput: () => set({ pendingChatInput: null }),
+      toggleNoteContext: note => {
+        if (!get().activeId) get().newSession()
+        set(s => ({ sessions: s.sessions.map(session => {
+          if (session.id !== s.activeId) return session
+          const pins = session.noteContext ?? []
+          return { ...session, noteContext: pins.some(p => p.id === note.id) ? pins.filter(p => p.id !== note.id) : [...pins, note].slice(0, 12) }
+        }) }))
+      },
+      removeNoteContext: id => set(s => ({ sessions: s.sessions.map(session => ({ ...session, noteContext: session.noteContext?.filter(p => p.id !== id) })) })),
 
       newSession() {
         const id = crypto.randomUUID()
@@ -263,6 +275,7 @@ export const useSessionStore = create<SessionStore>()(
             createdAt: s?.createdAt ?? new Date().toISOString(),
             ...(s?.source ? { source: s.source } : {}),
             completionIds: Array.isArray(s?.completionIds) ? s.completionIds.filter((id) => typeof id === 'string').slice(-1000) : [],
+            noteContext: Array.isArray(s?.noteContext) ? s.noteContext.filter(n => typeof n.id === 'string' && typeof n.title === 'string').slice(0, 12) : [],
             history: (Array.isArray(s?.history) ? s.history : [])
               .map((m) => {
                 const slim: Record<string, unknown> = {
@@ -294,6 +307,7 @@ export const useSessionStore = create<SessionStore>()(
             createdAt: s.createdAt,
             ...(s.source ? { source: s.source } : {}),
             completionIds: completionIds(s),
+            noteContext: s.noteContext ?? [],
             history: s.history.slice(-MAX_PERSISTED_MESSAGES).map((m) => {
               const slim: Record<string, unknown> = {
                 role: m.role,

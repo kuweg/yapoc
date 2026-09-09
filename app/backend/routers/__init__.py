@@ -22,7 +22,11 @@ from .observability import router as observability_router
 from .pptx import router as pptx_router
 from .uploads import router as uploads_router
 from .skills import router as skills_router
-from .mcp import router as mcp_router
+from .mcp import router as mcp_router, servers_router as mcp_servers_router
+from .plugins import router as plugins_router
+from .notes import router as notes_router
+from .cron import router as cron_router
+from .drive_oauth import router as drive_oauth_router
 
 __all__ = [
     "artifacts_router",
@@ -50,4 +54,9 @@ __all__ = [
     "uploads_router",
     "skills_router",
     "mcp_router",
+    "mcp_servers_router",
+    "plugins_router",
+    "notes_router",
+    "cron_router",
+    "drive_oauth_router",
 ]

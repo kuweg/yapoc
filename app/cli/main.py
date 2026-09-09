@@ -1782,49 +1782,90 @@ def _update_env(key: str, value: str) -> None:
 
 # -- Cron commands -------------------------------------------------------------
 
-_CRON_NOTES = settings.agents_dir / "cron" / "NOTES.MD"
-
 
 @cron_app.command("list")
 def cron_list():
-    """List scheduled cron tasks from the Cron agent's schedule."""
-    if not _CRON_NOTES.exists() or not _CRON_NOTES.read_text().strip():
-        console.print("[dim]No scheduled jobs. Use the REPL to ask master to add cron jobs.[/dim]")
+    """List scheduled cron tasks from the dedicated cron JSON store."""
+    from app.utils.cron_parser import load_cron_jobs, migrate_cron_jobs_from_notes
+
+    migrate_cron_jobs_from_notes()
+    jobs = load_cron_jobs()
+    if not jobs:
+        console.print("[dim]No scheduled jobs. Use the Cron tab in the UI to add jobs.[/dim]")
         return
-    content = _CRON_NOTES.read_text()
-    from rich.markdown import Markdown
-    console.print(Markdown(content))
+    for job in jobs:
+        job_id = job.get("id", "?")
+        cron_expr = job.get("cron", "?")
+        assign_to = job.get("assign_to", "?")
+        task = (job.get("task") or "").replace("\n", " ").strip()
+        if len(task) > 80:
+            task = task[:77] + "..."
+        console.print(f"{job_id} — {cron_expr} — {assign_to} — {task}")
 
 
 @cron_app.command("trigger")
 def cron_trigger():
-    """Manually trigger the cron agent to run all due scheduled jobs."""
-    import asyncio
-    from app.utils.tools.delegation import SpawnAgentTool
+    """Manually trigger all due scheduled jobs (same path as the scheduler)."""
+    import json
+    import uuid
 
-    async def _run():
-        spawn = SpawnAgentTool()
-        result = await spawn.execute(
-            agent_name="cron",
-            task="run-schedule: Execute all due scheduled jobs from your NOTES.MD schedule.",
+    from app.utils.cron_parser import (
+        get_due_jobs,
+        load_cron_jobs,
+        load_last_runs,
+        migrate_cron_jobs_from_notes,
+        save_last_run,
+    )
+    from app.utils.db import create_queued_task
+
+    migrate_cron_jobs_from_notes()
+    jobs = load_cron_jobs()
+    due = get_due_jobs(jobs, load_last_runs())
+    if not due:
+        console.print("[dim]No jobs due.[/dim]")
+        return
+    for job in due:
+        job_id = job.get("id", "")
+        task = job.get("task", "")
+        assign_to = job.get("assign_to", "")
+        create_queued_task(
+            id=str(uuid.uuid4()),
+            session_id=None,
+            prompt=f"[Cron: {job_id}] {task}",
+            source="cron",
+            metadata=json.dumps({"cron_job_id": job_id, "assign_to": assign_to}),
         )
-        console.print(f"[yellow]{result}[/yellow]")
-
-    asyncio.run(_run())
+        save_last_run(job_id)
+    console.print(f"[yellow]Triggered {len(due)} job(s)[/yellow]")
 
 
 @cron_app.command("status")
 def cron_status():
-    """Show the cron agent's process status."""
-    from app.utils.tools.delegation import PingAgentTool
-    import asyncio
+    """Show the count of scheduled jobs and their last-run status."""
+    from app.utils.cron_parser import (
+        load_cron_jobs,
+        load_last_runs,
+        migrate_cron_jobs_from_notes,
+    )
 
-    async def _run():
-        ping = PingAgentTool()
-        result = await ping.execute(agent_name="cron")
-        console.print(result)
-
-    asyncio.run(_run())
+    migrate_cron_jobs_from_notes()
+    jobs = load_cron_jobs()
+    last_runs = load_last_runs()
+    for job in jobs:
+        job_id = job.get("id", "?")
+        entry = last_runs.get(job_id)
+        if isinstance(entry, dict):
+            last_run = entry.get("last_run") or "never"
+            disabled = entry.get("disabled", False)
+        elif isinstance(entry, str):
+            last_run = entry
+            disabled = False
+        else:
+            last_run = "never"
+            disabled = False
+        suffix = " — disabled" if disabled else ""
+        console.print(f"{job_id} — {last_run}{suffix}")
+    console.print(f"[bold]{len(jobs)}[/bold] scheduled jobs")
 
 
 @doctor_app.callback()

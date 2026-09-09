@@ -219,6 +219,34 @@ export async function listUploads(): Promise<{ files: Attachment[] }> {
   return res.json() as Promise<{ files: Attachment[] }>
 }
 
+export async function deleteUpload(fileId: string): Promise<void> {
+  const res = await fetch(`/api/upload/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`DELETE /upload/${fileId}: ${res.status}`)
+}
+
+export async function renameUpload(fileId: string, newName: string): Promise<Attachment> {
+  const res = await fetch(`/api/upload/${encodeURIComponent(fileId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newName }),
+  })
+  if (!res.ok) throw new Error(`PATCH /upload/${fileId}: ${res.status}`)
+  return res.json() as Promise<Attachment>
+}
+
+export async function saveToNote(fileId: string): Promise<{ note: { id: string; title: string } }> {
+  const response = await fetch(`/api/upload/${encodeURIComponent(fileId)}/save-to-note`, { method: 'POST' })
+  if (!response.ok) {
+    let message = `Save to Notes failed (${response.status})`
+    try {
+      const data = await response.json()
+      if (data?.detail) message = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
+    } catch { /* ignore */ }
+    throw new Error(message)
+  }
+  return response.json()
+}
+
 export async function processUpload(
   fileId: string,
   action: string,

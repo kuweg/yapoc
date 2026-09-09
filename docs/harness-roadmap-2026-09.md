@@ -389,6 +389,179 @@ suite that can be triggered by a scheduler, an import, or a default flag is a
 way to spend someone else's money by accident. It requires `--confirm-spend`,
 and the scheduling decision is left to the user.
 
+### Phase 4A — prove it in production (2026-09-08)
+
+Phases 0-3 shipped a lot of machinery. Running it for real immediately found
+that the flagship one did not work on the workload it was built for.
+
+**Turn continuations had never fired.** 0 partial tasks, 0 continuations, across
+24 tasks since Phase 0 landed — none happened to exhaust their turns. So the
+mechanism was well tested and entirely unexercised.
+
+Forcing it (scratch agent, `max_turns: 1`, real `runner_entry` process) produced:
+
+```
+turn limit reached (1 turns), salvaged 0 chars, continuing=False
+```
+
+**The salvage required non-empty assistant *text*.** An agent that spends every
+turn on tool calls writes no prose, so `RESULT.MD` is 0 bytes, the salvage found
+nothing to continue from, and the work was discarded — the exact pre-Phase-0
+behaviour. And that is not an edge case: every one of the 19 observed turn-limit
+failures was an agent grinding through tools. The fix would have failed to fire
+on the failures it was built for.
+
+The unit tests passed because they fed partial text. Reality often has none.
+
+**Fix.** `summarize_tool_activity()` renders the tool-call trail — calls, inputs,
+and results labelled ok/ERROR — as resumable progress, used when there is no
+text. Output is bounded, dropping the oldest calls first, because a resuming
+agent needs its latest state far more than its first move.
+
+**Verified end to end**, same scratch agent, one table:
+
+| row | status | continuation | evidence |
+|---|---|---|---|
+| #1583 | `error` | 0 | pre-fix: "No partial output to continue from" |
+| #1584 | `partial` | 0 | salvaged, re-enqueued |
+| #1585 | `partial` | 1 | |
+| #1586 | `partial` | 2 | |
+| #1587 | `error` | 3 | "Continuation budget exhausted" — bounded, no infinite loop |
+
+#1587 carries the trail itself: `- called file_list({'path': 'app/config'})`.
+
+A regression test reproduces the production failure and fails against the
+pre-fix code with the identical error string. The synthetic rows were deleted
+afterwards: left in place they would have counted as two real turn-limit
+failures against the release gate, which is the metric Phase 0 is judged on.
+
+**Still open in 4A:** the remaining steps need a clean 7-day window before the
+release gate can be flipped from reporting to enforcing. As of now the gate
+still fails on history that predates the fixes.
+
+### Phase 4B — close the loops (2026-09-08)
+
+Phases 0-3 built machinery; several pieces were connected to nothing. This wires
+the three that were dead-ended.
+
+**Routing policy → master.** 3.4 built a policy comparing agents on measured
+success and cost, and nothing consulted it. It is now injected into master's
+task context as a one-line advisory alongside the existing source and
+outstanding-delegation lines. It **advises rather than overrides**: master keeps
+the decision and the reasoning stays visible in the transcript, because a
+statistic that silently rewrites delegation is undebuggable when it misfires.
+It stays silent unless the recommendation is history-backed — restating the
+existing default is noise that trains master to ignore the line.
+
+**Scenario suite → CI *and* cron.** The offline half is free and model-free, so
+it is **enforced** in CI (unlike the release gate, which depends on production
+history). But two of its checks — telemetry reconciliation and agent-binding
+resolution — read *live* state that CI cannot see between pushes, so a daily
+cron entry also runs it against the running system and reports failures without
+attempting to fix them.
+
+**Signal ledger → UI.** The ledger tracked findings correctly and nothing showed
+them. The Observability tab now renders open findings with their impact, how
+many rounds each has been open, and the ledger's staleness against the newest
+report.
+
+Verified live: the ledger is now **current (r125/r125, staleness 0)** — the 3.2
+auto-refresh hook is working, the previously-stuck "observability error
+counters" signal has resolved, and 37 findings are closed against 3 open. The
+panel immediately surfaced a finding **open 20 rounds** (`Phantom agent
+neg-knowledge-sweep spawned with no config`) that nothing had made visible.
+Another independently matches what the release gate found from the other
+direction: `document_processor fallback chain routes to out-of-credits OpenAI`.
+
+### Phase 4C — operational cleanup (2026-09-08)
+
+**Orphan columns — not junk, an abandoned feature with history.** Four columns
+(`task_class`, `route_target`, `verification_required`, `verification_status`)
+existed in the live `tasks` table and in no code. They were not empty: 96 rows
+carried real values (`task_class=code`, `route_target=builder`,
+`verification_status=self_reported`), all written between **2026-04-18 and
+2026-05-14** and nothing since — a routing/verification feature that ran for
+three weeks and was removed from the code, leaving its columns behind.
+
+The actual defect was schema drift: a fresh install got a `tasks` table the
+production one did not match. The 96 rows were archived to
+`data/archive/abandoned_task_columns_2026-09-08.json` before dropping, so
+nothing was destroyed; both are now 15 columns and verified identical.
+
+**Provider credits — the chain failed over but never remembered.** OpenAI
+returns `429: You have no credits remaining`, and it sits in all 14 agents'
+fallback chains. Failover worked, so nothing broke — but every task paid a full
+round-trip to relearn the same failure. Found independently by the release gate
+and by the evaluator, from opposite directions.
+
+An API-key check cannot catch this: the key is set and valid, the account simply
+cannot pay. It has to be learned from responses.
+
+`provider_health` benches a provider on signals meaning *the account cannot
+pay*, with a 30-minute cooldown. The distinction from a rate limit is the whole
+design: both arrive as HTTP 429, and benching a merely rate-limited provider for
+half an hour would turn a brief slowdown into a long outage — so transient
+signals win ties and never bench.
+
+Benched providers are **deprioritised, not removed**: if every provider is
+benched the chain must still attempt one, rather than failing with nothing
+tried. Verified on the real builder chain:
+
+    configured : deepseek, deepseek, openai, google
+    with bench : deepseek, deepseek, google, openai
+    after clear: deepseek, deepseek, openai, google
+
+A new offline scenario reports any live bench, so reduced redundancy is visible
+rather than silent.
+
+### Phase 5 — act on the system's own findings (2026-09-08)
+
+Phases 0-3 built the ability to see, Phase 4 connected it. Phase 5 is the first
+one whose agenda came *from* the system rather than from a human reading code:
+the three findings the newly-surfaced signal ledger showed, two of which had
+been open for 12 and 20 rounds.
+
+**1. Empty provider responses killed tasks outright (open 12 rounds).** A turn
+producing no text and no tool calls raised immediately — a one-shot hard failure
+on a classic transient. Now retried a bounded number of times with a nudge,
+mirroring the existing announce-without-acting pattern; each retry costs a turn,
+so `max_turns` still caps the run.
+
+**2. A phantom agent — and the leak underneath it (open 20 rounds).**
+`neg-knowledge-sweep` had memory but no agent directory. Chasing it found a
+larger problem: **68 memory directories against 16 agents**, 48 of them empty
+`tmp*` leaks, and still accumulating on every test run.
+
+Cause: `BaseAgent.__init__` created its memory directory eagerly, so any code
+building an agent over a temp path wrote into the real repository. The write
+helpers already `mkdir(parents=True, exist_ok=True)`, making the constructor
+call redundant as well as harmful — a constructor should not touch the disk.
+Removed; a full 511-test run now leaks nothing where it previously added several.
+51 orphans cleaned (the phantom's memory archived first), and a new offline
+scenario fails if orphans reappear.
+
+**3. A third provider-config bug, this time Anthropic.** The phantom's HEALTH.MD
+held the actual cause:
+
+    400 - thinking.adaptive.budget_tokens: Extra inputs are not permitted
+
+The adapter sent `{"type": "adaptive", "budget_tokens": N}` — two different API
+shapes merged. Adaptive thinking takes no budget; `budget_tokens` belongs to the
+older `{"type": "enabled"}` form and is rejected outright on 4.6+ models. **Every
+Anthropic request with thinking enabled was a hard 400.**
+
+Fixed model-aware (adaptive for 4.6+, fixed-budget for older), with `display`
+set explicitly — it defaults to "omitted" on newer models, which would have made
+the adapter's ThinkingDelta events stream empty strings — and sampling
+parameters omitted on the adaptive path, where they are rejected. Extracted into
+a pure `build_thinking_kwargs()` so the shapes are testable without a live
+client; the first attempt at these tests scraped source text and matched its own
+comments, which is why they assert real output instead.
+
+This is the third provider-config bug of the same family (Gemini's
+thinking-budget conflict, DeepSeek's model names, now Anthropic's). Each was
+invisible until something specific looked for it.
+
 ## 3. Targets
 
 Every target is checkable with a query against `data/yapoc.db` or a CI job. **All

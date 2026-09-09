@@ -215,6 +215,56 @@ def _sc_config_is_loadable() -> tuple[bool, str]:
     return True, f"all {len(cfg.get('agents', {}))} agent bindings resolve"
 
 
+def _sc_no_provider_is_benched() -> tuple[bool, str]:
+    """No configured provider should be sitting in an exhausted-credit cooldown.
+
+    A benched provider is not an outage — the chain routes around it — but it is
+    silent degradation: redundancy is quietly reduced and nobody is told. This
+    check is what makes that visible.
+    """
+    from app.utils.adapters.provider_health import snapshot
+
+    benched = snapshot()
+    if not benched:
+        return True, "no provider is benched for exhausted credits"
+    detail = "; ".join(
+        f"{name} ({info['seconds_remaining']}s left): {info['reason'][:70]}"
+        for name, info in benched.items()
+    )
+    return False, f"{len(benched)} provider(s) benched — {detail}"
+
+
+def _sc_no_orphaned_agent_state() -> tuple[bool, str]:
+    """No memory directory should exist without a matching agent directory.
+
+    An agent spawned without a config leaves memory behind and can never run —
+    the evaluator reported one such phantom (`neg-knowledge-sweep`) for 20
+    rounds. Separately, constructing a BaseAgent used to create its memory
+    directory eagerly, so anything building one over a temp path leaked a
+    directory into the repo; 48 empty `tmp*` directories had accumulated.
+    Both leave the same fingerprint, which is what this checks.
+    """
+    from app.config import settings
+
+    agents_dir = settings.agents_dir
+    memory_root = settings.project_root / "app" / "memory" / "agents"
+    if not agents_dir.is_dir() or not memory_root.is_dir():
+        return True, "agent or memory directory not present — nothing to check"
+
+    agents = {
+        d.name for d in agents_dir.iterdir()
+        if d.is_dir() and not d.name.startswith((".", "_"))
+    } - {"base", "shared"}
+    memories = {d.name for d in memory_root.iterdir() if d.is_dir()} - {"shared"}
+
+    orphans = sorted(memories - agents)
+    if orphans:
+        shown = ", ".join(orphans[:6])
+        more = f" (+{len(orphans) - 6} more)" if len(orphans) > 6 else ""
+        return False, f"{len(orphans)} orphaned memory dir(s): {shown}{more}"
+    return True, f"all {len(memories)} memory dir(s) have a matching agent"
+
+
 OFFLINE_SCENARIOS: tuple[Scenario, ...] = (
     Scenario("security/destructive-shell", "offline", "security",
              "Destructive shell commands are refused for every caller",
@@ -237,6 +287,12 @@ OFFLINE_SCENARIOS: tuple[Scenario, ...] = (
     Scenario("config/bindings-resolve", "offline", "config",
              "Every agent binding names a real adapter and model",
              check=_sc_config_is_loadable),
+    Scenario("config/provider-credits", "offline", "config",
+             "No provider is benched for exhausted credits",
+             check=_sc_no_provider_is_benched),
+    Scenario("config/no-orphaned-agents", "offline", "config",
+             "Every agent memory directory has a matching agent",
+             check=_sc_no_orphaned_agent_state),
 )
 
 

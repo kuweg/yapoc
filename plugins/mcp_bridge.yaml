@@ -1,0 +1,5 @@
+name: mcp_bridge
+display_name: MCP Bridge
+description: Exposes external MCP server tools (mcp-servers.json) as assignable plugin tools under the plugin:mcp:* namespace.
+category: integration
+version: 0.1.0

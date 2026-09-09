@@ -27,6 +27,13 @@ export type CompactEvent = {
   tokens_before: number
   tokens_after: number
 }
+/** An agent was rebound to a new provider partway through this turn. */
+export type ModelSwappedEvent = {
+  type: 'model_swapped'
+  agent: string
+  adapter: string
+  model: string
+}
 export type StreamEvent =
   | TextEvent
   | ThinkingEvent
@@ -36,6 +43,7 @@ export type StreamEvent =
   | UsageEvent
   | CompactEvent
   | MessageBoundaryEvent
+  | ModelSwappedEvent
   | StatusEvent
 
 export interface AgentStatus {
@@ -66,6 +74,17 @@ export interface ModelEntry {
   description: string
   context_window: number
   supports_tools: boolean
+  input_price?: number
+  output_price?: number
+  pricing_source?: string
+  pricing_verified_at?: string
+  pricing_notes?: string
+  cached_input_price?: number | null
+  off_peak_input_price?: number | null
+  off_peak_output_price?: number | null
+  off_peak_cached_input_price?: number | null
+  long_context_input_price?: number | null
+  long_context_output_price?: number | null
 }
 
 export interface AdapterInfo {
@@ -94,6 +113,7 @@ export type TaskPart =
   | { kind: 'compact'; id: string; tokensBefore: number; tokensAfter: number; reason: string }
   | { kind: 'chart'; option: Record<string, unknown> }
   | { kind: 'mermaid'; source: string }
+  | { kind: 'calendar'; events: Array<{ summary: string; start: string; end: string; location?: string; description?: string }>; weekStart?: string }
 
 export interface Attachment {
   id?: string          // server upload id (present after upload)
@@ -129,6 +149,7 @@ export interface Message {
 
 // Client-side session (localStorage)
 export interface Session {
+  noteContext?: Array<{ id: string; title: string }>
   /** Delivery receipts survive message-history trimming. */
   completionIds?: string[]
   id: string

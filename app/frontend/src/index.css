@@ -1689,17 +1689,6 @@ body.sidebar-auto-railed aside {
   .compact-marker::after { display: none; }
 }
 
-/* ── Live topology HUD ──────────────────────────────────────────────────────
-   Rail dots breathe while their agent is running. The graph's own motion is
-   SVG SMIL inside LiveTopologyHUD; this covers the collapsed rail. */
-@keyframes yapoc-topo-pulse {
-  0%, 100% { transform: scale(1);    opacity: 1; }
-  50%      { transform: scale(1.45); opacity: 0.65; }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-testid="topology-hud"] * { animation: none !important; }
-}
-
 /* ── Nav overflow ───────────────────────────────────────────────────────────
    Below ~1100px the ten top-level tabs no longer fit. They used to clip, which
    made the last tab unreachable; scroll instead, with a thin unobtrusive bar. */

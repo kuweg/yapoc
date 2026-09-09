@@ -1,0 +1,42 @@
+name: drive
+display_name: Google Drive
+description: Google Drive, Docs, and Sheets integration for YAPOC.
+version: 0.1.0
+author: YAPOC
+category: integrations
+config_schema:
+  client_id:
+    type: string
+    required: true
+    label: OAuth Client ID
+  client_secret:
+    type: secret
+    required: true
+    label: OAuth Client Secret
+  refresh_token:
+    type: secret
+    required: false
+    label: OAuth Refresh Token
+  access_token:
+    type: secret
+    required: false
+    label: OAuth Access Token
+  user_email:
+    type: string
+    required: false
+    default: me
+    label: User Email
+tools:
+  - drive_list
+  - drive_search
+  - drive_upload
+  - drive_create_folder
+  - drive_rename
+  - drive_move
+  - drive_delete
+  - drive_read_doc
+  - drive_read_sheet
+  - drive_create_doc
+  - drive_create_sheet
+  - drive_export
+  - drive_download

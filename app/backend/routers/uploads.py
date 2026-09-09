@@ -193,3 +193,39 @@ async def get_vision(request: Request, file_id: str):
         except OSError:
             text = ""
     return {"id": file_id, "text": text}
+
+
+@router.delete("/{file_id}")
+async def delete_upload_record(request: Request, file_id: str):
+    """Delete an uploaded file (owner-scoped) and its derived caches."""
+    if not store.delete_upload(file_id, owner=_owner(request)):
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    return {"deleted": file_id}
+
+
+class RenameUploadRequest(BaseModel):
+    name: str
+
+
+@router.patch("/{file_id}")
+async def rename_upload_record(request: Request, file_id: str, body: RenameUploadRequest):
+    """Rename an uploaded file's display name (owner-scoped)."""
+    rec = store.rename_upload(file_id, body.name, owner=_owner(request))
+    if not rec:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    return store.public_meta(rec)
+
+
+@router.post("/{file_id}/save-to-note")
+async def save_to_note(request: Request, file_id: str):
+    """Extract text from an uploaded file and save it as a user Note."""
+    from app.backend.services import notes as notes_service
+    rec = store.resolve_upload(file_id, owner=_owner(request))
+    if not rec:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    extracted = store._extract_text(rec)
+    if not extracted:
+        raise HTTPException(status_code=422, detail="No extractable text in this file")
+    title = (rec.get("name") or "note").rsplit(".", 1)[0][:120] or "Ingested file"
+    note = notes_service.create_note(title, extracted)
+    return {"note": note, "file_id": file_id}

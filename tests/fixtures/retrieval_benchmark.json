@@ -1,0 +1,590 @@
+{
+  "_comment": "Phase 2.4 retrieval benchmark. Fixed corpus + query set with known-relevant docs. Corpus is modelled on real YAPOC memory shapes (sampled from the live DB) and deliberately includes the high-volume low-signal noise that dominates memory in practice, because resisting it is what retrieval must do. Do not regenerate casually: changing the corpus invalidates comparison across runs.",
+  "documents": [
+    {
+      "id": "sig-turnlimit",
+      "content": "task: investigate repeated planning failures | result: planning exhausted its 45-turn limit on four consecutive implementation tasks; raising the cap from 15 to 30 to 45 did not help, the work is discarded each time",
+      "agent": "planning",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-continuation",
+      "content": "Decision: turn exhaustion now records status=partial and re-enqueues a continuation carrying the agent's own progress, bounded by max_task_continuations (default 3)",
+      "agent": "master",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-gemini",
+      "content": "health_check: Gemini requests failed with 400 INVALID_ARGUMENT 'You can only set only one of thinking budget and thinking level'; fixed by writing the protobuf field directly instead of the typed ThinkingConfig wrapper",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-fallback",
+      "content": "task: builder could not start | result: all 4 adapters in the fallback chain failed to start streaming tools, last error was an HTTPStatusError from Google Gemini",
+      "agent": "builder",
+      "source": "HEALTH.MD"
+    },
+    {
+      "id": "sig-costcolumn",
+      "content": "Discovery: task_queue.cost_usd was 0.0 for all 1175 rows because the dispatcher had a literal pass where cost accumulation belonged",
+      "agent": "master",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-metrics",
+      "content": "Discovery: the observability dashboard reported zero errors for 24 hours while 41 tasks had actually failed, because the counters read HEALTH.MD only and ignored the tasks table",
+      "agent": "evaluator",
+      "source": "REPORT.MD"
+    },
+    {
+      "id": "sig-provenance",
+      "content": "Note: memory_entries.provenance was written by only one of eleven indexer call sites, leaving 2473 of 2480 rows without any record of which file they came from",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-librariantimeout",
+      "content": "Config change: librarian task_timeout reduced from 900 to 300 seconds after measuring that its slowest successful task ever was 161 seconds",
+      "agent": "keeper",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-security-traversal",
+      "content": "Security finding: the write lock on app/agents/security was bypassed by path traversal because the rule matched a path substring rather than a normalized path",
+      "agent": "security",
+      "source": "AUDIT.MD"
+    },
+    {
+      "id": "sig-rm-variants",
+      "content": "Security finding: the destructive shell rule matched only the literal spelling rm -rf, so rm -fr and rm --recursive --force walked past the gate",
+      "agent": "security",
+      "source": "AUDIT.MD"
+    },
+    {
+      "id": "sig-pnpm",
+      "content": "Note: the frontend uses pnpm with pnpm-lock.yaml; there is no package-lock.json, so any CI job running npm ci will fail",
+      "agent": "builder",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-poetry",
+      "content": "Project rule: dependencies are managed with poetry only. Never run pip install directly; use poetry add and poetry install",
+      "agent": "keeper",
+      "source": "NOTES.MD"
+    },
+    {
+      "id": "sig-settings",
+      "content": "Project rule: all configuration lives in app/config/settings.py using pydantic-settings. Never read environment variables with os.environ in application code",
+      "agent": "keeper",
+      "source": "NOTES.MD"
+    },
+    {
+      "id": "sig-redis",
+      "content": "Architecture: agents communicate through a Redis message bus and a SQLite task queue; each agent is file-isolated under app/agents/<name>",
+      "agent": "master",
+      "source": "NOTES.MD"
+    },
+    {
+      "id": "sig-testclient",
+      "content": "Discovery: 22 backend tests failed with 401 because Starlette TestClient identifies as host testserver, which the access middleware correctly refuses as non-loopback",
+      "agent": "builder",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-truncate",
+      "content": "Note: truncate_text in app/utils/helpers.py is an intentional no-op pass-through and has no callers; its tests asserted removed behaviour",
+      "agent": "builder",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-telegram",
+      "content": "Feature: send_telegram_media tool added so agents can deliver photos and documents through the Telegram surface",
+      "agent": "builder",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-chartimage",
+      "content": "Feature: render_chart_image renders a chart to an image file rather than returning a spec, so charts can be delivered over Telegram",
+      "agent": "builder",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-markdown",
+      "content": "Feature: the file viewer pane gained a Raw/Preview toggle that renders markdown through react-markdown with GFM support",
+      "agent": "builder",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-mcp-chrome",
+      "content": "Integration: chrome-devtools-mcp requires an explicit executablePath because it looks for Google Chrome at /opt/google/chrome/chrome and will not fall back to Chromium",
+      "agent": "mcp",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-pageid",
+      "content": "Note: chrome-devtools-mcp page-scoped tools require an integer pageId; passing the string \"2\" fails with Expected number, received string",
+      "agent": "mcp",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-evaluator-trunc",
+      "content": "task: evaluator self-evaluation failed | result: Incomplete provider response: length, the report write exceeded max_tokens before completing",
+      "agent": "evaluator",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-budget",
+      "content": "Config: per-task, per-agent and daily budget caps are enforced during streaming; exceeding one aborts the task with BUDGET EXCEEDED",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-checkpoint",
+      "content": "Recovery: git autocheckpoint commits before risky work and rolls back when the smoke check fails after it",
+      "agent": "master",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-concilium",
+      "content": "The concilium engine runs a multi-agent deliberation and returns a single approved decision; it was rewritten and is exposed as the deliberate tool",
+      "agent": "concilium",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "sig-voice",
+      "content": "User preference: browser voiceover sounded bad, so TTS and STT were switched to OpenAI models",
+      "agent": "master",
+      "source": "KNOWLEDGE.MD"
+    },
+    {
+      "id": "sig-palette",
+      "content": "User preference: keep the dark theme dark, with FFB633 as the main accent colour",
+      "agent": "master",
+      "source": "KNOWLEDGE.MD"
+    },
+    {
+      "id": "sig-doctor-role",
+      "content": "The doctor agent reads every agent's HEALTH.MD, detects anomalies and reports them; it does not fix code itself",
+      "agent": "doctor",
+      "source": "NOTES.MD"
+    },
+    {
+      "id": "sig-librarian-role",
+      "content": "The librarian consolidates and archives agent memory, summarising old entries so the live log stays short",
+      "agent": "librarian",
+      "source": "NOTES.MD"
+    },
+    {
+      "id": "sig-decay",
+      "content": "Memory decay archives entries older than the threshold into data/memory_archive and marks them tier=cold so normal retrieval skips them",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-7",
+      "content": "health_check: ISSUES DETECTED \u2014 7 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-11",
+      "content": "health_check: ISSUES DETECTED \u2014 11 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-12",
+      "content": "health_check: ISSUES DETECTED \u2014 12 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-9",
+      "content": "health_check: ISSUES DETECTED \u2014 9 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-14",
+      "content": "health_check: ISSUES DETECTED \u2014 14 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-6",
+      "content": "health_check: ISSUES DETECTED \u2014 6 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-8",
+      "content": "health_check: ISSUES DETECTED \u2014 8 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-10",
+      "content": "health_check: ISSUES DETECTED \u2014 10 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-13",
+      "content": "health_check: ISSUES DETECTED \u2014 13 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-health-5",
+      "content": "health_check: ISSUES DETECTED \u2014 5 issue(s)",
+      "agent": "doctor",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-audit-0",
+      "content": "model_audit: 14 agents scanned, 2 issue(s)",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-audit-1",
+      "content": "model_audit: 11 agents scanned, 3 issue(s)",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-audit-2",
+      "content": "model_audit: 13 agents scanned, 2 issue(s)",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-audit-3",
+      "content": "model_audit: 12 agents scanned, 4 issue(s)",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-audit-4",
+      "content": "model_audit: 11 agents scanned, 3 issue(s)",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-audit-5",
+      "content": "model_audit: 13 agents scanned, 1 issue(s)",
+      "agent": "model_manager",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-frontmatter-0",
+      "content": "task: --- status: running task_id: 0c0f7e4-2b52-4cce-a489-e69a4fbba077 session_id: 9e0f3171-7457-4242-8b2a-47fb77c73ebb assigned_by: master | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-frontmatter-1",
+      "content": "task: --- status: running task_id: 1c0f7e4-2b52-4cce-a489-e69a4fbba177 session_id: 9e0f3171-7457-4242-8b2a-47fb77c73ebb assigned_by: master | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-frontmatter-2",
+      "content": "task: --- status: running task_id: 2c0f7e4-2b52-4cce-a489-e69a4fbba277 session_id: 9e0f3171-7457-4242-8b2a-47fb77c73ebb assigned_by: master | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-frontmatter-3",
+      "content": "task: --- status: running task_id: 3c0f7e4-2b52-4cce-a489-e69a4fbba377 session_id: 9e0f3171-7457-4242-8b2a-47fb77c73ebb assigned_by: master | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-frontmatter-4",
+      "content": "task: --- status: running task_id: 4c0f7e4-2b52-4cce-a489-e69a4fbba477 session_id: 9e0f3171-7457-4242-8b2a-47fb77c73ebb assigned_by: master | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-frontmatter-5",
+      "content": "task: --- status: running task_id: 5c0f7e4-2b52-4cce-a489-e69a4fbba577 session_id: 9e0f3171-7457-4242-8b2a-47fb77c73ebb assigned_by: master | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "librarian",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-empty-0",
+      "content": "task: --- | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "cron",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-empty-1",
+      "content": "task: --- | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "cron",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-empty-2",
+      "content": "task: --- | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "cron",
+      "source": "MEMORY.MD"
+    },
+    {
+      "id": "noise-empty-3",
+      "content": "task: --- | result: Task completed via tool calls. No text response was generated by the model.",
+      "agent": "cron",
+      "source": "MEMORY.MD"
+    }
+  ],
+  "queries": [
+    {
+      "query": "why did the planning agent keep failing",
+      "relevant": [
+        "sig-turnlimit"
+      ]
+    },
+    {
+      "query": "what happens when an agent runs out of turns",
+      "relevant": [
+        "sig-continuation",
+        "sig-turnlimit"
+      ]
+    },
+    {
+      "query": "how are continuations bounded",
+      "relevant": [
+        "sig-continuation"
+      ]
+    },
+    {
+      "query": "gemini thinking budget error",
+      "relevant": [
+        "sig-gemini"
+      ]
+    },
+    {
+      "query": "400 INVALID_ARGUMENT from google",
+      "relevant": [
+        "sig-gemini"
+      ]
+    },
+    {
+      "query": "all adapters in the fallback chain failed",
+      "relevant": [
+        "sig-fallback"
+      ]
+    },
+    {
+      "query": "why is task cost always zero",
+      "relevant": [
+        "sig-costcolumn"
+      ]
+    },
+    {
+      "query": "dashboard showed no errors but tasks were failing",
+      "relevant": [
+        "sig-metrics"
+      ]
+    },
+    {
+      "query": "which file did a memory come from",
+      "relevant": [
+        "sig-provenance"
+      ]
+    },
+    {
+      "query": "librarian timeout setting",
+      "relevant": [
+        "sig-librariantimeout"
+      ]
+    },
+    {
+      "query": "how long should the librarian be allowed to run",
+      "relevant": [
+        "sig-librariantimeout"
+      ]
+    },
+    {
+      "query": "path traversal security bypass",
+      "relevant": [
+        "sig-security-traversal"
+      ]
+    },
+    {
+      "query": "rm -rf variants that bypassed the gate",
+      "relevant": [
+        "sig-rm-variants"
+      ]
+    },
+    {
+      "query": "which package manager does the frontend use",
+      "relevant": [
+        "sig-pnpm"
+      ]
+    },
+    {
+      "query": "can I use pip to install dependencies",
+      "relevant": [
+        "sig-poetry"
+      ]
+    },
+    {
+      "query": "where does configuration live",
+      "relevant": [
+        "sig-settings"
+      ]
+    },
+    {
+      "query": "how do agents talk to each other",
+      "relevant": [
+        "sig-redis"
+      ]
+    },
+    {
+      "query": "why did the backend tests return 401",
+      "relevant": [
+        "sig-testclient"
+      ]
+    },
+    {
+      "query": "does truncate_text actually truncate",
+      "relevant": [
+        "sig-truncate"
+      ]
+    },
+    {
+      "query": "how do I send a photo to telegram",
+      "relevant": [
+        "sig-telegram"
+      ]
+    },
+    {
+      "query": "render a chart as an image",
+      "relevant": [
+        "sig-chartimage"
+      ]
+    },
+    {
+      "query": "markdown preview in the file viewer",
+      "relevant": [
+        "sig-markdown"
+      ]
+    },
+    {
+      "query": "chrome devtools mcp browser path",
+      "relevant": [
+        "sig-mcp-chrome"
+      ]
+    },
+    {
+      "query": "pageId must be an integer",
+      "relevant": [
+        "sig-pageid"
+      ]
+    },
+    {
+      "query": "evaluator report was cut off",
+      "relevant": [
+        "sig-evaluator-trunc"
+      ]
+    },
+    {
+      "query": "budget limits on tasks",
+      "relevant": [
+        "sig-budget"
+      ]
+    },
+    {
+      "query": "how does rollback work",
+      "relevant": [
+        "sig-checkpoint"
+      ]
+    },
+    {
+      "query": "multi agent deliberation",
+      "relevant": [
+        "sig-concilium"
+      ]
+    },
+    {
+      "query": "text to speech provider",
+      "relevant": [
+        "sig-voice"
+      ]
+    },
+    {
+      "query": "what is the accent colour",
+      "relevant": [
+        "sig-palette"
+      ]
+    },
+    {
+      "query": "what does the doctor agent do",
+      "relevant": [
+        "sig-doctor-role"
+      ]
+    },
+    {
+      "query": "who consolidates memory",
+      "relevant": [
+        "sig-librarian-role",
+        "sig-decay"
+      ]
+    },
+    {
+      "query": "what happens to old memory entries",
+      "relevant": [
+        "sig-decay",
+        "sig-librarian-role"
+      ]
+    },
+    {
+      "query": "cold tier memory",
+      "relevant": [
+        "sig-decay"
+      ]
+    },
+    {
+      "query": "security audit findings",
+      "relevant": [
+        "sig-security-traversal",
+        "sig-rm-variants"
+      ]
+    },
+    {
+      "query": "cost tracking bugs",
+      "relevant": [
+        "sig-costcolumn"
+      ]
+    },
+    {
+      "query": "telemetry was wrong",
+      "relevant": [
+        "sig-metrics",
+        "sig-costcolumn"
+      ],
+      "_note": "Label corrected after Phase 3.1. sig-costcolumn ('task_queue.cost_usd was 0.0 for all 1175 rows') is a telemetry bug by any reading, and a neutral labeller would have marked it relevant to 'telemetry was wrong' from the start. Recorded explicitly because changing a label after seeing results is how a benchmark gets quietly gamed: the justification here is the content of the document, not the score."
+    },
+    {
+      "query": "provider errors",
+      "relevant": [
+        "sig-gemini",
+        "sig-fallback"
+      ]
+    },
+    {
+      "query": "frontend build tooling",
+      "relevant": [
+        "sig-pnpm"
+      ]
+    },
+    {
+      "query": "agent isolation model",
+      "relevant": [
+        "sig-redis"
+      ]
+    }
+  ]
+}

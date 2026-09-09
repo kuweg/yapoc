@@ -15,11 +15,13 @@ adapter: deepseek
 model: deepseek-v4-pro
 temperature: 0.3
 tools:
+  - plugin:gmail:*
   - file_read
   - file_write
   - file_edit
   - file_delete
   - file_list
+  - list_tools
   - spawn_agent
   - ping_agent
   - kill_agent
@@ -39,12 +41,15 @@ tools:
   - delegate_task
   - search_negative_knowledge
   - execute_code
+  - git_status
+  - git_diff
+  - git_log
 delegation_targets:
   - builder
   - keeper
   - model_manager
 runner:
-  max_turns: 45
+  max_turns: 60
   task_timeout: 600
   poll_interval: 30
   retry_attempts: 3

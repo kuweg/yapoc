@@ -21,6 +21,7 @@ is surfaced to the caller and persisted to AUDIT.MD.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +40,38 @@ RISKY_TOOLS: frozenset[str] = frozenset({
     "agent_amnesia",
     "kill_agent",
     "update_config",
+    # git_restore overwrites working-tree files from a commit, destroying
+    # uncommitted work in the paths it names. The other git tools are either
+    # read-only (status/diff/log/show) or additive and reversible
+    # (commit/branch), so they are not gated.
+    "git_restore",
 })
+
+# Tools that act on the OUTSIDE WORLD as the user: sending mail, creating
+# calendar entries. Categorically different from everything above, which can
+# only damage YAPOC or the host — that damage is recoverable (git checkpoints,
+# rollback, a rebuilt agent). An email cannot be unsent, and it goes out under
+# the user's own identity.
+#
+# Every agent currently holds `plugin:gmail:*`, including the ones that run
+# autonomously on a schedule (cron, doctor, librarian). Combined with the
+# researcher's web tools, untrusted fetched content reaching an agent that can
+# both read the user's mail and send mail is the classic exfiltration chain, so
+# these are gated rather than free.
+#
+# Matched by suffix as well as exact name because the plugin loader registers
+# each tool twice: `gmail_send` and the namespaced `plugin:gmail:send`. Gating
+# only one spelling would leave the other as a trivial bypass.
+_OUTWARD_ACTION_SUFFIXES: tuple[str, ...] = (
+    "gmail_send", "mail_send", "calendar_create_event",
+    ":gmail:send", ":mail:send", ":calendar:create_event",
+)
+
+
+def is_outward_facing(tool: str) -> bool:
+    """True for tools that take an irreversible action in the outside world."""
+    name = (tool or "").strip()
+    return any(name == s or name.endswith(s) for s in _OUTWARD_ACTION_SUFFIXES)
 
 # Tools NOT in RISKY_TOOLS but with specific patterns we hard-deny anyway.
 # Used to close the "ask builder to edit security/PROMPT.MD" loophole.
@@ -114,19 +146,65 @@ def _path_in_project(raw: str) -> bool:
         return False
 
 
+def _normalize_path(raw: str) -> str:
+    """Collapse a path to its canonical textual form before rule matching.
+
+    Rules below match on path SUBSTRINGS, which is only sound if the path is
+    normalized first. Two forms slipped past the security-directory lock:
+
+        app/agents/planning/../security/PROMPT.MD
+        app//agents//security//PROMPT.MD
+
+    Both resolve to the same real file as `app/agents/security/PROMPT.MD`, but
+    neither contains the literal substring `/agents/security/`, so the write
+    lock on the security agent's own directory — the lock that stops the gate
+    being rewritten from inside the system — did not fire.
+
+    `os.path.normpath` collapses `..` segments and duplicate separators
+    textually, without touching the filesystem, so it works on paths that do
+    not exist yet (a write target usually does not).
+    """
+    n = raw.replace("\\", "/").strip()
+    if not n:
+        return ""
+    # normpath on "" returns ".", and it strips a trailing slash we do not need.
+    normalized = os.path.normpath(n).replace("\\", "/")
+    # normpath keeps a leading "./" off, but preserve a leading "/" for
+    # absolute paths so the absolute-form checks below still work.
+    return normalized
+
+
 def _has_critical_suffix(raw: str) -> bool:
     # `lstrip("./")` would also strip the leading `.` of `.env`, turning it
-    # into `env` and silently bypassing the rule. Use removeprefix on the
-    # specific `./` token instead.
-    n = raw.replace("\\", "/")
-    if n.startswith("./"):
-        n = n[2:]
+    # into `env` and silently bypassing the rule. normpath handles the `./`
+    # prefix (and `..` segments) without that hazard.
+    n = _normalize_path(raw)
     return any(n.endswith(suf) for suf in _CRITICAL_PATH_SUFFIXES)
 
 
+def _as_path_list(raw: object) -> list[str]:
+    """Coerce a tool's ``paths`` param into a list of strings.
+
+    The git tools take a list where the file tools take a single ``path``.
+    A matcher that assumed one shape would silently never fire on the other,
+    which in a deny rule reads as "allowed".
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, (list, tuple)):
+        return [str(item) for item in raw]
+    return [str(raw)]
+
+
 def _under_security_dir(raw: str) -> bool:
-    norm = raw.replace("\\", "/")
-    return "/agents/security/" in norm or norm.startswith("agents/security/") or "app/agents/security/" in norm
+    norm = _normalize_path(raw)
+    return (
+        "/agents/security/" in norm
+        or norm.startswith("agents/security/")
+        or "app/agents/security/" in norm
+    )
 
 
 _ABS_PATH_TOKEN_RE = re.compile(
@@ -171,8 +249,67 @@ def _shell_escapes_project(command: str) -> bool:
     return False
 
 
+# Targets that make an `rm` catastrophic regardless of flag spelling.
+_RM_ROOT_TARGETS: frozenset[str] = frozenset({
+    "/", "/*", "/.", "~", "~/", "~/*", "$HOME", "${HOME}", "$HOME/", "$HOME/*",
+})
+
+
+def _rm_hits_root(command: str) -> bool:
+    r"""True if ``command`` runs `rm` recursively against root or $HOME.
+
+    The regex list below only ever matched the exact spelling `rm -rf <target>`,
+    which four working variants walked straight past:
+
+        rm -fr /                  flags in the other order
+        rm -r -f /                flags split into separate tokens
+        rm --recursive --force /  long flags
+        sh -c 'rm -rf /'          quoted — the `/` is followed by `'`, so the
+                                  `\s|$` and `/[a-zA-Z]` anchors both missed
+
+    Rather than add four more regexes (and miss the fifth), this tokenizes:
+    quotes become separators, then for each `rm` token the following flag
+    tokens are collected and the first non-flag token is the target. That makes
+    the check independent of flag order, spelling and quoting.
+
+    Kept deliberately conservative per this module's stated posture — a false
+    positive costs one blocked command, a false negative costs the machine.
+    """
+    # Quotes only group tokens for the shell; for our purposes they are
+    # separators, which is what makes `sh -c 'rm -rf /'` visible.
+    tokens = [t for t in re.split(r"[\s'\"]+", command) if t]
+    for i, token in enumerate(tokens):
+        # Match the command itself, not a substring of another word, and not a
+        # path like /usr/bin/rm's basename appearing mid-argument.
+        if token != "rm" and not token.endswith("/rm"):
+            continue
+        recursive = False
+        for candidate in tokens[i + 1:]:
+            if candidate.startswith("--"):
+                if candidate in {"--recursive", "--force"}:
+                    recursive = recursive or candidate == "--recursive"
+                    continue
+                continue
+            if candidate.startswith("-"):
+                # Short bundle: -rf, -fr, -Rf, -r ...
+                if any(c in "rR" for c in candidate[1:]):
+                    recursive = True
+                continue
+            # First non-flag token is the target.
+            if candidate in _RM_ROOT_TARGETS:
+                return True
+            # A root-level absolute path (/etc, /usr, ...). Parity with the
+            # original `rm -rf /[a-zA-Z]` rule, which blocked these outright.
+            if recursive and re.match(r"^/[a-zA-Z]", candidate):
+                return True
+            break
+    return False
+
+
 def _shell_is_destructive(command: str) -> bool:
     """True if ``command`` matches any hardcoded system-destruction pattern."""
+    if _rm_hits_root(command):
+        return True
     return any(pat.search(command) for pat in _SHELL_DESTRUCTION_PATTERNS)
 
 
@@ -232,6 +369,17 @@ HARDCODED_DENY: tuple[Rule, ...] = (
         reason="edit of security agent file",
         category="self_destruction",
     ),
+    # Restoring security/PROMPT.MD from an older commit rewrites the gate just
+    # as effectively as editing it — and would slip past the two rules above,
+    # which only know about file_write/file_edit. Same lock, different verb.
+    Rule(
+        tool="git_restore",
+        matcher=lambda p: any(
+            _under_security_dir(str(item)) for item in _as_path_list(p.get("paths"))
+        ),
+        reason="restore of security agent file from git",
+        category="self_destruction",
+    ),
     # NOTE: critical config files (settings.py, .env, agent-settings.json,
     # master/PROMPT.MD) are intentionally NOT write-blocked here. The
     # `file_delete` rule above prevents their deletion, which is the actual
@@ -241,7 +389,7 @@ HARDCODED_DENY: tuple[Rule, ...] = (
     # system-destruction: shell command patterns
     Rule(
         tool="shell_exec",
-        matcher=lambda p: any(pat.search(str(p.get("command", ""))) for pat in _SHELL_DESTRUCTION_PATTERNS),
+        matcher=lambda p: _shell_is_destructive(str(p.get("command", ""))),
         reason="destructive shell pattern (rm -rf, dd, mkfs, fork bomb, etc.)",
         category="system_destruction",
     ),
@@ -356,11 +504,22 @@ def hardcoded_check(
     - ``"ambiguous"`` — tool IS risky but no hardcoded rule fired; caller
        should escalate to the security agent LLM for further classification
 
-    DENY rules are checked BEFORE ALLOW rules — defense in depth means the
-    absolute protections (target=master/security, paths outside project_root,
-    destructive shell patterns) win over caller authority.
+    ORDER: ALLOW rules are checked BEFORE DENY rules. (This docstring
+    previously claimed the opposite — deny-before-allow — while the code below
+    has always done allow-first. In a security gate a stale ordering claim is
+    worse than no comment, because a reader reasons about the wrong model.)
+
+    Because allow wins, every ALLOW matcher is responsible for its own safety
+    conjunctions: the `kill_agent` / `update_agent_config` matchers call
+    `_target_is_core_protected`, and the `shell_exec` matcher re-checks both
+    `_shell_is_destructive` and `_shell_escapes_project`. A permissive ALLOW
+    rule is therefore a security bug, not merely a policy choice.
     """
-    if tool not in RISKY_TOOLS and tool not in _PATTERN_DENY_TOOLS:
+    if (
+        tool not in RISKY_TOOLS
+        and tool not in _PATTERN_DENY_TOOLS
+        and not is_outward_facing(tool)
+    ):
         return "allow", ""
 
     # Pass 1: caller-aware ALLOW rules (fast-path for blessed callers).
@@ -396,6 +555,6 @@ def hardcoded_check(
         if matched:
             return "deny", f"{rule.category}: {rule.reason}"
 
-    if tool in RISKY_TOOLS:
+    if tool in RISKY_TOOLS or is_outward_facing(tool):
         return "ambiguous", ""
     return "allow", ""

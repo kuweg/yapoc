@@ -113,6 +113,25 @@ async def _classify_via_llm(tool: str, params: dict, caller: str) -> tuple[str, 
         # LLM layer is only hit on ambiguous-but-not-hardcoded-deny cases,
         # and a provider outage shouldn't strand the autonomous loop.
         # Hardcoded rules still block the truly dangerous cases.
+        # Fail direction depends on what the tool can do.
+        #
+        # For tools that can only damage YAPOC or the host, allowing is the
+        # right default: that damage is recoverable (git checkpoints, rollback,
+        # a rebuilt agent), while blocking every risky call whenever a provider
+        # hiccups would halt the system.
+        #
+        # For outward-facing tools it is the wrong default. An email sent under
+        # the user's identity cannot be recalled, so "the reviewer was down" is
+        # not a reason to let it through unreviewed. These fail CLOSED.
+        from app.utils.tools.security_policy import is_outward_facing
+
+        if is_outward_facing(tool):
+            _log.warning(
+                "security_gate: LLM consult failed ({}) — DENYING outward-facing "
+                "{} (irreversible, cannot be reviewed)", exc, tool,
+            )
+            return "deny", f"llm-unavailable and tool is outward-facing: {type(exc).__name__}"
+
         _log.warning("security_gate: LLM consult failed ({}) — defaulting to allow", exc)
         return "allow", f"llm-unavailable: {type(exc).__name__}"
 

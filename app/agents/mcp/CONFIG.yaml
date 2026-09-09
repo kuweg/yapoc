@@ -14,6 +14,8 @@ adapter: deepseek
 model: deepseek-chat
 temperature: 0.2
 tools:
+  - plugin:gmail:*
+  - delegate_task
   - mcp__playwright__browser_navigate
   - mcp__playwright__browser_click
   - mcp__playwright__browser_fill
@@ -22,6 +24,24 @@ tools:
   - mcp__playwright__browser_evaluate
   - mcp__context7__resolve-library-id
   - mcp__context7__query-docs
+  - mcp__chrome_devtools__navigate_page
+  - mcp__chrome_devtools__new_page
+  - mcp__chrome_devtools__list_pages
+  - mcp__chrome_devtools__select_page
+  - mcp__chrome_devtools__close_page
+  - mcp__chrome_devtools__take_snapshot
+  - mcp__chrome_devtools__take_screenshot
+  - mcp__chrome_devtools__click
+  - mcp__chrome_devtools__fill
+  - mcp__chrome_devtools__fill_form
+  - mcp__chrome_devtools__evaluate_script
+  - mcp__chrome_devtools__wait_for
+  - mcp__chrome_devtools__list_console_messages
+  - mcp__chrome_devtools__list_network_requests
+  - mcp__chrome_devtools__get_network_request
+  - mcp__chrome_devtools__performance_start_trace
+  - mcp__chrome_devtools__performance_stop_trace
+  - mcp__chrome_devtools__performance_analyze_insight
   - file_read
   - file_write
   - file_list

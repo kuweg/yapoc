@@ -7,7 +7,10 @@
  * to an agent, or run an agent action without leaving the keyboard.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAppStore, type AppTab } from '../store/appStore'
+import { useAppStore } from '../store/appStore'
+import { NAV_SECTIONS } from '../studio/StudioNavigation'
+import { useArtifactsStore } from '../store/artifactsStore'
+import { useWorkspaceStore } from '../store/workspaceStore'
 import { useThemeStore } from '../store/themeStore'
 import { useAgentChatStore } from '../store/agentChatStore'
 import { useAgents } from '../hooks/useAgents'
@@ -21,18 +24,7 @@ interface Command {
   run: () => void | Promise<void>
 }
 
-const TABS: Array<{ id: AppTab; label: string }> = [
-  { id: 'chat', label: 'Chat' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'insights', label: 'Insights' },
-  { id: 'observability', label: 'Observability' },
-  { id: 'concilium', label: 'Concilium' },
-  { id: 'graph', label: 'Memory' },
-  { id: 'vault', label: 'Vault' },
-  { id: 'sessions', label: 'Sessions' },
-  { id: 'channels', label: 'Channels' },
-]
+const TABS = NAV_SECTIONS.flatMap(section => section.items)
 
 /** Render order for command groups; also keeps each group's rows contiguous. */
 const GROUP_ORDER = ['Navigate', 'Agents', 'Agent actions', 'View']
@@ -105,6 +97,11 @@ export function CommandPalette() {
         run: () => setTab(t.id),
       })
     }
+
+    out.push(
+      { id: 'artifacts', label: 'Open Artifacts', group: 'Navigate', run: () => { setTab('chat'); useArtifactsStore.getState().setOpen(true) } },
+      { id: 'workspace', label: 'Open Workspace files', group: 'Navigate', run: () => { setTab('chat'); useWorkspaceStore.getState().setOpen(true) } },
+    )
 
     for (const a of agents) {
       out.push({

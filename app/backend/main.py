@@ -18,15 +18,19 @@ from app.backend.routers import (
     commands_router,
     concilium_router,
     costs_router,
+    cron_router,
+    drive_oauth_router,
     files_router,
     graph_router,
     health_router,
     memory_graph_router,
     mcp_router,
+    mcp_servers_router,
     metrics_router,
     models_router,
     notification_trace_router,
     observability_router,
+    plugins_router,
     pptx_router,
     sessions_router,
     skills_router,
@@ -35,6 +39,7 @@ from app.backend.routers import (
     test_endpoint_router,
     uploads_router,
     vault_router,
+    notes_router,
     voice_router,
     webhook_router,
 )
@@ -747,15 +752,16 @@ async def _memory_decay_tick() -> None:
 async def _cron_tick() -> None:
     """Check cron schedule and create task_queue entries for due jobs.
 
-    Uses the cron_parser to read NOTES.MD, check which jobs are due,
+    Reads jobs from the dedicated cron store (data/cron_jobs.json, migrated
+    from the legacy cron agent's NOTES.MD on first run), checks which are due,
     and creates task_queue entries with source="cron" for the dispatcher.
-    Falls back to spawning the cron agent for complex jobs.
 
     Supports script jobs (not blocked by budget), silent jobs, and
     context chaining via context_from / run_only_after.
     """
     from app.utils.cron_parser import (
-        parse_schedule,
+        migrate_cron_jobs_from_notes,
+        load_cron_jobs,
         get_due_jobs,
         load_last_runs,
         save_last_run,
@@ -769,12 +775,8 @@ async def _cron_tick() -> None:
     from app.utils.db import create_queued_task, get_db
 
     try:
-        cron_notes = settings.agents_dir / "cron" / "NOTES.MD"
-        if not cron_notes.exists():
-            return
-
-        notes_text = cron_notes.read_text(encoding="utf-8")
-        jobs = parse_schedule(notes_text)
+        migrate_cron_jobs_from_notes()
+        jobs = load_cron_jobs()
         if not jobs:
             return
 
@@ -1211,6 +1213,7 @@ app.include_router(files_router)
 app.include_router(uploads_router)
 app.include_router(memory_graph_router)
 app.include_router(vault_router)
+app.include_router(notes_router)
 app.include_router(test_endpoint_router)
 app.include_router(webhook_router)
 app.include_router(costs_router)
@@ -1225,7 +1228,11 @@ app.include_router(graph_router)
 app.include_router(concilium_router)
 app.include_router(admin_router)
 app.include_router(mcp_router)
+app.include_router(mcp_servers_router)
+app.include_router(plugins_router)
 app.include_router(pptx_router)
+app.include_router(cron_router)
+app.include_router(drive_oauth_router)
 
 # Release installs serve the prebuilt UI without Node or a Vite process.
 from app.backend.dashboard import mount_dashboard

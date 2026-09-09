@@ -52,6 +52,32 @@ export function eventsToChatParts(events: AgentEvent[], sinceIso: string, sessio
               const option = JSON.parse(result)
               if (option && typeof option === 'object' && !Array.isArray(option)) parts[i] = { kind: 'chart', option }
             } catch { /* retain the tool output */ }
+          } else if (part.name === 'render_calendar' && !event.is_error) {
+            try {
+              const payload: unknown = JSON.parse(result)
+              if (
+                payload &&
+                typeof payload === 'object' &&
+                !Array.isArray(payload) &&
+                (payload as Record<string, unknown>).type === 'calendar' &&
+                Array.isArray((payload as Record<string, unknown>).events)
+              ) {
+                parts[i] = {
+                  kind: 'calendar',
+                  events: (payload as Record<string, unknown>).events as Array<{
+                    summary: string
+                    start: string
+                    end: string
+                    location?: string
+                    description?: string
+                  }>,
+                  weekStart:
+                    typeof (payload as Record<string, unknown>).week_start === 'string'
+                      ? ((payload as Record<string, unknown>).week_start as string)
+                      : undefined,
+                }
+              }
+            } catch { /* retain the tool output */ }
           }
           break
         }

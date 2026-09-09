@@ -95,10 +95,17 @@ htmlcov/
 .coverage
 artifacts/
 
-# Debug / one-off test scripts at repo root
-test.py
-test_*.py
+# Debug / one-off test scripts at repo root.
+# These MUST stay anchored with a leading "/". Without it git applies the
+# pattern at every directory level, which silently ignored the whole real test
+# suite — tests/ and app/backend/tests/ files were invisible to git, including
+# tests for features that had already shipped.
+/test.py
+/test_*.py
 app/test_*.py
+# Agent scratch scripts, not a test suite.
+app/projects/test_*.py
+app/projects/*_test.py
 app/test_*.txt
 app/test_*.mp3
 app/test_*.wav

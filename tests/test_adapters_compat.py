@@ -56,7 +56,15 @@ def test_deepseek_reasoner_mode_does_not_replay_reasoning_content() -> None:
     assert "reasoning_content" not in out[0]
 
 
-def test_supports_reasoning_replay_model_gate() -> None:
-    assert _supports_reasoning_replay("deepseek-v4-pro")
-    assert _supports_reasoning_replay("deepseek-chat")
-    assert not _supports_reasoning_replay("deepseek-reasoner")
+def test_supports_reasoning_replay_is_disabled_for_every_model() -> None:
+    """Reasoning replay is off for ALL DeepSeek models, not gated per model.
+
+    This was a per-model gate until c64e8d7 (2026-09-07), which disabled
+    thinking for every DeepSeek request. The test kept asserting the old gate
+    and so failed on every run. Pinning the current contract instead: no model
+    replays reasoning_content, so no caller can accidentally reintroduce a
+    per-model exception without updating this.
+    """
+    for model in ("deepseek-v4-pro", "deepseek-chat", "deepseek-reasoner",
+                  "deepseek-v4-flash", "anything-else"):
+        assert not _supports_reasoning_replay(model), model

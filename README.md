@@ -6,13 +6,98 @@ Currently 11 agents (master, planning, builder, keeper, doctor, model_manager, c
 
 Last updated: 2026-09-02
 
-<!-- TODO: Add actual architecture diagram -->
+<!-- Source: docs/architecture.mmd — edit there and mirror here. -->
 ```mermaid
 graph TD
-  placeholder["Architecture diagram goes here"]
+  subgraph entry["Entry points"]
+    CLI["CLI · Typer/Rich"]
+    WEB["Web UI · React/Vite"]
+    TG["Telegram bot"]
+    MCPC["MCP clients"]
+  end
+
+  API["FastAPI backend<br/><i>dispatcher · task_queue · security gate</i>"]
+
+  CLI --> API
+  WEB --> API
+  TG --> API
+  MCPC --> API
+
+  API --> MASTER["<b>master</b><br/>orchestrator"]
+
+  subgraph work["Task execution"]
+    PLAN["planning<br/><i>decomposes ambiguous goals</i>"]
+    BUILD["builder<br/><i>writes code, runs shell</i>"]
+    KEEP["keeper<br/><i>config & secrets</i>"]
+  end
+
+  subgraph ops["Autonomous operations"]
+    DOC["doctor<br/><i>health monitor</i>"]
+    CRON["cron<br/><i>scheduled work</i>"]
+    MM["model_manager<br/><i>model & cost audit</i>"]
+    LIB["librarian<br/><i>memory consolidation</i>"]
+    EVAL["evaluator<br/><i>self-review → signal ledger</i>"]
+  end
+
+  subgraph specialist["Specialists"]
+    RES["researcher<br/><i>web investigation</i>"]
+    SEC["security<br/><i>tool-call gatekeeper</i>"]
+    TEST["tester<br/><i>browser verification</i>"]
+    MCPA["mcp<br/><i>external MCP tools</i>"]
+    CONC["concilium<br/><i>multi-agent deliberation</i>"]
+  end
+
+  MASTER --> PLAN
+  MASTER --> BUILD
+  MASTER --> KEEP
+  MASTER --> RES
+  MASTER --> EVAL
+  MASTER --> CONC
+
+  PLAN --> BUILD
+  PLAN --> KEEP
+  PLAN --> MM
+  BUILD --> KEEP
+  KEEP --> BUILD
+  DOC --> BUILD
+  RES --> BUILD
+  TEST --> BUILD
+  MCPA --> BUILD
+  CRON --> BUILD
+  CRON --> DOC
+  CRON --> LIB
+  CRON --> MASTER
+
+  subgraph state["Shared state"]
+    FILES["Per-agent markdown<br/><i>TASK · MEMORY · NOTES · HEALTH</i>"]
+    SQLITE["SQLite<br/><i>tasks · task_queue · memory_entries</i>"]
+    REDIS["Redis<br/><i>message bus · streams</i>"]
+    GIT["Git checkpoints<br/><i>commit or roll back</i>"]
+  end
+
+  MASTER -.-> FILES
+  MASTER -.-> REDIS
+  API -.-> SQLITE
+  BUILD -.-> GIT
+  LIB -.-> SQLITE
+
+  %% Every risky tool call is screened before it runs, whoever makes it.
+  BUILD -. "risky tool call" .-> SEC
+  MASTER -. "risky tool call" .-> SEC
+  KEEP -. "risky tool call" .-> SEC
+
+  classDef orchestrator fill:#FFB633,stroke:#8a5f00,color:#1a1a1a;
+  classDef gate fill:#7a1f1f,stroke:#e06c6c,color:#fff;
+  classDef store fill:#1f2937,stroke:#6b7280,color:#e5e7eb;
+  class MASTER orchestrator;
+  class SEC gate;
+  class FILES,SQLITE,REDIS,GIT store;
 ```
 
-> **Diagram placeholder.** The architecture diagram will show how the User entry points (CLI, Web UI, Telegram) feed the FastAPI backend and Master agent, and how each sub-agent hangs off Master. The source file will live at `docs/architecture.mmd`.
+Solid arrows are delegation paths (taken from each agent's
+`delegation_targets` in `CONFIG.yaml`); dotted arrows are shared state and
+the security gate, which screens every risky tool call regardless of who
+makes it.
 
 ---
 
@@ -169,6 +254,8 @@ yapoc evaluator-tick           # kick the evaluator once
 - Session list with rename, export, and morning-report view
 - Voice mode (TTS + STT via OpenAI or local engines)
 - Memory tab with hybrid (FTS5 + embedding) search
+- [Notes workspace](docs/notes.md) with Markdown editing, wikilinks, backlinks, a links graph, and per-conversation note context
+- [Shared model pricing](docs/model-pricing.md) with verified provider rates, source dates, and chat cost estimates
 - Cost tracker per session
 
 ---
@@ -188,7 +275,11 @@ Per-agent model bindings live in `app/config/agent-settings.json`. Edit there to
 - **Poetry only.** Never `pip install`. Always `poetry add` / `poetry install` / `poetry remove`.
 - **Centralized settings.** Never `os.environ.get(...)`; import `settings`.
 - **Docs in `docs/` are authoritative** — when behavior contradicts documentation, the docs are right and the code needs a fix.
-- **No tests yet.** MVP phase; tests are not part of the default flow.
+- **Tests run in CI.** `poetry run pytest tests/ app/backend/tests/` — 255 tests,
+  expected fully green. `.github/workflows/tests.yml` runs them plus a frontend
+  typecheck and build on every push. This rule used to read "no tests yet";
+  that was wrong for a long time — 27 test files existed while nothing ran
+  them, and 32 were failing unnoticed.
 
 See `CLAUDE.md` for the working agreement used when running Claude Code in this repo, and `app/agents/*/CLAUDE.md` for per-subsystem briefings.
 

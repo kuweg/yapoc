@@ -14,6 +14,7 @@ adapter: anthropic
 model: claude-sonnet-4-6
 temperature: 0.3
 tools:
+  - plugin:gmail:*
   - web_search
   - fetch_page
   - file_read

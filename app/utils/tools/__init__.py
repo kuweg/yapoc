@@ -168,11 +168,22 @@ from .execute_code import ExecuteCodeTool
 from .search import SearchMemoryTool, SearchNegativeKnowledgeTool
 from .evaluator_signals import GetRecentSignalsTool
 from .grep import GrepTool
+from .list_tools import ListToolsTool
 from .concilium_deliberate import ConciliumDeliberateTool
 from .skills import CreateSkillTool, DeleteSkillTool, LoadSkillsTool, UpdateSkillTool
 from .chart import RenderChartTool, RenderChartImageTool
 from .image_gen import GenerateImageTool
 from .mermaid import RenderMermaidTool
+from .calendar_render import RenderCalendarTool
+from .git import (
+    GitBranchTool,
+    GitCommitTool,
+    GitDiffTool,
+    GitLogTool,
+    GitRestoreTool,
+    GitShowTool,
+    GitStatusTool,
+)
 
 TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "server_restart": ServerRestartTool,
@@ -222,6 +233,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "send_telegram_message": SendTelegramMessageTool,
     "send_telegram_media": SendTelegramMediaTool,
     "load_skills": LoadSkillsTool,
+    "list_tools": ListToolsTool,
     "create_skill": CreateSkillTool,
     "update_skill": UpdateSkillTool,
     "delete_skill": DeleteSkillTool,
@@ -231,6 +243,14 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "render_chart_image": RenderChartImageTool,
     "generate_image": GenerateImageTool,
     "render_mermaid": RenderMermaidTool,
+    "render_calendar": RenderCalendarTool,
+    "git_status": GitStatusTool,
+    "git_diff": GitDiffTool,
+    "git_log": GitLogTool,
+    "git_show": GitShowTool,
+    "git_commit": GitCommitTool,
+    "git_branch": GitBranchTool,
+    "git_restore": GitRestoreTool,
 }
 
 # Tools that need agent_dir injected
@@ -248,14 +268,50 @@ _AGENT_DIR_TOOLS = {
     "notify_parent",
     "shared_knowledge_append",
     "server_restart",
+    "list_tools",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell
 # tools care; reads and delegation are unaffected.
-_SANDBOX_TOOLS = {"file_write", "file_edit", "file_delete", "shell_exec", "execute_code"}
+# Every git tool takes the sandbox: the mutating ones so `forbidden_paths`
+# cannot be bypassed by restoring a file the agent may not write, and the
+# read-only ones so a forbidden path is not readable through a diff either.
+_SANDBOX_TOOLS = {
+    "file_write", "file_edit", "file_delete", "shell_exec", "execute_code",
+    "git_status", "git_diff", "git_log", "git_show",
+    "git_commit", "git_branch", "git_restore",
+}
 
 # Session ownership must survive every tool that starts or resumes work.
 _SESSION_TOOLS = {"spawn_agent", "delegate_task", "execute_dag", "server_restart"}
+
+
+def resolve_tool_names(names: list[str]) -> list[str]:
+    """Expand wildcard tool grants against the live ``TOOL_REGISTRY``.
+
+    Each name may be a plain tool name (kept as-is, backward compatible) or a
+    wildcard grant ending in ``:*`` (e.g. ``plugin:gmail:*``), which expands to
+    every registry key whose name starts with the prefix before ``:*``.
+
+    Returns a de-duplicated list preserving first-occurrence order. Unknown
+    plain names are passed through unchanged (``build_tools`` already skips
+    unknown names), so this never raises.
+    """
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for name in names:
+        if name.endswith(":*"):
+            prefix = name[:-2]
+            for key in TOOL_REGISTRY:
+                if key.startswith(prefix):
+                    if key not in seen:
+                        seen.add(key)
+                        resolved.append(key)
+        else:
+            if name not in seen:
+                seen.add(name)
+                resolved.append(name)
+    return resolved
 
 
 def build_tools(

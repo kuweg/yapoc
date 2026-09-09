@@ -11,6 +11,7 @@ class TaskRequest(BaseModel):
     source: str | None = None  # "cli", "ui", "notification"
     session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
     attachments: list[str] | None = None  # uploaded attachment IDs (owner-scoped)
+    note_ids: list[str] = Field(default_factory=list, max_length=12)
 
 
 class TaskResponse(BaseModel):

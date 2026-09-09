@@ -40,7 +40,38 @@ RISKY_TOOLS: frozenset[str] = frozenset({
     "agent_amnesia",
     "kill_agent",
     "update_config",
+    # git_restore overwrites working-tree files from a commit, destroying
+    # uncommitted work in the paths it names. The other git tools are either
+    # read-only (status/diff/log/show) or additive and reversible
+    # (commit/branch), so they are not gated.
+    "git_restore",
 })
+
+# Tools that act on the OUTSIDE WORLD as the user: sending mail, creating
+# calendar entries. Categorically different from everything above, which can
+# only damage YAPOC or the host — that damage is recoverable (git checkpoints,
+# rollback, a rebuilt agent). An email cannot be unsent, and it goes out under
+# the user's own identity.
+#
+# Every agent currently holds `plugin:gmail:*`, including the ones that run
+# autonomously on a schedule (cron, doctor, librarian). Combined with the
+# researcher's web tools, untrusted fetched content reaching an agent that can
+# both read the user's mail and send mail is the classic exfiltration chain, so
+# these are gated rather than free.
+#
+# Matched by suffix as well as exact name because the plugin loader registers
+# each tool twice: `gmail_send` and the namespaced `plugin:gmail:send`. Gating
+# only one spelling would leave the other as a trivial bypass.
+_OUTWARD_ACTION_SUFFIXES: tuple[str, ...] = (
+    "gmail_send", "mail_send", "calendar_create_event",
+    ":gmail:send", ":mail:send", ":calendar:create_event",
+)
+
+
+def is_outward_facing(tool: str) -> bool:
+    """True for tools that take an irreversible action in the outside world."""
+    name = (tool or "").strip()
+    return any(name == s or name.endswith(s) for s in _OUTWARD_ACTION_SUFFIXES)
 
 # Tools NOT in RISKY_TOOLS but with specific patterns we hard-deny anyway.
 # Used to close the "ask builder to edit security/PROMPT.MD" loophole.
@@ -149,6 +180,22 @@ def _has_critical_suffix(raw: str) -> bool:
     # prefix (and `..` segments) without that hazard.
     n = _normalize_path(raw)
     return any(n.endswith(suf) for suf in _CRITICAL_PATH_SUFFIXES)
+
+
+def _as_path_list(raw: object) -> list[str]:
+    """Coerce a tool's ``paths`` param into a list of strings.
+
+    The git tools take a list where the file tools take a single ``path``.
+    A matcher that assumed one shape would silently never fire on the other,
+    which in a deny rule reads as "allowed".
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, (list, tuple)):
+        return [str(item) for item in raw]
+    return [str(raw)]
 
 
 def _under_security_dir(raw: str) -> bool:
@@ -322,6 +369,17 @@ HARDCODED_DENY: tuple[Rule, ...] = (
         reason="edit of security agent file",
         category="self_destruction",
     ),
+    # Restoring security/PROMPT.MD from an older commit rewrites the gate just
+    # as effectively as editing it — and would slip past the two rules above,
+    # which only know about file_write/file_edit. Same lock, different verb.
+    Rule(
+        tool="git_restore",
+        matcher=lambda p: any(
+            _under_security_dir(str(item)) for item in _as_path_list(p.get("paths"))
+        ),
+        reason="restore of security agent file from git",
+        category="self_destruction",
+    ),
     # NOTE: critical config files (settings.py, .env, agent-settings.json,
     # master/PROMPT.MD) are intentionally NOT write-blocked here. The
     # `file_delete` rule above prevents their deletion, which is the actual
@@ -457,7 +515,11 @@ def hardcoded_check(
     `_shell_is_destructive` and `_shell_escapes_project`. A permissive ALLOW
     rule is therefore a security bug, not merely a policy choice.
     """
-    if tool not in RISKY_TOOLS and tool not in _PATTERN_DENY_TOOLS:
+    if (
+        tool not in RISKY_TOOLS
+        and tool not in _PATTERN_DENY_TOOLS
+        and not is_outward_facing(tool)
+    ):
         return "allow", ""
 
     # Pass 1: caller-aware ALLOW rules (fast-path for blessed callers).
@@ -493,6 +555,6 @@ def hardcoded_check(
         if matched:
             return "deny", f"{rule.category}: {rule.reason}"
 
-    if tool in RISKY_TOOLS:
+    if tool in RISKY_TOOLS or is_outward_facing(tool):
         return "ambiguous", ""
     return "allow", ""

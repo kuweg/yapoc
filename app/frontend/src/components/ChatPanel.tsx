@@ -1,3 +1,7 @@
+import { StudioWelcome } from '../studio/StudioWelcome'
+import { createLiveUsage, type LiveUsage } from './liveUsage'
+import { NoteContextBar } from '../notes/NoteContextBar'
+import { Mic, Settings2 } from 'lucide-react'
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { streamTask } from '../hooks/useStream'
 import { useSessionStore } from '../store/session'
@@ -15,6 +19,7 @@ import { CompactionMarker } from './ContextGauge'
 import { groupParts } from './groupParts'
 import ChartBlock from './ChartBlock'
 import MermaidBlock from './MermaidBlock'
+import CalendarBlock from './CalendarBlock'
 import { TaskGroupBubble, type TaskGroup } from './TaskGroupBubble'
 import { SubAgentActivity } from './SubAgentActivity'
 import { useLiveAgentParts } from './LiveAgentTranscript'
@@ -22,7 +27,7 @@ import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
 import { startAsciiWave, ASCII_WAVE_FRAMES } from './spinner'
-import type { UsageEvent, TaskPart, Attachment } from '../api/types'
+import type { TaskPart, Attachment } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
 
 type Part = TaskPart
@@ -144,6 +149,41 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
             // fall through to the tool-done render below
           }
         }
+        if (event.name === 'render_calendar' && !event.isError) {
+          // A successful render_calendar resolves to a validated events payload.
+          // Replace the tool card with a calendar part so the events render as
+          // a block instead of a collapsed tool card.
+          try {
+            const parsed: unknown = JSON.parse(event.result)
+            if (
+              typeof parsed === 'object' &&
+              parsed !== null &&
+              !Array.isArray(parsed) &&
+              (parsed as Record<string, unknown>).type === 'calendar' &&
+              Array.isArray((parsed as Record<string, unknown>).events)
+            ) {
+              const updated = [...parts]
+              updated[target.i] = {
+                kind: 'calendar',
+                events: (parsed as Record<string, unknown>).events as Array<{
+                  summary: string
+                  start: string
+                  end: string
+                  location?: string
+                  description?: string
+                }>,
+                weekStart:
+                  typeof (parsed as Record<string, unknown>).week_start === 'string'
+                    ? ((parsed as Record<string, unknown>).week_start as string)
+                    : undefined,
+              }
+              parts = updated
+              continue
+            }
+          } catch {
+            // fall through to the tool-done render below
+          }
+        }
         const updated = [...parts]
         updated[target.i] = {
           ...(updated[target.i] as { kind: 'tool'; id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean; done: boolean }),
@@ -163,8 +203,6 @@ function applyPendingEvents(prev: Part[], events: PendingStreamEvent[]): Part[] 
   return parts
 }
 
-// Default model for cost estimation — overridden at runtime by masterModel state
-const DEFAULT_MODEL = 'kimi-k2.6'
 
 // How long to wait for a fire-and-forget background notification before giving
 // up and finalizing the task group (so "Task running" never sticks forever).
@@ -343,6 +381,9 @@ function PartsChain({
         if (part.kind === 'mermaid') {
           return <MermaidBlock key={`mermaid-${i}`} source={part.source} />
         }
+        if (part.kind === 'calendar') {
+          return <CalendarBlock key={`calendar-${i}`} events={part.events} weekStart={part.weekStart} />
+        }
         return (
           <ToolCallBlock
             key={part.id}
@@ -366,8 +407,11 @@ export function ChatPanel() {
   const { activeId, history, appendMessage, pendingChatInput, clearPendingChatInput } = useSessionStore()
   const [streamingParts, setStreamingParts] = useState<Part[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
-  const [usage, setUsage] = useState<UsageEvent | null>(null)
+  const [usage, setUsage] = useState<LiveUsage | null>(null)
+  const usageRef = useRef<LiveUsage | null>(null)
+  useEffect(() => { usageRef.current = usage }, [usage])
   const [masterModel, setMasterModel] = useState<string>('')
+  const [masterAdapter, setMasterAdapter] = useState<string>('')
   const [awaitingNotification, setAwaitingNotification] = useState(false)
   /** Set when master is busy and this turn is waiting for its lock. */
   const [queuedNotice, setQueuedNotice] = useState('')
@@ -682,10 +726,20 @@ export function ChatPanel() {
     getAgents().then((agents) => {
       const master = agents.find((a) => a.name === 'master')
       if (master?.model) setMasterModel(master.model)
+      if (master?.adapter) setMasterAdapter(master.adapter)
     }).catch(() => {
       // ignore — model will just be empty
     })
   }, [wsConnected])
+
+  // A hot swap of master lands as a `model_changed` broadcast. Without this the
+  // label above every assistant message would keep naming the old model until
+  // the next reconnect, since nothing else refetches it.
+  const masterBinding = useWsStore((s) => s.modelBindings.master)
+  useEffect(() => {
+    if (masterBinding?.model) setMasterModel(masterBinding.model)
+    if (masterBinding?.adapter) setMasterAdapter(masterBinding.adapter)
+  }, [masterBinding])
 
   // When the user sends a new message, snap to bottom regardless
   useEffect(() => {
@@ -926,8 +980,10 @@ export function ChatPanel() {
     }
   }, [isStreaming, persistInterruptedPartial])
 
-  // Clear task groups when switching sessions
+  // Clear task groups and usage when switching sessions
   useEffect(() => {
+    usageRef.current = null
+    setUsage(null)
     setTaskGroups([])
     setAwaitingNotification(false)
     setBackgroundActivity('')
@@ -1032,13 +1088,18 @@ export function ChatPanel() {
 
     // Track assembled text locally — avoids React ref/useEffect timing races
     let assembledText = ''
+    const updateLiveUsage = createLiveUsage(usageRef.current)
+    setUsage(updateLiveUsage({ type: 'turn_start' }))
     // Track whether any sub-agents were spawned — if so, poll for background results
     let hadSpawnAgent = false
     // Did master resolve the delegation inline (wait/read) in this same turn?
     let hadInlineResult = false
 
     try {
-      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId)) {
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId,
+        useSessionStore.getState().sessions.find(s => s.id === sessionId)?.noteContext?.map(n => n.id))) {
+        const liveUsage = updateLiveUsage(event)
+        if (liveUsage) setUsage(liveUsage)
         if (event.type === 'message_boundary') {
           enqueueStreamEvent({ kind: 'message_boundary' })
           assembledText += '\n\n'
@@ -1084,7 +1145,16 @@ export function ChatPanel() {
           queuedNoticeRef.current = true
           setQueuedNotice(String((event as { text?: string }).text || ''))
         } else if (event.type === 'usage_stats') {
-          setUsage(event)
+          // Reconciled with provider counts by updateLiveUsage above.
+        } else if (event.type === 'model_swapped') {
+          // A hot swap landed mid-turn. The PUT that caused it already
+          // broadcast over the WebSocket, but a swap can also come from the
+          // settings file changing under a running agent — this is the only
+          // signal for that case.
+          if (event.agent === 'master') {
+            setMasterModel(event.model)
+            setMasterAdapter(event.adapter)
+          }
         } else if (event.type === 'compact') {
           setQueuedNotice('')
           enqueueStreamEvent({
@@ -1136,7 +1206,9 @@ export function ChatPanel() {
       // via WebSocket. A completion already received remains in backgroundTasks.
       appendedCompletionsRef.current.delete(runId)
       const finished = useWsStore.getState().backgroundTasks.find((t) => t.task_id === runId && ['done', 'error', 'timeout', 'cancelled'].includes(t.status))
-      if (finished) {
+      if ((e as Error).name === 'TaskRequestError') {
+        appendMessage('assistant', `Could not start task: ${(e as Error).message}`, undefined, undefined, sessionId)
+      } else if (finished) {
         const text = finished.result || finished.error || '_Task completed_'
         appendMessage('assistant', text, undefined, undefined, sessionId, undefined, `${runId}:0`)
         appendedCompletionsRef.current.add(runId)
@@ -1180,8 +1252,14 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950" style={{ minHeight: 0 }}>
+    <div className="studio-chat flex flex-col h-full bg-zinc-950" style={{ minHeight: 0 }}>
       {/* Message list */}
+      <div className="studio-chat-usage" aria-label="Master model and usage">
+        <CostBar compact showModel adapter={masterAdapter} model={masterModel}
+          inputTokens={usage?.input_tokens ?? 0} outputTokens={usage?.output_tokens ?? 0}
+          tokensPerSecond={usage?.tokens_per_second ?? 0} contextWindow={usage?.context_window ?? 0}
+          estimated={usage?.estimated ?? false} inputKnown={usage?.inputKnown ?? false} outputKnown={usage !== null} />
+      </div>
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -1190,24 +1268,11 @@ export function ChatPanel() {
       >
         {history.length === 0 && !isStreaming && (
           <div
-            className={`flex flex-col items-center justify-center h-full gap-3 select-none ${
+            className={`studio-welcome-wrap ${
               welcomeReady ? 'welcome-ready' : 'splash-hidden'
             }`}
           >
-            <img
-              className="welcome-logo"
-              src="/logo.png"
-              alt="YAPOC octopus logo"
-              width={192}
-              height={192}
-            />
-            <div
-              className="welcome-name text-4xl font-bold tracking-[0.2em] font-mono"
-              style={{ color: 'var(--color-text-primary, #FFB633)' }}
-            >
-              YAPOC
-            </div>
-            <div className="text-zinc-600 text-sm">Send a message to get started</div>
+            <StudioWelcome onChoose={prompt => { chatInputRef.current?.setText(prompt); chatInputRef.current?.focus() }} />
           </div>
         )}
 
@@ -1336,7 +1401,7 @@ export function ChatPanel() {
       </div>
 
       {/* Input area */}
-      <div className="px-4 py-3 border-t border-zinc-700 bg-zinc-900 flex-shrink-0">
+      <div className="studio-composer flex-shrink-0">
         {showVoiceSettings && (
           <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-900">
             <VoiceSettings />
@@ -1345,7 +1410,8 @@ export function ChatPanel() {
         {voiceError && (
           <div className="mb-2 text-xs text-red-400">{voiceError}</div>
         )}
-        <div className="flex flex-wrap gap-2 items-end">
+        <NoteContextBar />
+        <div className="studio-composer-controls flex flex-wrap gap-2 items-end">
           <ChatInput
             ref={chatInputRef}
             onSubmit={(text, files, attachmentIds) => sendMessage(text, files, attachmentIds)}
@@ -1367,7 +1433,7 @@ export function ChatPanel() {
               }`}
               title={micListening ? 'Stop listening' : 'Start listening'}
             >
-              🎤
+              <Mic size={16} aria-hidden="true" />
             </button>
           )}
           <button
@@ -1379,7 +1445,7 @@ export function ChatPanel() {
             }`}
             title={showVoiceSettings ? 'Hide voice settings' : 'Show voice settings'}
           >
-            ⚙ Voice
+            <span className="inline-flex items-center gap-1.5"><Settings2 size={14} aria-hidden="true" />Voice</span>
           </button>
           <SendButton
             isStreaming={isStreaming}
@@ -1388,15 +1454,8 @@ export function ChatPanel() {
             onStop={handleStop}
           />
         </div>
-        {usage && (
-          <CostBar
-            model={masterModel || DEFAULT_MODEL}
-            inputTokens={usage.input_tokens}
-            outputTokens={usage.output_tokens}
-            tokensPerSecond={usage.tokens_per_second}
-            contextWindow={usage.context_window}
-          />
-        )}
+        <div className="studio-composer-hint"><span>Talk to Master · your agents work together</span><span>Enter to send <span aria-hidden="true">↵</span></span></div>
+
       </div>
     </div>
   )

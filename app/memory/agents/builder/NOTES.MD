@@ -203,3 +203,14 @@ VERIFY AFTER APPLY: `poetry run python -c "import app.agents.base"` exit 0; and 
 
 ## Builder shell quirk
 `cd` is NOT in the Builder allowlist, but `npm`/`npx` are. To build the frontend from the project root (no cd), use: `npm run build --prefix app/frontend`. Same --prefix pattern works for any npm/npx subcommand in a subdir. (Build still invokes `tsc -b && vite build` correctly and writes to app/frontend/dist.)
+
+## file_edit revert gotcha
+2026-09-08: When editing app/frontend/src/components/PluginsTab.tsx, multiple file_edit calls reported "Replaced 1 occurrence" but the import-line edits silently reverted (only the button edit persisted). Re-applying via file_edit also reverted. Workaround: use execute_code with yapoc.read/replace/write to apply the import edits atomically — that stuck. If file_edit reports success but a subsequent read shows the change missing, fall back to execute_code yapoc.write.
+
+## file_edit silent-drop gotcha
+file_edit can report "Replaced 1 occurrence" but silently drop the change (observed 2026-09-08 on frontend .tsx/.ts edits: two useState declarations and one interface field were reported replaced but absent). Always re-verify with grep/tsc after batch edits, and re-apply any that didn't land. Parallel file_edit calls in one block seem more prone to this than sequential ones.
+
+## Parallel file_edit race on same file
+When multiple file_edit calls target the SAME file in a single parallel tool-call block, only the first edit reliably applies — later edits report "Replaced 1 occurrence" but are silently lost (verified 2026-09-08 on WorkspacePanel.tsx: import edit applied, but the 3 subsequent edits to the same file did not). Always apply edits to the same file sequentially (separate blocks), then verify with grep/shell_exec afterward.
+
+Also: `Attachment` type in api/types.ts has `mime: string` (required). Spreading `Attachment | null` in a setState updater (e.g. `{ ...current, name }`) makes `mime` optional and fails tsc. Fix with `as Attachment` cast on the spread.

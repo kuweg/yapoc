@@ -54,8 +54,13 @@ class CheckpointHandle:
         )
 
 
-async def _git(*args: str, check: bool = True, timeout: float = 10.0) -> tuple[int, str, str]:
-    """Run `git <args>` async, return (rc, stdout, stderr)."""
+async def run_git(*args: str, check: bool = True, timeout: float = 10.0) -> tuple[int, str, str]:
+    """Run `git <args>` async against the project root, return (rc, stdout, stderr).
+
+    Public because ``app/utils/tools/git.py`` runs the agent-facing git tools
+    through it — one implementation means one place that gets cwd, timeouts and
+    output decoding right. Args are passed to ``exec`` directly, never a shell.
+    """
     proc = await asyncio.create_subprocess_exec(
         "git",
         *args,
@@ -113,7 +118,7 @@ async def snapshot_state(label: str, agent: str) -> CheckpointHandle:
 
     async with _GIT_LOCK:
         try:
-            _, sha, _ = await _git("rev-parse", "HEAD")
+            _, sha, _ = await run_git("rev-parse", "HEAD")
         except RuntimeError as exc:
             _log.warning("git_safety: snapshot HEAD rev-parse failed ({}). Checkpoint disabled for this run.", exc)
             return CheckpointHandle(
@@ -121,7 +126,7 @@ async def snapshot_state(label: str, agent: str) -> CheckpointHandle:
                 baseline_dirty=(), enabled=False,
             )
         try:
-            _, porcelain, _ = await _git("status", "--porcelain")
+            _, porcelain, _ = await run_git("status", "--porcelain")
             baseline = tuple(sorted(_parse_porcelain(porcelain)))
         except RuntimeError as exc:
             _log.warning("git_safety: snapshot status read failed ({}). Disabling checkpoint.", exc)
@@ -147,7 +152,7 @@ async def verify_no_corruption(handle: CheckpointHandle) -> tuple[bool, str]:
 
     # 1. Working tree readable
     try:
-        await _git("status", "--porcelain")
+        await run_git("status", "--porcelain")
     except RuntimeError as exc:
         return False, f"git status failed: {exc}"
 
@@ -249,7 +254,7 @@ async def list_checkpoint_commits(limit: int = 50) -> list[dict]:
     """
     prefix = settings.git_checkpoint_label_prefix
     try:
-        _, out, _ = await _git(
+        _, out, _ = await run_git(
             "log",
             f"--grep=^{prefix}:",
             "-E",
@@ -279,11 +284,11 @@ async def manual_revert(sha: str) -> tuple[bool, str]:
         return False, "sha required (≥4 chars)"
     async with _GIT_LOCK:
         try:
-            await _git("rev-parse", "--verify", sha)
+            await run_git("rev-parse", "--verify", sha)
         except RuntimeError as exc:
             return False, f"unknown sha: {exc}"
         try:
-            await _git("reset", "--hard", sha)
+            await run_git("reset", "--hard", sha)
             return True, f"HEAD now at {sha[:12]}"
         except RuntimeError as exc:
             return False, f"reset failed: {exc}"

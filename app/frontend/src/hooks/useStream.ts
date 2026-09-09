@@ -25,13 +25,14 @@ export async function* streamTask(
   sessionId?: string | null,
   attachments?: string[],
   taskId: string = crypto.randomUUID(),
+  noteIds: string[] = [],
 ): AsyncGenerator<StreamEvent> {
   let attempt = 0
   let afterSeq = 0
 
   while (true) {
     try {
-      for await (const event of _streamOnce(task, history, signal, sessionId, attachments, taskId, afterSeq)) {
+      for await (const event of _streamOnce(task, history, signal, sessionId, attachments, taskId, afterSeq, noteIds)) {
         const seq = (event as StreamEvent & { seq?: number }).seq
         if (seq !== undefined) {
           if (seq <= afterSeq) continue
@@ -44,6 +45,7 @@ export async function* streamTask(
       // Never retry on user-initiated abort
       if (signal.aborted) throw err
       if ((err as Error).name === 'AbortError') throw err
+      if ((err as Error).name === 'TaskRequestError') throw err
       // Reattach to the same durable run and ordered cursor. This POST never
       // creates a second execution, even if the prior response was lost.
 
@@ -100,6 +102,7 @@ async function* _streamOnce(
   attachments?: string[],
   taskId?: string,
   afterSeq = 0,
+  noteIds: string[] = [],
 ): AsyncGenerator<StreamEvent> {
   const res = await fetch('/api/task/stream', {
     method: 'POST',
@@ -112,11 +115,17 @@ async function* _streamOnce(
       source: 'ui',
       session_id: sessionId || undefined,
       attachments: attachments && attachments.length ? attachments : undefined,
+      note_ids: noteIds,
     }),
     signal,
   })
 
-  if (!res.ok) throw new Error(`POST /task/stream: ${res.status}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    const error = new Error(typeof body.detail === 'string' ? body.detail : `Task request failed (${res.status})`)
+    if (res.status >= 400 && res.status < 500 && res.status !== 429) error.name = 'TaskRequestError'
+    throw error
+  }
   if (!res.body) throw new Error('No response body')
 
   const reader = res.body.getReader()

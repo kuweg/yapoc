@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.backend.models import TaskRequest, TaskResponse
-from app.utils.adapters import CompactEvent, Message, MessageBoundary, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
+from app.utils.adapters import CompactEvent, Message, MessageBoundary, ModelSwapped, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
 from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
 router = APIRouter()
@@ -38,6 +38,13 @@ def _event_to_dict(event: Any) -> dict | None:
             "tokens_before": event.tokens_before,
             "tokens_after": event.tokens_after,
         }
+    if isinstance(event, ModelSwapped):
+        return {
+            "type": "model_swapped",
+            "agent": event.agent,
+            "adapter": event.adapter,
+            "model": event.model,
+        }
     if isinstance(event, UsageStats):
         return {
             "type": "usage_stats",
@@ -57,10 +64,12 @@ async def submit_task(request: TaskRequest):
     Poll GET /tasks/{task_id} for status/result, or subscribe via WebSocket.
     """
     task_id = str(_uuid.uuid4())
-    metadata = json.dumps({"history": request.history}) if request.history else None
+    from app.backend.services.notes import build_note_context
+    note_context, notes = build_note_context(request.task, request.note_ids)
+    metadata = json.dumps({"history": request.history, "notes": notes})
     task = create_queued_task(
         id=task_id,
-        prompt=request.task,
+        prompt=request.task + note_context,
         source=request.source or "ui",
         session_id=request.session_id or task_id,
         metadata=metadata,
@@ -136,13 +145,15 @@ async def submit_task_stream(request: TaskRequest):
     if row and row.get("session_id") != session_id:
         raise HTTPException(409, "Task ID belongs to another session")
     if not row:
+        from app.backend.services.notes import build_note_context
+        note_context, notes = build_note_context(request.task, request.note_ids)
         suffix, attachments = "", []
         if request.attachments:
             from app.backend.services.uploads import build_attachment_injection
             suffix, attachments = build_attachment_injection(request.attachments, owner="local")
-        row = create_queued_task(id=task_id, prompt=request.task + suffix,
+        row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context,
                                  source=request.source or "ui", session_id=session_id,
-                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "transport": "sse"}))
+                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "transport": "sse"}))
     metadata = json.loads(row.get("metadata") or "{}")
 
     async def event_generator():

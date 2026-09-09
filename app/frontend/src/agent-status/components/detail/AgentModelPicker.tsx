@@ -1,34 +1,43 @@
 import { useEffect, useState } from 'react'
 import type { AdapterInfo } from '../../types'
-import { getModels, updateAgentModel } from '../../api/agentStatusClient'
+import { getModels, updateAgentModel, hotSwapAllAgents } from '../../api/agentStatusClient'
 
 interface Props {
   agentName: string
+  /** The agent's binding as last polled. The swap itself broadcasts a
+   *  `model_changed` event that patches the store, so these props update on
+   *  their own — the picker never has to refetch. */
   currentAdapter: string
   currentModel: string
-  onUpdated: () => void
 }
 
-export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUpdated }: Props) {
+export function AgentModelPicker({ agentName, currentAdapter, currentModel }: Props) {
   const [adapters, setAdapters] = useState<AdapterInfo[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [success, setSuccess] = useState<string | null>(null)
+  // Moving the whole fleet onto one provider is the common case when a
+  // provider goes down or a cheaper model lands — one click beats eleven.
+  const [applyToAll, setApplyToAll] = useState(false)
 
   useEffect(() => {
     getModels().then(setAdapters).catch(() => {})
   }, [])
 
   async function handleSelect(adapter: string, model: string) {
-    if (adapter === currentAdapter && model === currentModel) return
+    if (!applyToAll && adapter === currentAdapter && model === currentModel) return
     setSaving(true)
     setError(null)
-    setSuccess(false)
+    setSuccess(null)
     try {
-      await updateAgentModel(agentName, adapter, model)
-      setSuccess(true)
-      onUpdated()
-      setTimeout(() => setSuccess(false), 2000)
+      if (applyToAll) {
+        const swapped = await hotSwapAllAgents(adapter, model)
+        setSuccess(`Swapped ${swapped.length} agent${swapped.length === 1 ? '' : 's'}`)
+      } else {
+        await updateAgentModel(agentName, adapter, model)
+        setSuccess('Saved')
+      }
+      setTimeout(() => setSuccess(null), 2500)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -47,9 +56,22 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
           {currentModel}
         </span>
         {saving && <span className="text-[12px] text-[#E3B341] animate-pulse">Saving...</span>}
-        {success && <span className="text-[12px] text-[#3FB950]">Saved</span>}
+        {success && <span className="text-[12px] text-[#3FB950]">{success}</span>}
         {error && <span className="text-[12px] text-[#F85149]">{error}</span>}
       </div>
+
+      <label className="flex items-center gap-2 mb-2 text-[13px] text-[#8B949E] cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={applyToAll}
+          onChange={(e) => setApplyToAll(e.target.checked)}
+          className="accent-[#FFB633]"
+        />
+        Apply to every agent
+      </label>
+      <p className="text-[12px] text-[#484F58] mb-2">
+        Takes effect immediately — running agents pick up the new model on their next turn.
+      </p>
 
       {/* Adapter groups */}
       <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -71,7 +93,7 @@ export function AgentModelPicker({ agentName, currentAdapter, currentModel, onUp
             {/* Models */}
             <div className="grid grid-cols-1 gap-0.5">
               {adapter.models.map((model) => {
-                const isActive = adapter.name === currentAdapter && model.id === currentModel
+                const isActive = !applyToAll && adapter.name === currentAdapter && model.id === currentModel
                 const disabled = !adapter.has_key
                 return (
                   <button

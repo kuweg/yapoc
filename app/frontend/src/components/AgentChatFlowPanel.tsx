@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useCallback } from 'react'
 import type { AgentActivityLog } from '../types/agentActivity'
 import { getAgentColor, withAlpha, getAgentDisplayName } from '../lib/agentIdentity'
 import { useAgentActivity } from '../hooks/useAgentActivity'
+import { useAgentUsage } from '../hooks/useAgentUsage'
+import { CostBar } from './CostBar'
 
 interface Props {
   agentName: string
@@ -99,6 +101,7 @@ function toRows(activities: AgentActivityLog[]): Row[] {
 
 export function AgentChatFlowPanel({ agentName, onClose }: Props) {
   const activities = useAgentActivity(agentName)
+  const { usage, model, adapter } = useAgentUsage(agentName)
   const rows = useMemo(() => toRows(activities), [activities])
   const listRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
@@ -127,8 +130,8 @@ export function AgentChatFlowPanel({ agentName, onClose }: Props) {
   const agentLabel = getAgentDisplayName(agentName)
 
   return (
-    <div className="agent-chat-flow-panel">
-      {/* Header (unchanged) */}
+    <div className="agent-chat-flow-panel" data-agent-flow={agentName}>
+      {/* Identity and live usage stay visible while activity scrolls. */}
       <div className="agent-chat-flow-header">
         <div className="agent-chat-flow-header-left">
           <span
@@ -136,12 +139,15 @@ export function AgentChatFlowPanel({ agentName, onClose }: Props) {
             style={{ backgroundColor: agentColor }}
           />
           <span className="agent-chat-flow-agent-name">{agentLabel}</span>
-          <span className="agent-chat-flow-msg-count">{activities.length} msgs</span>
+          <CostBar compact hideAgent agentName={agentName} model={model} adapter={adapter}
+            inputTokens={usage.input_tokens} outputTokens={usage.output_tokens}
+            tokensPerSecond={usage.tokens_per_second} contextWindow={usage.context_window}
+            estimated={usage.estimated} inputKnown={usage.inputKnown} />
         </div>
         <button
           onClick={onClose}
           className="agent-chat-flow-close-btn"
-          aria-label="Close panel"
+          aria-label={`Close ${agentName} flow`}
         >
           ×
         </button>
@@ -222,7 +228,6 @@ export function AgentChatFlowPanel({ agentName, onClose }: Props) {
         })}
       </div>
 
-      {/* Footer (unchanged) */}
       <div className="agent-chat-flow-footer">
         <span className="agent-chat-flow-footer-text">
           {activities.length > 0

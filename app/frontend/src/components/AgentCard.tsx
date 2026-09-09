@@ -129,16 +129,18 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
   return (
     <button
       onClick={handleClick}
-      className={`w-full text-left px-4 py-2.5 hover:bg-zinc-800 transition-colors ${
+      aria-pressed={selected}
+      data-agent={agent.name}
+      className={`studio-agent-card w-full text-left px-4 py-2.5 hover:bg-zinc-800 transition-colors ${
         selected ? 'bg-zinc-800' : ''
       }`}
     >
       {/* Row 1: identity avatar + name + live presence + per-agent stop */}
       <div className="flex items-center gap-2">
-        <AgentAvatar name={agent.name} size={18} />
+        <AgentAvatar name={agent.name} size={26} />
         <span className="text-sm text-zinc-200 truncate flex-1">{getAgentDisplayName(agent.name)}</span>
         <AgentPresenceIndicator name={agent.name} status={state} />
-        {killable && (
+        {killable && selected && (
           <span
             role="button"
             tabIndex={0}
@@ -156,11 +158,11 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
       {(agent.pid != null || agent.task_summary || ctxUsed > 0 || active != null) && (
         <div className="pl-4 mt-0.5">
           <div className="flex items-center gap-2 flex-wrap">
-            {agent.pid != null && (
+            {selected && agent.pid != null && (
               <span className="text-xs text-zinc-600 flex-shrink-0">pid {agent.pid}</span>
             )}
             <ContextGauge used={ctxUsed} window={contextWindowForModel(agent.model)} />
-            {active != null && (
+            {(selected || isRunning) && active != null && (
               <span className="text-xs text-zinc-600 flex-shrink-0">
                 ⏱{' '}
                 <RunningTimer
@@ -170,7 +172,7 @@ export function AgentCard({ agent, selected, onClick }: AgentCardProps) {
               </span>
             )}
           </div>
-          {agent.task_summary && (
+          {agent.task_summary && (selected || isRunning) && (
             <p className="text-xs text-zinc-500 truncate">{agent.task_summary}</p>
           )}
         </div>

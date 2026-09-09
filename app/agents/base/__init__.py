@@ -19,6 +19,7 @@ from app.utils.adapters import (
     AgentConfig,
     BaseLLMAdapter,
     CompactEvent,
+    ModelSwapped,
     FallbackAdapter,
     Message,
     StreamEvent,
@@ -36,6 +37,66 @@ from app.utils.adapters import (
 from app.utils.tools import BaseTool, build_tools
 from app.utils.usage_tracker import UsageTracker
 from app.agents.base.context import build_system_context, _parse_runner_config
+
+
+def summarize_tool_activity(
+    messages: list[dict[str, Any]], max_chars: int = 4000, max_calls: int = 25
+) -> str:
+    """Render an agent's tool-call trail as resumable progress text.
+
+    Turn exhaustion salvage originally required non-empty assistant *text*. That
+    is the wrong test: an agent grinding through tool calls — which is exactly
+    what builder and planning do, and exactly what every observed turn-limit
+    failure was — frequently produces no prose at all before running out. Its
+    RESULT.MD is empty, so the salvage found "0 chars", declined to continue,
+    and discarded the work. The mechanism would not have fired on the failures
+    it was built for.
+
+    Tool calls and their results ARE the progress. This walks the conversation
+    and renders them so a continuation can resume from what was actually done
+    rather than starting over.
+
+    Output is bounded: the oldest calls are dropped first, because a resuming
+    agent needs its most recent state far more than its first move.
+    """
+    names: dict[str, str] = {}
+    entries: list[str] = []
+
+    for msg in messages:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type")
+            if btype == "tool_use":
+                names[str(block.get("id", ""))] = str(block.get("name", ""))
+                entries.append(f"- called {block.get('name', '?')}({_compact(block.get('input'))})")
+            elif btype == "tool_result":
+                tool_id = str(block.get("tool_use_id", ""))
+                label = "ERROR" if block.get("is_error") else "ok"
+                entries.append(
+                    f"  -> {names.get(tool_id, tool_id) or 'result'} [{label}]: "
+                    f"{_compact(block.get('content'), 300)}"
+                )
+
+    if not entries:
+        return ""
+    if len(entries) > max_calls:
+        dropped = len(entries) - max_calls
+        entries = [f"- ({dropped} earlier tool call(s) omitted)"] + entries[-max_calls:]
+
+    text = "\n".join(entries)
+    if len(text) > max_chars:
+        text = "- (earlier activity truncated)\n" + text[-max_chars:]
+    return text
+
+
+def _compact(value: Any, limit: int = 160) -> str:
+    """One-line, length-capped rendering of a tool input or result."""
+    text = " ".join(str(value or "").split())
+    return text if len(text) <= limit else text[: limit - 1] + "\u2026"
 
 
 class TurnLimitReached(RuntimeError):
@@ -443,7 +504,16 @@ class BaseAgent:
         self._dir = agent_dir
         self._name = agent_dir.name
         self._memory_dir = settings.project_root / "app" / "memory" / "agents" / self._name
-        self._memory_dir.mkdir(parents=True, exist_ok=True)
+        # Deliberately NOT created here. Constructing an object should not touch
+        # the filesystem: any code that built a BaseAgent over a temp directory
+        # without also patching `settings.project_root` silently created
+        # `app/memory/agents/<temp-dir-name>/` in the real repository. That is
+        # where the 48 empty `tmp*` directories came from, and they were still
+        # accumulating on every test run.
+        #
+        # `_write_file` and `_append_file` already mkdir(parents=True,
+        # exist_ok=True) before writing, so the directory still exists exactly
+        # when it is needed — just no earlier.
         self._last_config: AgentConfig | None = None
         self._usage = UsageTracker(agent_dir)
         self._session_id: str | None = None  # set by dispatcher or caller
@@ -1077,6 +1147,13 @@ class BaseAgent:
             except Exception:
                 pass
 
+        # Expand wildcard grants (e.g. "plugin:gmail:*") against the LIVE
+        # tool registry so newly-registered plugin tools are auto-included.
+        try:
+            from app.utils.tools import resolve_tool_names as _resolve_tool_names
+            names = _resolve_tool_names(names)
+        except Exception:
+            pass
         return names
 
     async def _execute_tool(
@@ -1373,6 +1450,10 @@ class BaseAgent:
                 config = await self._load_config(config_raw=_cfg_raw)
                 await self._detect_config_change(config)
                 adapter = await self._load_adapter(config)
+                # Baseline for the per-turn hot-swap check below. Captured
+                # *before* the adapter is built so a swap landing during
+                # construction is picked up on turn 0 rather than missed.
+                _config_gen = _agent_settings.config_generation()
 
                 system_prompt = await build_system_context(self._dir, config_text=_cfg_raw)
                 if notifications_context:
@@ -1445,6 +1526,10 @@ class BaseAgent:
                 # Nudges for "announced an action but made no tool call".
                 _nudge_count: int = 0
                 _MAX_ANNOUNCE_NUDGES: int = 2
+                # Retries for a provider returning nothing at all. Bounded, and
+                # each attempt consumes a turn, so max_turns still caps the run.
+                _empty_response_count: int = 0
+                _MAX_EMPTY_RESPONSE_RETRIES: int = 2
                 self._recent_tools.clear()
                 self._loop_reflected = False
                 # Per-field precedence: explicit agent-settings.json override →
@@ -1473,6 +1558,78 @@ class BaseAgent:
                 _budget_exceeded = False
 
                 for _turn in range(max_turns):
+                    # Re-resolve the tool surface at the start of each turn so
+                    # wildcard grants (e.g. "plugin:gmail:*") pick up tools
+                    # registered since the run began. Cheap no-op when the
+                    # resolved name set is unchanged.
+                    _new_tool_names = await self._load_tool_names(config_raw=_cfg_raw)
+                    if blocked_tools:
+                        _new_tool_names = [n for n in _new_tool_names if n not in blocked_tools]
+                    if _new_tool_names != tool_names:
+                        tool_names = _new_tool_names
+                        tools = build_tools(tool_names, self._dir, session_id=self._session_id)
+                        tool_defs = [t.to_definition() for t in tools]
+                        tool_map = {t.name: t for t in tools}
+                        _log.bind(agent=self._name, event="tools_rebuilt", turn=_turn).info(
+                            "Tool surface changed | {} tools", len(tools),
+                        )
+
+                    # Hot-swap the model binding mid-task. agent-settings.json
+                    # is re-read only when its mtime moved, so the common case
+                    # costs one stat() per turn rather than a JSON parse. A
+                    # swap therefore lands on the next turn of a running task
+                    # instead of waiting for a process restart.
+                    _gen = _agent_settings.config_generation()
+                    if _gen != _config_gen:
+                        _config_gen = _gen
+                        try:
+                            _new_config = await self._load_config(config_raw=_cfg_raw)
+                        except Exception as _cfg_exc:
+                            # A half-written or invalid file must not kill a
+                            # healthy run — keep the adapter we already have.
+                            _log.bind(agent=self._name).warning(
+                                "hot-swap: config reload failed ({}) — keeping current model",
+                                _cfg_exc,
+                            )
+                            _new_config = config
+                        if await self._detect_config_change(_new_config):
+                            _old_label = f"{config.adapter}/{config.model}"
+                            try:
+                                _new_adapter = await self._load_adapter(_new_config)
+                            except Exception as _swap_exc:
+                                # Put the recorded config back to the one we are
+                                # actually running on. _detect_config_change has
+                                # already latched the new one, and leaving it
+                                # there would both misreport the live model and
+                                # stop a later write from retrying the swap.
+                                self._last_config = config
+                                _log.bind(agent=self._name).warning(
+                                    "hot-swap: adapter build failed ({}) — staying on {}",
+                                    _swap_exc, _old_label,
+                                )
+                            else:
+                                config = _new_config
+                                adapter = _new_adapter
+                                # The new provider may have a different window,
+                                # so the compaction thresholds have to move with
+                                # it or we compact at the wrong point.
+                                _ctx_window = adapter.context_window_size()
+                                threshold_tokens = int(_ctx_window * settings.context_compact_threshold)
+                                threshold_tokens_preemptive = int(
+                                    _ctx_window * getattr(settings, "context_compact_threshold_preemptive", 0.70)
+                                )
+                                _log.bind(
+                                    agent=self._name, event="model_hot_swap", turn=_turn,
+                                ).info(
+                                    "Model hot-swapped | {} -> {}/{}",
+                                    _old_label, config.adapter, config.model,
+                                )
+                                yield ModelSwapped(
+                                    agent=self._name,
+                                    adapter=config.adapter,
+                                    model=config.model,
+                                )
+
                     # Trigger indexer every 20 turns so new memory is
                     # searchable without waiting for the scheduled tick.
                     if _turn > 0 and _turn % 20 == 0:
@@ -1652,6 +1809,14 @@ class BaseAgent:
                             yield event
                             await self._emit_event("tool_call", {"name": event.name, "input": event.input})
                         elif isinstance(event, UsageStats):
+                            await self._emit_event("usage_stats", {
+                                "model": config.model,
+                                "adapter": config.adapter,
+                                "input_tokens": event.input_tokens,
+                                "output_tokens": event.output_tokens,
+                                "tokens_per_second": event.tokens_per_second,
+                                "context_window": event.context_window,
+                            })
                             # Persist this turn's usage to USAGE.json so we
                             # can attribute spend to this agent even when
                             # the CLI renderer is not in the loop (e.g. in
@@ -1873,6 +2038,41 @@ class BaseAgent:
                                 f"Task incomplete: provider stopped with {turn_complete.stop_reason!r}"
                             )
                         if not "".join(full_text_parts[_turn_text_start:]).strip() and not _task_tool_count:
+                            # An empty completion — no text, no tool calls — used
+                            # to kill the task outright on the first occurrence.
+                            # That is a one-shot hard failure on a classic
+                            # transient: providers occasionally return nothing,
+                            # and the very next attempt usually succeeds. The
+                            # evaluator reported this against `master` for 12
+                            # rounds ("provider returned no answer or tool
+                            # calls"), 3 times in one 2.5-hour window.
+                            #
+                            # Retry a bounded number of times before giving up,
+                            # mirroring the announce-without-acting nudge below.
+                            # Each retry costs a turn, so max_turns still bounds
+                            # the whole thing.
+                            if _empty_response_count < _MAX_EMPTY_RESPONSE_RETRIES:
+                                _empty_response_count += 1
+                                _log.bind(
+                                    agent=self._name, turn=_turn,
+                                    retry=_empty_response_count,
+                                ).warning(
+                                    "provider returned an empty response — "
+                                    "retrying ({}/{})",
+                                    _empty_response_count,
+                                    _MAX_EMPTY_RESPONSE_RETRIES,
+                                )
+                                messages.append({
+                                    "role": "user",
+                                    "content": (
+                                        "[SYSTEM] Your last response was empty — "
+                                        "no text and no tool call, so nothing "
+                                        "happened. Continue the task now: either "
+                                        "make the next tool call, or give the "
+                                        "final answer if the work is complete."
+                                    ),
+                                })
+                                continue
                             raise RuntimeError("Task incomplete: provider returned no answer or tool calls")
                         _announced = _announced_without_acting(
                             "".join(full_text_parts[_turn_text_start:])
@@ -2116,7 +2316,15 @@ class BaseAgent:
                     # Turn exhaustion is not a failure of the work, only of the
                     # budget — hand the accumulated text to the runner so it can
                     # be salvaged and continued instead of thrown away.
-                    raise TurnLimitReached(max_turns, "".join(full_text_parts))
+                    # Progress is not only prose: an agent that spent every
+                    # turn on tool calls has made real progress with no text to
+                    # show for it. Fall back to the tool trail so the
+                    # continuation resumes instead of being refused for
+                    # "0 chars salvaged".
+                    _progress = "".join(full_text_parts).strip()
+                    if not _progress:
+                        _progress = summarize_tool_activity(messages)
+                    raise TurnLimitReached(max_turns, _progress)
 
                 # Log and clean up
                 response = "".join(full_text_parts)

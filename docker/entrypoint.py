@@ -70,6 +70,8 @@ def serve(root: Path) -> int:
 
 
 def main() -> int:
+    if sys.argv[1:] not in ([], ['setup'], ['serve']):
+        raise RuntimeError("Expected setup or serve")
     root = Path('/workspace')
     seed(Path('/opt/yapoc'), root)
     os.chdir(root)
@@ -78,10 +80,8 @@ def main() -> int:
     if sys.argv[1:] == ['setup']:
         from app.cli.guided_setup import run_guided_setup
         return run_guided_setup()
-    if sys.argv[1:] not in ([], ['serve']):
-        raise RuntimeError("Expected setup or serve")
     if not (root / '.env').is_file():
-        raise RuntimeError("Run guided setup before starting YAPOC")
+        raise RuntimeError("Run setup first: docker compose run --rm --no-deps yapoc setup")
     return serve(root)
 
 

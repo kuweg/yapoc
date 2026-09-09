@@ -3,7 +3,7 @@ SpawnRegistry — tracks parent/child agent spawn relationships.
 
 Persists to data/spawn_registry.json so relationships survive backend restarts.
 
-Cross-process safe: every write reloads from disk under an fcntl file lock
+Cross-process safe: every write reloads from disk under a portable file lock
 and merges before saving. Without this, a subprocess agent calling
 ``register_spawn(builder, planning)`` would silently wipe the server
 process's ``register_spawn(planning, master)`` entry (each process holds
@@ -12,13 +12,14 @@ process had registered, so the last writer won the entire file).
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Lock
 from typing import Optional
+
+from app.utils.file_lock import file_lock
 
 from app.config import settings
 
@@ -54,9 +55,7 @@ class SpawnRegistry:
         """
         self._path.parent.mkdir(parents=True, exist_ok=True)
         lock_path = self._path.with_suffix(".lock")
-        lock_fd = open(lock_path, "w")
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        with file_lock(lock_path):
             # Reload from disk
             if self._path.exists():
                 try:
@@ -73,9 +72,6 @@ class SpawnRegistry:
                     tmp.replace(self._path)
                 except Exception as exc:
                     logger.error("SpawnRegistry: failed to save: %s", exc)
-        finally:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
 
     # ------------------------------------------------------------------
     # Lifecycle

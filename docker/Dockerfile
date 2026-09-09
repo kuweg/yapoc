@@ -22,6 +22,12 @@ COPY app/ ./app/
 COPY --from=frontend /build/dist ./app/frontend/dist
 COPY docker/entrypoint.py ./entrypoint.py
 RUN chmod -R a+rX /opt/yapoc
+RUN groupadd --gid 10001 yapoc && useradd --uid 10001 --gid yapoc --no-create-home yapoc \
+    && mkdir -p /workspace && chown yapoc:yapoc /workspace
 WORKDIR /workspace
+USER yapoc
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=5 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).read()"
 ENTRYPOINT ["python", "/opt/yapoc/entrypoint.py"]
 CMD ["serve"]

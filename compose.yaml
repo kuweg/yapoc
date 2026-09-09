@@ -1,0 +1,42 @@
+services:
+  yapoc:
+    image: yapoc:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 25s
+    ports:
+      - "127.0.0.1:${YAPOC_PORT:-8000}:8000"
+    volumes:
+      - yapoc-workspace:/workspace
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+      REDIS_URL: redis://redis:6379
+      MANAGED_RESTART: "true"
+      HF_HOME: /workspace/.cache/huggingface
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: [redis-server, --appendonly, "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+
+volumes:
+  yapoc-workspace:
+  redis-data:

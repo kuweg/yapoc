@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     # ── Runner defaults ──────────────────────────────────────────────────────
     max_turns: int = 99999
     task_timeout: int = 900
+    # Turn exhaustion used to be terminal: the task was marked "error" and every
+    # turn of work discarded. Every turn-limit failure in data/yapoc.db is from
+    # 2026-09-06/07, and raising caps did not help (failures walked 15 -> 30 ->
+    # 45 on 09-07). Instead, an agent that runs out of turns now hands back a
+    # partial result and is re-enqueued to continue from it, up to this many
+    # times. 0 disables continuation and restores the old terminal behaviour.
+    max_task_continuations: int = Field(default=3, ge=0, le=20)
     notification_max_attempts: int = Field(default=3, ge=1, le=10)
     notification_retry_seconds: int = Field(default=30, ge=0)
     autonomous_run_timeout: int = Field(default=300, ge=0)

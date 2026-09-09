@@ -4,7 +4,8 @@ import { useAppStore } from './store/appStore'
 import { useAgentChatStore } from './store/agentChatStore'
 import { AgentSidebar } from './components/AgentSidebar'
 import { ChatPanel } from './components/ChatPanel'
-import { AgentFlowPane } from './components/AgentFlowPane'
+import { AgentChatFlowPanel } from './components/AgentChatFlowPanel'
+import { StudioInspector, type InspectorPanel } from './studio/StudioInspector'
 import { FileViewerPane } from './components/FileViewerPane'
 import { useFileViewerStore } from './store/fileViewerStore'
 import { useArtifactsStore } from './store/artifactsStore'
@@ -16,6 +17,11 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
 import { SkillsTab } from './components/SkillsTab'
+import { McpTab } from './components/McpTab'
+import { PluginsTab } from './components/PluginsTab'
+import { DriveTab } from './components/DriveTab'
+import CronTab from './components/CronTab'
+import { NotesTab } from './notes/NotesTab'
 import { SessionsPanel } from './components/SessionsPanel'
 import { TasksPanel } from './components/TasksPanel'
 import { ObservabilityTab } from './components/ObservabilityTab'
@@ -23,7 +29,6 @@ import { ConciliumTab } from './components/ConciliumTab'
 import { ChannelsDashboard } from './components/ChannelsDashboard'
 import { AgentLogDrawer } from './components/AgentLogDrawer'
 import { InsightsTab } from './insights/InsightsTab'
-import { LiveTopologyHUD } from './topology/LiveTopologyHUD'
 import { CommandPalette } from './components/CommandPalette'
 import { NotificationBell, NotificationCenter } from './components/NotificationCenter'
 import { ConnectionStatus } from './components/ConnectionStatus'
@@ -31,6 +36,8 @@ import { MasterProgressPill } from './components/MasterProgressPill'
 import SpeakingSphere from './components/SpeakingSphere'
 import { useWindowsStore } from './store/windowsStore'
 import { useWebSocket } from './hooks/useWebSocket'
+import { PanelLeft as Bars3Icon, Search as MagnifyingGlassIcon, PanelRight as UsersIcon } from 'lucide-react'
+import { NAV_SECTIONS, StudioNavigation } from './studio/StudioNavigation'
 
 function Workspace() {
   // Establish persistent WebSocket connection for real-time events
@@ -41,72 +48,49 @@ function Workspace() {
   const openWindows = useWindowsStore((s) => s.windows)
   const closeWindow = useWindowsStore((s) => s.closeWindow)
   const selectedFlowAgent = useAgentChatStore((s) => s.selectedLogAgent)
-  const setSelectedFlowAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
+  const openFlowAgents = useAgentChatStore((s) => s.openLogAgents)
+  const closeFlowAgent = useAgentChatStore((s) => s.closeLogAgent)
+  const flowFocusVersion = useAgentChatStore((s) => s.focusVersion)
   const selectedFile = useFileViewerStore((s) => s.selectedFile)
   const artifactsOpen = useArtifactsStore((s) => s.open)
   const workspaceOpen = useWorkspaceStore((s) => s.open)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
-  function NavButton({ id, label }: { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string }) {
-    const active = tab === id
-    return (
-      <button
-        onClick={() => setTab(id)}
-        className={[
-          'px-3 py-1.5 text-xs font-mono tracking-wider uppercase transition-colors border flex-shrink-0 whitespace-nowrap',
-          active
-            ? 'bg-zinc-700 text-[#FFB633] border-[#FFB633]'
-            : 'text-zinc-400 border-transparent hover:text-[#FFB633] hover:border-[#2a2a1a]',
-        ].join(' ')}
-      >
-        {label}
-      </button>
-    )
-  }
+  const [sidebarExpanded, setSidebarExpanded] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true
+  )
 
-  // Shared header component
-  function AppHeader() {
-    return (
-      <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
-        <SpeakingSphere />
-        <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
-        <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5 overflow-x-auto max-w-full nav-scroll" role="tablist" aria-label="Main sections">
-          <NavButton id="chat" label="Chat" />
-          <NavButton id="agents" label="Agents" />
-          <NavButton id="tasks" label="Tasks" />
-          <NavButton id="insights" label="Insights" />
-          <NavButton id="observability" label="Obs" />
-          <NavButton id="concilium" label="Concilium" />
-          <NavButton id="graph" label="Memory" />
-          <NavButton id="vault" label="Vault" />
-          <NavButton id="sessions" label="Sessions" />
-          <NavButton id="channels" label="Channels" />
-          <NavButton id="skills" label="Skills" />
-        </div>
-        <div className="flex-1" />
-        <MasterProgressPill />
-        {/* The palette existed but nothing advertised it — an invisible
-            shortcut is not a feature. */}
-        <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-          title="Command palette (Ctrl+K)"
-          aria-label="Open command palette"
-          className="px-2 py-1.5 text-xs font-mono text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-        >
-          ⌘K
-        </button>
-        <ConnectionStatus showAge={false} />
-        <NotificationBell onClick={() => setNotificationsOpen(true)} />
-        <ThemeToggle />
-      </header>
-    )
+  const [teamOpen, setTeamOpen] = useState(() => window.matchMedia('(min-width: 1200px)').matches)
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (window.matchMedia('(max-width: 700px)').matches) setSidebarExpanded(false)
+      if (window.matchMedia('(max-width: 1000px)').matches) setTeamOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+  const currentSection = NAV_SECTIONS.flatMap(section => section.items).find(item => item.id === tab)
+  const navigate = (next: typeof tab) => {
+    setTab(next)
+    if (window.matchMedia('(max-width: 700px)').matches) setSidebarExpanded(false)
   }
+  const startConversation = () => { newSession(); navigate('chat') }
+  const inspectors: InspectorPanel[] = []
+  for (const agent of openFlowAgents) inspectors.push({ id: `flow-${agent}`, label: `${agent} flow`, identity: agent, group: 'flow',
+    close: () => closeFlowAgent(agent), content: <AgentChatFlowPanel agentName={agent} onClose={() => closeFlowAgent(agent)} /> })
+  if (artifactsOpen) inspectors.push({ id: 'artifacts', label: 'Artifacts', identity: true,
+    close: () => useArtifactsStore.getState().close(), content: <ArtifactsPanel /> })
+  if (workspaceOpen) inspectors.push({ id: 'workspace', label: 'Workspace files', identity: true,
+    close: () => useWorkspaceStore.getState().close(), content: <WorkspacePanel /> })
+  if (selectedFile) inspectors.push({ id: 'file', label: 'File preview', identity: selectedFile.path,
+    close: () => useFileViewerStore.getState().closeFile(), content: <FileViewerPane /> })
 
   // Single render tree — all tabs stay mounted; inactive tabs are hidden via display:none
   // This preserves React state (e.g. ChatPanel input) across tab switches.
   return (
     <div
-      className="flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden"
+      className="studio-shell flex flex-col text-zinc-100 overflow-hidden"
       style={{ height: '100dvh', minHeight: '100dvh' }}
     >
 
@@ -121,91 +105,42 @@ function Workspace() {
         />
       ))}
 
-      {/* ── Chat tab header (only visible when chat is active) ── */}
-      {tab === 'chat' ? (
-        <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
-          <SpeakingSphere />
-          <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
-
-          {/* Nav tabs */}
-          <div className="flex items-center gap-1 bg-zinc-800 border border-zinc-700 p-0.5 overflow-x-auto max-w-full nav-scroll" role="tablist" aria-label="Main sections">
-            <NavButton id="chat" label="Chat" />
-            <NavButton id="agents" label="Agents" />
-            <NavButton id="tasks" label="Tasks" />
-            <NavButton id="insights" label="Insights" />
-            <NavButton id="observability" label="Obs" />
-            <NavButton id="concilium" label="Concilium" />
-            <NavButton id="graph" label="Memory" />
-            <NavButton id="vault" label="Vault" />
-            <NavButton id="sessions" label="Sessions" />
-            <NavButton id="channels" label="Channels" />
-            <NavButton id="skills" label="Skills" />
-          </div>
-
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button
-              onClick={newSession}
-              className="px-3 py-1.5 bg-zinc-700 text-zinc-200 text-xs hover:bg-zinc-600 border border-zinc-600 font-mono tracking-wider flex-shrink-0 whitespace-nowrap"
-            >
-              + NEW
-            </button>
-            <button
-              onClick={() => useArtifactsStore.getState().toggle()}
-              className="px-3 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-            >
-              ARTIFACTS
-            </button>
-            <button
-              onClick={() => useWorkspaceStore.getState().toggle()}
-              className="px-3 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-            >
-              WORKSPACE
-            </button>
-          </div>
-
-          {/* Theme toggle — right side of header */}
-        {/* The palette existed but nothing advertised it — an invisible
-              shortcut is not a feature. */}
-          <button
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-            title="Command palette (Ctrl+K)"
-            aria-label="Open command palette"
-            className="px-2 py-1.5 text-xs font-mono text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-          >
-            ⌘K
-          </button>
-          <ConnectionStatus showAge={false} />
-          <NotificationBell onClick={() => setNotificationsOpen(true)} />
-          <ThemeToggle />
-        </header>
-      ) : (
-        /* Shared header for all other tabs */
-        <AppHeader />
-      )}
+      <div className="studio-body">
+        <StudioNavigation expanded={sidebarExpanded} tab={tab}
+          onToggle={() => setSidebarExpanded(v => !v)} onNavigate={navigate} onNew={startConversation}
+          artifactsOpen={artifactsOpen} workspaceOpen={workspaceOpen}
+          onArtifacts={() => { navigate('chat'); useArtifactsStore.getState().toggle() }}
+          onWorkspace={() => { navigate('chat'); useWorkspaceStore.getState().toggle() }} />
+        <div className="studio-main">
+          <header className="studio-header">
+            <button className="studio-icon-button studio-menu-toggle" onClick={() => setSidebarExpanded(v => !v)}
+              aria-label="Toggle navigation" aria-expanded={sidebarExpanded} aria-controls="studio-navigation"><Bars3Icon /></button>
+            <div className="studio-page-title"><span>Workspace <span aria-hidden="true">/</span></span><strong>{currentSection?.label ?? 'Conversation'}</strong></div>
+            <div className="studio-header-progress"><SpeakingSphere /><MasterProgressPill /></div>
+            <div className="studio-header-actions">
+              <button className="studio-search" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                title="Search commands (Ctrl+K)" aria-label="Open command palette"><MagnifyingGlassIcon /><span>Commands</span><kbd>{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} K</kbd></button>
+              <ConnectionStatus showAge={false} />
+              <NotificationBell onClick={() => setNotificationsOpen(true)} />
+              <ThemeToggle />
+              {tab === 'chat' && <button className="studio-icon-button studio-team-toggle" onClick={() => setTeamOpen(v => !v)}
+                title={teamOpen ? 'Hide agent team' : 'Show agent team'} aria-label={teamOpen ? 'Hide agent team' : 'Show agent team'} aria-pressed={teamOpen}><UsersIcon /></button>}
+            </div>
+          </header>
 
       {/* ── Chat tab content — always mounted, hidden when inactive ── */}
       <div
         className="flex flex-1 overflow-hidden"
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
-        <AgentSidebar />
-        {/* Chat + agent-flow tile in one row: ChatPanel (flex-1) shrinks to make
-            room for the flow pane, and the draggable seam between them sets the
-            ratio. */}
-        <main className="flex-1 flex flex-row overflow-hidden relative" style={{ minWidth: 0 }}>
-          <div className="flex-1 min-w-0 h-full">
+        <main className="studio-conversation-layout flex-1 flex flex-row overflow-hidden relative" data-inspecting={inspectors.length > 0} style={{ minWidth: 0 }}>
+          <div className="studio-conversation-content flex-1 min-w-0 h-full">
             <ChatPanel />
           </div>
-          {selectedFlowAgent && (
-            <AgentFlowPane
-              agentName={selectedFlowAgent}
-              onClose={() => setSelectedFlowAgent(null)}
-            />
-          )}
-          {artifactsOpen && <ArtifactsPanel />}
-          {workspaceOpen && <WorkspacePanel />}
-          {selectedFile && <FileViewerPane />}
+          <StudioInspector panels={inspectors} focusId={selectedFlowAgent ? `flow-${selectedFlowAgent}` : undefined} focusVersion={flowFocusVersion} />
         </main>
+        {teamOpen && <button className="studio-team-scrim" aria-label="Close agent team" onClick={() => setTeamOpen(false)} />}
+        <div className="studio-team-slot" data-open={teamOpen}><AgentSidebar onClose={() => setTeamOpen(false)} /></div>
       </div>
 
       {/* ── Agents tab ── */}
@@ -288,8 +223,44 @@ function Workspace() {
         <SkillsTab />
       </div>
 
-      {/* ── Live topology HUD — pinned below every tab ── */}
-      <LiveTopologyHUD />
+      {/* ── MCP tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'mcp' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <McpTab />
+      </div>
+
+      {/* ── Plugins tab ── */}
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'notes' ? 'flex' : 'none', minHeight: 0 }}>
+        <NotesTab />
+      </div>
+
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'plugins' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <PluginsTab />
+      </div>
+
+      {/* ── Cron tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'cron' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <CronTab />
+      </div>
+
+      {/* ── Drive tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'drive' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <DriveTab />
+      </div>
+
+        </div>
+      </div>
 
       {/* ── Global overlays ── */}
       <CommandPalette />

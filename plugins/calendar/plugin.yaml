@@ -1,0 +1,35 @@
+name: calendar
+display_name: Google Calendar
+description: List and create events on the primary Google Calendar (reuses Gmail OAuth credentials).
+version: 0.1.0
+author: YAPOC
+category: integrations
+config_schema:
+  client_id:
+    type: string
+    required: true
+    default: ""
+    label: OAuth Client ID (shared with Gmail)
+  client_secret:
+    type: secret
+    required: true
+    default: ""
+    label: OAuth Client Secret (shared with Gmail)
+  refresh_token:
+    type: secret
+    required: true
+    default: ""
+    label: OAuth Refresh Token (shared with Gmail)
+  access_token:
+    type: secret
+    required: false
+    default: ""
+    label: OAuth Access Token (optional — auto-refreshed)
+  user_email:
+    type: string
+    required: false
+    default: "me"
+    label: "Calendar account (default: me)"
+tools:
+  - calendar_list_events
+  - calendar_create_event

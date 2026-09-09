@@ -14,6 +14,7 @@ adapter: openai
 model: gpt-4.1-nano
 temperature: 0.2
 tools:
+  - plugin:gmail:*
   - file_read
   - file_list
   - file_write

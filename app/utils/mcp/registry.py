@@ -138,6 +138,11 @@ async def register_server_tools(host_manager: Any) -> int:
             # would break build_tools()'s cls(**kwargs)/cls() instantiation.
             wrapper = MCPToolWrapper(server_name, mcp_tool, host_manager)
             TOOL_REGISTRY[key] = wrapper
+            # Namespaced alias so the plugin wildcard `plugin:mcp:*` (used by
+            # the plugin assignment UI) resolves to this tool. Points to the
+            # SAME wrapper instance — no double instantiation.
+            alias_key = f"plugin:mcp:{server_name}__{tool_name}"
+            TOOL_REGISTRY[alias_key] = wrapper
             registered += 1
             logger.debug("Registered MCP tool %s -> TOOL_REGISTRY[%s]", key, key)
 
@@ -158,10 +163,17 @@ def unregister_server_tools(host_manager: Any) -> int:
     except ImportError:  # pragma: no cover
         return 0
     names = set(host_manager.get_server_names()) if hasattr(host_manager, "get_server_names") else set()
-    candidates = [k for k in list(TOOL_REGISTRY.keys()) if k.startswith("mcp__")]
+    # Remove both the plain `mcp__<server>__<tool>` keys and the namespaced
+    # `plugin:mcp:<server>__<tool>` aliases registered alongside them.
+    candidates = [
+        k
+        for k in list(TOOL_REGISTRY.keys())
+        if k.startswith("mcp__") or k.startswith("plugin:mcp:")
+    ]
     removed = 0
     for key in candidates:
         # server segment is the 2nd part: mcp__<server>__<tool>
+        # (or plugin:mcp:<server>__<tool> — the server name is still parts[1]).
         parts = key.split("__")
         if len(parts) >= 3 and parts[1] in names:
             TOOL_REGISTRY.pop(key, None)

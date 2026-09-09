@@ -22,7 +22,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function AgentDetailPanel() {
-  const { selectedAgentName, selectedAgentDetail, isDetailLoading, selectAgent, setAgentDetail } = useAgentStore()
+  const { selectedAgentName, selectedAgentDetail, isDetailLoading, selectAgent } = useAgentStore()
 
   // Build sparkline data from health log
   const sparklineData = (() => {
@@ -116,10 +116,6 @@ export function AgentDetailPanel() {
                     agentName={selectedAgentName}
                     currentAdapter={selectedAgentDetail.adapter}
                     currentModel={selectedAgentDetail.model}
-                    onUpdated={() => {
-                      // Re-trigger detail fetch on next poll cycle
-                      setAgentDetail(null)
-                    }}
                   />
                 </Section>
 

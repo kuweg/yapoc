@@ -234,5 +234,30 @@ def get_versions(artifact_id: str) -> list[dict[str, Any]]:
     return list(record.get("versions", [])) if record else []
 
 
+def delete_artifact(artifact_id: str) -> bool:
+    """Remove an artifact record and its underlying generated file (if any).
+
+    Index removal is the source of truth; file unlink failures are ignored.
+    Returns True if the record existed and was removed, False otherwise.
+    """
+    with _lock:
+        index = _load_index()
+        record = index.get(artifact_id)
+        if not record:
+            return False
+        del index[artifact_id]
+        _save_index(index)
+
+    relative = record.get("path")
+    if relative:
+        absolute = (_project_root() / relative).resolve()
+        if absolute.is_relative_to(_generated_root()) and absolute.is_file():
+            try:
+                absolute.unlink()
+            except OSError:
+                pass
+    return True
+
+
 def resolve_artifact(artifact_id: str) -> Optional[dict[str, Any]]:
     return get_artifact(artifact_id)

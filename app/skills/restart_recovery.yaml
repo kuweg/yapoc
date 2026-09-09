@@ -1,0 +1,14 @@
+name: restart_recovery
+summary: Recover pending work after a backend restart: read RESUME.MD, check agent statuses, process and clear resume state
+level_1: "On startup (or after any restart), read app/agents/master/RESUME.MD first, process the pending next_action, verify sub-agent statuses, then clear RESUME.MD and summarize."
+level_2: |
+  Inputs: none (RESUME.MD is auto-populated by the backend on startup by scanning all agent TASK.MD files for in-flight work). Output: a user-facing summary of what was recovered and current system state. Key files: app/agents/master/RESUME.MD, per-agent TASK.MD (status via check_task_status), per-agent STATUS.json (ping_agent).
+level_3: |
+  1. Read app/agents/master/RESUME.MD. If empty, proceed normally (no pending work).
+  2. If non-empty, extract the restart reason and next_action.
+  3. For each agent named in RESUME.MD, check status: ping_agent (liveness) + check_task_status (TASK.MD frontmatter status) + read_task_result (if done).
+  4. Process the next_action: if it names a task, execute it; if it names agents to wait on, wait_for_agent / wait_for_agents.
+  5. Verify implementation actually happened (read_task_result) — do not report a plan as done.
+  6. Clear RESUME.MD (file_write empty string) once all pending items are processed.
+  7. Summarize for the user: what was recovered, what completed, what (if anything) is still outstanding.
+  Note: do NOT call process_restart again during recovery; do NOT restart the backend while processing a background notification.

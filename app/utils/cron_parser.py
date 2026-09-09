@@ -422,3 +422,74 @@ def is_cron_disabled(job_id: str) -> bool:
     if isinstance(entry, dict):
         return bool(entry.get("disabled"))
     return False
+
+
+# ── Cron job storage (first-class JSON store) ─────────────────────────
+#
+# Migrates cron jobs out of the cron agent's NOTES.MD into a dedicated
+# data/cron_jobs.json store. The file holds a JSON object {"jobs": [...]}
+# where each job keeps the same shape parse_schedule produces: id, cron,
+# task, assign_to, plus optional silent, script, context_from,
+# run_only_after.
+
+
+def _jobs_path() -> Path:
+    from app.config import settings
+    p = settings.project_root / "data" / "cron_jobs.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def load_cron_jobs() -> list[dict]:
+    """Load the list of cron jobs from data/cron_jobs.json.
+
+    The file stores a JSON object {"jobs": [...]}. Returns the jobs list,
+    or [] if the file is missing or unparseable.
+    """
+    path = _jobs_path()
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    jobs = data.get("jobs", []) if isinstance(data, dict) else []
+    return jobs if isinstance(jobs, list) else []
+
+
+def save_cron_jobs(jobs: list[dict]) -> None:
+    """Write the jobs list to data/cron_jobs.json as {"jobs": jobs}."""
+    _jobs_path().write_text(
+        json.dumps({"jobs": jobs}, indent=2), encoding="utf-8"
+    )
+
+
+def migrate_cron_jobs_from_notes() -> int:
+    """One-time migration from the cron agent's NOTES.MD to the JSON store.
+
+    Reads settings.agents_dir / "cron" / "NOTES.MD" (if present), parses it
+    with parse_schedule, and if there are jobs AND data/cron_jobs.json does
+    not already exist, writes them via save_cron_jobs and returns the count.
+    Returns 0 if the store already exists, NOTES.MD is missing, or no jobs
+    were found — preserving existing schedules.
+    """
+    from app.config import settings
+
+    if _jobs_path().exists():
+        return 0
+
+    notes_path = settings.agents_dir / "cron" / "NOTES.MD"
+    if not notes_path.exists():
+        return 0
+
+    try:
+        notes_text = notes_path.read_text(encoding="utf-8")
+    except OSError:
+        return 0
+
+    jobs = parse_schedule(notes_text)
+    if not jobs:
+        return 0
+
+    save_cron_jobs(jobs)
+    return len(jobs)

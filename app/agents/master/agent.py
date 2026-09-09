@@ -177,6 +177,34 @@ class MasterAgent(BaseAgent):
                 self._session_id = previous_session_id
                 self._write_status("idle")
 
+    @staticmethod
+    def _routing_advisory(task: str) -> str:
+        """One-line delegation hint from measured per-agent history, or "".
+
+        The routing policy compares success rate and cost across agents that
+        could take a task class. Surfacing it here — rather than rewriting
+        master's delegation directly — keeps the decision legible in the
+        transcript: if the route turns out wrong, the reasoning is visible
+        instead of buried in a statistic that moved.
+
+        Silent on any failure. A recommendation is a convenience; failing to
+        produce one must never cost the task.
+        """
+        try:
+            from app.utils.routing_policy import recommend
+
+            rec = recommend(task or "")
+            if not rec.from_history:
+                return ""
+            return (
+                f"[Routing advisory] Measured history suggests delegating this "
+                f"{rec.task_class.replace('_', ' ')} task to `{rec.target}`: "
+                f"{rec.reason} You may override this if the task needs "
+                f"decomposition first."
+            )
+        except Exception:
+            return ""
+
     async def handle_task_stream(
         self,
         task: str,
@@ -260,8 +288,14 @@ class MasterAgent(BaseAgent):
             # working. Surfacing this each turn lets master decide whether
             # to wait, ping, or move on. Pure file I/O — no LLM call.
             outstanding_context = self._format_outstanding(self._outstanding_delegations())
+            # Routing advisory (roadmap 3.4/4B). Master keeps the decision; this
+            # only puts the measured history in front of it. Emitted ONLY when a
+            # recommendation is backed by real data — restating the existing
+            # default would be noise that trains master to ignore the line.
+            routing_context = self._routing_advisory(task)
             combined_context = "\n\n".join(
-                filter(None, [source_line, notifications_context, outstanding_context])
+                filter(None, [source_line, notifications_context,
+                              outstanding_context, routing_context])
             )
 
             self._write_status("running", task_summary=task)

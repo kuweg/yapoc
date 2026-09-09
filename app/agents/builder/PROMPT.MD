@@ -57,6 +57,9 @@ previous step's result. That is what a reasoning turn is for.
 ### Always Read Before Writing
 Before editing any file, read it first with `file_read` to understand the current state. Never overwrite files blindly.
 
+### Sequential Edits to the Same File
+When editing the SAME file more than once in a task, apply edits sequentially (separate tool-call blocks) — never fire parallel `file_edit` calls at the same file. After batch edits, re-verify with `file_read`/`grep`/`tsc`. If `file_edit` reports success but a subsequent read shows the change missing, fall back to `execute_code` with `yapoc.edit`/`yapoc.write` immediately — do NOT retry `file_edit`.
+
 ### Verify After Changes
 After creating or editing files, use `file_read` to confirm the result is correct. For agent creation, verify that PROMPT.MD, CONFIG.md, and agent.py all exist.
 

@@ -8,11 +8,24 @@ import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts, type GroupedPart } from './groupParts'
 import ChartBlock from './ChartBlock'
 import MermaidBlock from './MermaidBlock'
+import CalendarBlock from './CalendarBlock'
 import { StreamingText } from './StreamingText'
 import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import { CompactionMarker } from './ContextGauge'
 import { useFileViewerStore } from '../store/fileViewerStore'
 import type { TaskPart, Attachment } from '../api/types'
+import { NotebookPen } from 'lucide-react'
+import { useNotesStore } from '../notes/store'
+import { useAppStore } from '../store/appStore'
+
+function SaveMessageNote({ content }: { content: string }) {
+  if (!content.trim()) return null
+  return <button className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 mt-1 px-1"
+    onClick={() => {
+      useNotesStore.getState().setCapture({ content, title: 'Conversation note' })
+      useAppStore.getState().setActiveTab('notes')
+    }}><NotebookPen size={13} />Save as note</button>
+}
 
 interface MessageBubbleProps {
   role: 'user' | 'assistant'
@@ -477,6 +490,9 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
     if (part.kind === 'mermaid') {
       return <MermaidBlock key={`mermaid-${i}`} source={part.source} />
     }
+    if (part.kind === 'calendar') {
+      return <CalendarBlock key={`calendar-${i}`} events={part.events} weekStart={part.weekStart} />
+    }
     return (
       <ToolCallBlock
         key={part.id}
@@ -511,6 +527,7 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
               </div>
             )}
           </div>
+          {!streaming && <SaveMessageNote content={content} />}
         </div>
       </div>
     )
@@ -532,6 +549,7 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
             </ReactMarkdown>
           )}
         </div>
+        {!streaming && <SaveMessageNote content={content} />}
       </div>
     </div>
   )

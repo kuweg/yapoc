@@ -5,6 +5,7 @@
  * - state_sync: initial task list on connect
  * - task_created / task_update / task_complete / task_error: task lifecycle
  * - session_event: agent thinking/tool/text events for a specific session
+ * - model_changed: an agent was hot-swapped onto a new adapter/model
  */
 import { create } from 'zustand'
 
@@ -43,6 +44,22 @@ export interface AgentEvent {
   [key: string]: unknown
 }
 
+/** An agent's live adapter/model binding, as of the last hot swap. */
+export interface ModelBinding {
+  adapter: string
+  model: string
+  /** When the broadcast arrived (epoch ms). See `applyModelBinding`. */
+  at: number
+}
+
+/** How long a broadcast binding outranks a polled one.
+ *
+ * Long enough to cover an /api/agents response that was already in flight when
+ * the swap landed (the pollers run at 2s), short enough that a binding changed
+ * by something *other* than these endpoints — the keeper agent, a hand edit of
+ * agent-settings.json — isn't masked by a stale overlay forever. */
+export const MODEL_BINDING_TTL_MS = 6_000
+
 /** Per-agent ring buffer cap — mirrors the backend's relay buffer. */
 export const AGENT_EVENTS_MAX = 500
 
@@ -65,6 +82,10 @@ interface WsStore {
    *  reconciles this against the open WS by sending subscribe_agent /
    *  unsubscribe_agent frames. */
   subscribedAgents: string[]
+  /** Live adapter/model per agent, populated by `model_changed` broadcasts.
+   *  Titles read through this so a hot swap shows up immediately instead of
+   *  waiting on the next /api/agents poll. Keyed by agent name. */
+  modelBindings: Record<string, ModelBinding>
 
   setConnected: (v: boolean) => void
   handleEvent: (data: Record<string, unknown>) => void
@@ -77,6 +98,25 @@ interface WsStore {
   clearAgentEvents: (agent: string) => void
   subscribeAgent: (agent: string) => void
   unsubscribeAgent: (agent: string) => void
+}
+
+/** Overlay the live binding for `agent` onto a polled adapter/model pair.
+ *
+ * The poll and the WS race: a response that was already in flight when the
+ * swap landed carries the *old* model and would visibly flip the title back.
+ * The broadcast wins that race, but only for `MODEL_BINDING_TTL_MS` — after
+ * that the server's own view is authoritative again, so a binding changed by
+ * anything other than a swap endpoint still shows through. */
+export function applyModelBinding<T extends { name: string; adapter?: string; model?: string }>(
+  agent: T,
+  bindings: Record<string, ModelBinding>,
+  now: number = Date.now(),
+): T {
+  const live = bindings[agent.name]
+  if (!live) return agent
+  if (now - live.at > MODEL_BINDING_TTL_MS) return agent
+  if (live.adapter === agent.adapter && live.model === agent.model) return agent
+  return { ...agent, adapter: live.adapter, model: live.model }
 }
 
 /** Recover a completion that may have landed while the WebSocket was down
@@ -132,6 +172,7 @@ export const useWsStore = create<WsStore>((set) => ({
   lastOrphanNotification: null,
   agentEvents: {},
   subscribedAgents: [],
+  modelBindings: {},
 
   setConnected: (v) => set({ connected: v }),
 
@@ -195,6 +236,21 @@ export const useWsStore = create<WsStore>((set) => ({
         return updated
       }
       return [next, ...tasks].slice(0, 100)
+    }
+
+    if (type === 'model_changed') {
+      // A hot swap landed. `changes` is a batch so a fleet-wide swap arrives
+      // as one frame rather than one per agent.
+      const changes = (data.changes ?? []) as Array<{ agent?: string; adapter?: string; model?: string }>
+      const at = Date.now()
+      const next: Record<string, ModelBinding> = {}
+      for (const c of changes) {
+        if (!c.agent || !c.adapter || !c.model) continue
+        next[c.agent] = { adapter: c.adapter, model: c.model, at }
+      }
+      if (Object.keys(next).length === 0) return
+      set((s) => ({ modelBindings: { ...s.modelBindings, ...next } }))
+      return
     }
 
     if (type === 'state_sync' || type === 'session_sync') {

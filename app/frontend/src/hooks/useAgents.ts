@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { getAgents } from '../api/client'
+import { useWsStore, applyModelBinding } from '../store/wsStore'
 import type { AgentStatus } from '../api/types'
 
 export function useAgents(intervalMs = 2000) {
-  const [agents, setAgents] = useState<AgentStatus[]>([])
+  const [rawAgents, setAgents] = useState<AgentStatus[]>([])
   const [error, setError] = useState<string | null>(null)
   const [backendDown, setBackendDown] = useState(false)
 
@@ -28,6 +29,14 @@ export function useAgents(intervalMs = 2000) {
     const id = setInterval(refresh, intervalMs)
     return () => clearInterval(id)
   }, [refresh, intervalMs])
+
+  // A model hot swap is broadcast over the WebSocket; fold it in so agent
+  // titles re-render on the swap rather than up to `intervalMs` later.
+  const modelBindings = useWsStore((s) => s.modelBindings)
+  const agents = useMemo(
+    () => rawAgents.map((a) => applyModelBinding(a, modelBindings)),
+    [rawAgents, modelBindings],
+  )
 
   return { agents, error, backendDown, refresh }
 }

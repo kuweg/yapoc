@@ -19,6 +19,7 @@ from app.utils.adapters import (
     AgentConfig,
     BaseLLMAdapter,
     CompactEvent,
+    ModelSwapped,
     FallbackAdapter,
     Message,
     StreamEvent,
@@ -1146,6 +1147,13 @@ class BaseAgent:
             except Exception:
                 pass
 
+        # Expand wildcard grants (e.g. "plugin:gmail:*") against the LIVE
+        # tool registry so newly-registered plugin tools are auto-included.
+        try:
+            from app.utils.tools import resolve_tool_names as _resolve_tool_names
+            names = _resolve_tool_names(names)
+        except Exception:
+            pass
         return names
 
     async def _execute_tool(
@@ -1442,6 +1450,10 @@ class BaseAgent:
                 config = await self._load_config(config_raw=_cfg_raw)
                 await self._detect_config_change(config)
                 adapter = await self._load_adapter(config)
+                # Baseline for the per-turn hot-swap check below. Captured
+                # *before* the adapter is built so a swap landing during
+                # construction is picked up on turn 0 rather than missed.
+                _config_gen = _agent_settings.config_generation()
 
                 system_prompt = await build_system_context(self._dir, config_text=_cfg_raw)
                 if notifications_context:
@@ -1546,6 +1558,78 @@ class BaseAgent:
                 _budget_exceeded = False
 
                 for _turn in range(max_turns):
+                    # Re-resolve the tool surface at the start of each turn so
+                    # wildcard grants (e.g. "plugin:gmail:*") pick up tools
+                    # registered since the run began. Cheap no-op when the
+                    # resolved name set is unchanged.
+                    _new_tool_names = await self._load_tool_names(config_raw=_cfg_raw)
+                    if blocked_tools:
+                        _new_tool_names = [n for n in _new_tool_names if n not in blocked_tools]
+                    if _new_tool_names != tool_names:
+                        tool_names = _new_tool_names
+                        tools = build_tools(tool_names, self._dir, session_id=self._session_id)
+                        tool_defs = [t.to_definition() for t in tools]
+                        tool_map = {t.name: t for t in tools}
+                        _log.bind(agent=self._name, event="tools_rebuilt", turn=_turn).info(
+                            "Tool surface changed | {} tools", len(tools),
+                        )
+
+                    # Hot-swap the model binding mid-task. agent-settings.json
+                    # is re-read only when its mtime moved, so the common case
+                    # costs one stat() per turn rather than a JSON parse. A
+                    # swap therefore lands on the next turn of a running task
+                    # instead of waiting for a process restart.
+                    _gen = _agent_settings.config_generation()
+                    if _gen != _config_gen:
+                        _config_gen = _gen
+                        try:
+                            _new_config = await self._load_config(config_raw=_cfg_raw)
+                        except Exception as _cfg_exc:
+                            # A half-written or invalid file must not kill a
+                            # healthy run — keep the adapter we already have.
+                            _log.bind(agent=self._name).warning(
+                                "hot-swap: config reload failed ({}) — keeping current model",
+                                _cfg_exc,
+                            )
+                            _new_config = config
+                        if await self._detect_config_change(_new_config):
+                            _old_label = f"{config.adapter}/{config.model}"
+                            try:
+                                _new_adapter = await self._load_adapter(_new_config)
+                            except Exception as _swap_exc:
+                                # Put the recorded config back to the one we are
+                                # actually running on. _detect_config_change has
+                                # already latched the new one, and leaving it
+                                # there would both misreport the live model and
+                                # stop a later write from retrying the swap.
+                                self._last_config = config
+                                _log.bind(agent=self._name).warning(
+                                    "hot-swap: adapter build failed ({}) — staying on {}",
+                                    _swap_exc, _old_label,
+                                )
+                            else:
+                                config = _new_config
+                                adapter = _new_adapter
+                                # The new provider may have a different window,
+                                # so the compaction thresholds have to move with
+                                # it or we compact at the wrong point.
+                                _ctx_window = adapter.context_window_size()
+                                threshold_tokens = int(_ctx_window * settings.context_compact_threshold)
+                                threshold_tokens_preemptive = int(
+                                    _ctx_window * getattr(settings, "context_compact_threshold_preemptive", 0.70)
+                                )
+                                _log.bind(
+                                    agent=self._name, event="model_hot_swap", turn=_turn,
+                                ).info(
+                                    "Model hot-swapped | {} -> {}/{}",
+                                    _old_label, config.adapter, config.model,
+                                )
+                                yield ModelSwapped(
+                                    agent=self._name,
+                                    adapter=config.adapter,
+                                    model=config.model,
+                                )
+
                     # Trigger indexer every 20 turns so new memory is
                     # searchable without waiting for the scheduled tick.
                     if _turn > 0 and _turn % 20 == 0:
@@ -1725,6 +1809,14 @@ class BaseAgent:
                             yield event
                             await self._emit_event("tool_call", {"name": event.name, "input": event.input})
                         elif isinstance(event, UsageStats):
+                            await self._emit_event("usage_stats", {
+                                "model": config.model,
+                                "adapter": config.adapter,
+                                "input_tokens": event.input_tokens,
+                                "output_tokens": event.output_tokens,
+                                "tokens_per_second": event.tokens_per_second,
+                                "context_window": event.context_window,
+                            })
                             # Persist this turn's usage to USAGE.json so we
                             # can attribute spend to this agent even when
                             # the CLI renderer is not in the loop (e.g. in

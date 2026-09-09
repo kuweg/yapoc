@@ -1,0 +1,37 @@
+name: gmail
+display_name: Gmail
+description: Send, list, read, and search Gmail messages via the Gmail API (OAuth2).
+version: 0.1.0
+author: YAPOC
+category: integrations
+config_schema:
+  client_id:
+    type: string
+    required: true
+    default: ""
+    label: OAuth Client ID
+  client_secret:
+    type: secret
+    required: true
+    default: ""
+    label: OAuth Client Secret
+  refresh_token:
+    type: secret
+    required: true
+    default: ""
+    label: OAuth Refresh Token
+  access_token:
+    type: secret
+    required: false
+    default: ""
+    label: OAuth Access Token (optional — auto-refreshed)
+  user_email:
+    type: string
+    required: false
+    default: "me"
+    label: "Gmail account (default: me)"
+tools:
+  - gmail_send
+  - gmail_list
+  - gmail_read
+  - gmail_search

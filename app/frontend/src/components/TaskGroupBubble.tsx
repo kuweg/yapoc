@@ -6,6 +6,7 @@ import { GroupedToolCallBlock } from './GroupedToolCallBlock'
 import { groupParts } from './groupParts'
 import ChartBlock from './ChartBlock'
 import MermaidBlock from './MermaidBlock'
+import CalendarBlock from './CalendarBlock'
 import { AgentAvatar, getAgentColor, getAgentDisplayName, withAlpha } from '../lib/agentIdentity'
 import { CompactionMarker } from './ContextGauge'
 import { SubAgentActivity } from './SubAgentActivity'
@@ -185,6 +186,9 @@ export function TaskGroupBubble({ group, masterModel }: TaskGroupBubbleProps) {
               }
               if (part.kind === 'mermaid') {
                 return <MermaidBlock key={`tg-${group.id}-mermaid-${i}`} source={part.source} />
+              }
+              if (part.kind === 'calendar') {
+                return <CalendarBlock key={`tg-${group.id}-calendar-${i}`} events={part.events} weekStart={part.weekStart} />
               }
               return (
                 <ToolCallBlock

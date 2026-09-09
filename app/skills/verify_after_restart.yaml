@@ -1,0 +1,17 @@
+name: verify_after_restart
+summary: Verify a code/config change is actually live after a backend restart, then summarize
+level_1: "After a backend restart, verify the change actually landed (endpoint/tool live, edits persisted) using the 404-vs-405 heuristic, then summarize."
+level_2: |
+  Inputs: the change just made (new endpoint path, new tool name, or edited file) and the restart confirmation.
+  Output: a user-facing summary confirming the change is live, with evidence.
+  Key files: none fixed — depends on the change. Common checks: HTTP endpoint (curl/httpx), tool registry (list_tools), edited file (grep/file_read).
+level_3: |
+  1. Confirm the backend actually restarted (check PID changed, or root endpoint returns 200). Do not assume a restart completed a pending action.
+  2. Verify the change is live:
+     - New HTTP endpoint: hit it with a nonexistent ID. A 404 means the route IS registered (existence check ran); a 405 means the route is MISSING. This is the canonical 404-vs-405 heuristic.
+     - New tool: check it appears in the live tool registry / list_tools output (count went up, name present).
+     - Edited file: grep/file_read to confirm the edit actually persisted (parallel file_edit can silently drop edits).
+  3. Verify the edit landed in BOTH config layers when applicable (CONFIG.yaml is authoritative for tools; agent-settings.json is fallback).
+  4. If anything is NOT live, diagnose (stale process, wrong route prefix, missing restart) and fix rather than reporting a plan as done.
+  5. Summarize for the user: what changed, what was verified live, and the evidence.
+  Note: do NOT restart the backend again during this verification; do NOT report a change as done without live evidence.

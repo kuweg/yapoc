@@ -254,6 +254,8 @@ yapoc evaluator-tick           # kick the evaluator once
 - Session list with rename, export, and morning-report view
 - Voice mode (TTS + STT via OpenAI or local engines)
 - Memory tab with hybrid (FTS5 + embedding) search
+- [Notes workspace](docs/notes.md) with Markdown editing, wikilinks, backlinks, a links graph, and per-conversation note context
+- [Shared model pricing](docs/model-pricing.md) with verified provider rates, source dates, and chat cost estimates
 - Cost tracker per session
 
 ---

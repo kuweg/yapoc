@@ -27,6 +27,19 @@ poetry run yapoc start   # wraps: uvicorn app.backend.main:app
 | `POST` | `/agents/{name}/kill` | Sends SIGTERM to PID in STATUS.json |
 | `POST` | `/agents/{name}/restart` | Clears TASK.MD + HEALTH.MD — does NOT kill subprocess |
 
+### `/models` (models.py)
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/models` | Models grouped by adapter, with per-adapter API-key status |
+| `PUT` | `/models/agents/{name}/config` | Hot-swap one agent onto `{adapter, model}` |
+| `POST` | `/models/hot-swap` | Hot-swap many agents (`agents: null` = all of them) |
+
+Swaps take effect **without a restart**: they rewrite `app/config/agent-settings.json`
+(read uncached by everyone), and a running agent re-resolves its adapter at the top of
+each turn off `agent_settings.config_generation()` — the file's mtime. Both endpoints
+broadcast `model_changed` over the WebSocket so agent titles in the UI update live
+instead of waiting on the 2s poll.
+
 ### `/health` (health.py)
 | Method | Path | Returns |
 |---|---|---|

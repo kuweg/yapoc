@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAgentStore } from '../store/agentStore'
+import { useWsStore, applyModelBinding } from '../../store/wsStore'
 import type { AgentStatus, AgentEvent } from '../types'
 
 function synthesizeEvents(prev: AgentStatus[], next: AgentStatus[]): AgentEvent[] {
@@ -38,7 +39,11 @@ export function useAgentPolling(intervalMs = 2000) {
     try {
       const res = await fetch('/api/agents')
       if (!res.ok) throw new Error(`${res.status}`)
-      const data: AgentStatus[] = await res.json()
+      const raw: AgentStatus[] = await res.json()
+      // Fold in any hot swap the WebSocket has already told us about — this
+      // response may predate it, and would otherwise flip the model tags back.
+      const bindings = useWsStore.getState().modelBindings
+      const data = raw.map((a) => applyModelBinding(a, bindings))
       const events = synthesizeEvents(prevAgentsRef.current, data)
       prevAgentsRef.current = data
       setAgents(data)
@@ -61,7 +66,7 @@ export function useAgentPolling(intervalMs = 2000) {
       const res = await fetch(`/api/agents/${name}`)
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
-      setAgentDetail(data)
+      setAgentDetail(applyModelBinding(data, useWsStore.getState().modelBindings))
     } catch {
       setAgentDetail(null)
     } finally {
@@ -87,6 +92,22 @@ export function useAgentPolling(intervalMs = 2000) {
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [fetchAgents])
+
+  // Apply a hot swap to the current snapshot immediately. Polling would
+  // catch up within a couple of seconds, but the model tag is the direct
+  // feedback that the swap took — it should not visibly lag the click.
+  useEffect(() => {
+    return useWsStore.subscribe((state, prev) => {
+      if (state.modelBindings === prev.modelBindings) return
+      const { agents, selectedAgentDetail } = useAgentStore.getState()
+      const patched = agents.map((a) => applyModelBinding(a, state.modelBindings))
+      prevAgentsRef.current = patched
+      setAgents(patched)
+      if (selectedAgentDetail) {
+        setAgentDetail(applyModelBinding(selectedAgentDetail, state.modelBindings))
+      }
+    })
+  }, [setAgents, setAgentDetail])
 
   // Poll detail when an agent is selected
   useEffect(() => {

@@ -195,7 +195,9 @@ def _write(data: dict[str, Any]) -> None:
     SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = SETTINGS_PATH.with_suffix(SETTINGS_PATH.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+        # ensure_ascii=False keeps the file's prose readable (and byte-stable
+        # across writes) instead of re-escaping every em-dash on each swap.
+        json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
     tmp.replace(SETTINGS_PATH)
 
@@ -348,6 +350,138 @@ def build_adapter_chain(agent_name: str) -> list[AgentConfig] | None:
         )
     return chain
 
+
+
+# ── Live config generation ────────────────────────────────────────────────
+#
+# Agents run in separate processes (see app/agents/base/runner_entry.py), so a
+# hot swap has to be observable across process boundaries without any IPC. The
+# settings file's mtime is exactly that: bumped by every :func:`_write`, cheap
+# to stat every turn, and identical for every reader on the box.
+
+def config_generation() -> int:
+    """Return a monotonic-ish token that changes whenever the file is written.
+
+    Used by long-running agents to notice a model swap mid-task without
+    re-reading (and re-parsing) the JSON on every turn. Returns ``0`` when the
+    file is absent, so a later ``heal()`` still registers as a change.
+    """
+    try:
+        return SETTINGS_PATH.stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+# ── Hot swap ──────────────────────────────────────────────────────────────
+
+def validate_binding(adapter: str, model: str) -> None:
+    """Raise ``ValueError`` unless ``adapter``/``model`` is a known pairing.
+
+    Imported lazily: :mod:`app.utils.adapters.models` pulls in every provider
+    catalogue, which is far more than a plain ``resolve_agent`` caller needs.
+    """
+    from app.utils.adapters import ADAPTER_REGISTRY
+    from app.utils.adapters.models import PROVIDER_MODELS
+
+    if adapter not in ADAPTER_REGISTRY:
+        raise ValueError(
+            f"Unknown adapter '{adapter}'. Available: {sorted(ADAPTER_REGISTRY)}"
+        )
+    known = PROVIDER_MODELS.get(adapter, [])
+    # An empty catalogue means the provider enumerates models at runtime
+    # (ollama/lmstudio pull from a local daemon) — don't block those.
+    if known and model not in known:
+        raise ValueError(
+            f"Model '{model}' is not offered by adapter '{adapter}'. Available: {known}"
+        )
+
+
+def swap_agent_model(
+    agent_name: str,
+    adapter: str,
+    model: str,
+    *,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> dict[str, Any]:
+    """Rebind one agent to ``adapter``/``model`` and persist it.
+
+    Takes effect without a restart: every reader goes through :func:`_read`,
+    which has no cache, and running agents re-resolve their adapter each turn
+    off :func:`config_generation`. Returns the agent's resolved entry.
+
+    Creates the entry (with no fallbacks) when the agent isn't listed yet, so
+    dynamically created agents can be rebound the same way as the built-ins.
+    """
+    validate_binding(adapter, model)
+
+    data = _read()
+    agents = _agents_map(data)
+    entry = agents.get(agent_name)
+    if entry is None:
+        entry = {
+            "adapter": adapter,
+            "model": model,
+            "temperature": settings.default_temperature,
+            "max_tokens": 8096,
+            "fallbacks": [],
+        }
+        agents[agent_name] = entry
+    entry["adapter"] = adapter
+    entry["model"] = model
+    if temperature is not None:
+        entry["temperature"] = float(temperature)
+    if max_tokens is not None:
+        entry["max_tokens"] = int(max_tokens)
+
+    # ``_agents_map`` may have normalised a legacy list-shaped file into a new
+    # dict — write the normalised map back, not the original value.
+    data["agents"] = agents
+    _write(data)
+    log.info("agent_settings: hot-swapped %s -> %s/%s", agent_name, adapter, model)
+    return resolve_agent(agent_name) or dict(entry)
+
+
+def swap_provider(
+    adapter: str,
+    model: str,
+    agent_names: list[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Rebind several agents to the same ``adapter``/``model`` in one write.
+
+    ``agent_names`` defaults to every agent currently listed in the file. The
+    whole batch is validated before anything is written, so a bad model id
+    leaves the file untouched rather than half-swapped. Returns the resolved
+    entry per agent, keyed by name.
+    """
+    validate_binding(adapter, model)
+
+    data = _read()
+    agents = _agents_map(data)
+    targets = list(agent_names) if agent_names is not None else list(agents)
+    if not targets:
+        return {}
+
+    for name in targets:
+        entry = agents.get(name)
+        if entry is None:
+            entry = {
+                "adapter": adapter,
+                "model": model,
+                "temperature": settings.default_temperature,
+                "max_tokens": 8096,
+                "fallbacks": [],
+            }
+            agents[name] = entry
+        entry["adapter"] = adapter
+        entry["model"] = model
+
+    data["agents"] = agents
+    _write(data)
+    log.info(
+        "agent_settings: hot-swapped %d agent(s) -> %s/%s", len(targets), adapter, model
+    )
+    return {name: (resolve_agent(name) or {}) for name in targets}
 
 # ── Public commands ───────────────────────────────────────────────────────
 

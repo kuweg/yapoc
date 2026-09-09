@@ -16,10 +16,12 @@ adapter: deepseek
 model: deepseek-chat
 temperature: 0.2
 tools:
+  - plugin:gmail:*
   - get_recent_signals
   - file_read
   - file_write
   - file_list
+  - list_tools
   - search_memory
   - memory_append
   - notes_read
@@ -29,6 +31,10 @@ tools:
   - notify_parent
   - shared_knowledge_append
   - learnings_append
+  - git_status
+  - git_diff
+  - git_log
+  - git_show
 # Sandbox: the evaluator may ONLY write to its own directory + REPORT.MD.
 # All other paths are forbidden. This is the safety boundary that makes
 # a read-only evaluator possible: even if the LLM tries to apply a

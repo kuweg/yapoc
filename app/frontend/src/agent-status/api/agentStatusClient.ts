@@ -94,11 +94,34 @@ export async function getModels(): Promise<AdapterInfo[]> {
   return data.adapters
 }
 
+async function _detail(res: Response, fallback: string): Promise<string> {
+  // The swap endpoints explain *why* a binding was rejected (unknown adapter,
+  // model not offered by that provider). Surfacing the bare status code
+  // instead would make a fixable mistake look like a server fault.
+  try {
+    const body = await res.json()
+    if (typeof body?.detail === 'string') return body.detail
+  } catch { /* not JSON */ }
+  return `${fallback} ${res.status}`
+}
+
 export async function updateAgentModel(name: string, adapter: string, model: string): Promise<void> {
   const res = await fetch(`/api/models/agents/${name}/config`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ adapter, model }),
   })
-  if (!res.ok) throw new Error(`update model ${res.status}`)
+  if (!res.ok) throw new Error(await _detail(res, 'update model'))
+}
+
+/** Rebind every agent to one provider in a single write. */
+export async function hotSwapAllAgents(adapter: string, model: string): Promise<string[]> {
+  const res = await fetch('/api/models/hot-swap', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adapter, model }),
+  })
+  if (!res.ok) throw new Error(await _detail(res, 'hot swap'))
+  const data = await res.json()
+  return (data.swapped ?? []).map((c: { agent: string }) => c.agent)
 }

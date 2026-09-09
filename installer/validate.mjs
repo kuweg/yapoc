@@ -42,3 +42,11 @@ const help = spawnSync(process.execPath, [executable, '--help'], { encoding: 'ut
 assert.equal(help.status, 0, help.stderr);
 assert.match(help.stdout, /Usage: yapoc-install/, 'npm-style bin must invoke main, not exit silently');
 console.log('PASS: portable paths, localhost-only service, isolated workspace, credentials/runtime excluded from image');
+
+const rootInstaller = fileURLToPath(new URL('../install.mjs', import.meta.url));
+const rootHelp = spawnSync(process.execPath, [rootInstaller, '--help'], { cwd: tmpdir(), encoding: 'utf8' });
+assert.equal(rootHelp.status, 0, rootHelp.stderr);
+assert.match(rootHelp.stdout, /Usage: yapoc-install/);
+const invalid = spawnSync(process.execPath, [rootInstaller, '--unknown'], { encoding: 'utf8' });
+assert.equal(invalid.status, 1);
+assert.match(invalid.stderr, /Unknown or incomplete option/);

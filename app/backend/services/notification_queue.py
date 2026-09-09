@@ -16,7 +16,6 @@ Each notification is a dict with:
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
 import os
@@ -26,6 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from typing import TypedDict
+
+from app.utils.file_lock import file_lock
 
 from app.config import settings
 
@@ -96,7 +97,7 @@ def _is_duplicate(
 class NotificationQueue:
     """Thread-safe, cross-process-safe persistent queue of task-completion notifications.
 
-    Uses fcntl.flock for cross-process file locking and reloads from disk on
+    Uses a portable file lock for cross-process file locking and reloads from disk on
     every operation so that subprocess agents and the main server process share
     the same authoritative queue state.
     """
@@ -145,9 +146,7 @@ class NotificationQueue:
         """
         self._path.parent.mkdir(parents=True, exist_ok=True)
         lock_path = self._path.with_suffix(".lock")
-        lock_fd = open(lock_path, "w")
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        with file_lock(lock_path):
             # Reload from disk
             if self._path.exists():
                 try:
@@ -169,9 +168,6 @@ class NotificationQueue:
                 except Exception as exc:
                     logger.error("NotificationQueue: failed to save: %s", exc)
                     raise
-        finally:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
 
     # ------------------------------------------------------------------
     # Lifecycle

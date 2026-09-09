@@ -1,5 +1,9 @@
 # Guided installation
 
+To run directly with Docker Compose (without the Node launcher), follow the
+[Docker instructions](../docker/README.md). The root `compose.yaml` builds the
+dashboard and backend and starts a separate Redis container.
+
 The guided installer supports **Linux, Windows and macOS through a Linux Docker
 runtime**. It asks for a master folder, a provider/key/model, optional Telegram
 pairing, then starts YAPOC and opens the dashboard. No Python, Poetry, Redis or
@@ -52,8 +56,19 @@ npx --yes --package=github:kuweg/yapoc#feat/guided-installer yapoc-install --ref
 From a source checkout, no npm dependencies are needed:
 
 ```sh
-node installer/index.mjs --source .
+node install.mjs
 ```
+
+Root launchers also support `bash install.sh` (Linux/macOS) and
+`.\install.ps1` (Windows PowerShell). All accept the options listed below and
+locate this checkout independently of the working directory. Use
+`node install.mjs --help` to check the launcher without starting installation.
+
+The supported cross-platform runtime is Docker with Linux containers. File
+locking works on Unix and Windows, but agent shell execution and process
+management still require Unix APIs; native Windows backend execution is not
+supported. Linux-only systemd scripts are optional and are not used by the
+guided installer.
 
 ## The five steps
 

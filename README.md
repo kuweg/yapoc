@@ -101,6 +101,20 @@ makes it.
 
 ---
 
+## Run with Docker Compose
+
+From the repository root, with Docker running:
+
+```sh
+docker compose build
+docker compose run --rm --no-deps yapoc setup
+docker compose up -d --wait
+```
+
+Open http://localhost:8000. Setup stores credentials and application state in a
+persistent volume; Redis runs in a second container. See [Docker instructions](docker/README.md)
+for browser login, configuration, storage, and plain `docker run` commands.
+
 ## Quick start — guided installation
 
 The installer supports **Linux, Windows and macOS** using Node.js 22+ and Docker.
@@ -115,8 +129,14 @@ It guides you through:
 From this checkout:
 
 ```sh
-node installer/index.mjs --source .
+node install.mjs
 ```
+
+You can also run `bash install.sh` on Linux/macOS or `.\install.ps1` in Windows
+PowerShell. These root launchers use this checkout even when called from another
+directory. Docker must be running (Linux containers on Windows/macOS). The
+backend runs inside Linux because its agent shell and process controls use Unix
+APIs; a native Windows backend is not currently supported.
 
 Or, with Node.js and Git installed, use the preview branch directly:
 

@@ -19,9 +19,7 @@ Schema of ``COSTS.json`` (array of records):
       ...
     ]
 
-File locking uses fcntl (POSIX) with a fallback to a simple atomic
-write pattern (write to .tmp, rename) for environments where fcntl
-is unavailable (e.g. Windows).
+File locking uses an exclusive interprocess lock on both Unix and Windows.
 """
 
 from __future__ import annotations
@@ -33,6 +31,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from app.utils.file_lock import file_lock
 
 from loguru import logger as _log
 
@@ -77,29 +77,11 @@ def _calc_cost(
     ) / 1_000_000
 
 
-try:
-    import fcntl as _fcntl
-    _HAS_FCNTL = True
-except ImportError:
-    _HAS_FCNTL = False
 
 
 @contextmanager
 def _locked_costs(path: Path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    if _HAS_FCNTL:
-        lock_path = path.with_suffix(".lock")
-        lock_fd = open(lock_path, "w")
-        try:
-            _fcntl.flock(lock_fd, _fcntl.LOCK_EX)
-            records = _load_costs_raw(path)
-            yield records
-            _save_costs_raw(path, records)
-        finally:
-            _fcntl.flock(lock_fd, _fcntl.LOCK_UN)
-            lock_fd.close()
-    else:
+    with file_lock(path.with_suffix(".lock")):
         records = _load_costs_raw(path)
         yield records
         _save_costs_raw(path, records)

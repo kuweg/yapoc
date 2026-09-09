@@ -7,7 +7,6 @@ Poll interval: 30 seconds (matches runner_poll_interval in settings).
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import json
 import logging
 import os
@@ -18,6 +17,8 @@ import yaml
 
 from app.backend.services.spawn_registry import SpawnRegistry, registry as default_registry
 from app.backend.services.notification_queue import NotificationQueue, notification_queue as default_queue
+
+from app.utils.file_lock import file_lock
 
 from app.config import settings
 
@@ -47,7 +48,7 @@ def _load_notified() -> set[tuple[str, str]]:
 
 
 def _save_notified(notified: set[tuple[str, str]]) -> None:
-    """Persist the _notified set atomically with fcntl-protected write."""
+    """Persist the _notified set atomically with file-lock-protected write."""
     try:
         _NOTIFIED_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Cap size: keep most recent _NOTIFIED_MAX_ENTRIES entries.
@@ -55,14 +56,10 @@ def _save_notified(notified: set[tuple[str, str]]) -> None:
         if len(items) > _NOTIFIED_MAX_ENTRIES:
             items = items[-_NOTIFIED_MAX_ENTRIES:]
         lock_path = _NOTIFIED_PATH.with_suffix(".lock")
-        with open(lock_path, "w") as lock_fd:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
-            try:
-                tmp = _NOTIFIED_PATH.with_suffix(".tmp")
-                tmp.write_text(json.dumps([list(t) for t in items]), encoding="utf-8")
-                os.replace(tmp, _NOTIFIED_PATH)
-            finally:
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        with file_lock(lock_path):
+            tmp = _NOTIFIED_PATH.with_suffix(".tmp")
+            tmp.write_text(json.dumps([list(t) for t in items]), encoding="utf-8")
+            os.replace(tmp, _NOTIFIED_PATH)
     except Exception as exc:
         logger.warning("NotificationPoller: failed to save %s: %s", _NOTIFIED_PATH, exc)
 

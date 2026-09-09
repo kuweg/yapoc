@@ -1,10 +1,11 @@
+import { X as XMarkIcon } from 'lucide-react'
 import { useState } from 'react'
 import { AgentCard } from './AgentCard'
 import { useAgents } from '../hooks/useAgents'
 import { spawnAgent, killAgent } from '../api/client'
 import { useWindowsStore } from '../store/windowsStore'
 
-export function AgentSidebar() {
+export function AgentSidebar({ onClose }: { onClose?: () => void }) {
   const { agents, error, backendDown, refresh } = useAgents()
   const [selected, setSelected] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -43,10 +44,18 @@ export function AgentSidebar() {
     }
   }
 
+  const working = agents.filter(a => ['running', 'busy', 'spawning'].includes(a.status || a.process_state || '')).length
+  const ordered = [...agents].sort((a, b) => {
+    if (a.name === 'master') return -1
+    if (b.name === 'master') return 1
+    return Number(['running', 'busy', 'spawning'].includes(b.status || b.process_state || '')) - Number(['running', 'busy', 'spawning'].includes(a.status || a.process_state || ''))
+  })
+
   return (
-    <aside className="flex flex-col bg-zinc-950 border-l border-zinc-800 w-64 min-w-[16rem] flex-shrink-0 max-md:w-48 max-md:min-w-[12rem] max-sm:hidden">
-      <div className="px-4 py-3 border-b border-zinc-700">
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Agents</h2>
+    <aside className="studio-team" aria-label="Agent team">
+      <div className="studio-team-header">
+        <div><p className="studio-eyebrow">THE COLLECTIVE</p><h2>Your agent team <span>{agents.length}</span></h2></div>
+        {onClose && <button className="studio-icon-button" onClick={onClose} aria-label="Hide agent team"><XMarkIcon /></button>}
         {(error ?? actionError) && !backendDown && (
           <p className="text-xs text-red-400 mt-1 truncate">{actionError ?? error}</p>
         )}
@@ -59,8 +68,9 @@ export function AgentSidebar() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
-        {agents.map((agent) => (
+      <div className="studio-team-summary"><span className={backendDown ? 'is-offline' : ''} />{backendDown ? 'Waiting for connection' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agents working right now'}</div>
+      <div className="studio-team-list">
+        {ordered.map((agent) => (
           <AgentCard
             key={agent.name}
             agent={backendDown ? { ...agent, status: 'error', process_state: 'error', state: 'error' } : agent}
@@ -73,13 +83,13 @@ export function AgentSidebar() {
         )}
       </div>
 
-      <div className="px-4 py-3 border-t border-zinc-700 flex flex-col gap-2">
+      <div className="studio-team-footer flex flex-col gap-2">
         <button
           onClick={handleOpenLogs}
           disabled={!selected}
           className="w-full rounded border border-zinc-600 bg-transparent px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          Open Logs ⊟
+          View agent logs
         </button>
         <div className="flex gap-2">
           <button
@@ -87,7 +97,7 @@ export function AgentSidebar() {
             disabled={!selected}
             className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Spawn
+            Start agent
           </button>
           <button
             onClick={handleKill}
@@ -95,7 +105,7 @@ export function AgentSidebar() {
             title={selected === 'master' ? 'master runs the backend — cannot be killed' : undefined}
             className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Kill
+            Stop agent
           </button>
         </div>
       </div>

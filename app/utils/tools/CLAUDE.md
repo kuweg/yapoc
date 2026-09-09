@@ -26,6 +26,7 @@ All tools execute immediately. There is no approval gate, no risk-tier system, a
 | `agent_mgmt.py` | `create_agent`, `delete_agent` |
 | `model_manager.py` | `check_model_availability`, `list_models`, `update_agent_config` |
 | `memory.py` | `update_config` |
+| `git.py` | `git_status`, `git_diff`, `git_log`, `git_show`, `git_commit`, `git_branch`, `git_restore` |
 
 ## Key tool behaviors
 
@@ -150,6 +151,37 @@ Protected agent names: `master, planning, builder, keeper, cron, doctor, base, m
 
 ### `delete_agent`
 Refuses if agent STATUS.json shows `running` or `idle` — suggests `kill_agent` first.
+
+### git tools (`git.py`)
+
+Granted to builder + master (all seven) and, read-only, to evaluator and planning.
+
+| Tool | Notes |
+|---|---|
+| `git_status` | Branch + staged/unstaged/untracked. Read-only. |
+| `git_diff` | **Defaults to `--stat` when no `paths` given** — a whole-tree patch on this repo is thousands of lines. Pass `paths` for the real patch, or `stat: false` to force one. |
+| `git_log` / `git_show` | History. Read-only. |
+| `git_commit` | `paths` is **required and explicit**; stages with `git add -- <paths>` then `commit --only -- <paths>`. |
+| `git_branch` | list / create / switch / create_and_switch. |
+| `git_restore` | Scoped undo. In `RISKY_TOOLS` (destroys uncommitted work) and hard-denied for `app/agents/security/`. |
+
+Three invariants, each with a reason:
+
+1. **Never stage or restore by wildcard.** No `add -A`, no bare `checkout .`. This is
+   the same concern that makes `app/backend/git_safety.py` refuse *automatic* commits —
+   a dirty-file diff cannot tell an agent's edit from a human's concurrent one. Explicit
+   paths make "sweep in someone else's work" structurally impossible rather than merely
+   unlikely.
+2. **No raw argument passthrough.** Every parameter is structured, paths and refs
+   rejected if they start with `-`, and `--` precedes every path list. A tool that
+   forwarded arbitrary git flags would be a shell (`git --exec-path`, `--upload-pack`,
+   `-c core.pager=`), bypassing `shell_exec`'s allowlist and the sandbox.
+3. **The sandbox applies.** All seven take `SandboxPolicy`; `forbidden_paths` blocks a
+   restore just as it blocks a write, or the file lock has a hole in it.
+
+No `push`/`pull`/`fetch`/`remote` — publishing to a remote is an irreversible
+outside-world action under the user's identity, the same category the security policy
+gates for mail. No `merge`/`rebase`/`reset`/`cherry-pick`/`stash`/`clean`/`tag`.
 
 ## Adding a new tool
 1. Create class in appropriate `tools/*.py` implementing `BaseTool`

@@ -25,3 +25,12 @@ class ModelInfo:
     max_tpm: int = 0                    # tokens/min (0 = unknown)
     supports_streaming: bool = True
     supports_json_mode: bool = False
+    pricing_source: str = ""
+    pricing_verified_at: str = ""
+    pricing_notes: str = ""
+    cached_input_price: float | None = None
+    off_peak_input_price: float | None = None
+    off_peak_output_price: float | None = None
+    off_peak_cached_input_price: float | None = None
+    long_context_input_price: float | None = None
+    long_context_output_price: float | None = None

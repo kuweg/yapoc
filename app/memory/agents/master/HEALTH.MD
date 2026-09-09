@@ -1,34 +1,5 @@
 # Master Health Log
 
-[2026-09-01 19:25] INFO: Duplicate-Telegram-message-after-restart: root cause = getUpdates offset not persisted (at-least-once replay on fresh bot with offset=0). Fixed in telegram_bot.py with data/telegram_state.json persistence. Backend restarted.
-[2026-09-01 20:11] INFO: Scheduling polish verified + silent-suppression gap fixed in dispatcher.py via builder (execute_dag). 4 cron features confirmed landed in cron_parser.py + main.py _cron_tick. dispatcher.py now suppresses task_complete/morning-report/Telegram for silent jobs; update_queued_task stays unconditional. Import passes (exit 0). Backend restart still needed to load dispatcher.py change — server_restart tool unavailable this session.
-[2026-09-01 20:45] ERROR: Task timed out after 300s
-Traceback (most recent call last):
-  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1660, in run_stream_with_tools
-    results = await asyncio.gather(*coros)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 984, in _execute_tool
-    output = await tool.execute(**tc.input)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/kuweg/Projects/yapoc/app/utils/tools/delegation.py", line 730, in execute
-    agent_status = _read_status(agent_name)
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/kuweg/.local/share/mise/installs/python/3.12.14/lib/python3.12/asyncio/tasks.py", line 665, in sleep
-    return await future
-           ^^^^^^^^^^^^
-asyncio.exceptions.CancelledError
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1218, in run_stream_with_tools
-    async with asyncio.timeout(_timeout_value):
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/kuweg/.local/share/mise/installs/python/3.12.14/lib/python3.12/asyncio/timeouts.py", line 115, in __aexit__
-    raise TimeoutError from exc_val
-TimeoutError
-
-[2026-09-01 21:31] [STUCK LOOP #1] turn 18 retrying — detected repeated substring ' (done). ... → success\ntask: [Auto-notification via Redis...'
 [2026-09-02 08:47] ERROR: Task timed out after 300s
 Traceback (most recent call last):
   File "/home/kuweg/Projects/yapoc/app/agents/base/__init__.py", line 1300, in run_stream_with_tools
@@ -841,3 +812,17 @@ RuntimeError: Task incomplete: provider returned no answer or tool calls
 [2026-09-07 23:24] ERROR: compaction failed, trimmed context instead: TypeError: sequence item 0: expected str instance, list found
 [2026-09-07 23:26] ERROR: compaction failed, trimmed context instead: TypeError: sequence item 0: expected str instance, list found
 [2026-09-08 09:35] CONSECUTIVE FAILURE ALERT: Agent contproof has failed 2 times in a row
+[2026-09-08 13:48] ERROR: compaction failed, trimmed context instead: TypeError: sequence item 1: expected str instance, list found
+[2026-09-08 19:39] [STUCK LOOP #1] turn 0 retrying — detected repeated substring '           '
+[2026-09-08 20:00] [STUCK LOOP #1] turn 0 retrying — detected repeated substring " file now.\n\nLet me check the config file.\n\nI'll check the..."
+[2026-09-08 20:06] [STUCK LOOP #1] turn 0 retrying — detected repeated substring " the plugin config.\n\nI'll check the plugin config now.\n\nL..."
+[2026-09-08 20:09] [STUCK LOOP #1] turn 0 retrying — detected repeated substring " the plugin loader.\n\nI'll check the plugin loader now.\n\nL..."
+[2026-09-08 20:34] [STUCK LOOP #1] turn 0 retrying — detected repeated substring "I'll check the plugin state now.\n\nLet me check the plugin..."
+[2026-09-08 21:11] [STUCK LOOP #1] turn 0 retrying — detected repeated substring ' files.\n\nLet me read the Gmail plugin files.\n\nLet me read...'
+[2026-09-08 21:24] [STUCK LOOP #1] turn 0 retrying — detected repeated substring ".\n\nLet me read the gmail plugin's config and implementation"
+[2026-09-08 21:29] [STUCK LOOP #1] turn 0 retrying — detected repeated substring '.\n\nLet me find the chat message rendering component and h...'
+[2026-09-08 21:34] [STUCK LOOP #1] turn 0 retrying — detected repeated substring ' events for the current week.\n\nLet me list your calendar'
+[2026-09-08 22:35] [STUCK LOOP #1] turn 0 retrying — detected repeated substring ' and available PDF libraries.\n\nLet me read the notes tool...'
+[2026-09-09 01:05] CONFIG_CHANGE: adapter: 'deepseek' -> 'openai', model: 'deepseek-v4-pro' -> 'gpt-5.6-terra'
+[2026-09-09 01:23] CONFIG_CHANGE: model: 'gpt-5.6-terra' -> 'gpt-5.6-luna'
+[2026-09-09 01:29] CONFIG_CHANGE: model: 'gpt-5.6-luna' -> 'gpt-5.6-terra'

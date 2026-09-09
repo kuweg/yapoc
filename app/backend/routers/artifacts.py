@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.backend.services.artifacts import (
+    delete_artifact,
     get_artifact,
     get_versions,
     list_artifacts,
@@ -75,6 +76,13 @@ async def link_artifact_source(artifact_id: str, request: LinkArtifactSourceRequ
     if not record:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return record
+
+
+@router.delete("/{artifact_id}")
+async def delete_artifact_record(artifact_id: str):
+    if not delete_artifact(artifact_id):
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return {"deleted": artifact_id}
 
 
 @router.post("/register")

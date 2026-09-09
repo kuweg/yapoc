@@ -9,7 +9,7 @@ export function AgentDashboard() {
   useEventStream()
 
   return (
-    <div className="flex flex-col h-screen bg-[#0D1117] text-[#E6EDF3] overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 bg-[#0D1117] text-[#E6EDF3] overflow-hidden">
       <DashboardHeader />
       <DashboardLayout />
       <DashboardFooter />

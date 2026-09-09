@@ -38,6 +38,7 @@ dump.rdb
 app/frontend/node_modules/
 app/frontend/dist/
 app/frontend/.vite/
+app/frontend/tsconfig.tsbuildinfo
 node_modules/
 
 # ── Agent runtime state (ephemeral — not needed in repo) ─────────────────
@@ -68,6 +69,65 @@ app/agents/*/COSTS.lock
 app/agents/*/CHECKPOINT.json
 app/agents/security/AUDIT.MD
 app/agents/*/sessions/
+
+# Supervisor log / shell scratch that slipped past the patterns above:
+app/agents/*/SUPERVISOR.MD
+app/agents/*/.repl_history
+app/agents/*/_diag_*.py
+
+# Librarian consolidation reports — dated, regenerated each sweep.
+app/agents/*/memory_consolidation_*.md
+
+# One-off scratch files agents left in their own directories. Named
+# individually on purpose: a blanket `app/agents/*/*.md` would swallow
+# PROMPT.MD and CLAUDE.md, which are source.
+app/agents/*/fix_task.md
+app/agents/*/test-doc.md
+app/agents/*/MCP_SMOKE_TEST.md
+app/agents/*/prompt_structure.txt
+
+# ── Layered memory store (app/memory/) ──────────────────────────────────
+# THE live memory of the running system, and the reason this section exists:
+# agents write here every turn via app/utils/tools/memory.py and
+# app/agents/base/context.py. The rules above only ever covered the OLD
+# app/agents/<name>/ layout, so after the memory refactor every MEMORY.MD /
+# NOTES.MD / HEALTH.MD — plus the user's real name, location and interaction
+# history under app/memory/user/ — was being committed on every run.
+#
+# All of it is runtime state, recreated on demand (every writer calls
+# mkdir(parents=True, exist_ok=True) and every reader is _read_if_exists),
+# so a fresh clone starts with an empty memory and fills it in itself.
+#
+# Written as "ignore the contents, re-include two seed files" rather than a
+# blanket `app/memory/`: git never descends into an excluded DIRECTORY, so a
+# plain `app/memory/` makes the `!` lines below unreachable and `git add` of a
+# template fails. Each level has to be re-included before the level under it
+# can be excluded again.
+app/memory/*
+!app/memory/user/
+!app/memory/project/
+app/memory/user/*
+app/memory/project/*
+# Seed templates stay tracked so a fresh clone can see the expected shape:
+!app/memory/user/PROFILE.example.md
+!app/memory/project/KNOWLEDGE.example.md
+
+# Cross-agent knowledge bases — append-only runtime logs, not source.
+app/agents/shared/KNOWLEDGE.MD
+app/agents/shared/NEGATIVE_KNOWLEDGE.MD
+app/agents/shared/NEGATIVE_KNOWLEDGE.md
+
+# ── Skills ──────────────────────────────────────────────────────────────
+# Hand-authored skills (git_commit.yaml, frontend_build.yaml, ...) are source
+# and stay tracked. These two are not:
+# NB: a `#` only starts a comment at the START of a line — a trailing one is
+# part of the pattern, so these keep their comments above them.
+#
+# Per-skill success/failure counters.
+app/skills/.health.json
+# Auto-captured from live runs; the "summary" is a truncated frontmatter dump,
+# which makes them useless as reusable skills.
+app/skills/parent_id_*.yaml
 
 # Quarantine / backup variants of runtime files
 *.quarantine
@@ -116,6 +176,11 @@ app/yapoc_*.mp3
 
 # ── Runtime ─────────────────────────────────────────────────────────────
 .yapoc.pid
+
+# Junk from redirected command output landing in the repo root
+# (`=1.1.0` is a captured `poetry add` log; yapoc_chain.txt a smoke-test token).
+/=*
+/yapoc_chain.txt
 
 # ── Editor / agent local state ──────────────────────────────────────────
 .claude/

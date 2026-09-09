@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getTask, linkArtifactSource, listUploads, processUpload, uploadFiles } from '../api/client'
+import { deleteUpload, getTask, linkArtifactSource, listUploads, processUpload, renameUpload, saveToNote, uploadFiles } from '../api/client'
 import { listArtifacts } from '../artifacts/api'
 import type { Attachment } from '../api/types'
 import { useWorkspaceStore } from '../store/workspaceStore'
@@ -43,6 +43,11 @@ export function WorkspacePanel() {
   const [processingAction, setProcessingAction] = useState<string | null>(null)
   const [processResult, setProcessResult] = useState('')
   const [generatePrompt, setGeneratePrompt] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [savingToNote, setSavingToNote] = useState(false)
+  const [saveNoteResult, setSaveNoteResult] = useState('')
 
   async function refreshUploads() {
     setLoading(true)
@@ -97,6 +102,59 @@ export function WorkspacePanel() {
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
       setError('Unable to copy upload ID')
+    }
+  }
+
+  async function handleDelete(file: Attachment) {
+    if (!file.id) return
+    if (!window.confirm(`Delete "${file.name}"?`)) return
+    setDeletingId(file.id)
+    setError('')
+    try {
+      await deleteUpload(file.id)
+      setFiles((current) => current.filter((item) => item.id !== file.id))
+      setSelected((current) => (current?.id === file.id ? null : current))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete file')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  function startRename(file: Attachment) {
+    setRenamingId(file.id ?? null)
+    setRenameValue(file.name)
+  }
+
+  async function commitRename(file: Attachment) {
+    const newName = renameValue.trim()
+    if (!newName || newName === file.name) {
+      setRenamingId(null)
+      return
+    }
+    setError('')
+    try {
+      const updated = await renameUpload(file.id!, newName)
+      setFiles((current) => current.map((item) => (item.id === file.id ? { ...item, name: updated.name } : item)))
+      setSelected((current) => (current?.id === file.id ? { ...current, name: updated.name } as Attachment : current))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to rename file')
+    } finally {
+      setRenamingId(null)
+    }
+  }
+
+  async function handleSaveToNote() {
+    if (!selected?.id || savingToNote) return
+    setSavingToNote(true)
+    setSaveNoteResult('')
+    try {
+      const result = await saveToNote(selected.id)
+      setSaveNoteResult(`Saved to note "${result.note.title}"`)
+    } catch (err) {
+      setSaveNoteResult(err instanceof Error ? err.message : 'Unable to save to notes')
+    } finally {
+      setSavingToNote(false)
     }
   }
 
@@ -187,10 +245,31 @@ export function WorkspacePanel() {
         {loading && <div className="p-4 text-sm text-zinc-400">Loading uploaded files…</div>}
         {error && <div className="p-4 text-sm text-red-400">{error}</div>}
         {!loading && !error && filteredFiles.length === 0 && <div className="p-4 text-sm text-zinc-400">{files.length ? 'No uploaded files match this filter.' : 'No uploaded files yet.'}</div>}
-        {!loading && !error && filteredFiles.map((file) => <button key={file.id ?? file.name} type="button" onClick={() => { setSelected(file); setCopied(false); setProcessResult('') }} className={`block w-full border-b border-zinc-800 px-3 py-3 text-left transition-colors hover:bg-zinc-800 ${selected?.id === file.id ? 'bg-zinc-800' : ''}`}>
-          <div className="truncate text-sm text-zinc-100" title={file.name}>{file.name}</div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500"><span className="truncate">{file.mime}</span><span>·</span><span>{formatSize(file.size)}</span></div>
-        </button>)}
+        {!loading && !error && filteredFiles.map((file) => <div key={file.id ?? file.name} className={`flex items-center border-b border-zinc-800 transition-colors hover:bg-zinc-800 ${selected?.id === file.id ? 'bg-zinc-800' : ''}`}>
+          <button type="button" onClick={() => { setSelected(file); setCopied(false); setProcessResult('') }} className="block min-w-0 flex-1 px-3 py-3 text-left">
+            {renamingId === file.id ? (
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                onBlur={() => void commitRename(file)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void commitRename(file)
+                  if (event.key === 'Escape') setRenamingId(null)
+                }}
+                className="w-full border border-[#FFB633] bg-zinc-800 px-1 py-0.5 text-sm text-zinc-100 focus:outline-none"
+                aria-label={`Rename ${file.name}`}
+              />
+            ) : (
+              <div className="truncate text-sm text-zinc-100" title={file.name}>{file.name}</div>
+            )}
+            <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500"><span className="truncate">{file.mime}</span><span>·</span><span>{formatSize(file.size)}</span></div>
+          </button>
+          <button type="button" onClick={() => startRename(file)} className="px-2 py-3 text-xs text-zinc-400 hover:text-[#FFB633]" aria-label={`Rename ${file.name}`} title="Rename">✎</button>
+          <button type="button" onClick={() => void handleDelete(file)} disabled={deletingId === file.id} className="px-3 py-3 text-xs text-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50" aria-label={`Delete ${file.name}`}>
+            {deletingId === file.id ? 'Deleting…' : '×'}
+          </button>
+        </div>)}
       </div>
 
       {selected?.id && <section className="border-t border-zinc-700 p-3">
@@ -204,6 +283,9 @@ export function WorkspacePanel() {
         <div className="mt-3 border-t border-zinc-800 pt-3">
           <div className="mb-2 text-xs font-medium text-zinc-300">Actions</div>
           <button type="button" onClick={() => setPendingInsertion(`@file:${selected.id} `)} className="mb-2 text-xs text-[#FFB633] hover:underline">Use in chat</button>
+          <button type="button" onClick={() => void handleSaveToNote()} disabled={savingToNote} className="mb-2 ml-2 text-xs text-[#FFB633] hover:underline disabled:cursor-not-allowed disabled:opacity-50">
+            {savingToNote ? 'Saving…' : 'Save to Notes'}
+          </button>
           <div className="flex flex-wrap gap-1.5">
             {PROCESS_ACTIONS.map(({ action, label }) => <button key={action} type="button" disabled={Boolean(processingAction)} onClick={() => void processSelected(action)} className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 hover:border-[#FFB633] hover:text-[#FFB633] disabled:cursor-not-allowed disabled:opacity-50">
               {processingAction === action ? 'Processing…' : label}
@@ -211,6 +293,7 @@ export function WorkspacePanel() {
           </div>
           <input value={generatePrompt} onChange={(event) => setGeneratePrompt(event.target.value)} placeholder="Generate from prompt" className="mt-2 w-full border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:border-[#FFB633] focus:outline-none" aria-label="Generate from prompt" />
           {processResult && <div className="mt-2 text-xs text-zinc-400" role="status">{processResult}</div>}
+          {saveNoteResult && <div className="mt-2 text-xs text-zinc-400" role="status">{saveNoteResult}</div>}
         </div>
       </section>}
     </aside>

@@ -62,6 +62,45 @@ def test_security_directory_is_write_locked(tool, path):
     assert "security" in reason
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "app/agents/security/PROMPT.MD",
+        "./app/agents/security/PROMPT.MD",
+        "app/agents/planning/../security/PROMPT.MD",
+        "app//agents//security//PROMPT.MD",
+        "app/agents/security/CONFIG.yaml",
+    ],
+)
+def test_git_restore_cannot_reach_the_security_directory(path):
+    """Restoring security/PROMPT.MD from an old commit rewrites the gate too.
+
+    The file_write / file_edit locks above only know those two tool names, so
+    a third verb that overwrites the same file needs its own rule or the lock
+    has a hole in it.
+    """
+    blocked, reason = deny("git_restore", {"paths": [path]}, "builder")
+    assert blocked, f"git_restore {path!r} was NOT denied"
+    assert "security" in reason
+
+
+def test_git_restore_of_ordinary_files_is_not_hardcode_denied():
+    """It still escalates (it destroys uncommitted work) — but isn't denied outright."""
+    from app.utils.tools.security_policy import hardcoded_check
+
+    decision, _ = hardcoded_check("git_restore", {"paths": ["app/utils/tools/git.py"]}, "builder")
+    assert decision == "ambiguous"
+
+
+@pytest.mark.parametrize("tool", ["git_status", "git_diff", "git_log", "git_show", "git_commit"])
+def test_read_only_and_additive_git_tools_are_not_gated(tool):
+    """Gating a diff would put an LLM call in front of every inspection."""
+    from app.utils.tools.security_policy import hardcoded_check
+
+    decision, _ = hardcoded_check(tool, {"paths": ["app/utils/tools/git.py"]}, "builder")
+    assert decision == "allow"
+
+
 def test_normalize_path_collapses_traversal_and_separators():
     assert _normalize_path("app/agents/planning/../security/PROMPT.MD") == (
         "app/agents/security/PROMPT.MD"

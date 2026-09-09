@@ -4,7 +4,8 @@ import { useAppStore } from './store/appStore'
 import { useAgentChatStore } from './store/agentChatStore'
 import { AgentSidebar } from './components/AgentSidebar'
 import { ChatPanel } from './components/ChatPanel'
-import { AgentFlowPane } from './components/AgentFlowPane'
+import { AgentChatFlowPanel } from './components/AgentChatFlowPanel'
+import { StudioInspector, type InspectorPanel } from './studio/StudioInspector'
 import { FileViewerPane } from './components/FileViewerPane'
 import { useFileViewerStore } from './store/fileViewerStore'
 import { useArtifactsStore } from './store/artifactsStore'
@@ -16,6 +17,11 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { MemoryGraphTab } from './memory-graph/components/MemoryGraphTab'
 import { VaultTab } from './vault/components/VaultTab'
 import { SkillsTab } from './components/SkillsTab'
+import { McpTab } from './components/McpTab'
+import { PluginsTab } from './components/PluginsTab'
+import { DriveTab } from './components/DriveTab'
+import CronTab from './components/CronTab'
+import { NotesTab } from './notes/NotesTab'
 import { SessionsPanel } from './components/SessionsPanel'
 import { TasksPanel } from './components/TasksPanel'
 import { ObservabilityTab } from './components/ObservabilityTab'
@@ -23,7 +29,6 @@ import { ConciliumTab } from './components/ConciliumTab'
 import { ChannelsDashboard } from './components/ChannelsDashboard'
 import { AgentLogDrawer } from './components/AgentLogDrawer'
 import { InsightsTab } from './insights/InsightsTab'
-import { LiveTopologyHUD } from './topology/LiveTopologyHUD'
 import { CommandPalette } from './components/CommandPalette'
 import { NotificationBell, NotificationCenter } from './components/NotificationCenter'
 import { ConnectionStatus } from './components/ConnectionStatus'
@@ -31,22 +36,8 @@ import { MasterProgressPill } from './components/MasterProgressPill'
 import SpeakingSphere from './components/SpeakingSphere'
 import { useWindowsStore } from './store/windowsStore'
 import { useWebSocket } from './hooks/useWebSocket'
-import {
-  ChatBubbleLeftRightIcon,
-  UsersIcon,
-  ClipboardDocumentListIcon,
-  ChartBarIcon,
-  EyeIcon,
-  ScaleIcon,
-  CircleStackIcon,
-  ArchiveBoxIcon,
-  PuzzlePieceIcon,
-  Bars3Icon,
-  SignalIcon,
-  PlusIcon,
-  Squares2X2Icon,
-  FolderOpenIcon,
-} from '@heroicons/react/24/outline'
+import { PanelLeft as Bars3Icon, Search as MagnifyingGlassIcon, PanelRight as UsersIcon } from 'lucide-react'
+import { NAV_SECTIONS, StudioNavigation } from './studio/StudioNavigation'
 
 function Workspace() {
   // Establish persistent WebSocket connection for real-time events
@@ -57,7 +48,9 @@ function Workspace() {
   const openWindows = useWindowsStore((s) => s.windows)
   const closeWindow = useWindowsStore((s) => s.closeWindow)
   const selectedFlowAgent = useAgentChatStore((s) => s.selectedLogAgent)
-  const setSelectedFlowAgent = useAgentChatStore((s) => s.setSelectedLogAgent)
+  const openFlowAgents = useAgentChatStore((s) => s.openLogAgents)
+  const closeFlowAgent = useAgentChatStore((s) => s.closeLogAgent)
+  const flowFocusVersion = useAgentChatStore((s) => s.focusVersion)
   const selectedFile = useFileViewerStore((s) => s.selectedFile)
   const artifactsOpen = useArtifactsStore((s) => s.open)
   const workspaceOpen = useWorkspaceStore((s) => s.open)
@@ -67,144 +60,37 @@ function Workspace() {
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true
   )
 
-  type NavItem = { id: ReturnType<typeof useAppStore.getState>['activeTab']; label: string; icon: typeof ChatBubbleLeftRightIcon }
-  const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
-    {
-      title: 'Primary',
-      items: [
-        { id: 'chat', label: 'Chat', icon: ChatBubbleLeftRightIcon },
-        { id: 'agents', label: 'Agents', icon: UsersIcon },
-        { id: 'tasks', label: 'Tasks', icon: ClipboardDocumentListIcon },
-      ],
-    },
-    {
-      title: 'Insights',
-      items: [
-        { id: 'insights', label: 'Insights', icon: ChartBarIcon },
-        { id: 'observability', label: 'Observability', icon: EyeIcon },
-        { id: 'concilium', label: 'Concilium', icon: ScaleIcon },
-      ],
-    },
-    {
-      title: 'Knowledge',
-      items: [
-        { id: 'graph', label: 'Memory', icon: CircleStackIcon },
-        { id: 'vault', label: 'Vault', icon: ArchiveBoxIcon },
-        { id: 'skills', label: 'Skills', icon: PuzzlePieceIcon },
-      ],
-    },
-    {
-      title: 'Comms',
-      items: [
-        { id: 'sessions', label: 'Sessions', icon: Bars3Icon },
-        { id: 'channels', label: 'Channels', icon: SignalIcon },
-      ],
-    },
-  ]
-
-  function AppSidebar() {
-    return (
-      <aside
-        className={[
-          'flex flex-col bg-zinc-900 border-r border-zinc-700 flex-shrink-0 overflow-y-auto transition-all',
-          sidebarExpanded ? 'w-56' : 'w-14',
-        ].join(' ')}
-      >
-        {/* Chat actions */}
-        <div className="p-2 flex flex-col gap-1">
-          <button
-            onClick={newSession}
-            title="New session"
-            className={[
-              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-zinc-200 bg-zinc-700 hover:bg-zinc-600 border border-zinc-600 transition-colors',
-              sidebarExpanded ? 'justify-start' : 'justify-center',
-            ].join(' ')}
-          >
-            <PlusIcon className="w-4 h-4 flex-shrink-0" />
-            {sidebarExpanded && <span>NEW</span>}
-          </button>
-          <button
-            onClick={() => useArtifactsStore.getState().toggle()}
-            title="Artifacts"
-            className={[
-              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors',
-              sidebarExpanded ? 'justify-start' : 'justify-center',
-            ].join(' ')}
-          >
-            <Squares2X2Icon className="w-4 h-4 flex-shrink-0" />
-            {sidebarExpanded && <span>ARTIFACTS</span>}
-          </button>
-          <button
-            onClick={() => useWorkspaceStore.getState().toggle()}
-            title="Workspace"
-            className={[
-              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors',
-              sidebarExpanded ? 'justify-start' : 'justify-center',
-            ].join(' ')}
-          >
-            <FolderOpenIcon className="w-4 h-4 flex-shrink-0" />
-            {sidebarExpanded && <span>WORKSPACE</span>}
-          </button>
-        </div>
-
-        {/* Nav sections */}
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="px-2 pb-2">
-            {sidebarExpanded && (
-              <div className="px-2 pt-2 pb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-                {section.title}
-              </div>
-            )}
-            <div className="flex flex-col gap-0.5">
-              {section.items.map((item) => {
-                const Icon = item.icon
-                const active = tab === item.id
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setTab(item.id)}
-                    title={item.label}
-                    className={[
-                      'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider transition-colors border-l-2',
-                      sidebarExpanded ? 'justify-start' : 'justify-center',
-                      active
-                        ? 'bg-zinc-800 text-[#FFB633] border-l-[#FFB633]'
-                        : 'text-zinc-400 border-l-transparent hover:text-[#FFB633] hover:bg-zinc-800/50',
-                    ].join(' ')}
-                  >
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    {sidebarExpanded && <span>{item.label}</span>}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* Collapse toggle */}
-        <div className="mt-auto p-2 border-t border-zinc-700">
-          <button
-            onClick={() => setSidebarExpanded((v) => !v)}
-            title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-            aria-label={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-            className={[
-              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-mono text-zinc-400 hover:text-[#FFB633] transition-colors w-full',
-              sidebarExpanded ? 'justify-start' : 'justify-center',
-            ].join(' ')}
-          >
-            <Bars3Icon className="w-4 h-4 flex-shrink-0" />
-            {sidebarExpanded && <span>Collapse</span>}
-          </button>
-        </div>
-      </aside>
-    )
+  const [teamOpen, setTeamOpen] = useState(() => window.matchMedia('(min-width: 1200px)').matches)
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (window.matchMedia('(max-width: 700px)').matches) setSidebarExpanded(false)
+      if (window.matchMedia('(max-width: 1000px)').matches) setTeamOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+  const currentSection = NAV_SECTIONS.flatMap(section => section.items).find(item => item.id === tab)
+  const navigate = (next: typeof tab) => {
+    setTab(next)
+    if (window.matchMedia('(max-width: 700px)').matches) setSidebarExpanded(false)
   }
+  const startConversation = () => { newSession(); navigate('chat') }
+  const inspectors: InspectorPanel[] = []
+  for (const agent of openFlowAgents) inspectors.push({ id: `flow-${agent}`, label: `${agent} flow`, identity: agent, group: 'flow',
+    close: () => closeFlowAgent(agent), content: <AgentChatFlowPanel agentName={agent} onClose={() => closeFlowAgent(agent)} /> })
+  if (artifactsOpen) inspectors.push({ id: 'artifacts', label: 'Artifacts', identity: true,
+    close: () => useArtifactsStore.getState().close(), content: <ArtifactsPanel /> })
+  if (workspaceOpen) inspectors.push({ id: 'workspace', label: 'Workspace files', identity: true,
+    close: () => useWorkspaceStore.getState().close(), content: <WorkspacePanel /> })
+  if (selectedFile) inspectors.push({ id: 'file', label: 'File preview', identity: selectedFile.path,
+    close: () => useFileViewerStore.getState().closeFile(), content: <FileViewerPane /> })
 
   // Single render tree — all tabs stay mounted; inactive tabs are hidden via display:none
   // This preserves React state (e.g. ChatPanel input) across tab switches.
   return (
     <div
-      className="flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden"
+      className="studio-shell flex flex-col text-zinc-100 overflow-hidden"
       style={{ height: '100dvh', minHeight: '100dvh' }}
     >
 
@@ -219,54 +105,42 @@ function Workspace() {
         />
       ))}
 
-      {/* ── Unified header (top bar) ── */}
-      <header className="flex items-center gap-3 px-4 py-2 bg-zinc-900 border-b border-zinc-700 flex-shrink-0">
-        <SpeakingSphere />
-        <span className="font-mono font-bold text-[#FFB633] tracking-widest text-sm uppercase">&gt; YAPOC</span>
-        <div className="flex-1" />
-        <MasterProgressPill />
-        <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-          title="Command palette (Ctrl+K)"
-          aria-label="Open command palette"
-          className="px-2 py-1.5 text-xs font-mono text-zinc-400 border border-zinc-700 hover:text-[#FFB633] hover:border-[#FFB633] transition-colors flex-shrink-0 whitespace-nowrap"
-        >
-          ⌘K
-        </button>
-        <ConnectionStatus showAge={false} />
-        <NotificationBell onClick={() => setNotificationsOpen(true)} />
-        <ThemeToggle />
-      </header>
-
-      {/* ── App shell: sidebar rail + main content ── */}
-      <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-        <AppSidebar />
-        <div className="flex-1 flex flex-col overflow-hidden" style={{ minWidth: 0 }}>
-
+      <div className="studio-body">
+        <StudioNavigation expanded={sidebarExpanded} tab={tab}
+          onToggle={() => setSidebarExpanded(v => !v)} onNavigate={navigate} onNew={startConversation}
+          artifactsOpen={artifactsOpen} workspaceOpen={workspaceOpen}
+          onArtifacts={() => { navigate('chat'); useArtifactsStore.getState().toggle() }}
+          onWorkspace={() => { navigate('chat'); useWorkspaceStore.getState().toggle() }} />
+        <div className="studio-main">
+          <header className="studio-header">
+            <button className="studio-icon-button studio-menu-toggle" onClick={() => setSidebarExpanded(v => !v)}
+              aria-label="Toggle navigation" aria-expanded={sidebarExpanded} aria-controls="studio-navigation"><Bars3Icon /></button>
+            <div className="studio-page-title"><span>Workspace <span aria-hidden="true">/</span></span><strong>{currentSection?.label ?? 'Conversation'}</strong></div>
+            <div className="studio-header-progress"><SpeakingSphere /><MasterProgressPill /></div>
+            <div className="studio-header-actions">
+              <button className="studio-search" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                title="Search commands (Ctrl+K)" aria-label="Open command palette"><MagnifyingGlassIcon /><span>Commands</span><kbd>{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} K</kbd></button>
+              <ConnectionStatus showAge={false} />
+              <NotificationBell onClick={() => setNotificationsOpen(true)} />
+              <ThemeToggle />
+              {tab === 'chat' && <button className="studio-icon-button studio-team-toggle" onClick={() => setTeamOpen(v => !v)}
+                title={teamOpen ? 'Hide agent team' : 'Show agent team'} aria-label={teamOpen ? 'Hide agent team' : 'Show agent team'} aria-pressed={teamOpen}><UsersIcon /></button>}
+            </div>
+          </header>
 
       {/* ── Chat tab content — always mounted, hidden when inactive ── */}
       <div
         className="flex flex-1 overflow-hidden"
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
-        {/* Chat + agent-flow tile in one row: ChatPanel (flex-1) shrinks to make
-            room for the flow pane, and the draggable seam between them sets the
-            ratio. */}
-        <main className="flex-1 flex flex-row overflow-hidden relative" style={{ minWidth: 0 }}>
-          <div className="flex-1 min-w-0 h-full">
+        <main className="studio-conversation-layout flex-1 flex flex-row overflow-hidden relative" data-inspecting={inspectors.length > 0} style={{ minWidth: 0 }}>
+          <div className="studio-conversation-content flex-1 min-w-0 h-full">
             <ChatPanel />
           </div>
-          {selectedFlowAgent && (
-            <AgentFlowPane
-              agentName={selectedFlowAgent}
-              onClose={() => setSelectedFlowAgent(null)}
-            />
-          )}
-          {artifactsOpen && <ArtifactsPanel />}
-          {workspaceOpen && <WorkspacePanel />}
-          {selectedFile && <FileViewerPane />}
+          <StudioInspector panels={inspectors} focusId={selectedFlowAgent ? `flow-${selectedFlowAgent}` : undefined} focusVersion={flowFocusVersion} />
         </main>
-        <AgentSidebar />
+        {teamOpen && <button className="studio-team-scrim" aria-label="Close agent team" onClick={() => setTeamOpen(false)} />}
+        <div className="studio-team-slot" data-open={teamOpen}><AgentSidebar onClose={() => setTeamOpen(false)} /></div>
       </div>
 
       {/* ── Agents tab ── */}
@@ -349,11 +223,44 @@ function Workspace() {
         <SkillsTab />
       </div>
 
-        </div>
+      {/* ── MCP tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'mcp' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <McpTab />
       </div>
 
-      {/* ── Live topology HUD — pinned below every tab ── */}
-      <LiveTopologyHUD />
+      {/* ── Plugins tab ── */}
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'notes' ? 'flex' : 'none', minHeight: 0 }}>
+        <NotesTab />
+      </div>
+
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'plugins' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <PluginsTab />
+      </div>
+
+      {/* ── Cron tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'cron' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <CronTab />
+      </div>
+
+      {/* ── Drive tab ── */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{ display: tab === 'drive' ? 'flex' : 'none', minHeight: 0 }}
+      >
+        <DriveTab />
+      </div>
+
+        </div>
+      </div>
 
       {/* ── Global overlays ── */}
       <CommandPalette />

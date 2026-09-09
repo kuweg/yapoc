@@ -157,7 +157,21 @@ class MessageBoundary:
     pass  # no payload — the boundary itself carries the signal
 
 
-StreamEvent = TextDelta | ThinkingDelta | ToolStart | ToolDone | TurnComplete | UsageStats | CompactEvent | MessageBoundary
+@dataclass
+class ModelSwapped:
+    """Emitted when an agent's model binding changed mid-task.
+
+    A hot swap (see ``BaseAgent.run_stream_with_tools``) rebinds the running
+    agent to a new provider between turns. The UI shows the active model in
+    each agent's title, so it needs to hear about the change the moment it
+    happens rather than on its next poll.
+    """
+    agent: str
+    adapter: str
+    model: str
+
+
+StreamEvent = TextDelta | ThinkingDelta | ToolStart | ToolDone | TurnComplete | UsageStats | CompactEvent | MessageBoundary | ModelSwapped
 
 
 class BaseLLMAdapter(ABC):

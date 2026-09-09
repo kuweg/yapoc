@@ -10,15 +10,18 @@
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 
-adapter: openai
-model: gpt-5.6-terra
+adapter: codex
+model: gpt-5.3-codex
 temperature: 1.0
 tools:
+  - plugin:gmail:*
+  - delegate_task
   - file_read
   - file_write
   - file_edit
   - file_delete
   - file_list
+  - list_tools
   - shell_exec
   - grep
   - search_negative_knowledge
@@ -36,6 +39,13 @@ tools:
   - notes_append
   - health_log
   - execute_code
+  - git_status
+  - git_diff
+  - git_log
+  - git_show
+  - git_commit
+  - git_branch
+  - git_restore
 delegation_targets:
   - keeper
 sandbox:

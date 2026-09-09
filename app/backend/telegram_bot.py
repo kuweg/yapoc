@@ -33,6 +33,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from app.backend.services.voice_service import get_stt_engine, get_tts_engine
+from app.backend.services.uploads import store_upload
 
 # ── Constants ──────────────────────────────────────────────────────────────
 
@@ -2442,6 +2443,13 @@ class TelegramBot:
             media_path = settings.project_root / "data" / "telegram_media" / f"{task_id}_{media_filename}"
             media_path.parent.mkdir(parents=True, exist_ok=True)
             media_path.write_bytes(media_file)
+            # Also register the file in the Workspace (uploads store) so it
+            # appears in the Workspace panel automatically.
+            try:
+                rec = store_upload(media_filename, media_file, owner="local")
+                logger.info("Telegram bot: registered media in workspace: {}", media_filename)
+            except Exception as _we:
+                logger.warning("Telegram bot: workspace registration failed for {}: {}", media_filename, _we)
             metadata_parts["media_path"] = str(media_path)
             metadata_parts["media_type"] = media_type
             metadata_parts["media_filename"] = media_filename

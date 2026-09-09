@@ -1,3 +1,4 @@
+import { Bell as BellIcon } from 'lucide-react'
 /**
  * Unified Notification Centre.
  *
@@ -234,11 +235,11 @@ export function NotificationBell({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="relative px-2 py-1 text-xs font-mono border border-zinc-600 bg-zinc-700 text-zinc-200 hover:bg-zinc-600"
+      className="studio-icon-button relative"
       aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
       title="Notifications"
     >
-      BELL
+      <BellIcon />
       {count > 0 && (
         <span
           className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full text-[12px] font-mono leading-[14px] text-center"

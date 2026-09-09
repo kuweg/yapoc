@@ -284,6 +284,66 @@ def touch_accessed(file_id: str) -> None:
             _save_index(index)
 
 
+def delete_upload(file_id: str, owner: Optional[str] = None) -> bool:
+    """Remove an upload record and its stored file, thumbnail and vision cache.
+
+    Owner-scoped (mirrors ``resolve_upload``); index removal is the source of
+    truth and on-disk unlink failures are ignored. Returns True if removed.
+    """
+    with _lock:
+        index = _load_index()
+        rec = index.get(file_id)
+        if not rec:
+            return False
+        if owner is not None and rec.get("owner") not in (owner, None, ""):
+            return False
+        del index[file_id]
+        _save_index(index)
+
+    stored = upload_path(rec)
+    if stored.exists():
+        try:
+            stored.unlink()
+        except OSError:
+            pass
+
+    thumb = _root() / ".thumbs" / f"{file_id}.jpg"
+    if thumb.exists():
+        try:
+            thumb.unlink()
+        except OSError:
+            pass
+
+    vision = _root() / ".vision" / f"{file_id}.txt"
+    if vision.exists():
+        try:
+            vision.unlink()
+        except OSError:
+            pass
+
+    return True
+
+
+def rename_upload(file_id: str, new_name: str, owner: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Rename an upload's display name (owner-scoped). Returns the updated record
+    or None if the file is missing or not owned. The on-disk file keeps its
+    stored path; only the display ``name`` (and ``original_name``) change."""
+    new_name = (new_name or "").strip()
+    if not new_name:
+        return None
+    with _lock:
+        index = _load_index()
+        rec = index.get(file_id)
+        if not rec:
+            return None
+        if owner is not None and rec.get("owner") not in (owner, None, ""):
+            return None
+        rec["name"] = new_name
+        rec["original_name"] = new_name
+        _save_index(index)
+        return dict(rec)
+
+
 # ── message injection (Phase 1 — image_read marker path + inline text) ───────
 TEXT_BUDGET = 24_000  # total inlined chars across all attachments in one message
 PDF_MAX_PAGES = 100  # bound CPU/work for malformed or unusually large PDFs

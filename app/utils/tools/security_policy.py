@@ -40,6 +40,11 @@ RISKY_TOOLS: frozenset[str] = frozenset({
     "agent_amnesia",
     "kill_agent",
     "update_config",
+    # git_restore overwrites working-tree files from a commit, destroying
+    # uncommitted work in the paths it names. The other git tools are either
+    # read-only (status/diff/log/show) or additive and reversible
+    # (commit/branch), so they are not gated.
+    "git_restore",
 })
 
 # Tools that act on the OUTSIDE WORLD as the user: sending mail, creating
@@ -175,6 +180,22 @@ def _has_critical_suffix(raw: str) -> bool:
     # prefix (and `..` segments) without that hazard.
     n = _normalize_path(raw)
     return any(n.endswith(suf) for suf in _CRITICAL_PATH_SUFFIXES)
+
+
+def _as_path_list(raw: object) -> list[str]:
+    """Coerce a tool's ``paths`` param into a list of strings.
+
+    The git tools take a list where the file tools take a single ``path``.
+    A matcher that assumed one shape would silently never fire on the other,
+    which in a deny rule reads as "allowed".
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw]
+    if isinstance(raw, (list, tuple)):
+        return [str(item) for item in raw]
+    return [str(raw)]
 
 
 def _under_security_dir(raw: str) -> bool:
@@ -346,6 +367,17 @@ HARDCODED_DENY: tuple[Rule, ...] = (
         tool="file_edit",
         matcher=lambda p: _under_security_dir(str(p.get("path", ""))),
         reason="edit of security agent file",
+        category="self_destruction",
+    ),
+    # Restoring security/PROMPT.MD from an older commit rewrites the gate just
+    # as effectively as editing it — and would slip past the two rules above,
+    # which only know about file_write/file_edit. Same lock, different verb.
+    Rule(
+        tool="git_restore",
+        matcher=lambda p: any(
+            _under_security_dir(str(item)) for item in _as_path_list(p.get("paths"))
+        ),
+        reason="restore of security agent file from git",
         category="self_destruction",
     ),
     # NOTE: critical config files (settings.py, .env, agent-settings.json,

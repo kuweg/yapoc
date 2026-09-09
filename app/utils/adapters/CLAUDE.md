@@ -22,8 +22,9 @@ TurnComplete(stop_reason, tool_calls, assistant_content)
 UsageStats(input_tokens, output_tokens, tokens_per_second, context_window,
            cache_creation_tokens, cache_read_tokens)
 CompactEvent(reason, tokens_before, tokens_after)
+ModelSwapped(agent, adapter, model)   # emitted when a hot swap rebinds a running agent
 
-StreamEvent = TextDelta | ToolStart | ToolDone | TurnComplete | UsageStats | CompactEvent
+StreamEvent = TextDelta | ToolStart | ToolDone | TurnComplete | UsageStats | CompactEvent | ModelSwapped
 ```
 
 ## BaseLLMAdapter interface

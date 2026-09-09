@@ -1,24 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
-// Pricing: [input_per_1M_tokens, output_per_1M_tokens] in USD
-// Mirrors app/utils/adapters/models/anthropic.py ALL_PRICING
-const PRICING: Record<string, [number, number]> = {
-  'claude-opus-4-6': [5.0, 25.0],
-  'claude-sonnet-4-6': [3.0, 15.0],
-  'claude-haiku-4-5-20251001': [1.0, 5.0],
-  'claude-sonnet-4-5-20250929': [3.0, 15.0],
-  'claude-opus-4-5-20251101': [5.0, 25.0],
-  'claude-opus-4-1-20250805': [15.0, 75.0],
-  'claude-sonnet-4-20250514': [3.0, 15.0],
-  'claude-opus-4-20250514': [15.0, 75.0],
-}
-
-function calcCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = PRICING[model]
-  if (!pricing) return 0
-  const [inRate, outRate] = pricing
-  return (inputTokens * inRate + outputTokens * outRate) / 1_000_000
-}
+import { getModels } from '../api/client'
+import type { ModelEntry } from '../api/types'
 
 /** Number of block characters for the ASCII progress bar */
 const PROGRESS_BAR_WIDTH = 12
@@ -29,8 +12,8 @@ const PROGRESS_BAR_WIDTH = 12
  * Green (< 50%), yellow (50-80%), red (> 80%).
  */
 function ProgressBar({ pct }: { pct: number }) {
-  const filled = Math.round((pct / 100) * PROGRESS_BAR_WIDTH)
   const clamped = Math.min(100, Math.max(0, pct))
+  const filled = Math.round((clamped / 100) * PROGRESS_BAR_WIDTH)
   const colorClass =
     clamped >= 80 ? 'text-red-400' : clamped >= 50 ? 'text-yellow-400' : 'text-green-400'
 
@@ -94,14 +77,38 @@ function tokenColorClass(pct: number): string {
 
 interface CostBarProps {
   model: string
+  adapter?: string
+  agentName?: string
+  hideAgent?: boolean
   inputTokens: number
   outputTokens: number
   tokensPerSecond: number
   contextWindow: number
+  estimated?: boolean
+  inputKnown?: boolean
+  showModel?: boolean
+  outputKnown?: boolean
+  compact?: boolean
 }
 
-export function CostBar({ model, inputTokens, outputTokens, tokensPerSecond, contextWindow }: CostBarProps) {
-  const cost = calcCost(model, inputTokens, outputTokens)
+export function CostBar({ model, adapter, agentName = 'master', hideAgent = false, inputTokens, outputTokens, tokensPerSecond, contextWindow, estimated = false, inputKnown = true, outputKnown = true, showModel = false, compact = false }: CostBarProps) {
+  const [catalog, setCatalog] = useState<{adapter: string; entry: ModelEntry}[]>([])
+  useEffect(() => {
+    let active = true
+    getModels().then(result => {
+      if (active) setCatalog(result.adapters.flatMap(a => a.models.map(entry => ({ adapter: a.name, entry }))))
+    }).catch(() => { if (active) setCatalog([]) })
+    return () => { active = false }
+  }, [model, adapter])
+  const entry = catalog.find(row => row.entry.id === model && (!adapter || row.adapter === adapter))?.entry
+  // A catalog record without provenance is historical, not a verified current quote.
+  const known = entry?.pricing_verified_at && Number.isFinite(entry.input_price) && Number.isFinite(entry.output_price)
+  const cost = known && inputKnown
+    ? (inputTokens * entry!.input_price! + outputTokens * entry!.output_price!) / 1_000_000
+    : null
+  const priceTitle = cost == null
+    ? 'Verified pricing unavailable for this model, or input usage not reported yet'
+    : `Base-rate estimate (uncached input). ${entry?.pricing_notes || ''} Verified ${entry?.pricing_verified_at}. ${entry?.pricing_source}`
   const totalTokens = inputTokens + outputTokens
   const ctxPct = contextWindow > 0 ? (totalTokens / contextWindow) * 100 : 0
 
@@ -112,29 +119,24 @@ export function CostBar({ model, inputTokens, outputTokens, tokensPerSecond, con
   const colorCls = tokenColorClass(ctxPct)
 
   return (
-    <div className="px-4 py-2 border-t border-zinc-700 bg-zinc-900 flex items-center gap-3 text-xs flex-shrink-0 flex-wrap">
-      <span className="text-purple-400 font-semibold">[master]</span>
+    <div data-testid="live-usage" data-estimated={estimated} title="Latest model response. Streaming estimates use roughly four characters per token; provider counts replace them when available." className={`usage-bar ${compact ? 'usage-bar-compact' : 'px-4 py-2 border-t border-zinc-700 bg-zinc-900'} flex items-center gap-3 text-xs flex-shrink-0 flex-wrap`}>
+      {!hideAgent && <span className="text-purple-400 font-semibold">[{agentName}]</span>}
+      {showModel && <span className="usage-model" title={model || 'Model loading'}>[{model || 'model loading…'}]</span>}
 
-      <span className={colorCls}>{(animInput / 1000).toFixed(1)}k in</span>
+      <span className={colorCls} data-testid="usage-input">{inputKnown ? `${estimated ? "≈" : ""}${(animInput / 1000).toFixed(1)}k` : "—"} in</span>
       <span className="text-zinc-600">·</span>
-      <span className={colorCls}>{(animOutput / 1000).toFixed(1)}k out</span>
-
-      {tokensPerSecond > 0 && (
-        <>
-          <span className="text-zinc-600">·</span>
-          <span className="text-zinc-500">{tokensPerSecond.toFixed(0)} tok/s</span>
-        </>
-      )}
+      <span className={colorCls} data-testid="usage-output">{outputKnown ? `${estimated ? "≈" : ""}${animOutput < 1000 ? Math.round(animOutput) : `${(animOutput / 1000).toFixed(1)}k`}` : '—'} out</span>
 
       <span className="text-zinc-600">·</span>
-      <span className="text-zinc-400">${cost.toFixed(4)}</span>
+      <span className="text-zinc-500" data-testid="usage-speed">{tokensPerSecond > 0 ? `${estimated ? '≈' : ''}${tokensPerSecond.toFixed(0)}` : '—'} tok/s</span>
 
-      {ctxPct > 0 && (
-        <>
-          <span className="text-zinc-600">·</span>
-          <ProgressBar pct={ctxPct} />
-        </>
-      )}
+      <span className="text-zinc-600">·</span>
+      <span className="text-zinc-400" data-testid="usage-cost" title={priceTitle}>{cost == null ? "Cost —" : `≈$${cost.toFixed(4)}`}</span>
+
+      <span className="text-zinc-600">·</span>
+      <span data-testid="usage-context" title={contextWindow > 0 ? 'Context usage; streaming uses the last reported input as an estimate until updated by the provider' : 'Context usage not reported yet'}>
+        {contextWindow > 0 ? <>{estimated && '≈'}<ProgressBar pct={ctxPct} /></> : <span className="font-mono text-zinc-500">[░░░░░░░░░░░░] —</span>}
+      </span>
     </div>
   )
 }

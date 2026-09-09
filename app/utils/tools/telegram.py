@@ -145,3 +145,75 @@ class SendTelegramMediaTool(BaseTool):
             return f"✅ Telegram {media_type} sent to chat {chat_id} (message_id: {msg_id})"
         except Exception as exc:
             return f"ERROR: send_telegram_media failed — {exc}"
+
+
+class SendTelegramVoiceTool(BaseTool):
+    name = "send_telegram_voice"
+    description = (
+        "Synthesize text into a spoken voice message (OpenAI onyx TTS) and send it "
+        "proactively to the user via Telegram as a voice note. Use this to speak to "
+        "the user on your own initiative — e.g. announce task completion, alerts, or "
+        "anything the user should hear. Only works if the Telegram bot is configured."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "text": {
+                "type": "string",
+                "description": "The text to speak",
+            },
+            "voice": {
+                "type": "string",
+                "description": "TTS voice; defaults to settings.openai_tts_voice or 'onyx'",
+            },
+            "speed": {
+                "type": "number",
+                "default": 1.0,
+                "description": "Speech speed",
+            },
+            "reply_to_message_id": {
+                "type": "integer",
+                "description": "Optional message ID to reply to",
+            },
+        },
+        "required": ["text"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        text = params.get("text", "").strip()
+        if not text:
+            return "ERROR: send_telegram_voice failed — text is required"
+
+        try:
+            from app.backend.telegram_bot import get_telegram_bot_instance
+
+            bot = get_telegram_bot_instance()
+            if bot is None:
+                return "ERROR: Telegram bot is not configured or not running"
+
+            all_authorized = bot._auth._authorized_chats | bot._auth._whitelist
+            if not all_authorized:
+                return "ERROR: No authorized Telegram chats found — user has not authenticated"
+
+            chat_id = next(iter(all_authorized))
+            reply_to = params.get("reply_to_message_id")
+
+            from app.backend.services.voice_service import get_tts_engine
+
+            tts = get_tts_engine()
+            voice = params.get("voice") or settings.openai_tts_voice or "onyx"
+            speed = float(params.get("speed", 1.0))
+            # Use mp3 + sendAudio (not opus + sendVoice): Telegram voice notes
+            # (sendVoice) are rejected with VOICE_MESSAGES_FORBIDDEN for this bot,
+            # while audio files (sendAudio) are delivered reliably.
+            audio = tts.synthesize(text=text, engine="openai", voice=voice, speed=speed, fmt="mp3")
+
+            if not audio:
+                return "ERROR: TTS returned empty audio"
+
+            msg_id = await bot.send_media(chat_id, "audio", audio, "voice.mp3", caption=None, reply_to_message_id=reply_to)
+            if msg_id is None:
+                return "ERROR: Failed to send Telegram voice message"
+            return f"✅ Telegram voice message sent to chat {chat_id} (message_id: {msg_id})"
+        except Exception as exc:
+            return f"ERROR: send_telegram_voice failed — {exc}"

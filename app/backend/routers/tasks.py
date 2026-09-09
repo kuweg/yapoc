@@ -101,6 +101,20 @@ async def get_task(task_id: str):
     return task
 
 
+@router.get("/tasks/{task_id}/evidence/{seq}")
+async def task_evidence(task_id: str, seq: int):
+    """Return a captured tool result, scoped to its exact execution ID."""
+    from fastapi.responses import PlainTextResponse
+    from app.utils.db import get_db
+    row = get_db().execute('SELECT payload FROM task_events WHERE task_id=? AND seq=?', (task_id, seq)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail='Evidence not found')
+    event = json.loads(row['payload'])
+    if event.get('type') != 'tool_done':
+        raise HTTPException(status_code=404, detail='Evidence not found')
+    return PlainTextResponse(str(event.get('result', '')), headers={'X-Content-Type-Options': 'nosniff'})
+
+
 @router.get("/sessions/{session_id}/events")
 async def get_session_events(
     session_id: str,
@@ -146,11 +160,21 @@ async def submit_task_stream(request: TaskRequest):
         raise HTTPException(409, "Task ID belongs to another session")
     if not row:
         from app.backend.services.notes import build_note_context
+        from app.backend.services.uploads import build_attachment_injection, resolve_file_refs_in_text
         note_context, notes = build_note_context(request.task, request.note_ids)
+        # Resolve attachment IDs from two sources: (1) the explicit `attachments`
+        # list the frontend sends, and (2) any `@file:<id>` / `@file:<name>`
+        # references embedded in the prompt text itself. The latter is a fallback
+        # for when the frontend failed to resolve a reference (e.g. a full
+        # `@file:<hex32>` pasted directly, which never populates the client's
+        # upload list) — the reference must still resolve to the real file.
+        attachment_ids: list[str] = list(request.attachments or [])
+        for fid in resolve_file_refs_in_text(request.task or "", owner="local"):
+            if fid not in attachment_ids:
+                attachment_ids.append(fid)
         suffix, attachments = "", []
-        if request.attachments:
-            from app.backend.services.uploads import build_attachment_injection
-            suffix, attachments = build_attachment_injection(request.attachments, owner="local")
+        if attachment_ids:
+            suffix, attachments = build_attachment_injection(attachment_ids, owner="local")
         row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context,
                                  source=request.source or "ui", session_id=session_id,
                                  metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "transport": "sse"}))
@@ -172,6 +196,8 @@ async def submit_task_stream(request: TaskRequest):
                     continue  # exhaust the final page before closing
                 if state["status"] != "done":
                     yield f'data: {json.dumps({"type": "error", "error": state.get("error") or state["status"]})}\n\n'
+                if state.get('structured_result'):
+                    yield f'data: {json.dumps({"type": "task_result", "result": state["structured_result"]})}\n\n'
                 yield "data: [DONE]\n\n"
                 return
             yield ": keepalive\n\n"

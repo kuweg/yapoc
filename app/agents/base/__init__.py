@@ -1181,10 +1181,15 @@ class BaseAgent:
                 tool=tc.name, params=dict(tc.input or {}), caller=self._name,
             )
         except Exception as _gate_exc:
-            _log.bind(agent=self._name, tool=tc.name).warning(
-                "security_gate error ({}) — defaulting to allow", _gate_exc,
-            )
-            _decision, _sec_reason = "allow", "gate-error"
+            if tc.name.startswith(("github_", "plugin:github:")):
+                _decision, _sec_reason = "deny", "GitHub security policy unavailable"
+            else:
+                _log.bind(agent=self._name, tool=tc.name).warning(
+                    "security_gate error ({}) — defaulting to allow", _gate_exc,
+                )
+                _decision, _sec_reason = "allow", "gate-error"
+        if tc.name.startswith(("github_", "plugin:github:")) and _decision != "allow":
+            _decision, _sec_reason = "deny", "GitHub security policy refused the action"
         if _decision == "deny":
             _block_msg = (
                 f"BLOCKED by security gate: {_sec_reason}. "

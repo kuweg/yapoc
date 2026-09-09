@@ -14,6 +14,14 @@ adapter: openai
 model: gpt-4.1-nano
 temperature: 0.2
 tools:
+  # GitHub read-only grants; keep synchronized with agent-settings.json.
+  - github_get_health_summary
+  - github_list_workflow_runs
+  - github_get_workflow_run
+  - github_list_workflow_jobs
+  - github_get_workflow_job_logs
+  - github_get_commit_checks
+  - github_get_commit_status
   - plugin:gmail:*
   - delegate_task
   - file_read

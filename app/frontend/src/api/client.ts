@@ -1,3 +1,4 @@
+import type { StructuredTaskResult } from '../api/types'
 import type { ActiveTimesResponse, AgentStatus, Attachment, ChannelsResponse, ChannelSessionMessagesResponse, CommandResponse, Message, ModelsResponse, TTSRequest, TTSVoicesResponse, STTResponse } from './types'
 
 export async function getAgents(): Promise<AgentStatus[]> {
@@ -26,6 +27,8 @@ export async function killAgent(name: string): Promise<{ status: string; name: s
 
 // ── Task queue (live task tracking) ──────────────────────────────────────────
 export interface QueuedTask {
+  structured_result?: StructuredTaskResult
+
   id: string
   prompt: string
   status: string // pending | running | done | error | blocked | cancelled

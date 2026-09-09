@@ -22,13 +22,13 @@ class MCPServerConfig:
     transport: str = "stdio"  # "stdio" | "sse" | "websocket"
     command: str = ""  # required for stdio transport
     args: list[str] = field(default_factory=list)
-    env: dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict, repr=False)
     url: str = ""  # required for sse/websocket transport
     tools_allowlist: list[str] = field(default_factory=lambda: ["*"])
     resources_allowlist: list[str] = field(default_factory=lambda: ["*"])
     auth: str = "none"  # "none" | "api_key" | "token"
-    api_key: str = ""
-    token: str = ""
+    api_key: str = field(default="", repr=False)
+    token: str = field(default="", repr=False)
     timeout_s: int = 30
     enabled: bool = True
     auto_reconnect: bool = True

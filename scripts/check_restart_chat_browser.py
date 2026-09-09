@@ -31,8 +31,12 @@ async def check(dist: Path, screenshot: Path):
     now = '2026-09-05T13:24:03Z'
     def result(number=1, owner='chat-a'):
         return {'id': f'resume-{number}', 'task_id': f'resume-{number}', 'source': 'resume',
-                'status': 'done', 'session_id': owner, 'created_at': now, 'completed_at': now,
+                'status': 'done', 'prompt': 'Verify task outcome', 'session_id': owner, 'created_at': now, 'completed_at': now,
                 'result': f'Restart complete. Belgrade forecast delivery {number}.',
+                'structured_result': {'schema_version': 1, 'task_id': f'resume-{number}', 'status': 'succeeded',
+                    'summary': 'Runtime outcome', 'changes': {'files': ['forecast.md']},
+                    'verification_status': 'checks_passed', 'verification': [{'command': 'pytest tests/', 'status': 'passed', 'exit_code': 0, 'evidence_event_seq': number, 'evidence_url': ''}],
+                    'artifacts': [], 'usage': {'input_tokens': 12, 'output_tokens': 0, 'estimated_cost_usd': None, 'scope': 'Direct task stream'}, 'limitations': []},
                 'metadata': json.dumps({'messages': [f'Restart complete. Belgrade forecast delivery {number}.']})}
     def global_tasks():
         if phase == 1:
@@ -43,6 +47,14 @@ async def check(dist: Path, screenshot: Path):
         return []
     async def api(route):
         path = urlsplit(route.request.url).path
+        if phase == 5 and path == '/api/task/stream' and route.request.method == 'POST':
+            request = route.request.post_data_json
+            outcome = result(5)['structured_result']
+            outcome['task_id'] = request['task_id']
+            wire = ''.join('data: ' + json.dumps(e) + '\n\n' for e in [
+                {'type': 'text', 'text': 'Live structured answer'}, {'type': 'task_result', 'result': outcome}]) + 'data: [DONE]\n\n'
+            await route.fulfill(content_type='text/event-stream', body=wire)
+            return
         if route.request.method not in {'GET', 'HEAD'}:
             # The scenario starts with the already persisted pre-restart turn.
             raise AssertionError(f'Unexpected mutation: {route.request.method} {path}')
@@ -92,6 +104,7 @@ async def check(dist: Path, screenshot: Path):
                     {'role': 'assistant', 'content': 'Service is restarting now'}]},
                 {'id': 'chat-b', 'name': 'Other chat', 'createdAt': now, 'history': []}], 'activeId': 'chat-a'}, 'version': 1}
             await context.add_init_script('''(value => {
+              localStorage.setItem('yapoc-voice-settings', JSON.stringify({state:{voiceEnabled:false,voiceAutoSpeak:false},version:0}));
               if (!localStorage.getItem('yapoc-sessions')) localStorage.setItem('yapoc-sessions', JSON.stringify(value));
             })(''' + json.dumps(initial) + ')')
             page = await context.new_page()
@@ -108,6 +121,14 @@ async def check(dist: Path, screenshot: Path):
             await expect(chat.get_by_text(result()['result'], exact=True)).to_be_visible()
             await page.reload()
             await expect(chat.get_by_text(result()['result'], exact=True)).to_have_count(1, timeout=15000)
+            card = chat.get_by_test_id('structured-result-card')
+            await expect(card).to_have_count(1)
+            await card.locator('summary').click()
+            await expect(card.get_by_text('forecast.md', exact=True)).to_be_visible()
+            await expect(card.get_by_role('link', name='View log')).to_have_attribute('href', '/api/tasks/resume-1/evidence/1')
+            await expect(card.get_by_text('12 input tokens · 0 output tokens · Cost unknown', exact=True)).to_be_visible()
+            await card.locator('summary').click()
+            print('PASS: structured evidence card survives reload with unknown cost and zero output intact')
             print('PASS: restart disconnect, missed completion replay, normal chat bubble, reload without duplication')
 
             async def switch_chat(sid):
@@ -160,6 +181,27 @@ async def check(dist: Path, screenshot: Path):
             await subscribed('chat-a', mark)
             await expect(chat.get_by_text(result(3)['result'], exact=True)).to_have_count(0)
             print('PASS: delivery receipts prevent replay after display history is trimmed')
+            phase = 1
+            await page.get_by_role('button', name='Tasks', exact=True).click()
+            await page.get_by_text('Verify task outcome', exact=True).click()
+            task_card = page.get_by_test_id('structured-result-card').filter(visible=True)
+            await expect(task_card).to_have_count(1)
+            await task_card.locator('summary').click()
+            await expect(task_card.get_by_text('forecast.md', exact=True)).to_be_visible()
+            print('PASS: Tasks displays the same structured evidence card')
+            phase = 5
+            await page.get_by_role('button', name='Conversation', exact=True).click()
+            composer = page.locator('textarea').first
+            await composer.fill('Run a structured task')
+            await composer.press('Enter')
+            await expect(chat.get_by_text('Live structured answer', exact=True)).to_be_visible()
+            live_card = chat.get_by_test_id('structured-result-card').last
+            await live_card.locator('summary').click()
+            await expect(live_card.get_by_text('forecast.md', exact=True)).to_be_visible()
+            await page.reload()
+            await expect(chat.get_by_text('Live structured answer', exact=True)).to_have_count(1)
+            await expect(chat.get_by_test_id('structured-result-card').last).to_be_visible()
+            print('PASS: live SSE result card persists alongside the answer after reload')
             assert not errors, errors
             await browser.close()
     except Exception:

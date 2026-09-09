@@ -46,8 +46,9 @@ async def list_artifact_records(
     source_agent: Optional[str] = Query(default=None),
     kind: Optional[str] = Query(default=None),
     session: Optional[str] = Query(default=None),
+    task: Optional[str] = Query(default=None, description="Only artifacts produced by this task id."),
 ):
-    artifacts = [_public(record) for record in list_artifacts(source_agent, kind, session)]
+    artifacts = [_public(record) for record in list_artifacts(source_agent, kind, session, task)]
     return {"artifacts": artifacts, "count": len(artifacts)}
 
 

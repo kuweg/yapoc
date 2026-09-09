@@ -66,7 +66,16 @@
         "git_show",
         "git_commit",
         "git_branch",
-        "git_restore"
+        "git_restore",
+        "github_get_repo",
+        "github_get_health_summary",
+        "github_list_issues",
+        "github_get_issue",
+        "github_list_pull_requests",
+        "github_get_pull_request",
+        "github_list_workflow_runs",
+        "github_get_workflow_run",
+        "github_list_workflow_jobs"
       ],
       "mcp_servers": [
         "playwright"
@@ -169,7 +178,12 @@
         "git_show",
         "git_commit",
         "git_branch",
-        "git_restore"
+        "git_restore",
+        "github_get_repo",
+        "github_list_branches",
+        "github_list_commits",
+        "github_read_file",
+        "github_search_code"
       ],
       "temperature": 0.4,
       "max_tokens": 8096,
@@ -324,7 +338,14 @@
         "kill_agent",
         "check_task_status",
         "notify_parent",
-        "grep"
+        "grep",
+        "github_get_health_summary",
+        "github_list_workflow_runs",
+        "github_get_workflow_run",
+        "github_list_workflow_jobs",
+        "github_get_workflow_job_logs",
+        "github_get_commit_checks",
+        "github_get_commit_status"
       ],
       "temperature": 0.2,
       "max_tokens": 4096,
@@ -438,7 +459,20 @@
         "git_status",
         "git_diff",
         "git_log",
-        "git_show"
+        "git_show",
+        "github_list_issues",
+        "github_get_issue",
+        "github_list_issue_comments",
+        "github_list_pull_requests",
+        "github_get_pull_request",
+        "github_list_pull_request_files",
+        "github_list_pull_request_reviews",
+        "github_list_pull_request_comments",
+        "github_get_commit_checks",
+        "github_get_commit_status",
+        "github_list_workflow_runs",
+        "github_get_workflow_run",
+        "github_list_workflow_jobs"
       ],
       "temperature": 0.2,
       "max_tokens": 8096,

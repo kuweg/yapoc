@@ -62,6 +62,12 @@ def _append_audit(
     reason: str,
     source: Literal["hardcoded", "llm", "bypass"],
 ) -> None:
+    if tool.startswith(("github_", "plugin:github:")):
+        # External mutation bodies must never enter the security audit.
+        params = {k: v for k, v in params.items() if k in {"repository", "number"}}
+        from app.utils.github.client import redact
+        params = redact(params)
+        reason = "GitHub policy decision"
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     try:
         params_str = json.dumps(params, default=str)
@@ -126,6 +132,9 @@ async def _classify_via_llm(tool: str, params: dict, caller: str) -> tuple[str, 
         from app.utils.tools.security_policy import is_outward_facing
 
         if is_outward_facing(tool):
+            if tool.startswith(("github_", "plugin:github:")):
+                _log.warning("security_gate: GitHub review unavailable; denying mutation")
+                return "deny", "GitHub review unavailable"
             _log.warning(
                 "security_gate: LLM consult failed ({}) — DENYING outward-facing "
                 "{} (irreversible, cannot be reviewed)", exc, tool,

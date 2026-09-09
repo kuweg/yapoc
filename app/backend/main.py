@@ -1122,6 +1122,10 @@ async def lifespan(app: FastAPI):
         hours=settings.goal_proposer_interval_hours,
         id="goal_proposer",
     )
+    if settings.github_enabled and settings.github_poll_interval_seconds > 0:
+        from app.utils.github.observability import check_health
+        scheduler.add_job(check_health, 'interval', seconds=max(300, settings.github_poll_interval_seconds),
+                          id='github_health', max_instances=1, coalesce=True)
     scheduler.start()
     # Run initial checks shortly after startup
     loop = asyncio.get_event_loop()
@@ -1204,6 +1208,8 @@ app.add_middleware(
 )
 
 app.websocket("/ws")(websocket_endpoint)
+from app.backend.routers.github import router as github_router
+app.include_router(github_router)
 app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(agents_router)

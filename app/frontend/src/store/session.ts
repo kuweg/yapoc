@@ -282,6 +282,7 @@ export const useSessionStore = create<SessionStore>()(
                   role: m?.role ?? 'assistant',
                   content: slimContent(m?.content),
                   ...(m?.completionId ? { completionId: m.completionId } : {}),
+                  ...(m?.taskCompletion ? { taskCompletion: m.taskCompletion } : {}),
                 }
                 if (Array.isArray(m?.attachments) && m.attachments.length) {
                   slim.attachments = m.attachments.map(({ previewUrl: _pv, ...a }) => a)
@@ -313,6 +314,7 @@ export const useSessionStore = create<SessionStore>()(
                 role: m.role,
                 content: slimContent(m.content),
                 ...(m.completionId ? { completionId: m.completionId } : {}),
+                ...(m.taskCompletion ? { taskCompletion: m.taskCompletion } : {}),
               }
               if (m.attachments && m.attachments.length) {
                 slim.attachments = m.attachments.map(({ previewUrl: _pv, ...a }) => a)

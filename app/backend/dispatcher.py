@@ -46,6 +46,7 @@ async def _deliver_webhook_callback(task_id: str, result: str) -> None:
                 "task_id": task_id,
                 "status": task.get("status", "done"),
                 "result": result,
+                "structured_result": task.get("structured_result"),
             })
         logger.info(f"Webhook callback delivered for {task_id[:8]}… to {callback_url}")
     except Exception as exc:
@@ -446,7 +447,7 @@ async def _execute_task_body(task_id: str) -> None:
         error_text = str(exc) or f"Task chain timed out after {_chain_ctx_timeout}s"
         completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         update_queued_task(task_id, status="timeout", error=error_text,
-                           completed_at=completed_at, cost_usd=_task_cost())
+                           result="".join(response_parts), completed_at=completed_at, cost_usd=_task_cost())
         await ws_manager.push_event("task_error", {
             "task_id": task_id,
             "status": "timeout",
@@ -472,10 +473,6 @@ async def _execute_task_body(task_id: str) -> None:
             })
         except Exception:
             pass
-        # Return partial result if any text was collected
-        partial = "".join(response_parts)
-        if partial:
-            update_queued_task(task_id, result=f"[PARTIAL] {partial}")
         # Cron escalation: a timed-out cron-sourced run counts toward the
         # failure-escalation ladder. Notify only on the disable transition.
         if cron_job_id:

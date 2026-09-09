@@ -275,6 +275,7 @@ yapoc evaluator-tick           # kick the evaluator once
 - Voice mode (TTS + STT via OpenAI or local engines)
 - Memory tab with hybrid (FTS5 + embedding) search
 - [Notes workspace](docs/notes.md) with Markdown editing, wikilinks, backlinks, a links graph, and per-conversation note context
+- [Structured task results](docs/task-results.md): durable outcomes, runtime evidence, and shared chat/Tasks cards
 - [Shared model pricing](docs/model-pricing.md) with verified provider rates, source dates, and chat cost estimates
 - Cost tracker per session
 
@@ -356,3 +357,5 @@ app/
 Implemented: all 11 agents, FastAPI backend, Typer CLI + Rich REPL, React frontend, 8 LLM adapters with cross-provider failover, 40-tool registry, watchdog-based runner, SQLite + Redis IPC, session persistence, context auto-compaction, cost tracking + budgets, security gate, git autocheckpoint, stuck-loop detector, voice (TTS/STT), Telegram bot, webhook ingest.
 
 Not implemented: persistent Telegram auth across restarts, formal test suite, dark-mode UI, multi-user RBAC.
+
+GitHub repository health, controlled maintenance, and optional read-only MCP: [setup guide](docs/github-integration.md).

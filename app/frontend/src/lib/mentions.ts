@@ -22,7 +22,13 @@ export function resolveMentions(
 ): ResolvedMentions {
   const attachmentIds: string[] = []
   const artifactRefs: string[] = []
-  let cleanedText = rawText.replace(/@file(?::([a-f0-9]{32})|\s+([^\n@]+?))(?=\s+@(?:file|artifact|repo)\b|\n|$)/gi, (token, id: string | undefined, name: string | undefined) => {
+  // Match `@file:<id>` (32-hex) or `@file <name>` / `@file:<name>` anywhere in
+  // the text — NOT only at line-end/mention boundaries. The previous lookahead
+  // required the token to be followed by end-of-string/newline/another mention,
+  // so a mid-sentence reference like "review @file:abc123 thanks" was silently
+  // left unresolved. The id/name capture is bounded by whitespace or a following
+  // @mention so it can't swallow trailing prose.
+  let cleanedText = rawText.replace(/@file(?::([a-f0-9]{32})|(?::|\s+)([^\s@]+?))(?=\s|@|\n|$)/gi, (token, id: string | undefined, name: string | undefined) => {
     const upload = id
       ? uploads.find((item) => item.id === id)
       : findByName(uploads, name ?? '')
@@ -31,7 +37,7 @@ export function resolveMentions(
     return ''
   })
 
-  cleanedText = cleanedText.replace(/@artifact\s+([^\n@]+?)(?=\s+@(?:file|artifact|repo)\b|\n|$)/gi, (token, name: string) => {
+  cleanedText = cleanedText.replace(/@artifact(?::|\s+)([^\s@]+?)(?=\s|@|\n|$)/gi, (token, name: string) => {
     const artifact = findByName(artifacts, name)
     if (!artifact) return token
     if (!artifactRefs.includes(artifact.path)) artifactRefs.push(artifact.path)

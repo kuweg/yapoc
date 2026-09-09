@@ -125,8 +125,8 @@ class MCPHostManager:
                 connected.append(cfg.name)
             except Exception as exc:  # noqa: BLE001 - a bad server must not crash startup
                 self._state[cfg.name] = STATE_ERROR
-                self._errors[cfg.name] = str(exc)
-                logger.warning("MCP server '%s' failed to connect: %s", cfg.name, exc)
+                self._errors[cfg.name] = "GitHub MCP connection failed." if cfg.name == "github" else str(exc)
+                logger.warning("MCP server '%s' failed to connect: %s", cfg.name, "connection failed" if cfg.name == "github" else exc)
                 # Register tool cache empty so get_server_tools is consistent.
                 self._server_tools.setdefault(cfg.name, [])
         return connected
@@ -250,9 +250,16 @@ class MCPHostManager:
         what silently prevented any MCP server from ever reaching
         ``STATE_CONNECTED``.
         """
+        from contextlib import ExitStack
+        from os import devnull
+        with ExitStack() as stack:
+            stderr = stack.enter_context(open(devnull, "w")) if server_name == "github" else None
+            await self._run_stdio_session(server_name, stdio_client, params, client_session_cls, stderr)
+
+    async def _run_stdio_session(self, server_name, stdio_client, params, client_session_cls, stderr):
         try:
             async with (
-                stdio_client(params) as (read_stream, write_stream),
+                stdio_client(params, **({"errlog": stderr} if stderr is not None else {})) as (read_stream, write_stream),
                 client_session_cls(read_stream, write_stream) as session,
             ):
                 await session.initialize()
@@ -273,8 +280,8 @@ class MCPHostManager:
             raise
         except Exception as exc:  # noqa: BLE001
             self._state[server_name] = STATE_ERROR
-            self._errors[server_name] = str(exc)
-            logger.warning("MCP server '%s' stdio connection error: %s", server_name, exc)
+            self._errors[server_name] = "GitHub MCP connection failed." if server_name == "github" else str(exc)
+            logger.warning("MCP server '%s' stdio connection error: %s", server_name, "connection failed" if server_name == "github" else exc)
         finally:
             # Clean up session state if we exit for any reason.
             self._sessions.pop(server_name, None)
@@ -401,9 +408,9 @@ class MCPHostManager:
             raise
         except Exception as exc:  # noqa: BLE001
             self._state[server_name] = STATE_ERROR
-            self._errors[server_name] = str(exc)
+            self._errors[server_name] = "GitHub MCP connection failed." if server_name == "github" else str(exc)
             logger.warning(
-                "MCP server '%s' streamable_http connection error: %s", server_name, exc
+                "MCP server '%s' streamable_http connection error: %s", server_name, "connection failed" if server_name == "github" else exc
             )
         finally:
             # Clean up session state if we exit for any reason.
@@ -436,6 +443,13 @@ class MCPHostManager:
             fields the registry wrapper expects, its ``content`` carrying a
             single error ``TextContent`` so callers see a string-safe error.
         """
+        if server_name == "github":
+            from app.utils.github.mcp import guard
+            from app.utils.github.client import GitHubError
+            try:
+                guard(tool_name, arguments or {})
+            except GitHubError as exc:
+                return self._err_result(str(exc))
         if self.get_state(server_name) != STATE_CONNECTED:
             return self._err_result(
                 f"Error: MCP server '{server_name}' is disconnected"
@@ -446,9 +460,19 @@ class MCPHostManager:
                 f"Error: MCP server '{server_name}' has no live session"
             )
         try:
-            result = await session.call_tool(tool_name, arguments or {})
+            result = (await asyncio.wait_for(session.call_tool(tool_name, arguments or {}), timeout=30)
+                      if server_name == "github" else await session.call_tool(tool_name, arguments or {}))
+            if server_name == "github":
+                from app.utils.github.client import redact
+                from app.utils.mcp.registry import flatten_content
+                if getattr(result, "isError", False):
+                    return self._err_result("GitHub MCP request failed.")
+                # Drop resource links and sanitize text before any caller can persist it.
+                return self._err_result(redact(flatten_content(result))[:200000])
             return result
         except (ImportError, RuntimeError, Exception) as exc:  # noqa: BLE001
+            if server_name == "github":
+                return self._err_result("GitHub MCP request failed.")
             logger.warning(
                 "MCP tool call %s/%s failed: %s", server_name, tool_name, exc
             )
@@ -485,7 +509,7 @@ class MCPHostManager:
             self._server_tools[server_name] = tools
             return tools
         except Exception as exc:  # noqa: BLE001
-            logger.warning("MCP list_tools for '%s' failed: %s", server_name, exc)
+            logger.warning("MCP list_tools for '%s' failed: %s", server_name, "connection failed" if server_name == "github" else exc)
             return self._server_tools.get(server_name, [])
 
     # ── Teardown ─────────────────────────────────────────────────────────┐

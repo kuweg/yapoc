@@ -1,9 +1,13 @@
-import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo, useEffect } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo, useEffect, useLayoutEffect } from 'react'
 import { listUploads } from '../api/client'
 import type { Attachment } from '../api/types'
-import { listArtifacts } from '../artifacts/api'
-import type { Artifact } from '../artifacts/types'
 import { resolveMentions } from '../lib/mentions'
+import { detectTrigger, type Suggestion, type TriggerMatch } from '../lib/composerSuggest'
+import { ensureMentionSource, ensureMentionSourcesFor, mentionSources } from '../lib/mentionSources'
+import { hasHighlights, tokenizeChatText } from '../lib/chatTokens'
+import { ComposerSuggestions } from './ComposerSuggestions'
+import { HighlightedText } from './HighlightedText'
+import { useSessionStore } from '../store/session'
 import { useWorkspaceStore } from '../store/workspaceStore'
 
 export interface ChatInputHandle {
@@ -13,33 +17,55 @@ export interface ChatInputHandle {
   submit: () => void | Promise<void>
 }
 
+/** Everything one send carries. An object, because these are not four numbers. */
+export interface ComposerSubmission {
+  /** Text for master, with subsystem mentions expanded. */
+  text: string
+  /** Text for the user's own bubble, with mentions left as written. */
+  displayText: string
+  files: File[]
+  attachmentIds: string[]
+  /** Notes to inline server-side, resolved from `@note:` mentions. */
+  noteIds: string[]
+}
+
 interface ChatInputProps {
-  onSubmit: (text: string, files: File[], attachmentIds?: string[]) => void
+  onSubmit: (submission: ComposerSubmission) => void
   disabled?: boolean
   placeholder?: string
 }
 
 const MAX_FILES = 10
+/** Tallest the composer grows before it starts scrolling instead. */
+const MAX_HEIGHT = 320
+/** Show the character count only once a message is long enough to care. */
+const COUNT_THRESHOLD = 1200
 
-// Slash commands for autocomplete
-const SLASH_COMMANDS = [
-  { cmd: '/help', desc: 'Show available commands' },
-  { cmd: '/clear', desc: 'Clear conversation and start new session' },
-  { cmd: '/ping', desc: 'Ping the server' },
-  { cmd: '/status', desc: 'Show server & agent status' },
-  { cmd: '/agents', desc: 'List all agents' },
-  { cmd: '/model', desc: 'Show current adapter/model' },
-  { cmd: '/cost', desc: 'Show session cost breakdown' },
-  { cmd: '/sessions', desc: 'List recent sessions' },
-  { cmd: '/continue', desc: 'Resume the latest session' },
-  { cmd: '/resume', desc: 'Resume a specific session (e.g. /resume <id>)' },
-  { cmd: '/export', desc: 'Export conversation to file (e.g. /export <filename>)' },
-  { cmd: '/doctor', desc: 'Run doctor health check' },
-  { cmd: '/start', desc: 'Start the backend server' },
-  { cmd: '/stop', desc: 'Stop the backend server' },
-  { cmd: '/restart', desc: 'Restart the backend server' },
-  { cmd: '/exit', desc: 'No-op in web UI' },
-]
+const DRAFT_KEY = 'yapoc-composer-drafts'
+
+/** Unsent text, per session, so switching chats does not throw it away. */
+function readDrafts(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeDraft(sessionId: string, text: string) {
+  try {
+    const drafts = readDrafts()
+    if (text.trim()) drafts[sessionId] = text
+    else delete drafts[sessionId]
+    // Cap the store so a long-lived browser profile can't grow it without end.
+    const trimmed = Object.fromEntries(Object.entries(drafts).slice(-20))
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(trimmed))
+  } catch {
+    // Private-mode / quota failures are not worth surfacing over a draft.
+  }
+}
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i
 const PDF_RE = /\.pdf$/i
@@ -57,25 +83,32 @@ function isPdf(file: File): boolean {
  * input, or clipboard paste. Each staged file gets an object-URL preview that
  * is always revoked on removal to avoid leaks. The parent interacts via the ref
  * handle and receives the staged File[] on submit.
+ *
+ * The field itself is a textarea rendered transparent over a highlight overlay,
+ * so slash commands and `@` mentions are coloured as they are typed; the two
+ * share their text metrics through `.composer-field` in index.css. It grows with
+ * its content, remembers a per-session draft, and drives one suggestion palette
+ * for commands and every mention kind.
  */
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   function ChatInput({ onSubmit, disabled, placeholder }, ref) {
     const [text, setText] = useState('')
-    const [showAutocomplete, setShowAutocomplete] = useState(false)
-    const [selectedIndex, setSelectedIndex] = useState(0)
-    const [mentionSuggestions, setMentionSuggestions] = useState<Array<{ value: string; desc: string }>>([])
-    const [showMentions, setShowMentions] = useState(false)
-    const [mentionIndex, setMentionIndex] = useState(0)
+    const [caret, setCaret] = useState(0)
+    const [trigger, setTrigger] = useState<TriggerMatch | null>(null)
+    const [menuDismissed, setMenuDismissed] = useState(false)
+    const [activeIndex, setActiveIndex] = useState(0)
+    /** Bumped when an entity list finishes loading, to re-run trigger detection. */
+    const [sourceTick, setSourceTick] = useState(0)
     const [uploads, setUploads] = useState<Attachment[]>([])
-    const [artifacts, setArtifacts] = useState<Artifact[]>([])
     const [pending, setPending] = useState<File[]>([])
     const [expanded, setExpanded] = useState(false)
     const [dragOver, setDragOver] = useState(false)
+    const activeId = useSessionStore((s) => s.activeId)
     const pendingInsertion = useWorkspaceStore((state) => state.pendingInsertion)
     const consumePendingInsertion = useWorkspaceStore((state) => state.consumePendingInsertion)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
-    const autocompleteRef = useRef<HTMLDivElement>(null)
+    const overlayRef = useRef<HTMLDivElement>(null)
     // File -> object URL (preview). WeakMap so URLs are reclaimable with files.
     const previews = useRef<WeakMap<File, string>>(new WeakMap())
 
@@ -85,6 +118,55 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       setText((current) => `${current}${current && !/\s$/.test(current) ? ' ' : ''}${insertion}`)
       textareaRef.current?.focus()
     }, [pendingInsertion, consumePendingInsertion])
+
+    // Restore this session's draft on switch, and save it as it changes. Keyed
+    // on activeId only: a re-render must not clobber what is being typed.
+    useEffect(() => {
+      if (!activeId) return
+      setText(readDrafts()[activeId] ?? '')
+      setTrigger(null)
+    }, [activeId])
+
+    useEffect(() => {
+      if (!activeId) return
+      const timer = window.setTimeout(() => writeDraft(activeId, text), 400)
+      return () => window.clearTimeout(timer)
+    }, [activeId, text])
+
+    // Grow with the content up to MAX_HEIGHT, then scroll.
+    useLayoutEffect(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
+    }, [text])
+
+    const tokens = useMemo(() => tokenizeChatText(text), [text])
+    const highlighted = useMemo(() => hasHighlights(tokens), [tokens])
+
+    // Which mentions in the current text point at nothing. Recomputed from the
+    // already-loaded lists only — typing must never wait on a fetch — and
+    // suppressed while the palette is open, since a half-typed mention is
+    // "unresolved" on every keystroke and warning about it is just noise.
+    const unresolved = useMemo(() => {
+      if (!text.includes('@') || trigger) return []
+      const sources = mentionSources()
+      return resolveMentions(text, uploads, sources.artifacts ?? [], sources).unresolved
+    }, [text, uploads, sourceTick, trigger])
+
+    // What the palette should show for the caret's surroundings.
+    useEffect(() => {
+      if (menuDismissed) return
+      const match = detectTrigger(text, caret)
+      setTrigger(match)
+      setActiveIndex((prev) => (match && prev < match.suggestions.length ? prev : 0))
+      if (match?.needsSource) {
+        // Resolves true only when a fetch actually ran, so this settles.
+        void ensureMentionSource(match.needsSource).then((loaded) => {
+          if (loaded) setSourceTick((t) => t + 1)
+        })
+      }
+    }, [text, caret, sourceTick, menuDismissed])
 
     const previewFor = useCallback((file: File): string | null => {
       if (!isImage(file)) return null
@@ -103,12 +185,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         previews.current.delete(file)
       }
     }, [])
-
-    const filteredCommands = useMemo(() => {
-      if (!text.startsWith('/')) return []
-      const typed = text.toLowerCase()
-      return SLASH_COMMANDS.filter((c) => c.cmd.startsWith(typed))
-    }, [text])
 
     const addFiles = useCallback((files: FileList | File[]) => {
       const incoming = Array.from(files)
@@ -159,6 +235,26 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       return () => window.removeEventListener('paste', onPaste)
     }, [addFiles])
 
+    /** Replace the trigger span with a suggestion and put the caret after it. */
+    const applySuggestion = useCallback((suggestion: Suggestion) => {
+      const match = trigger
+      if (!match) return
+      const next = text.slice(0, match.start) + suggestion.insert + text.slice(match.end)
+      const nextCaret = match.start + suggestion.insert.length
+      setText(next)
+      setCaret(nextCaret)
+      setMenuDismissed(false)
+      if (!suggestion.keepOpen) setTrigger(null)
+      // The textarea is uncontrolled between renders here, so move the caret
+      // once React has painted the new value.
+      requestAnimationFrame(() => {
+        const el = textareaRef.current
+        if (!el) return
+        el.focus()
+        el.setSelectionRange(nextCaret, nextCaret)
+      })
+    }, [text, trigger])
+
     const doSubmit = useCallback(async () => {
       const trimmed = text.trim()
       if ((!trimmed && pending.length === 0) || disabled) return
@@ -177,133 +273,81 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           // (resolve_upload_by_ref) will still resolve it server-side.
         }
       }
-      const resolved = resolveMentions(trimmed, resolvedUploads, artifacts)
-      onSubmit(resolved.cleanedText, pending, resolved.attachmentIds)
+      // Same idea for the other mention kinds: a mention typed or pasted whole
+      // must resolve even if its palette never opened. This matters most for
+      // notes, where an unresolved `@note:` token would otherwise reach the
+      // backend and fail the entire request.
+      await ensureMentionSourcesFor(trimmed)
+      const sources = mentionSources()
+      const resolved = resolveMentions(trimmed, resolvedUploads, sources.artifacts ?? [], sources)
+      onSubmit({
+        text: resolved.cleanedText,
+        displayText: resolved.displayText,
+        files: pending,
+        attachmentIds: resolved.attachmentIds,
+        noteIds: resolved.noteIds,
+      })
       setText('')
-      setShowAutocomplete(false)
-      setShowMentions(false)
+      setCaret(0)
+      setTrigger(null)
+      setMenuDismissed(false)
+      if (activeId) writeDraft(activeId, '')
       // Keep object URLs valid for the optimistic bubble; the parent owns them now.
       setPending([])
       setExpanded(false)
-    }, [text, disabled, onSubmit, pending, uploads, artifacts])
+    }, [text, disabled, onSubmit, pending, uploads, activeId])
 
     useImperativeHandle(ref, () => ({
-      setText,
-      clear: () => { setText(''); setShowAutocomplete(false); setShowMentions(false) },
+      setText: (value: string) => {
+        setText(value)
+        setCaret(value.length)
+        setMenuDismissed(false)
+      },
+      clear: () => { setText(''); setCaret(0); setTrigger(null) },
       focus: () => textareaRef.current?.focus(),
       submit: doSubmit,
-    }), [setText, doSubmit])
+    }), [doSubmit])
+
+    const menuOpen = Boolean(trigger && trigger.suggestions.length > 0 && !menuDismissed)
 
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-      if (showMentions && mentionSuggestions.length > 0) {
+      if (menuOpen && trigger) {
+        const count = trigger.suggestions.length
         if (e.key === 'ArrowDown') {
           e.preventDefault()
-          setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length)
+          setActiveIndex((prev) => (prev + 1) % count)
           return
         }
         if (e.key === 'ArrowUp') {
           e.preventDefault()
-          setMentionIndex((prev) => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length)
+          setActiveIndex((prev) => (prev - 1 + count) % count)
           return
         }
         if (e.key === 'Tab' || e.key === 'Enter') {
-          const selected = mentionSuggestions[mentionIndex]
+          const selected = trigger.suggestions[activeIndex]
           if (selected) {
             e.preventDefault()
-            setText(selected.value)
-            setShowMentions(false)
-            setMentionIndex(0)
+            applySuggestion(selected)
             return
           }
         }
         if (e.key === 'Escape') {
-          setShowMentions(false)
-          setMentionIndex(0)
-          return
-        }
-      }
-      if (showAutocomplete && filteredCommands.length > 0) {
-        if (e.key === 'ArrowDown') {
           e.preventDefault()
-          setSelectedIndex((prev) => (prev + 1) % filteredCommands.length)
-          return
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault()
-          setSelectedIndex((prev) => (prev - 1 + filteredCommands.length) % filteredCommands.length)
-          return
-        }
-        if (e.key === 'Tab' || e.key === 'Enter') {
-          const selected = filteredCommands[selectedIndex]
-          if (selected) {
-            e.preventDefault()
-            setText(selected.cmd + ' ')
-            setShowAutocomplete(false)
-            setSelectedIndex(0)
-            return
-          }
-        }
-        if (e.key === 'Escape') {
-          setShowAutocomplete(false)
-          setSelectedIndex(0)
+          setMenuDismissed(true)
+          setTrigger(null)
           return
         }
       }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
-        doSubmit()
+        void doSubmit()
       }
     }
 
     function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-      const newText = e.target.value
-      setText(newText)
-      if (newText.startsWith('/')) {
-        const matches = SLASH_COMMANDS.filter((c) => c.cmd.startsWith(newText.toLowerCase()))
-        setShowAutocomplete(matches.length > 0)
-        setSelectedIndex(0)
-      } else {
-        setShowAutocomplete(false)
-      }
-
-      const mentionMatch = newText.match(/(?:^|\s)@(file|artifact)?(?:\s+([^\n@]*))?$/i)
-      if (!mentionMatch) {
-        setShowMentions(false)
-        return
-      }
-      const kind = mentionMatch[1]?.toLowerCase()
-      const query = (mentionMatch[2] ?? '').trim().toLowerCase()
-      if (!kind) {
-        setMentionSuggestions([
-          { value: `${newText}file `, desc: 'Reference an uploaded file' },
-          { value: `${newText}repo`, desc: 'Reference the project repository' },
-          { value: `${newText}artifact `, desc: 'Reference a registered artifact' },
-        ])
-        setShowMentions(true)
-        setMentionIndex(0)
-        return
-      }
-      if (kind === 'repo') {
-        setShowMentions(false)
-        return
-      }
-      if (kind === 'file') {
-        void listUploads().then(({ files }) => {
-          setUploads(files)
-          const matches = files.filter((file) => file.name.toLowerCase().includes(query)).slice(0, 8)
-          setMentionSuggestions(matches.map((file) => ({ value: newText.replace(/[^\s]*$/, file.name), desc: file.mime || 'Uploaded file' })))
-          setShowMentions(matches.length > 0)
-          setMentionIndex(0)
-        }).catch(() => setShowMentions(false))
-        return
-      }
-      void listArtifacts().then((items) => {
-        setArtifacts(items)
-        const matches = items.filter((artifact) => artifact.name.toLowerCase().includes(query)).slice(0, 8)
-        setMentionSuggestions(matches.map((artifact) => ({ value: newText.replace(/[^\s]*$/, artifact.name), desc: artifact.path })))
-        setShowMentions(matches.length > 0)
-        setMentionIndex(0)
-      }).catch(() => setShowMentions(false))
+      setText(e.target.value)
+      setCaret(e.target.selectionStart ?? e.target.value.length)
+      setMenuDismissed(false)
     }
 
     const collapsed = pending.length > 3 && !expanded
@@ -360,43 +404,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           </div>
         )}
 
-        {/* Mention autocomplete dropdown */}
-        {showMentions && mentionSuggestions.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden z-50">
-            {mentionSuggestions.map((suggestion, i) => (
-              <button
-                key={`${suggestion.value}-${i}`}
-                onClick={() => { setText(suggestion.value); setShowMentions(false); setMentionIndex(0); textareaRef.current?.focus() }}
-                onMouseEnter={() => setMentionIndex(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${i === mentionIndex ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800'}`}
-              >
-                <span className="font-mono text-[#FFB633] font-semibold truncate">{suggestion.value.trim()}</span>
-                <span className="text-zinc-500 truncate">{suggestion.desc}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Autocomplete dropdown */}
-        {showAutocomplete && filteredCommands.length > 0 && (
-          <div
-            ref={autocompleteRef}
-            className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden z-50"
-          >
-            {filteredCommands.map((cmd, i) => (
-              <button
-                key={cmd.cmd}
-                onClick={() => { setText(cmd.cmd + ' '); setShowAutocomplete(false); setSelectedIndex(0); textareaRef.current?.focus() }}
-                onMouseEnter={() => setSelectedIndex(i)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
-                  i === selectedIndex ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800'
-                }`}
-              >
-                <span className="font-mono text-[#FFB633] font-semibold">{cmd.cmd}</span>
-                <span className="text-zinc-500 truncate">{cmd.desc}</span>
-              </button>
-            ))}
-          </div>
+        {menuOpen && trigger && (
+          <ComposerSuggestions
+            suggestions={trigger.suggestions}
+            activeIndex={activeIndex}
+            onPick={applySuggestion}
+            onHover={setActiveIndex}
+          />
         )}
 
         <div className="flex items-end gap-2">
@@ -409,18 +423,47 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           >
             +
           </button>
-          <textarea
-        aria-label="Message YAPOC"
-            ref={textareaRef}
-            value={text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder ?? 'What would you like to work on?'}
-            disabled={disabled}
-            rows={3}
-            className="w-full resize-none rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 disabled:opacity-50"
-          />
+          <div className={`composer-field ${highlighted ? '' : 'is-plain'}`}>
+            {highlighted && (
+              <div ref={overlayRef} className="composer-overlay" aria-hidden="true">
+                <HighlightedText text={text} variant="overlay" />
+              </div>
+            )}
+            <textarea
+              aria-label="Message YAPOC"
+              ref={textareaRef}
+              value={text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+              onScroll={() => {
+                if (overlayRef.current && textareaRef.current) {
+                  overlayRef.current.scrollTop = textareaRef.current.scrollTop
+                }
+              }}
+              onBlur={() => setTrigger(null)}
+              placeholder={placeholder ?? 'What would you like to work on? / for commands, @ for notes, agents, files…'}
+              disabled={disabled}
+              rows={1}
+              aria-autocomplete="list"
+              aria-expanded={menuOpen}
+            />
+          </div>
         </div>
+
+        {(unresolved.length > 0 || text.length > COUNT_THRESHOLD) && (
+          <div className="flex items-baseline gap-3">
+            {unresolved.length > 0 && (
+              <div className="composer-warning">
+                {unresolved.map((u) => `@${u.kind}:${u.query}`).join(', ')} — no match{unresolved.length > 1 ? 'es' : ''} found
+                {unresolved.some((u) => u.kind === 'note') ? '; sent as plain text' : ''}
+              </div>
+            )}
+            {text.length > COUNT_THRESHOLD && (
+              <div className="composer-warning composer-count ml-auto text-zinc-500">{text.length.toLocaleString()} chars</div>
+            )}
+          </div>
+        )}
       </div>
     )
   },

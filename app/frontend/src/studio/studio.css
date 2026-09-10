@@ -218,7 +218,11 @@ button:disabled { cursor: not-allowed; }
 .studio-composer { padding: 8px clamp(24px, 4vw, 64px) 16px; }
 .studio-composer-controls { background: var(--color-bg-overlay); border: 1px solid var(--color-border-subtle); border-radius: 8px; padding: 8px; box-shadow: none; max-width: 860px; margin: auto; }
 .studio-composer-controls:focus-within { border-color: color-mix(in srgb, var(--color-accent) 65%, var(--color-border)); }
-.studio-composer textarea { background: transparent !important; border: 0; box-shadow: none; font-size: 14px; padding-top: 7px; min-height: 72px; }
+/* Text metrics live on .composer-field in index.css — the highlight overlay and
+   the textarea have to agree on every one of them, so they are set once. The
+   floor goes on the field, letting the textarea auto-grow from its content. */
+.studio-composer .composer-field { min-height: 72px; }
+.studio-composer textarea { background: transparent !important; border: 0; box-shadow: none; }
 .studio-composer textarea:focus { outline: none; box-shadow: none; }
 .studio-composer-controls > button { font-size: 12px; }
 .studio-composer .send-btn { background: var(--color-accent); color: var(--studio-accent-ink); border-radius: 8px; width: 35px; height: 35px; }

@@ -1827,3 +1827,317 @@ body.sidebar-auto-railed aside {
   .sphere-ring.is-visible { animation: none !important; }
   .sphere-ring.is-visible { opacity: 0; }
 }
+
+/* ── Chat text highlighting (commands + @mentions) ──────────────────────── */
+/* Shared by the composer overlay and the transcript. The overlay variant must
+   not change a single glyph advance — colour, background and radius only — or
+   the caret drifts out of alignment with the text it sits under. */
+.chat-hl { white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; }
+.chat-hl-cmd {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  border-radius: 4px;
+}
+.chat-hl-cmd.chat-hl-unknown {
+  color: #f6a97a;
+  background: color-mix(in srgb, #f6a97a 16%, transparent);
+  text-decoration: underline wavy color-mix(in srgb, #f6a97a 70%, transparent);
+  text-underline-offset: 3px;
+}
+.chat-hl-mention {
+  color: #8fbcf5;
+  background: color-mix(in srgb, #8fbcf5 16%, transparent);
+  border-radius: 4px;
+}
+.chat-hl-code { color: var(--color-text-secondary); background: color-mix(in srgb, var(--color-text-muted) 14%, transparent); border-radius: 4px; }
+/* Transcript-only: real chips, free to take space. */
+.chat-hl-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.chat-hl-chip[title] { cursor: help; }
+
+/* ── Composer ───────────────────────────────────────────────────────────── */
+.composer-field { position: relative; display: grid; flex: 1 1 auto; min-width: 0; }
+/* The overlay and the textarea are stacked and MUST share every metric that
+   affects text layout. Both inherit from .composer-field so a change can only
+   be made in one place. */
+.composer-field > .composer-overlay,
+.composer-field > textarea {
+  grid-area: 1 / 1;
+  margin: 0;
+  border: 0;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: normal;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.composer-overlay {
+  pointer-events: none;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  /* Sits under the caret; the textarea above it paints the real text
+     transparent so only these coloured runs show through. */
+}
+.composer-field > textarea {
+  position: relative;
+  z-index: 1;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-accent);
+  -webkit-text-fill-color: transparent;
+}
+/* No visible scrollbar: one would narrow the textarea's text box without
+   narrowing the overlay's, and the two would wrap at different columns. The
+   browser still scrolls the caret into view, and the field is capped short. */
+.composer-field > textarea { scrollbar-width: none; }
+.composer-field > textarea::-webkit-scrollbar { width: 0; height: 0; }
+.composer-field > textarea::placeholder { color: var(--color-text-muted); -webkit-text-fill-color: var(--color-text-muted); }
+.composer-field > textarea::selection { background: color-mix(in srgb, var(--color-accent) 32%, transparent); }
+.composer-field > textarea:disabled { opacity: .55; }
+/* Without highlights there is nothing to reveal, so paint the textarea itself
+   and skip the overlay — one fewer thing that can fall out of sync. */
+.composer-field.is-plain > textarea { color: var(--color-text-primary); -webkit-text-fill-color: currentColor; }
+
+.composer-warning { margin-top: 4px; font-size: 11px; color: #f6a97a; }
+.composer-count { font-variant-numeric: tabular-nums; }
+
+/* ── Composer suggestion palette ────────────────────────────────────────── */
+.composer-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-bottom: 6px;
+  max-height: min(46vh, 340px);
+  overflow-y: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+  background: var(--color-bg-overlay);
+  box-shadow: 0 12px 32px rgb(0 0 0 / .38);
+}
+.composer-menu-group {
+  position: sticky;
+  top: 0;
+  padding: 6px 10px 4px;
+  background: var(--color-bg-overlay);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.composer-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.composer-menu-item[aria-selected="true"] { background: var(--color-bg-subtle); color: var(--color-text-primary); }
+.composer-menu-item .composer-menu-name { font-family: var(--font-mono); color: var(--color-accent); flex-shrink: 0; }
+.composer-menu-item .composer-menu-args { font-family: var(--font-mono); color: var(--color-text-muted); flex-shrink: 0; }
+.composer-menu-item .composer-menu-desc { color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-menu-empty { padding: 10px; font-size: 12px; color: var(--color-text-muted); }
+.composer-menu-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-border-muted);
+  background: var(--color-bg-overlay);
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+
+/* ── Turn status bar (streaming) ────────────────────────────────────────── */
+.turn-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-muted);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-bg-raised) 70%, transparent);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.turn-status-phase { color: var(--color-text-primary); }
+.turn-status-tool { font-family: var(--font-mono); color: var(--color-accent); }
+.turn-status-meta { margin-left: auto; display: flex; gap: 10px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.turn-status-stop {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  padding: 2px 8px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+.turn-status-stop:hover { color: #f0a3a3; border-color: #f0a3a3; }
+
+/* ── Jump to latest ─────────────────────────────────────────────────────── */
+.chat-jump {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  background: var(--color-bg-overlay);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .35);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.chat-jump:hover { color: var(--color-text-primary); border-color: var(--color-accent); }
+.chat-jump-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--studio-accent-ink);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ── In-conversation search ─────────────────────────────────────────────── */
+.chat-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border-muted);
+  background: var(--color-bg-overlay);
+  font-size: 12px;
+}
+.chat-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+.chat-search input:focus { outline: none; border-color: var(--color-accent); }
+.chat-search-count { color: var(--color-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chat-search button {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  padding: 2px 7px;
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+.chat-search button:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-accent); }
+.chat-search button:disabled { opacity: .4; cursor: default; }
+/* Painted on the matched message wrapper so a hit is findable without
+   re-rendering markdown through a highlighter. */
+.chat-search-hit { border-radius: 8px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.chat-search-hit.is-current { box-shadow: 0 0 0 2px var(--color-accent); background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+
+/* ── Message action row ─────────────────────────────────────────────────── */
+.msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity .15s ease-out;
+}
+.group:hover .msg-actions, .msg-actions:focus-within { opacity: 1; }
+.msg-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.msg-action:hover { background: var(--color-bg-subtle); color: var(--color-text-primary); }
+.msg-action.is-danger:hover { color: #f0a3a3; }
+
+/* ── Code block chrome ──────────────────────────────────────────────────── */
+.code-block { position: relative; margin: 8px 0; }
+.code-block-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid var(--color-border-muted);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--color-bg-muted);
+  font-size: 10px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.code-block-copy {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.code-block-copy:hover { color: var(--color-accent); }
+.code-block > pre { margin: 0 !important; border-radius: 0 0 6px 6px !important; }
+.code-block.has-head > pre { border-top: 0 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-actions { transition: none; }
+}
+
+/* Light themes need darker ink for the two hardcoded highlight hues: the same
+   blue and amber that read well on the dark canvas wash out on a pale one. */
+[data-theme="light"] .chat-hl-mention,
+[data-theme="claude"] .chat-hl-mention {
+  color: #1f5fa8;
+  background: color-mix(in srgb, #1f5fa8 12%, transparent);
+}
+[data-theme="light"] .chat-hl-cmd.chat-hl-unknown,
+[data-theme="claude"] .chat-hl-cmd.chat-hl-unknown {
+  color: #a2540f;
+  background: color-mix(in srgb, #a2540f 12%, transparent);
+  text-decoration-color: color-mix(in srgb, #a2540f 70%, transparent);
+}
+[data-theme="light"] .turn-status-stop:hover,
+[data-theme="claude"] .turn-status-stop:hover { color: #a12b2b; border-color: #a12b2b; }
+[data-theme="light"] .msg-action.is-danger:hover,
+[data-theme="claude"] .msg-action.is-danger:hover { color: #a12b2b; }
+[data-theme="light"] .composer-warning,
+[data-theme="claude"] .composer-warning { color: #a2540f; }

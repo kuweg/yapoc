@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -14,17 +14,19 @@ import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIde
 import { CompactionMarker } from './ContextGauge'
 import { useFileViewerStore } from '../store/fileViewerStore'
 import type { TaskPart, Attachment } from '../api/types'
-import { NotebookPen } from 'lucide-react'
+import { Copy, NotebookPen, Pencil, Check } from 'lucide-react'
 import { useNotesStore } from '../notes/store'
 import { useAppStore } from '../store/appStore'
+import { CodeBlock } from './CodeBlock'
+import { HighlightedText } from './HighlightedText'
 
 function SaveMessageNote({ content }: { content: string }) {
   if (!content.trim()) return null
-  return <button className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 mt-1 px-1"
+  return <button type="button" className="msg-action"
     onClick={() => {
       useNotesStore.getState().setCapture({ content, title: 'Conversation note' })
       useAppStore.getState().setActiveTab('notes')
-    }}><NotebookPen size={13} />Save as note</button>
+    }}><NotebookPen size={12} />Save as note</button>
 }
 
 interface MessageBubbleProps {
@@ -34,6 +36,8 @@ interface MessageBubbleProps {
   agentName?: string
   agentModel?: string
   onDelete?: () => void
+  /** Puts this message's text back in the composer to change and send again. */
+  onEdit?: (content: string) => void
   attachments?: Attachment[]
   // When true the AI text is rendered through StreamingText (per-token fade)
   // instead of markdown — used only for the in-flight streaming bubble.
@@ -351,7 +355,13 @@ const MARKDOWN_COMPONENTS = {
         return <MermaidBlock source={source} />
       }
     }
-    return <pre className="bg-zinc-900 rounded p-3 overflow-x-auto my-2 text-xs">{children}</pre>
+    const language = typeof className === 'string' ? /language-([\w+-]+)/.exec(className)?.[1] : undefined
+    const source = codeChildrenToText(
+      codeEl && typeof codeEl === 'object' && 'props' in (codeEl as object)
+        ? (codeEl as { props?: { children?: React.ReactNode } }).props?.children
+        : children,
+    )
+    return <CodeBlock language={language} source={source}>{children}</CodeBlock>
   },
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
     const text = codeChildrenToText(children).trim()
@@ -396,6 +406,34 @@ const MARKDOWN_COMPONENTS = {
   hr: () => <hr className="border-zinc-700 my-3" />,
 }
 
+/** Copy-to-clipboard action shared by both roles' action rows. */
+function CopyAction({ content, label = 'Copy' }: { content: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<number | null>(null)
+  useEffect(() => () => { if (timer.current != null) window.clearTimeout(timer.current) }, [])
+  if (!content.trim()) return null
+  return (
+    <button
+      type="button"
+      className="msg-action"
+      title="Copy message text"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(content)
+          setCopied(true)
+          if (timer.current != null) window.clearTimeout(timer.current)
+          timer.current = window.setTimeout(() => setCopied(false), 1500)
+        } catch {
+          // Clipboard access is permission-gated; the text stays selectable.
+        }
+      }}
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? 'Copied' : label}
+    </button>
+  )
+}
+
 function AgentLabel({ name, model }: { name: string; model?: string }) {
   const color = getAgentColor(name)
   return (
@@ -409,7 +447,7 @@ function AgentLabel({ name, model }: { name: string; model?: string }) {
   )
 }
 
-function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDelete, attachments, streaming }: MessageBubbleProps) {
+function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDelete, onEdit, attachments, streaming }: MessageBubbleProps) {
   useFileViewerStore((s) => s.selectFile)
 
   if (role === 'user') {
@@ -441,21 +479,38 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
               />
             </div>
           )}
-          {displayContent}
+          {/* Slash commands and @mentions stay coloured after sending, so a
+              turn reads the same in the transcript as it did in the composer. */}
+          <HighlightedText text={displayContent} />
         </div>
         )}
-        {onDelete && (
-          <div className="flex items-center justify-end gap-1 mr-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <button
-              onClick={onDelete}
-              className="p-0.5 rounded text-red-400/60 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-              title="Delete message"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+        {(onDelete || onEdit || displayContent) && (
+          <div className="msg-actions mr-1">
+            <CopyAction content={displayContent} />
+            {onEdit && displayContent && (
+              <button
+                type="button"
+                onClick={() => onEdit(displayContent)}
+                className="msg-action"
+                title="Put this message back in the composer"
+              >
+                <Pencil size={12} />Edit
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="msg-action is-danger"
+                title="Delete message"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Delete
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -527,7 +582,12 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
               </div>
             )}
           </div>
-          {!streaming && <SaveMessageNote content={content} />}
+          {!streaming && (
+            <div className="msg-actions">
+              <SaveMessageNote content={content} />
+              <CopyAction content={content} />
+            </div>
+          )}
         </div>
       </div>
     )
@@ -549,7 +609,12 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
             </ReactMarkdown>
           )}
         </div>
-        {!streaming && <SaveMessageNote content={content} />}
+        {!streaming && (
+          <div className="msg-actions">
+            <SaveMessageNote content={content} />
+            <CopyAction content={content} />
+          </div>
+        )}
       </div>
     </div>
   )

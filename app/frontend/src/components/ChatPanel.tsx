@@ -29,6 +29,9 @@ import { useLiveAgentParts } from './LiveAgentTranscript'
 import { CostBar } from './CostBar'
 import { VoiceSettings } from './VoiceSettings'
 import { ChatInput, type ChatInputHandle } from './ChatInput'
+import { ChatSearchBar } from './ChatSearchBar'
+import { TurnStatusBar } from './TurnStatusBar'
+import { commandHelpTable } from '../lib/chatCommands'
 import { startAsciiWave, ASCII_WAVE_FRAMES } from './spinner'
 import type { TaskPart, Attachment } from '../api/types'
 import type { SessionEventEnvelope } from '../store/wsStore'
@@ -475,6 +478,28 @@ export function ChatPanel() {
       ),
     [backgroundTasks, activeId],
   )
+  // The tool still in flight, and a plain-language phase for the status bar.
+  const liveTool = useMemo(() => {
+    for (let i = streamingParts.length - 1; i >= 0; i--) {
+      const part = streamingParts[i]
+      if (part.kind === 'tool' && !part.done) return part.name
+    }
+    return undefined
+  }, [streamingParts])
+
+  // What actually happened last wins. The queued notice is only the phase while
+  // nothing has streamed yet: it is set once when the turn goes behind master's
+  // lock and never cleared, so preferring it outright left the bar claiming
+  // "Queued" while a tool was visibly running.
+  const livePhase = useMemo(() => {
+    if (liveTool) return 'Running tool'
+    const last = streamingParts[streamingParts.length - 1]
+    if (last?.kind === 'thinking' && !last.done) return 'Thinking'
+    if (last?.kind === 'text') return 'Writing'
+    if (streamingParts.length === 0) return queuedNotice || 'Thinking'
+    return 'Working'
+  }, [queuedNotice, liveTool, streamingParts])
+
   const [backgroundActivity, setBackgroundActivity] = useState<string>('')
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
@@ -489,6 +514,16 @@ export function ChatPanel() {
   // Bumped on every real send (click OR Enter) so the send button plays its
   // launch animation regardless of how the message was submitted (spec §4).
   const [launchTick, setLaunchTick] = useState(0)
+  /** When the in-flight turn began, for the status bar's elapsed clock. */
+  const [turnStartedAt, setTurnStartedAt] = useState(() => Date.now())
+  // Scroll position as state, not just the ref: the jump-to-latest button has
+  // to render on it. `unseen` counts what arrived while the user was reading
+  // further up, so the button can say how much they have missed.
+  const [atBottom, setAtBottom] = useState(true)
+  const [unseen, setUnseen] = useState(0)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchIndex, setSearchIndex] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
   const runIdRef = useRef<string | null>(null)
   // Mirror of the live `assembledText` accumulator inside sendMessage, so a
@@ -718,7 +753,16 @@ export function ChatPanel() {
     const el = scrollRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    stickToBottomRef.current = distanceFromBottom < 80
+    const nearBottom = distanceFromBottom < 80
+    stickToBottomRef.current = nearBottom
+    setAtBottom(nearBottom)
+    if (nearBottom) setUnseen(0)
+  }, [])
+
+  const jumpToLatest = useCallback(() => {
+    stickToBottomRef.current = true
+    setUnseen(0)
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
   // Auto-scroll on new content — only when user is already at (or near) bottom
@@ -726,6 +770,91 @@ export function ChatPanel() {
     if (!stickToBottomRef.current) return
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history, streamingParts])
+
+  const historyLengthRef = useRef(history.length)
+  useEffect(() => {
+    const grew = history.length - historyLengthRef.current
+    historyLengthRef.current = history.length
+    if (grew > 0 && !stickToBottomRef.current) setUnseen((n) => n + grew)
+  }, [history.length])
+
+  // Which messages match the search. A hit is outlined in place rather than
+  // filtered into a list, so the turns around it still give it context; the
+  // haystack includes the parts trace, since a tool result is often what the
+  // user half-remembers and is looking for.
+  const searchMatches = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return []
+    const out: number[] = []
+    history.forEach((msg, i) => {
+      const trace = (msg.parts ?? []).map((part) => {
+        if (part.kind === 'text' || part.kind === 'thinking') return part.text
+        if (part.kind === 'tool') return `${part.name} ${part.result ?? ''}`
+        return ''
+      })
+      if ([msg.content, ...trace].join('\n').toLowerCase().includes(needle)) out.push(i)
+    })
+    return out
+  }, [history, searchQuery])
+
+  useEffect(() => {
+    setSearchIndex((prev) => (prev < searchMatches.length ? prev : 0))
+  }, [searchMatches.length])
+
+  // Bring the active hit into view. Scrolling here means the user is driving,
+  // so release the stick-to-bottom that would otherwise yank them back.
+  useEffect(() => {
+    if (!searchOpen || searchMatches.length === 0) return
+    const target = scrollRef.current?.querySelector(`[data-msg-index="${searchMatches[searchIndex]}"]`)
+    if (!target) return
+    stickToBottomRef.current = false
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [searchOpen, searchIndex, searchMatches])
+
+  const stepSearch = useCallback((delta: number) => {
+    setSearchIndex((prev) => {
+      if (searchMatches.length === 0) return 0
+      return (prev + delta + searchMatches.length) % searchMatches.length
+    })
+  }, [searchMatches.length])
+
+  // Ctrl/Cmd+F opens find-in-conversation, Alt+Arrow walks the user's own
+  // turns. Both are only claimed while the chat is actually on screen, so the
+  // browser's find still works everywhere else in the app.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const visible = scrollRef.current?.offsetParent != null
+      if (!visible) return
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        setSearchOpen(true)
+        return
+      }
+      if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        const turns = history.reduce<number[]>((acc, msg, i) => {
+          if (msg.role === 'user') acc.push(i)
+          return acc
+        }, [])
+        if (turns.length === 0) return
+        event.preventDefault()
+        const container = scrollRef.current
+        if (!container) return
+        // Walk relative to whichever turn is nearest the top of the viewport,
+        // so the jump follows what the user is looking at.
+        const tops = turns.map((index) => {
+          const el = container.querySelector(`[data-msg-index="${index}"]`)
+          return el ? (el as HTMLElement).offsetTop : Number.POSITIVE_INFINITY
+        })
+        const current = tops.findIndex((top) => top >= container.scrollTop - 4)
+        const base = current === -1 ? turns.length - 1 : current
+        const next = Math.min(turns.length - 1, Math.max(0, base + (event.key === 'ArrowUp' ? -1 : 1)))
+        stickToBottomRef.current = false
+        container.querySelector(`[data-msg-index="${turns[next]}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [history])
 
   // Fetch master agent's model name on mount and whenever the WebSocket reconnects
   // (so the label updates after a server restart / model switch)
@@ -1006,9 +1135,10 @@ export function ChatPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingChatInput])
 
-  const sendMessage = useCallback(async (rawText: string, files: File[] = [], referencedAttachmentIds: string[] = []) => {
+  const sendMessage = useCallback(async (rawText: string, files: File[] = [], referencedAttachmentIds: string[] = [], referencedNoteIds: string[] = [], rawDisplayText?: string) => {
     const text = rawText.trim()
-    const displayText = text
+    // Mentions are expanded for master but shown to the user as they typed them.
+    const displayText = (rawDisplayText ?? rawText).trim()
     if (!text && files.length === 0) return
     if (isStreaming) return
 
@@ -1028,7 +1158,7 @@ export function ChatPanel() {
           appendMessage('assistant', `_Some files were rejected: ${errors.map((e) => `${e.name}: ${e.error}`).join('; ')}_`)
         }
       } catch (e) {
-        appendMessage('user', rawText || '(attachments)')
+        appendMessage('user', displayText || '(attachments)')
         appendMessage('assistant', `_Failed to upload attachments: ${(e as Error).message}_`)
         return
       }
@@ -1078,6 +1208,7 @@ export function ChatPanel() {
     appendMessage('user', displayText, undefined, attachments)
     const sessionId = useSessionStore.getState().activeId
     setLaunchTick((t) => t + 1) // fire the send-button launch (spec §4)
+    setTurnStartedAt(Date.now())
     setStreamingParts([])
     setIsStreaming(true)
     setBackgroundActivity('')
@@ -1104,8 +1235,12 @@ export function ChatPanel() {
     let hadInlineResult = false
 
     try {
-      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId,
-        useSessionStore.getState().sessions.find(s => s.id === sessionId)?.noteContext?.map(n => n.id))) {
+      // Notes reach the backend as ids, never as text: `@note "Title"` in the
+      // message is only for the reader. Pinned context and this turn's mentions
+      // are one list, capped at the 12 the API accepts.
+      const pinnedNoteIds = useSessionStore.getState().sessions.find(s => s.id === sessionId)?.noteContext?.map(n => n.id) ?? []
+      const noteIds = [...new Set([...pinnedNoteIds, ...referencedNoteIds])].slice(0, 12)
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId, noteIds)) {
         const liveUsage = updateLiveUsage(event)
         if (liveUsage) setUsage(liveUsage)
         if (event.type === 'task_result') {
@@ -1270,6 +1405,18 @@ export function ChatPanel() {
           tokensPerSecond={usage?.tokens_per_second ?? 0} contextWindow={usage?.context_window ?? 0}
           estimated={usage?.estimated ?? false} inputKnown={usage?.inputKnown ?? false} outputKnown={usage !== null} />
       </div>
+      <div className="relative flex flex-1 flex-col" style={{ minHeight: 0 }}>
+      {searchOpen && (
+        <ChatSearchBar
+          query={searchQuery}
+          onQuery={(value) => { setSearchQuery(value); setSearchIndex(0) }}
+          matchCount={searchMatches.length}
+          activeIndex={searchIndex}
+          onPrev={() => stepSearch(-1)}
+          onNext={() => stepSearch(1)}
+          onClose={() => { setSearchOpen(false); setSearchQuery('') }}
+        />
+      )}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
@@ -1286,8 +1433,14 @@ export function ChatPanel() {
           </div>
         )}
 
-        {history.map((msg, i) => (
-          <div key={i} className="group relative">
+        {history.map((msg, i) => {
+          const hitPosition = searchMatches.indexOf(i)
+          return (
+          <div
+            key={i}
+            data-msg-index={i}
+            className={`group relative ${hitPosition >= 0 ? 'chat-search-hit' : ''} ${hitPosition === searchIndex ? 'is-current' : ''}`}
+          >
             {msg.role === 'assistant' && msg.taskCompletion && !msg.taskCompletion.structured_result ? (
               // A "what just finished" card: the backend completed a background
               // task (resume/notification/goal/cron) that carried structured
@@ -1305,6 +1458,10 @@ export function ChatPanel() {
                 agentName={msg.role === 'assistant' ? 'master' : undefined}
                 agentModel={msg.role === 'assistant' ? masterModel : undefined}
                 onDelete={msg.role === 'user' ? () => useSessionStore.getState().deleteMessage(i) : undefined}
+                onEdit={msg.role === 'user' && !isStreaming ? (content) => {
+                  chatInputRef.current?.setText(content)
+                  chatInputRef.current?.focus()
+                } : undefined}
               />
             )}
             {msg.role === 'assistant' && msg.taskCompletion?.structured_result && <TaskCompletionCard task={msg.taskCompletion} />}
@@ -1329,7 +1486,8 @@ export function ChatPanel() {
               </button>
             )}
           </div>
-        ))}
+          )
+        })}
 
         {/* Completed task groups */}
         {taskGroups.map((group) => (
@@ -1342,15 +1500,20 @@ export function ChatPanel() {
         ))}
 
         {/* Streaming assistant response */}
-        {isStreaming && streamingParts.length === 0 && (
-          <div className="flex items-center gap-2 text-zinc-500 text-sm pl-1">
-            <TypingIndicator />
-            <span>{queuedNotice || 'Thinking…'}</span>
-          </div>
-        )}
-
         {isStreaming && streamingParts.length > 0 && (
           <PartsChain parts={streamingParts} masterModel={masterModel} streaming />
+        )}
+
+        {isStreaming && (
+          <TurnStatusBar
+            spinner={<TypingIndicator />}
+            label={livePhase}
+            tool={liveTool}
+            startedAt={turnStartedAt}
+            tokensPerSecond={usage?.tokens_per_second ?? undefined}
+            outputTokens={usage?.output_tokens ?? undefined}
+            onStop={handleStop}
+          />
         )}
 
         {/* Children master has spawned in this turn and not yet collected.
@@ -1418,6 +1581,13 @@ export function ChatPanel() {
 
         <div ref={bottomRef} />
       </div>
+      {!atBottom && (history.length > 0 || isStreaming) && (
+        <button type="button" className="chat-jump" onClick={jumpToLatest} title="Scroll to the newest message">
+          ↓ Latest
+          {unseen > 0 && <span className="chat-jump-badge">{unseen > 99 ? '99+' : unseen}</span>}
+        </button>
+      )}
+      </div>
 
       {/* Input area */}
       <div className="studio-composer flex-shrink-0">
@@ -1433,7 +1603,13 @@ export function ChatPanel() {
         <div className="studio-composer-controls flex flex-wrap gap-2 items-end">
           <ChatInput
             ref={chatInputRef}
-            onSubmit={(text, files, attachmentIds) => sendMessage(text, files, attachmentIds)}
+            onSubmit={(submission) => sendMessage(
+              submission.text,
+              submission.files,
+              submission.attachmentIds,
+              submission.noteIds,
+              submission.displayText,
+            )}
             disabled={isStreaming}
           />
           {micSupported && voiceEnabled && (
@@ -1481,27 +1657,7 @@ export function ChatPanel() {
 }
 
 function _helpText(): string {
-  return (
-    '**Available commands:**\n\n' +
-    '| Command | Description |\n' +
-    '|---------|-------------|\n' +
-    '| `/help` | Show this help message |\n' +
-    '| `/clear` | Clear conversation and start a new session |\n' +
-    '| `/ping` | Ping the server and show response time |\n' +
-    '| `/status` | Show server & agent status |\n' +
-    '| `/agents` | List all agents |\n' +
-    '| `/model` | Show current adapter/model |\n' +
-    '| `/cost` | Show session cost breakdown |\n' +
-    '| `/sessions` | List recent sessions |\n' +
-    '| `/continue` | Resume the latest session |\n' +
-    '| `/resume <id>` | Resume a specific session |\n' +
-    '| `/export <filename>` | Export conversation to file |\n' +
-    '| `/doctor` | Run doctor health check |\n' +
-    '| `/start` | Start the backend server |\n' +
-    '| `/stop` | Stop the backend server |\n' +
-    '| `/restart` | Restart the backend server |\n' +
-    '| `/exit` | No-op in web UI |'
-  )
+  return commandHelpTable()
 }
 
 function formatSessionActivity(envelope: SessionEventEnvelope): string {

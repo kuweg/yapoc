@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import type { AgentStatus } from '../api/types'
 import { getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import './agentOffice.css'
+import { OfficeDelivery, OfficeFurnishing, OfficePet, officeTheme } from './OfficeAtmosphere'
 import { useUniverseStore } from '../store/universeStore'
 
 export function officeState(agent: AgentStatus, disconnected = false) {
@@ -65,14 +66,20 @@ function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconn
 
 export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentStatus[]; disconnected: boolean; onOpen: (agent: AgentStatus) => void }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [atmosphere, setAtmosphere] = useState(() => { try { return localStorage.getItem('yapoc-office-atmosphere') !== 'off' } catch { return true } })
+  const states = agents.map(agent => officeState(agent, disconnected))
+  const weather = !states.length || states.includes('offline') ? 'fog' : states.includes('attention') ? 'rain' : states.includes('working') || states.includes('waiting') ? 'sun' : 'night'
+  const weatherLabels = { fog: 'Status unavailable', rain: 'Needs attention', sun: 'Team active', night: 'Team resting' }
   const floors = new Map<string, AgentStatus[]>()
   for (const agent of agents) {
     const role = agent.office_role || agent.name
     floors.set(role, [...(floors.get(role) || []), agent])
   }
-  return <div className="agent-office" aria-label="Agent building">
+  return <div className={`agent-office ${atmosphere ? "has-atmosphere" : "quiet-office"} weather-${weather}`} aria-label="Agent building">
+    <div className="office-atmosphere-controls"><span>{weatherLabels[weather]}</span><button aria-pressed={atmosphere} onClick={() => { setAtmosphere(!atmosphere); try { localStorage.setItem("yapoc-office-atmosphere", atmosphere ? "off" : "on") } catch { /* optional preference */ } }}>Atmosphere {atmosphere ? "on" : "off"}</button></div>
+    {atmosphere && <div className="office-sky" aria-hidden="true"><span className="office-celestial" /><span className="office-cloud" /><span className="office-rain" /></div>}
     <div className="office-roof"><span>YAPOC</span><span>AGENT HOUSE</span></div>
-    {[...floors].sort(([a], [b]) => a === 'master' ? -1 : b === 'master' ? 1 : a.localeCompare(b)).map(([role, residents], index) => <section className="office-floor" key={role} style={{ '--resident-color': getAgentColor(role) } as CSSProperties} aria-label={`${role} floor`}>
+    {[...floors].sort(([a], [b]) => a === 'master' ? -1 : b === 'master' ? 1 : a.localeCompare(b)).map(([role, residents], index) => <section className={`office-floor room-${officeTheme(role)}`} key={role} data-room={officeTheme(role)} style={{ '--resident-color': getAgentColor(role) } as CSSProperties} aria-label={`${role} floor`}>
       <button className="office-floor-heading" aria-expanded={!collapsed.has(role)} onClick={() => setCollapsed(previous => {
         const next = new Set(previous); if (next.has(role)) next.delete(role); else next.add(role); return next
       })}>
@@ -82,7 +89,9 @@ export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentSta
       {!collapsed.has(role) && <div className="office-apartment">
         <div className="office-window" aria-hidden="true" /><div className="office-lamp" aria-hidden="true" />
         <RoomDetails />
-        <div className="office-residents">{[...residents].sort((a, b) => a.name.localeCompare(b.name)).map(agent => <div key={agent.name}><Resident agent={agent} disconnected={disconnected} onOpen={onOpen} />{agent.universe_id && <button className="office-universe-badge" onClick={() => useUniverseStore.getState().compare(agent.universe_id!)} aria-label={`Compare universe ${agent.universe_letter?.toUpperCase()}`}>{agent.universe_letter?.toUpperCase()} · Compare</button>}</div>)}</div>
+        <OfficeFurnishing role={role} />
+        {atmosphere && <><OfficePet sleeping={!residents.some(agent => officeState(agent, disconnected) === 'working')} /><OfficeDelivery connected={!disconnected} signature={residents.filter(agent => officeState(agent, disconnected) === 'working').map(agent => JSON.stringify([agent.name, agent.task_summary])).sort().join('|')} /></>}
+        <div className="office-residents">{[...residents].sort((a, b) => a.name.localeCompare(b.name)).map(agent => <div key={agent.name} className={`office-resident-slot portal-${agent.universe_letter || "none"}`}>{atmosphere && agent.universe_id && <span className="office-portal" aria-hidden="true" />}<Resident agent={agent} disconnected={disconnected} onOpen={onOpen} />{agent.universe_id && <button className="office-universe-badge" onClick={() => useUniverseStore.getState().compare(agent.universe_id!)} aria-label={`Compare universe ${agent.universe_letter?.toUpperCase()}`}>{agent.universe_letter?.toUpperCase()} · Compare</button>}</div>)}</div>
       </div>}
     </section>)}
     {!agents.length && <p className="office-empty">Your agents will appear here when connected.</p>}

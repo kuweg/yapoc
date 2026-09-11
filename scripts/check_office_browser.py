@@ -49,6 +49,20 @@ async def check(dist):
             assert await floor.locator('.is-working .office-arm').evaluate("e => getComputedStyle(e).animationName") == 'office-type'
             await page.emulate_media(reduced_motion='reduce')
             await page.screenshot(path='/tmp/yapoc-office-desktop.png')
+            await expect(floor).to_have_attribute('data-room', 'workshop')
+            await expect(page.locator('.office-pet')).to_have_count(3)
+            await expect(page.locator('.agent-office')).to_have_class('agent-office has-atmosphere weather-rain')
+            await page.get_by_role('button', name='Atmosphere on', exact=True).click()
+            await expect(page.locator('.office-pet')).to_have_count(0)
+            await page.reload()
+            await expect(page.get_by_role('button', name='Atmosphere off', exact=True)).to_be_visible()
+            await page.get_by_role('button', name='Atmosphere off', exact=True).click()
+            agents[1]['universe_id'] = 'a' * 32
+            agents[1]['universe_letter'] = 'a'
+            await expect(floor.locator('.office-portal')).to_have_count(1, timeout=10000)
+            assert await floor.locator('.office-portal').evaluate('e => getComputedStyle(e).animationName') == 'none'
+            agents[1]['task_summary'] = 'Newly assigned build'
+            await expect(floor.locator('.office-delivery')).to_have_count(1, timeout=10000)
             agents[1]['runtime_state'] = 'idle'
             await expect(floor.get_by_role('button', name='builder_a: Idle. Open agent flow')).to_be_visible(timeout=10000)
             await floor.get_by_role('button', expanded=True).click()

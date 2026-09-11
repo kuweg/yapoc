@@ -34,6 +34,13 @@ data/
 dump.rdb
 *.rdb
 
+# SQLite runtime databases (tickets, sessions, task state) — never source
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
 # ── Frontend ─────────────────────────────────────────────────────────────
 app/frontend/node_modules/
 app/frontend/dist/

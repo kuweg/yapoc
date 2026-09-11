@@ -5,8 +5,8 @@
   "stale_task_threshold_seconds": 600,
   "agents": {
     "master": {
-      "adapter": "openai",
-      "model": "gpt-5.6-terra",
+      "adapter": "deepseek",
+      "model": "deepseek-v4-pro",
       "temperature": 0.3,
       "task_timeout": 0,
       "tools": [
@@ -19,6 +19,7 @@
         "show_agent_settings",
         "web_search",
         "fetch_page",
+        "super_fetch_page",
         "spawn_agent",
         "ping_agent",
         "kill_agent",

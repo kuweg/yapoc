@@ -36,6 +36,19 @@ _QUEUE_PATH = settings.project_root / "data/notification_queue.json"
 _TRACE_PATH = settings.project_root / "data/notification_trace.jsonl"
 _TRACE_MAX_BYTES = 2_000_000  # ~2MB before rotation
 
+# The dispatcher's name when it appears as a TASK.MD `assigned_by`, i.e. when
+# it routed a cron job straight to its `assign_to` agent instead of through
+# master.
+DISPATCHER_PARENT = "dispatcher"
+
+# Parent names that do not name a real agent with an inbox. A completion
+# attributed to one of these has nobody to deliver to: either the starter
+# collects the result itself (the dispatcher's direct cron route), or the
+# entry IS a delivery trigger ("notification"). Enqueuing one anyway leaks an
+# outbox entry forever, since queue_pending_notifications only ever drains
+# parent_agent == "master".
+NON_AGENT_PARENTS = frozenset({"", "notification", DISPATCHER_PARENT})
+
 
 class Notification(TypedDict):
     parent_agent: str

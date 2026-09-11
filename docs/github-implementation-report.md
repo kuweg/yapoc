@@ -68,7 +68,7 @@ logged. Write audits omit payloads. Credentials are not forwarded to log storage
 
 - `poetry run pytest tests/test_github_plugin.py tests/test_mcp_config.py tests/test_security_policy.py -q`: 156 passed before the final fail-closed regression test.
 - `poetry run pytest tests/test_github_plugin.py tests/test_security_policy.py tests/test_tool_retry.py -q`: 157 passed with the fail-closed test and event-loop fix.
-- `poetry run pytest tests/ app/backend/tests/ -q --maxfail=0`: **709 passed**, two pre-existing warnings, 20.95 seconds (outside sandbox).
+- `poetry run pytest tests/ app/backend/tests/ -q --maxfail=0`: **732 passed**, two pre-existing warnings, 24.03 seconds (outside sandbox, final configuration-fix run).
 - `pnpm --dir app/frontend build`: passed TypeScript and Vite production build;
   Vite reported a large-bundle warning and Node a module.register deprecation warning.
 - `poetry run python -m compileall -q app/utils/github plugins/github app/utils/mcp app/backend/routers/github.py`: passed.
@@ -98,7 +98,7 @@ This change does not restart the user's running deployment automatically.
 4. Keep `GITHUB_WRITE_ENABLED=false`, `GITHUB_MCP_ENABLED=false`, and
    `GITHUB_POLL_INTERVAL_SECONDS=0` for initial setup.
 5. Run `poetry run yapoc restart` and `pnpm --dir app/frontend build` for a
-   production UI. Open Observability and select **Check GitHub**.
+   production UI. Open Connections → GitHub and select **Check GitHub**.
 6. Optionally install the official MCP server executable, set
    `GITHUB_MCP_COMMAND` to its path, set `GITHUB_MCP_ENABLED=true`, restart, and
    grant only the needed `mcp__github__...` read tools.
@@ -123,3 +123,39 @@ are deferred to keep this initial policy narrow. Real-token connectivity and a
 live official MCP handshake were not exercised. A human changing draft status
 concurrently can race the draft-update precheck; GitHub supplies no atomic
 conditional draft update in this implementation.
+
+## Sidebar follow-up
+
+GitHub now has a dedicated entry under Connections in the left navigation.
+The status card was removed from the expandable live-trace viewer. The router
+uses `/integrations/github` internally so the Vite proxy and packaged `/api`
+middleware both resolve the frontend's `/api/integrations/github` request.
+
+Updated `App.tsx`, `appStore.ts`, `StudioNavigation.tsx`, the GitHub status card,
+ObservabilityTab, and the GitHub router; added `GitHubTab.tsx` and
+`scripts/check_github_browser.py`. API routing regression tests cover both paths.
+Validation: 43 GitHub tests passed; TypeScript/Vite build passed; Playwright
+verified desktop/mobile navigation, real local API routing with fixture health
+data, explicit checks, connection retry, and no horizontal mobile overflow.
+
+The backend was restarted during this follow-up to load the corrected route;
+the live `/api/integrations/github` endpoint returned HTTP 200.
+
+## Live configuration follow-up
+
+The MCP config loader previously populated `os.environ` from `.env`. An
+in-process restart could inherit those values after the file changed, causing
+the cached settings singleton to report the old disabled/unconfigured state.
+MCP interpolation now reads a local merged mapping (real environment takes
+precedence) and never mutates the process environment. A regression test edits
+the same temporary `.env` twice and confirms the second value is read without
+polluting `os.environ`.
+
+The configured native integration authenticated successfully against
+`kuweg/yapoc`; the live health endpoint reports connected with a successful
+timestamp and Actions data. The official GitHub MCP Server v1.12.1 Linux x86_64
+archive was downloaded from GitHub Releases, verified against its published
+SHA-256 checksum, and installed in ignored local runtime storage at
+`data/bin/github-mcp-server`. The private `.env` points to this executable.
+After restart, the MCP host reports connected and exactly three registered
+read tools: `get_file_contents`, `list_branches`, and `list_commits`.

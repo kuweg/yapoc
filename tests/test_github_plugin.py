@@ -266,3 +266,18 @@ async def test_draft_head_cannot_escape_repository(monkeypatch):
     result = await plugin.execute_operation('create_draft_pull_request', title='Draft', body='', head='outside:branch', base='trunk')
     assert 'selected repository' in result
     request.assert_not_called()
+
+
+@pytest.mark.parametrize('path', ['/integrations/github', '/api/integrations/github'])
+async def test_github_http_paths_match_frontend_proxy(path, monkeypatch):
+    from fastapi import FastAPI
+    from app.backend.dashboard import ApiPrefixMiddleware
+    from app.backend.routers.github import router
+    app = FastAPI()
+    app.include_router(router)
+    app.add_middleware(ApiPrefixMiddleware)
+    monkeypatch.setattr(settings, 'github_enabled', False)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as http:
+        response = await http.get(path)
+    assert response.status_code == 200
+    assert response.json()['enabled'] is False

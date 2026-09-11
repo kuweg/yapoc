@@ -67,7 +67,7 @@ class SearchMemoryTool(BaseTool):
 
         try:
             from app.utils.db import init_schema, search_hybrid, get_db
-            from app.utils.embeddings import embed
+            from app.utils.embeddings import embed_optional as embed
 
             init_schema()  # ensure tables exist
 

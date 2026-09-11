@@ -1,4 +1,5 @@
-import { GitHubIntegrationStatus } from './GitHubIntegrationStatus'
+import { RuntimeDiagnostics } from './RuntimeDiagnostics'
+import { TaskProgressPanel } from './TaskProgress'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface ObservabilityTotals {
@@ -329,7 +330,6 @@ function LiveTraceViewer({ agent, onClose }: { agent: string; onClose: () => voi
 
   return (
     <div className="border border-zinc-800 bg-zinc-900/60">
-      <GitHubIntegrationStatus />
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800">
         <span className={`inline-block w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -513,7 +513,7 @@ const VERIFICATION_STYLES: Record<string, string> = {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export function ObservabilityTab() {
+export function ObservabilityTab({ active = true }: { active?: boolean }) {
   const [data, setData] = useState<ObservabilityDashboard | null>(null)
   const [costHistory, setCostHistory] = useState<CostDataPoint[]>([])
   const [loading, setLoading] = useState(true)
@@ -580,25 +580,27 @@ export function ObservabilityTab() {
   }, [])
 
   useEffect(() => {
-    loadReliability(windowDays)
-  }, [loadReliability, windowDays])
+    if (active) loadReliability(windowDays)
+  }, [loadReliability, windowDays, active])
 
   useEffect(() => {
-    loadSignals()
-  }, [loadSignals])
+    if (active) loadSignals()
+  }, [loadSignals, active])
 
   useEffect(() => {
+    if (!active) return
     load()
     loadCostHistory()
-  }, [load, loadCostHistory])
+  }, [load, loadCostHistory, active])
 
   // Auto-refresh every 15 seconds
   useEffect(() => {
+    if (!active) return
     const interval = setInterval(() => {
-      load()
+      if (!document.hidden) load()
     }, 15000)
     return () => clearInterval(interval)
-  }, [load])
+  }, [load, active])
 
   const agents = data?.agents ?? []
   const sorted = [...agents].sort((a, b) => {
@@ -636,7 +638,7 @@ export function ObservabilityTab() {
   return (
     <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800 flex-shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-zinc-800 flex-shrink-0">
         <h2 className="text-[12px] uppercase tracking-widest text-zinc-500">Observability</h2>
         <button
           onClick={() => { load(); loadCostHistory(); }}
@@ -669,6 +671,8 @@ export function ObservabilityTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <RuntimeDiagnostics />
+        <TaskProgressPanel active={active} />
         {error && (
           <div className="px-3 py-2 border border-red-700 bg-red-950/50 text-red-300 text-xs font-mono">
             {error}{' '}

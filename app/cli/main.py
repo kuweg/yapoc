@@ -145,7 +145,9 @@ def _do_start(host: str = settings.host, port: int = settings.port) -> None:
     _SERVER_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     log_fh = open(_SERVER_OUTPUT, "a", encoding="utf-8")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.backend.main:app", "--host", host, "--port", str(port)],
+        [sys.executable, "-m", "uvicorn", "app.backend.main:app", "--host", host, "--port", str(port), "--timeout-graceful-shutdown", "3"],
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
         stdout=log_fh,
         stderr=log_fh,
     )
@@ -251,7 +253,7 @@ def _kill_pid(pid: int, *, label: str) -> bool:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
         return True
-    sigterm_deadline = time.monotonic() + 8.0
+    sigterm_deadline = time.monotonic() + 15.0
     while time.monotonic() < sigterm_deadline:
         if not _is_pid_alive(pid):
             return True
@@ -563,7 +565,7 @@ def _handle_repl_slash(
         if not _last_response:
             console.print("[dim]No response to speak[/dim]")
         elif not tts.is_available():
-            console.print("[magenta]TTS engine not available (install espeak on Linux, or check pyttsx3)[/magenta]")
+            console.print("[magenta]Offline speech unavailable: install poetry install -E voice and the platform speech runtime[/magenta]")
         else:
             console.print("[dim]Speaking...[/dim]")
             tts.speak(_last_response)
@@ -1453,6 +1455,7 @@ def backend(
         sys.executable, "-m", "uvicorn", "app.backend.main:app",
         "--host", host, "--port", str(port),
         "--log-level", log_level.lower(),
+        "--timeout-graceful-shutdown", "3",
     ]
     if reload:
         args.append("--reload")
@@ -2038,6 +2041,20 @@ def git_revert(
             raise typer.Exit(code=1)
 
     asyncio.run(_run())
+
+
+@app.command("memory-embeddings")
+def memory_embeddings(batch_size: int = typer.Option(64, min=1, max=256)):
+    """Add vectors to keyword-only memory after installing the embeddings extra."""
+    from app.utils.db import init_schema
+    from app.utils.embeddings import backfill_embeddings
+    init_schema()
+    try:
+        count = backfill_embeddings(batch_size)
+    except ImportError as exc:
+        console.print(str(exc), markup=False)
+        raise typer.Exit(1) from None
+    console.print(f"Added embeddings to {count} memory entries.")
 
 
 if __name__ == "__main__":

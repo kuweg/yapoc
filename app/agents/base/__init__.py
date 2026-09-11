@@ -1181,13 +1181,8 @@ class BaseAgent:
                 tool=tc.name, params=dict(tc.input or {}), caller=self._name,
             )
         except Exception as _gate_exc:
-            if tc.name.startswith(("github_", "plugin:github:")):
-                _decision, _sec_reason = "deny", "GitHub security policy unavailable"
-            else:
-                _log.bind(agent=self._name, tool=tc.name).warning(
-                    "security_gate error ({}) — defaulting to allow", _gate_exc,
-                )
-                _decision, _sec_reason = "allow", "gate-error"
+            _log.bind(agent=self._name, tool=tc.name).warning('Security gate unavailable; action denied')
+            _decision, _sec_reason = 'deny', 'Security policy unavailable'
         if tc.name.startswith(("github_", "plugin:github:")) and _decision != "allow":
             _decision, _sec_reason = "deny", "GitHub security policy refused the action"
         if _decision == "deny":
@@ -1216,6 +1211,8 @@ class BaseAgent:
         for _attempt in range(_max_retries + 1):
             try:
                 output = await tool.execute(**tc.input)
+                from app.utils.tools import truncate_tool_output
+                output = truncate_tool_output(output)
                 result = ToolResult(tool_use_id=tc.id, content=output)
                 return result, ToolDone(name=tc.name, result=output)
             except _PERMANENT_OS_ERRORS as exc:
@@ -1226,7 +1223,7 @@ class BaseAgent:
                 last_exc = exc
                 if _attempt < _max_retries:
                     _log.bind(agent=self._name, tool=tc.name).warning(
-                        "Transient error (attempt {}), retrying in 2s: {}", _attempt + 1, exc
+                        "Transient error (attempt {}), retrying in 2s: {}", _attempt + 1, type(exc).__name__
                     )
                     await asyncio.sleep(2)
                     continue
@@ -1236,7 +1233,8 @@ class BaseAgent:
                 last_exc = exc
                 break
 
-        err_msg = f"Tool error: {last_exc}" if last_exc else "Tool error: unknown"
+        from app.utils.tools import truncate_tool_output
+        err_msg = truncate_tool_output(f"Tool error: {last_exc}" if last_exc else "Tool error: unknown")
         result = ToolResult(tool_use_id=tc.id, content=err_msg, is_error=True)
         return result, ToolDone(name=tc.name, result=result.content, is_error=True)
 
@@ -2211,6 +2209,19 @@ class BaseAgent:
                         )
 
                     messages.append({"role": "user", "content": tool_results})
+
+                    # A finished wait hands the child to the durable notification
+                    # path. Release master's lock without another model roundtrip.
+                    if self._name == "master" and any(tc.name in {"wait_for_agent", "wait_for_agents"} for tc in turn_complete.tool_calls):
+                        from app.backend.services.task_runtime import current_task_id
+                        from app.backend.services.task_progress import pending_handoff
+                        waiting = pending_handoff(current_task_id.get())
+                        if waiting:
+                            acknowledgement = "Work continues with " + ", ".join(waiting) + ". I’ll return with the result; you can keep chatting."
+                            messages.append({"role": "assistant", "content": acknowledgement})
+                            yield TextDelta(text=acknowledgement)
+                            break
+
 
                     # ── Loop detection ──
                     # Record both the tool name AND a signature of its input so the

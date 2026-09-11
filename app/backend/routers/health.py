@@ -146,3 +146,15 @@ async def health_summary():
         },
         "doctor_summary": doctor_summary,
     }
+
+
+@router.get('/health/runtime')
+async def runtime_status():
+    from app.backend.services.runtime_diagnostics import snapshot
+    return snapshot()
+
+
+@router.post('/health/runtime/check')
+async def check_runtime():
+    from app.backend.services.runtime_diagnostics import run_checks
+    return await run_checks()

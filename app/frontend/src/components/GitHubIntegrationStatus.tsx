@@ -22,15 +22,16 @@ export function GitHubIntegrationStatus() {
       if (!response.ok) throw new Error('unavailable')
       setStatus(await response.json())
       setError('')
-    } catch { setError('GitHub integration status unavailable.') }
+    } catch { setError('GitHub integration status unavailable. Check that the backend is running and has loaded the GitHub integration.') }
     finally { setBusy(false) }
   }
   useEffect(() => { void load() }, [])
   return <section aria-label="GitHub integration" className="border-b border-zinc-800 bg-zinc-900/60 p-3 text-xs text-zinc-300 shrink-0">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="font-medium">GitHub · {status?.enabled ? 'Enabled' : 'Disabled'} · Writes {status?.write_enabled ? 'enabled' : 'disabled'}</span>
+      <span className="font-medium">GitHub · {status ? (status.enabled ? 'Enabled' : 'Disabled') : 'Status unavailable'} · Writes {status ? (status.write_enabled ? 'enabled' : 'disabled') : 'unknown'}</span>
       <button disabled={busy || !status?.enabled} onClick={() => void load(true)} className="border border-zinc-700 px-3 py-2 text-amber-400 disabled:opacity-40">{busy ? 'Checking…' : 'Check GitHub'}</button>
     </div>
+    {error && <button disabled={busy} onClick={() => void load()} className="mt-2 border border-zinc-700 px-3 py-2 disabled:opacity-40">Retry connection</button>}
     {error && <p role="status" className="mt-2 text-amber-400">{error}</p>}
     {status && <div className="mt-2 space-y-1 break-words">
       <p>{status.repositories.join(', ') || 'No repositories configured'} · {status.connection}</p>

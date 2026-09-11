@@ -84,6 +84,20 @@ class Settings(BaseSettings):
     notification_max_attempts: int = Field(default=3, ge=1, le=10)
     notification_retry_seconds: int = Field(default=30, ge=0)
     autonomous_run_timeout: int = Field(default=300, ge=0)
+    # How long MASTER may sit inside wait_for_agent before handing the
+    # delegation off to the async notification path. Master executes every
+    # queue entry under one lock, so a long block there stalls user chat.
+    #
+    # This bounds master's WAITING only — never the sub-agent's RUNNING. The
+    # child is not cancelled, keeps its full task_timeout, and reports back
+    # via notify_parent whenever it finishes. Sub-agents waiting on their own
+    # children are not capped: they block nobody.
+    #
+    # 0 disables the cap and restores the old behaviour (master waits for
+    # whatever timeout it passed, up to 900s).
+    master_wait_timeout: int = Field(default=2, ge=0)
+
+    restart_recovery_limit: int = Field(default=3, ge=0, le=20)
 
     # ── Webhook ────────────────────────────────────────────────────────
     webhook_secret: str = ""  # Bearer token for /webhook/task; empty = endpoint disabled
@@ -119,7 +133,9 @@ class Settings(BaseSettings):
     google_tts_voice: str = "en-US-Wavenet-D"
 
     # ── Safety ────────────────────────────────────────────────────────────
-    max_shell_timeout: int = 120  # hard cap on shell command timeout (seconds)
+    execution_network_enabled: bool = True  # shared internet/DNS for shell and Python tools
+    shell_memory_limit_mb: int = Field(default=0, ge=0)  # 0: no address-space cap; V8 reserves large virtual ranges
+    max_shell_timeout: int = 600  # hard cap on shell command timeout (seconds)
 
     # ── Agent processes ─────────────────────────────────────────────────
     # Seconds before an idle subprocess agent self-terminates. Overridable

@@ -26,6 +26,7 @@ def _build_uvicorn_cmd() -> list[str]:
         sys.executable, "-m", "uvicorn", "app.backend.main:app",
         "--host", settings.host,
         "--port", str(settings.port),
+        "--timeout-graceful-shutdown", "3",
     ]
 
 
@@ -33,7 +34,7 @@ def _spawn_server(cmd: list[str]) -> subprocess.Popen:
     """Start a new uvicorn server, append logs to SERVER_OUTPUT.MD."""
     _SERVER_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     log_fh = open(_SERVER_OUTPUT, "a", encoding="utf-8")
-    proc = subprocess.Popen(cmd, stdout=log_fh, stderr=log_fh)
+    proc = subprocess.Popen(cmd, stdout=log_fh, stderr=log_fh, stdin=subprocess.DEVNULL, start_new_session=True)
     _PID_FILE.write_text(str(proc.pid))
     server_exit_watcher(proc, _SERVER_OUTPUT, _SERVER_CRASH)
     return proc

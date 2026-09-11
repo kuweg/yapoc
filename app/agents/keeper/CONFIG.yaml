@@ -48,13 +48,18 @@ sandbox:
     - docs/
     - scripts/
     - README.md
-  # shell_exec is locked down to a read-only inspection set + poetry.
+  # shell_exec permits inspection, Poetry and the frontend toolchain.
   # Keeper is the config/dependency guardian: it needs to inspect the
-  # project state (ls/cat/pwd/find/grep/wc/head/tail) and manage Poetry,
+  # project state, manage dependencies and rebuild/test the frontend,
   # but has no legitimate reason to run arbitrary destructive commands.
   shell_allowlist:
+    # Poetry's executable and this project's managed virtualenv may live
+    # outside project_root. Validated Poetry commands mount those exact
+    # runtimes; install/lock/add/remove/update/sync can update the project env.
+    # Use cwd or cd directory && command for project builds.
     - poetry
     - ls
+    - cd
     - cat
     - pwd
     - find
@@ -66,6 +71,13 @@ sandbox:
     - which
     - python
     - python3
+    - node
+    - npm
+    - npx
+    - pnpm
+    - yarn
+    - corepack
+    - bun
 runner:
   max_turns: 30
   task_timeout: 300

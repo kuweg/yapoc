@@ -22,8 +22,8 @@ frontend build setup is required on the host.
 The installer checks Docker and offers a retry after you install/start it. It
 does not silently grant Docker privileges or install host services. Windows
 users should complete Docker Desktop's WSL/virtualization setup when prompted.
-The first build can download several gigabytes because the current Python
-dependencies include the local embedding/ML stack. Subsequent runs reuse caches.
+The default build excludes the local embedding/ML stack. Opting into the
+`embeddings` extra can add large downloads. Subsequent runs reuse build caches.
 
 ## Launch
 
@@ -176,3 +176,98 @@ could not be performed in the development session because Docker socket access
 was denied and sudo required a password. Live provider and Telegram pairing
 require the installer's own credentials and are not exercised using someone
 else's account during validation.
+
+## Lightweight core and optional capabilities
+
+The default installation keeps the three interactive choices in this order:
+
+1. Choose the YAPOC working folder.
+2. Choose the initial provider and enter its API key in a masked prompt; select a model.
+3. Optionally connect a Telegram bot, or skip it. An empty bot token also offers Skip.
+
+No API key is accepted as a command-line argument. The installer then saves the
+configuration, starts the services and opens the dashboard as before.
+
+The core includes the dashboard, providers, Telegram integration, GitHub, document
+handling, and keyword memory search. It does **not** install the local ML stack,
+notebook kernel, or offline speech engine. Optional capabilities use standard
+[Python extras](https://packaging.python.org/en/latest/specifications/pyproject-toml/#dependencies-optional-dependencies):
+
+| Extra | Adds | Without it |
+| --- | --- | --- |
+| `embeddings` | sentence-transformers and its ML dependencies | Memory remains indexed and searchable by keyword; no model downloads |
+| `notebooks` | ipykernel | Ordinary agent Python execution still works; no notebook kernel |
+| `voice` | pyttsx3 | Text and configured cloud speech remain available; offline speech reports setup guidance |
+
+Choose extras explicitly when launching setup; the three interactive choices
+stay the same:
+
+```sh
+node install.mjs --extras embeddings,voice
+node install.mjs --extras all
+```
+
+Shell launchers forward the same flags:
+
+```bash
+bash install.sh --extras notebooks
+```
+
+```powershell
+.\install.ps1 --extras notebooks
+```
+
+A re-run without `--extras` keeps the installation's previous selection. Passing
+`--extras none` selects the core image. Changing the selection rebuilds the
+runtime without deleting the workspace or credentials. Use the same installer
+source version when modifying an existing installation; setup is not an app
+source-code upgrade.
+
+For direct Compose, set the build variable before building:
+
+```bash
+YAPOC_EXTRAS="embeddings voice" docker compose build yapoc
+docker compose up -d
+```
+
+```powershell
+$env:YAPOC_EXTRAS = 'embeddings voice'
+docker compose build yapoc
+docker compose up -d
+```
+
+For a native Linux development checkout:
+
+```sh
+poetry install --only main                 # core runtime
+poetry install -E embeddings -E voice      # selected capabilities, plus dev group
+poetry install --all-extras                # all optional capabilities
+poetry run yapoc restart
+poetry run yapoc memory-embeddings          # optional: embed existing keyword-only memory
+```
+
+Repeat the desired extras on subsequent Poetry installs; omitted extras may be
+removed by Poetry. The lockfile includes all optional dependencies for reproducible
+resolution, but a core installation does not install them. Existing keyword-only
+rows stay usable; `memory-embeddings` fills their vectors in batches without
+recreating memory or changing existing vectors. The embeddings model downloads
+on first semantic use or explicit backfill, never in the core-only path.
+
+### OS behavior
+
+The Node launcher and PowerShell/Bash entrypoints use the same installer and
+folder/provider/Telegram flow. Windows and macOS run the backend in Linux
+containers through [Docker Desktop](https://docs.docker.com/desktop/); Linux may
+also use Docker Engine with Compose. No Linux package-manager commands run on the
+Windows/macOS host, and the image does not force an x86 architecture.
+
+The `voice` image installs Linux eSpeak only when requested. Native Linux offline
+speech also needs an OS speech engine (`espeak-ng` on Debian/Ubuntu, or the
+corresponding package for the distribution). Installing the Python voice extra
+alone does not configure microphone access or host audio forwarding. Notebook
+support adds a kernel, not a notebook web interface. Native Windows/macOS backend
+execution is not the supported path for agent shell isolation; use Docker.
+
+Validation includes portable installer checks on Linux/Windows/macOS in CI, core
+and embedding-enabled backend test jobs, and a core container import/build check.
+A Linux-only development test does not establish a Windows/macOS end-to-end pass.

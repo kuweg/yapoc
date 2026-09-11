@@ -61,7 +61,17 @@ Rules:
 
 ## Behavior
 - When asked to add a dependency: use `poetry add <package>` via `shell_exec`
+- Poetry is available inside execution isolation even when its binary and the
+  project's virtualenv are outside the repository. Use `poetry env info --path`
+  to inspect the environment and one Poetry command per tool call. If install
+  reports a stale lockfile, run `poetry lock`, then retry install. Do not search
+  the home directory or fall back to pip; those do not repair a stale lockfile.
 - When asked to set an env var: edit `.env` directly, mask the value in your response
 - When asked to add a setting: update `app/config/settings.py` with the new field
 - Always confirm what changed at the end of each task
 - **Always call `notify_parent` when done** — never just end without notifying
+
+Frontend builds: use `npm --prefix app/frontend run build`, or `pnpm run build`
+with shell_exec cwd `app/frontend`. The runtime exposes installed Node/package
+managers, including version-manager installs. Use separate calls for diagnostic
+commands; shell syntax failures are distinct from executable allowlist failures.

@@ -73,6 +73,8 @@ def _append_audit(
         params_str = json.dumps(params, default=str)
     except Exception:
         params_str = repr(params)
+    from app.utils.secrets import scrub
+    params_str, reason = scrub(params_str), scrub(reason)
     line = (
         f"[{ts}] caller={caller} tool={tool} source={source} "
         f"decision={decision} reason={reason!r} params={_truncate(params_str, 160)}\n"
@@ -115,20 +117,8 @@ async def _classify_via_llm(tool: str, params: dict, caller: str) -> tuple[str, 
             user_message=user_msg,
         )
     except Exception as exc:
-        # Provider error → fail SAFE (allow). Logging-wise this is rare; the
-        # LLM layer is only hit on ambiguous-but-not-hardcoded-deny cases,
-        # and a provider outage shouldn't strand the autonomous loop.
-        # Hardcoded rules still block the truly dangerous cases.
-        # Fail direction depends on what the tool can do.
-        #
-        # For tools that can only damage YAPOC or the host, allowing is the
-        # right default: that damage is recoverable (git checkpoints, rollback,
-        # a rebuilt agent), while blocking every risky call whenever a provider
-        # hiccups would halt the system.
-        #
-        # For outward-facing tools it is the wrong default. An email sent under
-        # the user's identity cannot be recalled, so "the reviewer was down" is
-        # not a reason to let it through unreviewed. These fail CLOSED.
+        # Unavailable review is never authorization. Read-only tools already
+        # take the deterministic fast path and do not need a provider.
         from app.utils.tools.security_policy import is_outward_facing
 
         if is_outward_facing(tool):
@@ -137,12 +127,12 @@ async def _classify_via_llm(tool: str, params: dict, caller: str) -> tuple[str, 
                 return "deny", "GitHub review unavailable"
             _log.warning(
                 "security_gate: LLM consult failed ({}) — DENYING outward-facing "
-                "{} (irreversible, cannot be reviewed)", exc, tool,
+                "{} (irreversible, cannot be reviewed)", type(exc).__name__, tool,
             )
             return "deny", f"llm-unavailable and tool is outward-facing: {type(exc).__name__}"
 
-        _log.warning("security_gate: LLM consult failed ({}) — defaulting to allow", exc)
-        return "allow", f"llm-unavailable: {type(exc).__name__}"
+        _log.warning('security_gate: review unavailable; denying action')
+        return 'deny', 'Security review unavailable'
 
     # Find the first {...} JSON object in the response.
     raw_stripped = raw.strip()

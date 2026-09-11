@@ -117,7 +117,11 @@ def run_guided_setup() -> int:
             console.print("Create a dedicated bot with @BotFather and paste its bot token.")
             token = questionary.password("Telegram bot token").ask()
             if not token:
-                return 1
+                action = questionary.select("No bot token supplied", choices=["Skip Telegram", "Retry", "Cancel"]).ask()
+                if not action or action == "Cancel":
+                    return 1
+                wants_telegram = action == "Retry"
+                continue
             try:
                 chat_id = pair_telegram(token)
                 telegram = {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_WHITELIST": json.dumps([chat_id]),

@@ -52,6 +52,23 @@ function backendControlPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), backendControlPlugin()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('/node_modules/')) return
+          // ECharts has internal registration cycles: keep it together, and
+          // load it only when a chart/graph is actually rendered.
+          if (id.includes('/echarts/')) return 'charts'
+          if (id.includes('/zrender/')) return 'chart-renderer'
+          if (id.includes('/highlight.js/')) return 'syntax-highlighting'
+          if (/\/(react|react-dom|scheduler)\//.test(id)) return 'react-runtime'
+          if (/\/(framer-motion|motion-dom|motion-utils)\//.test(id)) return 'animation'
+          if (/\/(react-markdown|remark-[^/]+|rehype-[^/]+|micromark[^/]*|mdast-[^/]+|hast-[^/]+|unist-[^/]+|unified|vfile[^/]*)\//.test(id)) return 'markdown'
+        },
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     proxy: {

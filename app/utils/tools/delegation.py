@@ -214,7 +214,10 @@ def _parse_delegation_targets(agent_name: str) -> list[str]:
 
 
 # Agents that can spawn any agent without delegation_targets checks
-_UNRESTRICTED_SPAWNERS = {"master"}
+# "dispatcher" is not an agent — it is the backend's task loop routing a
+# cron job straight to its `assign_to` target. It has no CONFIG.yaml and
+# therefore no delegation_targets to check against.
+_UNRESTRICTED_SPAWNERS = {"master", "dispatcher"}
 
 
 def _prepend_structured_result(msg: str) -> str:
@@ -331,8 +334,12 @@ class SpawnAgentTool(BaseTool):
         self,
         agent_dir: "Path | None" = None,
         session_id: str | None = None,
+        caller: str | None = None,
     ) -> None:
-        self._caller = agent_dir.name if agent_dir else "master"
+        # `caller` lets a non-agent starter (the dispatcher) identify itself.
+        # It lands in TASK.MD's assigned_by, which is what decides who — if
+        # anyone — gets notified when the child finishes.
+        self._caller = caller or (agent_dir.name if agent_dir else "master")
         self._session_id = session_id
 
     async def execute(self, **params: Any) -> str:
@@ -468,10 +475,15 @@ class SpawnAgentTool(BaseTool):
             from loguru import logger as _ck_log
             _ck_log.warning("git_safety snapshot failed for {} (continuing without checkpoint): {}", agent_name, _ck_exc)
 
-        # Register spawn relationship for notification delivery
+        # Register spawn relationship for notification delivery. Skipped for a
+        # non-agent parent: the registry is the poller's primary parent lookup,
+        # so recording "dispatcher" there would only shadow a real relationship
+        # without ever producing a deliverable notification.
         try:
+            from app.backend.services.notification_queue import NON_AGENT_PARENTS
             from app.backend.services.spawn_registry import registry as _registry
-            _registry.register_spawn(parent_agent=self._caller, child_agent=agent_name)
+            if self._caller not in NON_AGENT_PARENTS:
+                _registry.register_spawn(parent_agent=self._caller, child_agent=agent_name)
         except Exception as _reg_exc:
             from loguru import logger as _spawn_log
             _spawn_log.bind(parent=self._caller, child=agent_name).warning(
@@ -676,6 +688,86 @@ class CheckTaskStatusTool(BaseTool):
         return ", ".join(parts)
 
 
+def _bounded_wait_timeout(caller: str, requested: int) -> int:
+    """Clamp how long MASTER may block. Never touches the child's own budget.
+
+    Only master is capped. It executes every queue entry under one lock, so a
+    long block there stalls the user's next message. A sub-agent waiting on
+    its own child runs in a separate subprocess and blocks nobody, so it keeps
+    whatever timeout it asked for.
+    """
+    cap = settings.master_wait_timeout
+    if caller != "master" or cap <= 0:
+        return requested
+    return min(requested, cap)
+
+
+def _record_abandoned_wait(agent_name: str) -> None:
+    """Note on master's queue row that this delegation outlived its wait.
+
+    The eventual result is then delivered as a `continuation` (allowed to
+    spawn follow-up work) instead of a summary-only `notification` — master
+    stopped waiting mid-chain, so there may well be more to do. Best-effort:
+    losing the marker costs a summary-only delivery, never the result.
+    """
+    try:
+        from app.backend.services.task_runtime import current_task_id
+        from app.utils.db import get_queued_task, update_queued_task
+
+        task_id = current_task_id.get()
+        if not task_id:
+            return
+        row = get_queued_task(task_id)
+        if not row:
+            return
+        try:
+            meta = json.loads(row.get("metadata") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        abandoned = meta.get("abandoned_waits") or []
+        if not isinstance(abandoned, list):
+            abandoned = []
+        if agent_name in abandoned:
+            return
+        meta["abandoned_waits"] = [*abandoned, agent_name]
+        try:
+            child_fields, _ = _parse_frontmatter(_task_path(agent_name).read_text())
+            references = meta.get('waiting_tasks', {})
+            if not isinstance(references, dict):
+                references = {}
+            meta['waiting_tasks'] = {**references, agent_name: child_fields.get('task_id', '')}
+        except (OSError, ValueError):
+            pass
+        update_queued_task(task_id, metadata=json.dumps(meta))
+    except Exception as exc:
+        from loguru import logger as _aw_log
+        _aw_log.warning("Could not record abandoned wait for {}: {}", agent_name, exc)
+
+
+def _handoff_message(agent_name: str, waited: int, last_status: str, polls: int) -> str:
+    """What master is told when it stops waiting on a still-running agent.
+
+    Worded to close the two failure modes an LLM falls into here: re-spawning
+    work that is still in flight, and reporting a result it has never seen.
+    """
+    return (
+        f"[STILL RUNNING — HANDED OFF] Stopped waiting for '{agent_name}' after "
+        f"{waited}s ({polls} polls). Its task is still '{last_status}'.\n"
+        f"'{agent_name}' was NOT cancelled and did NOT fail — it is still working "
+        f"and keeps its full time budget.\n\n"
+        f"Do this now:\n"
+        f"1. Tell the user '{agent_name}' is still working on it, then END YOUR TURN.\n"
+        f"2. Do NOT spawn '{agent_name}' again — that would duplicate work already "
+        f"in flight.\n"
+        f"3. Do NOT call wait_for_agent on it again this turn.\n"
+        f"4. Do NOT state or summarize any result — you have not seen one.\n\n"
+        f"Its result will reach you as a [SYSTEM NOTIFICATION] on a later turn, "
+        f"and you can finish the job from there."
+    )
+
+
 async def _publish_wait_heartbeat(
     caller: str,
     waiting_on: list[str],
@@ -746,7 +838,7 @@ class WaitForAgentTool(BaseTool):
 
     async def execute(self, **params: Any) -> str:
         agent_name = params["agent_name"]
-        timeout = params.get("timeout", 900)
+        timeout = _bounded_wait_timeout(self._caller, params.get("timeout", 900))
         poll_interval = params.get("poll_interval", 3)
 
         path = _task_path(agent_name)
@@ -851,12 +943,14 @@ class WaitForAgentTool(BaseTool):
                 polls=polls,
                 elapsed_s=time.monotonic() - _wait_started_at,
             )
-            await asyncio.sleep(poll_interval)
+            await asyncio.sleep(min(max(0.05, poll_interval), max(0, deadline - time.monotonic())))
 
-        return (
-            f"Timeout waiting for agent '{agent_name}' after {timeout}s "
-            f"({polls} polls). Last status: {last_status}."
-        )
+        # The wait budget is spent, but the agent is still alive and working —
+        # the crash case already returned above via the fast-fail branch. Hand
+        # the delegation to the async notification path rather than reporting a
+        # failure that did not happen.
+        _record_abandoned_wait(agent_name)
+        return _handoff_message(agent_name, timeout, last_status, polls)
 
 
 def _format_wait_results(results: dict[str, dict], polls: int, early_exit: str | None = None) -> str:
@@ -933,7 +1027,7 @@ class WaitForAgentsTool(BaseTool):
 
     async def execute(self, **params: Any) -> str:
         agent_names: list[str] = params["agent_names"]
-        timeout: int = params.get("timeout", 900)
+        timeout: int = _bounded_wait_timeout(self._caller, params.get("timeout", 900))
         poll_interval: int = params.get("poll_interval", 3)
         fail_fast: bool = params.get("fail_fast", True)
 
@@ -1012,14 +1106,23 @@ class WaitForAgentsTool(BaseTool):
                 polls=polls,
                 elapsed_s=time.monotonic() - _wait_started_at,
             )
-            await asyncio.sleep(poll_interval)
+            await asyncio.sleep(min(max(0.05, poll_interval), max(0, deadline - time.monotonic())))
 
+        # Agents still running when the budget ran out are handed off, not
+        # failed — same reasoning as the single-agent wait. Reporting these as
+        # "timeout" would invite master to re-spawn work still in flight.
         for name in agent_names:
             if name not in done:
+                _record_abandoned_wait(name)
                 results[name] = {
-                    "status": "timeout",
+                    "status": "still_running",
                     "result": "",
-                    "error": f"Timed out after {timeout}s",
+                    "error": (
+                        f"Stopped waiting after {timeout}s — '{name}' is STILL "
+                        f"WORKING (not cancelled, not failed). Do not re-spawn it "
+                        f"and do not report a result for it; its result arrives "
+                        f"as a [SYSTEM NOTIFICATION] on a later turn."
+                    ),
                 }
 
         return _format_wait_results(results, polls)
@@ -1470,7 +1573,7 @@ class ExecuteDagTool(BaseTool):
                         if fail_fast:
                             aborted = True
                 if pending_in_batch and not aborted:
-                    await asyncio.sleep(poll_interval)
+                    await asyncio.sleep(min(max(0.05, poll_interval), max(0, deadline - time.monotonic())))
                 if aborted:
                     # Any remaining nodes in this batch finish-counted as interrupted.
                     for nid in list(pending_in_batch):
@@ -1694,12 +1797,13 @@ class NotifyParentTool(BaseTool):
         from app.utils.frontmatter import parse_frontmatter_fields
         parent_task_id = parse_frontmatter_fields(task_path.read_text()).get("parent_task_id", "")
 
-        if (
-            not parent_name
-            or parent_name in ("", "notification")
-            or parent_name == self._agent_dir.name
-        ):
-            return "No parent to notify (assigned_by is 'notification' or unset) — result is delivered via the notification poller. Nothing to do."
+        from app.backend.services.notification_queue import NON_AGENT_PARENTS
+
+        if parent_name in NON_AGENT_PARENTS or parent_name == self._agent_dir.name:
+            return (
+                f"No parent to notify (assigned_by is '{parent_name or 'unset'}') — "
+                "whoever started this task collects the result itself. Nothing to do."
+            )
 
         # "User" is the terminal sentinel — route through master
         if parent_name.lower() == "user":

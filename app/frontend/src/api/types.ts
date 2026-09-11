@@ -48,6 +48,8 @@ export type StreamEvent =
   | StatusEvent
 
 export interface AgentStatus {
+  office_role?: string
+  runtime_state?: string
   name: string
   status: string
   model: string

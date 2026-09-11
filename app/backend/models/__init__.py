@@ -20,6 +20,8 @@ class TaskResponse(BaseModel):
 
 
 class AgentStatus(BaseModel):
+    office_role: str = ""
+    runtime_state: str = "unknown"
     name: str
     status: str
     model: str

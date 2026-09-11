@@ -285,7 +285,17 @@ def _build_agent_status(agent_dir) -> AgentStatus | None:
     if state == "idle" and task_is_active:
         effective_state = "running"
 
+    office_role = agent_dir.name
+    try:
+        config = (agent_dir / 'CONFIG.yaml').read_text(encoding='utf-8')
+        role = re.search(r'^office_role:\s*[\'"]?([a-zA-Z0-9_-]+)[\'"]?\s*$', config, re.MULTILINE)
+        if role:
+            office_role = role.group(1)
+    except OSError:
+        pass
     return AgentStatus(
+        office_role=office_role,
+        runtime_state=state if pid else ('idle' if state == 'idle' else 'unknown'),
         name=agent_dir.name,
         status=legacy_status,
         model=model,

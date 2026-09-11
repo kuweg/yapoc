@@ -35,6 +35,7 @@ from app.config import settings
 RISKY_TOOLS: frozenset[str] = frozenset({
     "file_delete",
     "shell_exec",
+    "execute_code",
     "delete_agent",
     "update_agent_config",
     "agent_amnesia",
@@ -244,6 +245,14 @@ def _shell_escapes_project(command: str) -> bool:
     invoked when this fires, but a human-CLI bypass still respects hardcoded
     rules. Tune up if it bites.
     """
+    from . import shell_arguments
+    from .poetry_execution import operation, safe_inspection
+    try:
+        argv = shell_arguments(command)
+        if operation(argv) in {'read', 'dependencies'} or safe_inspection(argv):
+            return False
+    except ValueError:
+        pass
     for match in _ABS_PATH_TOKEN_RE.finditer(command):
         token = match.group(0)
         if any(token == p or token.startswith(p + "/") for p in _SAFE_ABS_PATH_PREFIXES):
@@ -447,7 +456,48 @@ def _is_orphaned_agent_memory_file(raw: str) -> bool:
     )
 
 
+def _safe_poetry_shell(command: str) -> bool:
+    from . import shell_arguments
+    from .poetry_execution import operation, safe_inspection
+    try:
+        argv = shell_arguments(command)
+        return operation(argv) in {'read', 'dependencies'} or safe_inspection(argv)
+    except ValueError:
+        return False
+
+
+def _safe_frontend_shell(params: dict) -> bool:
+    from . import project_shell_arguments
+    from .javascript_execution import project_operation
+    try:
+        directory, argv = project_shell_arguments(str(params.get('command', '')))
+        work = settings.project_root / str(params.get('cwd', '.'))
+        if directory:
+            work = work / directory
+        if not work.resolve().is_relative_to(settings.project_root.resolve()):
+            return False
+        # Validate option paths and dependency paths, including ../ traversal.
+        for arg in argv[1:]:
+            value = arg.split('=', 1)[-1]
+            if value.startswith(('~', '/')) or '..' in Path(value).parts:
+                if not (work / value).resolve().is_relative_to(settings.project_root.resolve()):
+                    return False
+        return project_operation(argv)
+    except (ValueError, OSError):
+        return False
+
+
 HARDCODED_ALLOW: tuple[AllowRule, ...] = (
+    AllowRule(
+        tool='shell_exec',
+        matcher=lambda caller, p: caller in {'keeper', 'builder', 'master'} and _safe_frontend_shell(p),
+        reason='project-local package installation or frontend build/test command',
+    ),
+    AllowRule(
+        tool='shell_exec',
+        matcher=lambda caller, p: caller in {'keeper', 'builder', 'master'} and _safe_poetry_shell(str(p.get('command', ''))),
+        reason='validated project Poetry operation or managed-runtime inspection',
+    ),
     # Master is the orchestrator — killing a stuck sub-agent is routine
     # recovery work. Hardcoded-deny for target=master/security still wins.
     AllowRule(

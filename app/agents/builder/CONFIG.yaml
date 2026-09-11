@@ -80,6 +80,10 @@ sandbox:
     - wc
     - uname
     - which
+    - pnpm
+    - yarn
+    - corepack
+    - bun
     - npm
     - npx
     - node

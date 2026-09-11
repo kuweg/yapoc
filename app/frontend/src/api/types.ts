@@ -241,6 +241,7 @@ export interface ChannelSessionMessagesResponse {
 }
 
 export interface StructuredTaskResult {
+  progress?: import('./client').QueuedTask['progress']
   schema_version: 1
   task_id: string
   status: 'succeeded' | 'partial' | 'failed' | 'blocked' | 'cancelled'

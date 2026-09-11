@@ -164,7 +164,7 @@ separate from the cross-platform guided installer.
 1. **Install dependencies** (Poetry resolves and installs the Python environment).
 
    ```bash
-   poetry install
+   poetry install  # lightweight core + development tools
    ```
 
 2. **Run the interactive setup wizard** to pick a provider, validate your key,
@@ -359,3 +359,7 @@ Implemented: all 11 agents, FastAPI backend, Typer CLI + Rich REPL, React fronte
 Not implemented: persistent Telegram auth across restarts, formal test suite, dark-mode UI, multi-user RBAC.
 
 GitHub repository health, controlled maintenance, and optional read-only MCP: [setup guide](docs/github-integration.md).
+
+Optional local capabilities are installed with `poetry install -E embeddings`,
+`-E notebooks`, or `-E voice`; the guided installer accepts `--extras`.
+See [lightweight installation and OS guidance](docs/installation.md#lightweight-core-and-optional-capabilities).

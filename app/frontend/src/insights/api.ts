@@ -2,6 +2,7 @@
 // which strips the prefix before forwarding to the backend (see vite.config.ts).
 import type {
   AgentCostSummary,
+  BranchCostsResponse,
   CostHistoryResponse,
   HierarchyResponse,
   NotificationTraceResponse,
@@ -24,6 +25,8 @@ export const getCostHistory = (hours = 24) =>
   getJSON<CostHistoryResponse>(`/api/metrics/cost-history?hours=${hours}`)
 
 export const getHierarchy = () => getJSON<HierarchyResponse>('/api/metrics/hierarchy')
+
+export const getBranchCosts = () => getJSON<BranchCostsResponse>('/api/metrics/branch-costs')
 
 export const getObservability = () => getJSON<ObservabilityResponse>('/api/metrics/observability')
 

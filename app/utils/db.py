@@ -576,7 +576,7 @@ def recent_tasks_queue(limit: int = 50, status: str | None = None) -> list[dict[
 
 def search_hybrid(
     query: str,
-    query_embedding: np.ndarray,
+    query_embedding: np.ndarray | None,
     agent: str | None = None,
     top_k: int = 10,
     include_cold: bool = False,
@@ -596,7 +596,7 @@ def search_hybrid(
     # Vector results
     vec_results = search_vector(
         query_embedding, agent=agent, limit=top_k * 3, include_cold=include_cold
-    )
+    ) if query_embedding is not None else []
 
     # Build RRF scores keyed by memory_entries.id
     rrf_scores: dict[int, float] = {}

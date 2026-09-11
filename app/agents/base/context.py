@@ -106,7 +106,7 @@ async def _get_rag_memories(agent_dir: Path, query_hint: str = "recent tasks and
         return ""
 
     try:
-        from app.utils.embeddings import embed
+        from app.utils.embeddings import embed_optional as embed
         from app.utils.db import search_hybrid
 
         query_vec = embed(query_hint)

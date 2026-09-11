@@ -2,6 +2,9 @@
 
 import numpy as np
 import pytest
+from importlib.util import find_spec
+
+pytestmark = pytest.mark.skipif(find_spec("sentence_transformers") is None, reason="Optional embeddings extra is not installed")
 
 from app.utils.embeddings import embed, embed_batch, _EMBEDDING_DIM
 

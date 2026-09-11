@@ -127,7 +127,9 @@ class FetchPageTool(BaseTool):
         "search returns snippets, fetch_page returns the actual page text. "
         "Strips navigation, ads, and boilerplate. Returns at most max_chars "
         "characters of extracted content. Only http(s) URLs are allowed; "
-        "this tool does NOT render JavaScript, follow robots.txt, or cache."
+        "this tool does NOT render JavaScript, follow robots.txt, or cache. "
+        "If the page returns an HTTP 403/blocked/Cloudflare error or empty content, "
+        "retry with super_fetch_page."
     )
     input_schema: dict[str, Any] = {
         "type": "object",
@@ -234,6 +236,142 @@ class FetchPageTool(BaseTool):
             extracted, title = await asyncio.to_thread(_extract, html)
         except Exception as exc:
             return f"ERROR: fetch_page failed — extraction error: {exc}"
+
+        if not extracted.strip():
+            return (
+                f"Page: {final_url}\n"
+                f"Title: {title}\n\n"
+                "[no extractable main content — the page may be JavaScript-only, "
+                "behind a login, or otherwise non-extractable]"
+            )
+
+        truncated = False
+        if len(extracted) > max_chars:
+            extracted = extracted[:max_chars]
+            truncated = True
+
+        header = f"Page: {final_url}\nTitle: {title}\n\n"
+        body = extracted
+        if truncated:
+            body += f"\n\n[truncated — page exceeded {max_chars} chars]"
+        return header + body
+
+
+class SuperFetchPageTool(BaseTool):
+    name = "super_fetch_page"
+    description = (
+        "Fetch a URL using a browser-impersonating client (curl_cffi with Chrome TLS "
+        "fingerprint + randomized User-Agent) to bypass bot protection. Use this when "
+        "fetch_page returns an HTTP 403/blocked/Cloudflare error or empty content. Same "
+        "markdown-extraction behavior as fetch_page (trafilatura). Only http(s) URLs "
+        "allowed; does not render JavaScript."
+    )
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "The http(s) URL to fetch and extract content from.",
+            },
+            "max_chars": {
+                "type": "integer",
+                "description": (
+                    f"Maximum characters of extracted text to return "
+                    f"(default: {_FETCH_PAGE_DEFAULT_MAX_CHARS}). Content "
+                    f"beyond this is truncated with a marker."
+                ),
+                "default": _FETCH_PAGE_DEFAULT_MAX_CHARS,
+            },
+        },
+        "required": ["url"],
+    }
+
+    async def execute(self, **params: Any) -> str:
+        url = str(params.get("url", "")).strip()
+        try:
+            max_chars = int(params.get("max_chars", _FETCH_PAGE_DEFAULT_MAX_CHARS))
+        except (TypeError, ValueError):
+            max_chars = _FETCH_PAGE_DEFAULT_MAX_CHARS
+        if max_chars <= 0:
+            max_chars = _FETCH_PAGE_DEFAULT_MAX_CHARS
+
+        if not url:
+            return "ERROR: super_fetch_page failed — url is required"
+
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in _FETCH_PAGE_ALLOWED_SCHEMES:
+            return (
+                f"ERROR: super_fetch_page failed — only http/https URLs are allowed, "
+                f"got scheme {parsed.scheme!r}"
+            )
+        if not parsed.netloc:
+            return "ERROR: super_fetch_page failed — URL has no host"
+
+        # Randomized User-Agent, falling back to a hardcoded Chrome UA.
+        try:
+            from fake_useragent import UserAgent
+
+            user_agent = UserAgent().random
+        except Exception:
+            user_agent = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            )
+
+        try:
+            from curl_cffi import requests as curl_requests
+
+            async with curl_requests.AsyncSession(impersonate="chrome") as client:
+                resp = await client.get(
+                    url,
+                    headers={"User-Agent": user_agent},
+                    timeout=_FETCH_PAGE_TIMEOUT_S,
+                    allow_redirects=True,
+                    max_redirects=_FETCH_PAGE_MAX_REDIRECTS,
+                )
+                resp.raise_for_status()
+                final_url = str(resp.url)
+                content_type = resp.headers.get("content-type", "")
+                ct_lower = content_type.lower()
+                if not (
+                    "html" in ct_lower
+                    or "xml" in ct_lower
+                    or ct_lower.startswith("text/")
+                    or ct_lower == ""
+                ):
+                    return (
+                        f"ERROR: super_fetch_page failed — unsupported content-type "
+                        f"{content_type!r} for {final_url}"
+                    )
+                html = resp.text
+        except Exception as exc:
+            return f"ERROR: super_fetch_page failed — {exc}"
+
+        def _extract(raw_html: str) -> tuple[str, str]:
+            import trafilatura
+
+            extracted = trafilatura.extract(
+                raw_html,
+                output_format="markdown",
+                include_links=True,
+                include_images=False,
+                include_tables=True,
+                with_metadata=False,
+            ) or ""
+
+            title = ""
+            try:
+                meta = trafilatura.extract_metadata(raw_html)
+                if meta is not None:
+                    title = (getattr(meta, "title", "") or "").strip()
+            except Exception:
+                title = ""
+            return extracted, title
+
+        try:
+            extracted, title = await asyncio.to_thread(_extract, html)
+        except Exception as exc:
+            return f"ERROR: super_fetch_page failed — extraction error: {exc}"
 
         if not extracted.strip():
             return (

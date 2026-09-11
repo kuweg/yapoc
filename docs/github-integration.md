@@ -32,7 +32,7 @@ No account, repository, organization or branch is baked into the integration.
    deployment, use its normal supervisor restart flow. Plugin reload alone does
    not reload environment-backed settings or agent process configuration.
 4. Rebuild a production frontend with `pnpm --dir app/frontend build`.
-5. Open Observability → GitHub → **Check GitHub**. Verify the repository and
+5. Open Connections → GitHub → **Check GitHub**. Verify the repository and
    connection status. No credentials are displayed by this interface.
 6. Ask master for `github_get_health_summary`. Set `repository` explicitly for
    another allowlisted repository. A default/self repository must also be allowed.
@@ -184,6 +184,10 @@ MCP leaves the native plugin functional. `GITHUB_ENABLED=false` disables both.
 - MCP disconnected: check the installed executable and its version's supported
   tool names. The SDK/server is optional; native reads remain available. The
   connection error is deliberately generic to avoid credential disclosure.
+- Settings still appear unconfigured after editing `.env`: restart the backend.
+  The MCP config reader does not copy `.env` values into `os.environ`; this
+  prevents an in-process restart from inheriting stale file values. Real process
+  environment variables still intentionally take precedence over `.env`.
 - Oversized response: narrow filters or lower page size. Files have a 2 MB API
   response limit; base64 overhead counts against it.
 

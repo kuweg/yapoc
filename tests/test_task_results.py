@@ -85,7 +85,8 @@ def test_live_ws_uses_saved_result(isolated):
     manager._clients.add(client)
     asyncio.run(manager.push_event('task_complete', {'task_id':'a'}))
     payload = json.loads(client.send_text.call_args.args[0])
-    assert payload['structured_result'] == db.get_queued_task('a')['structured_result']
+    from app.backend.services.task_progress import present_task
+    assert payload['structured_result'] == present_task(db.get_queued_task('a'))['structured_result']
 
 
 def test_evidence_scoped_to_task(isolated,monkeypatch):

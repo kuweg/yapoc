@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { TaskProgressPanel } from './components/TaskProgress'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useSessionStore } from './store/session'
 import { useAppStore } from './store/appStore'
 import { useAgentChatStore } from './store/agentChatStore'
@@ -20,6 +21,7 @@ import { SkillsTab } from './components/SkillsTab'
 import { McpTab } from './components/McpTab'
 import { PluginsTab } from './components/PluginsTab'
 import { DriveTab } from './components/DriveTab'
+const GitHubTab = lazy(() => import('./components/GitHubTab').then(module => ({ default: module.GitHubTab })))
 import CronTab from './components/CronTab'
 import { NotesTab } from './notes/NotesTab'
 import { SessionsPanel } from './components/SessionsPanel'
@@ -134,8 +136,9 @@ function Workspace() {
         style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
       >
         <main className="studio-conversation-layout flex-1 flex flex-row overflow-hidden relative" data-inspecting={inspectors.length > 0} style={{ minWidth: 0 }}>
-          <div className="studio-conversation-content flex-1 min-w-0 h-full">
-            <ChatPanel />
+          <div className="studio-conversation-content flex-1 min-w-0 h-full flex flex-col">
+            <TaskProgressPanel conversation active={tab === 'chat'} />
+            <div className="flex-1 min-h-0"><ChatPanel /></div>
           </div>
           <StudioInspector panels={inspectors} focusId={selectedFlowAgent ? `flow-${selectedFlowAgent}` : undefined} focusVersion={flowFocusVersion} />
         </main>
@@ -180,7 +183,7 @@ function Workspace() {
         className="flex flex-col flex-1 overflow-hidden"
         style={{ display: tab === 'tasks' ? 'flex' : 'none', minHeight: 0 }}
       >
-        <TasksPanel />
+        <TasksPanel active={tab === 'tasks'} />
       </div>
 
       {/* ── Channels tab ── */}
@@ -204,7 +207,7 @@ function Workspace() {
         className="flex flex-col flex-1 overflow-hidden"
         style={{ display: tab === 'observability' ? 'flex' : 'none', minHeight: 0 }}
       >
-        <ObservabilityTab />
+        <ObservabilityTab active={tab === 'observability'} />
       </div>
 
       {/* ── Concilium tab ── */}
@@ -221,6 +224,11 @@ function Workspace() {
         style={{ display: tab === 'skills' ? 'flex' : 'none', minHeight: 0 }}
       >
         <SkillsTab />
+      </div>
+
+      {/* ── GitHub tab ── */}
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'github' ? 'flex' : 'none', minHeight: 0 }}>
+        {tab === 'github' && <Suspense fallback={<div role="status">Loading GitHub…</div>}><GitHubTab /></Suspense>}
       </div>
 
       {/* ── MCP tab ── */}

@@ -1,8 +1,19 @@
 """Task Dispatcher — background loop that polls task_queue and executes tasks.
 
 Started as an asyncio task in main.py lifespan. Picks up pending tasks from
-the SQLite task_queue, dispatches them to the master agent, and writes results
-back. Handles concurrency limits and timeouts.
+the SQLite task_queue, dispatches them, and writes results back. Handles
+concurrency limits and timeouts.
+
+Two lanes:
+
+* **Master lane** — one task at a time, because every one of them runs through
+  the single in-process ``master_agent`` and holds its ``_run_lock``. User
+  chat, goals, notifications and any cron job without an ``assign_to`` target
+  go here.
+* **Delegated lane** — a cron job whose ``assign_to`` names a real agent is
+  spawned straight into that agent's subprocess and its TASK.MD polled for the
+  result. It never touches master's lock, so a long librarian sweep no longer
+  blocks the user's next message. Bounded by ``settings.max_concurrent_tasks``.
 
 Usage:
     from app.backend.dispatcher import dispatcher_loop
@@ -13,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
 
 from loguru import logger
@@ -53,9 +65,38 @@ async def _deliver_webhook_callback(task_id: str, result: str) -> None:
         logger.warning(f"Webhook callback failed for {task_id[:8]}…: {exc}")
 
 
-# Track currently dispatched task IDs to prevent double-dispatch
+# Track currently dispatched task IDs to prevent double-dispatch. Covers BOTH
+# lanes — it is the double-dispatch guard and the "don't expire this row"
+# marker for _check_timeouts.
 _running_task_ids: set[str] = set()
 _running_tasks: dict[str, asyncio.Task] = {}
+
+# Subset of _running_task_ids currently occupying the master agent. This is the
+# slot counter: master runs one task at a time, so anything in here means the
+# master lane is closed. Delegated tasks are deliberately absent — they run in
+# their own subprocess and must not hold the lane a user's chat needs.
+_master_task_ids: set[str] = set()
+
+# How often to re-read a delegated agent's TASK.MD while waiting for it.
+_DELEGATED_POLL_INTERVAL = 2.0
+# Grace on top of the agent's own task_timeout before the dispatcher gives up
+# waiting. The agent enforces its own budget and writes status: error on
+# expiry; this only covers the case where it dies without writing anything.
+_DELEGATED_TIMEOUT_GRACE = 60
+# Upper bound on pending rows examined per loop iteration. Large enough that a
+# burst of delegated work can't starve the master lane behind it, small enough
+# to stay a cheap query.
+_PENDING_WINDOW = 20
+
+# The order pending work is picked up in. A child result is the tail of a
+# request already in flight, so it outranks a message the user has only just
+# sent; both outrank autonomous work (cron/goal/doctor/webhook).
+PENDING_QUERY = (
+    "SELECT * FROM task_queue WHERE status='pending' ORDER BY "
+    "CASE WHEN source IN ('notification','continuation') THEN 0 "
+    "WHEN source IN ('ui','cli','telegram','resume') THEN 1 "
+    "ELSE 2 END, created_at, rowid LIMIT ?"
+)
 
 # Shutdown signal
 _shutdown = asyncio.Event()
@@ -96,6 +137,23 @@ async def cancel_task(task_id: str) -> None:
         logger.warning("Cancellation event delivery failed for {}: {}", task_id, exc)
 
 
+def _current_metadata(task_id: str, fallback: dict) -> dict:
+    """Re-read a task's metadata so a mid-turn write is not clobbered.
+
+    The dispatcher parses metadata once when the task starts, but tools can
+    write to the row while the turn is in flight — `_record_abandoned_wait`
+    does exactly that. Finalizing from the stale copy would silently drop it.
+    """
+    row = get_queued_task(task_id)
+    if not row:
+        return fallback
+    try:
+        current = json.loads(row.get("metadata") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return fallback
+    return current if isinstance(current, dict) else fallback
+
+
 async def _execute_task(task_id: str) -> None:
     from app.backend.services.task_runtime import current_task_id
     token = current_task_id.set(task_id)
@@ -114,6 +172,7 @@ async def _execute_task(task_id: str) -> None:
     finally:
         current_task_id.reset(token)
         _running_task_ids.discard(task_id)
+        _master_task_ids.discard(task_id)
         _running_tasks.pop(task_id, None)
 
 
@@ -126,6 +185,7 @@ async def _execute_task_body(task_id: str) -> None:
     task_row = get_queued_task(task_id)
     if not task_row or task_row["status"] != "pending":
         _running_task_ids.discard(task_id)
+        _master_task_ids.discard(task_id)
         return
 
     prompt = task_row["prompt"]
@@ -296,7 +356,7 @@ async def _execute_task_body(task_id: str) -> None:
             result=result_text,
             completed_at=completed_at,
             cost_usd=_task_cost(),
-            metadata=json.dumps({**meta, "messages": message_blocks}),
+            metadata=json.dumps({**_current_metadata(task_id, meta), "messages": message_blocks}),
         )
         if meta.get("notification"):
             from app.backend.services.notification_queue import notification_queue
@@ -630,6 +690,337 @@ async def _execute_task_body(task_id: str) -> None:
         _running_task_ids.discard(task_id)
 
 
+def direct_target(task_row: dict) -> str | None:
+    """Agent that should run this task directly, or None for the master lane.
+
+    Only cron rows are eligible: `assign_to` is written by the cron tick and
+    the cron router, and nothing else produces it. A target naming master, or
+    naming a directory that does not exist, falls back to the master lane
+    rather than failing the job.
+    """
+    if (task_row.get("source") or "").lower() != "cron":
+        return None
+    try:
+        meta = json.loads(task_row.get("metadata") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(meta, dict):
+        return None
+    target = str(meta.get("assign_to") or "").strip()
+    if not target or target == "master":
+        return None
+    if not (settings.agents_dir / target).is_dir():
+        logger.warning(
+            "Cron task {}… targets unknown agent '{}' — routing through master",
+            task_row.get("id", "")[:8], target,
+        )
+        return None
+    return target
+
+
+def _agent_task_timeout(agent_name: str) -> int:
+    """The agent's own task budget, resolved the way BaseAgent resolves it:
+    agent-settings.json → CONFIG.yaml runner block → settings default.
+
+    Returns 0 for "unbounded", matching BaseAgent's convention.
+    """
+    try:
+        from app.utils.agent_settings import resolve_runner_settings
+        value = resolve_runner_settings(agent_name).get("task_timeout")
+    except Exception:
+        value = None
+    if value is None:
+        try:
+            from app.agents.base.context import _parse_runner_config
+            cfg = (settings.agents_dir / agent_name / "CONFIG.yaml").read_text(encoding="utf-8")
+            value = _parse_runner_config(cfg).get("task_timeout")
+        except Exception:
+            value = None
+    if value is None:
+        value = settings.task_timeout
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return settings.task_timeout
+
+
+async def _push_task_state(event: str, payload: dict) -> None:
+    """Emit a task lifecycle event on both the WebSocket and the Redis bus.
+
+    Each leg is independently best-effort: a dead Redis must not cost the UI
+    its update, and vice versa.
+    """
+    try:
+        from app.backend.websocket import ws_manager
+        await ws_manager.push_event(event, payload)
+    except Exception as exc:
+        logger.warning("WS {} delivery failed for {}: {}", event, payload.get("task_id"), exc)
+    try:
+        from app.backend.message_bus import bus
+        await bus.publish("system:tasks", {"type": event, **payload})
+    except Exception:
+        pass
+
+
+async def _execute_delegated_task(task_id: str, agent_name: str) -> None:
+    """Delegated-lane wrapper — mirrors _execute_task's bookkeeping."""
+    from app.backend.services.task_runtime import current_task_id
+
+    token = current_task_id.set(task_id)
+    try:
+        await _execute_delegated_task_body(task_id, agent_name)
+    except asyncio.CancelledError:
+        row = get_queued_task(task_id)
+        if row and row["status"] == "running":
+            update_queued_task(task_id, status="interrupted",
+                               error="Backend stopped during execution")
+        raise
+    except Exception as exc:
+        row = get_queued_task(task_id)
+        if row and row["status"] in {"pending", "running"}:
+            update_queued_task(task_id, status="error", error=str(exc),
+                               completed_at=datetime.now(timezone.utc).isoformat())
+        logger.exception("Delegated task {} execution failed", task_id)
+    finally:
+        current_task_id.reset(token)
+        _running_task_ids.discard(task_id)
+        _running_tasks.pop(task_id, None)
+
+
+async def _execute_delegated_task_body(task_id: str, agent_name: str) -> None:
+    """Run a cron task directly on its target agent, bypassing master.
+
+    Spawns the agent's subprocess with the task, then polls its TASK.MD until
+    it reaches a terminal status. Master is never involved: it holds no lock,
+    burns no turn re-deriving the routing, and — because TASK.MD records
+    `assigned_by: dispatcher` — gets no completion notification to summarize
+    afterwards. The result lands in task_queue (and the morning report) where
+    an operator can read it.
+    """
+    from app.backend.services.notification_queue import DISPATCHER_PARENT
+    from app.backend.services.task_runtime import claim_task
+    from app.utils.frontmatter import parse_frontmatter_fields
+    from app.utils.tools.delegation import (
+        SpawnAgentTool,
+        _poll_one_dag,
+        _resolve_checkpoint,
+        _spawn_response_indicates_failure,
+        _task_path,
+    )
+    from app.utils.usage_tracker import total_spend_all_agents
+
+    task_row = get_queued_task(task_id)
+    if not task_row or task_row["status"] != "pending":
+        _running_task_ids.discard(task_id)
+        return
+
+    prompt = task_row["prompt"]
+    source = task_row["source"] or "cron"
+    session_id = task_row.get("session_id") or ""
+    try:
+        meta = json.loads(task_row.get("metadata") or "{}")
+    except (json.JSONDecodeError, TypeError):
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    silent = bool(meta.get("silent"))
+    cron_job_id = str(meta["cron_job_id"]) if meta.get("cron_job_id") else None
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not claim_task(task_id, session_id, now, agent=agent_name):
+        return
+
+    _spend_before = total_spend_all_agents()
+
+    def _task_cost() -> float:
+        return max(0.0, total_spend_all_agents() - _spend_before)
+
+    await _push_task_state("task_update", {
+        "task_id": task_id, "status": "running", "started_at": now,
+        "session_id": session_id, "source": source, "agent": agent_name,
+    })
+    await graph_event_bus.emit_task_assigned(
+        source="dispatcher", target=agent_name, task_id=task_id,
+    )
+
+    budget = _agent_task_timeout(agent_name)
+    logger.info(
+        "Dispatching task {}… directly to '{}' (budget={})",
+        task_id[:8], agent_name,
+        "unbounded" if budget <= 0 else f"{budget}s",
+    )
+
+    spawn_msg = await SpawnAgentTool(
+        session_id=session_id or None, caller=DISPATCHER_PARENT,
+    ).execute(agent_name=agent_name, task=prompt)
+
+    if _spawn_response_indicates_failure(spawn_msg):
+        await _finalize_delegated(
+            task_id, agent_name, "error", "", f"Spawn refused: {spawn_msg}",
+            source=source, prompt=prompt, session_id=session_id,
+            silent=silent, cron_job_id=cron_job_id, cost=_task_cost(),
+        )
+        return
+
+    # Pin the run we just started. A concurrent spawn into the same agent
+    # would rewrite TASK.MD, and polling it blindly would report that other
+    # run's outcome as ours.
+    task_path = _task_path(agent_name)
+    try:
+        run_task_id = parse_frontmatter_fields(
+            task_path.read_text(encoding="utf-8")
+        ).get("task_id", "")
+    except OSError:
+        run_task_id = ""
+
+    deadline = None if budget <= 0 else time.monotonic() + budget + _DELEGATED_TIMEOUT_GRACE
+    status, result, error = "pending", "", ""
+    while deadline is None or time.monotonic() < deadline:
+        await asyncio.sleep(_DELEGATED_POLL_INTERVAL)
+        if _shutdown.is_set():
+            row = get_queued_task(task_id)
+            if row and row["status"] == "running":
+                update_queued_task(task_id, status="interrupted",
+                                   error="Backend stopped during execution")
+            return
+        status, result, error = await _poll_one_dag(agent_name)
+        # Re-read the identity from the same observation that produced the
+        # status, not before it: a reassignment landing between the two reads
+        # would otherwise hand us the other run's result as our own. The
+        # runner strips task_id once it finishes, so an absent id is ours —
+        # only a DIFFERENT one means we are looking at someone else's run.
+        try:
+            current = parse_frontmatter_fields(
+                task_path.read_text(encoding="utf-8")
+            ).get("task_id", "")
+        except OSError:
+            current = run_task_id
+        if run_task_id and current and current != run_task_id:
+            status, result, error = "error", "", (
+                f"Superseded — '{agent_name}' was reassigned to task "
+                f"{current[:8]}… before this run finished"
+            )
+            break
+        if status in ("done", "error"):
+            break
+    else:
+        status, error = "timeout", (
+            f"Agent '{agent_name}' did not finish within {budget}s "
+            f"(+{_DELEGATED_TIMEOUT_GRACE}s dispatcher grace)"
+        )
+
+    # Commit or roll back the pre-spawn git checkpoint. On the master lane
+    # wait_for_agent does this; nothing else would here.
+    try:
+        banner = await _resolve_checkpoint(agent_name, status, prompt[:120])
+        if banner and result:
+            result = banner + result
+    except Exception as exc:
+        logger.warning("Checkpoint resolution failed for {}: {}", agent_name, exc)
+
+    await _finalize_delegated(
+        task_id, agent_name, status, result, error,
+        source=source, prompt=prompt, session_id=session_id,
+        silent=silent, cron_job_id=cron_job_id, cost=_task_cost(),
+    )
+
+
+async def _finalize_delegated(
+    task_id: str,
+    agent_name: str,
+    status: str,
+    result: str,
+    error: str,
+    *,
+    source: str,
+    prompt: str,
+    session_id: str,
+    silent: bool,
+    cron_job_id: str | None,
+    cost: float,
+) -> None:
+    """Write a delegated run's outcome to task_queue and announce it."""
+    row = get_queued_task(task_id)
+    if not row or row["status"] != "running":
+        return  # cancelled or already finalized elsewhere
+
+    completed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if status == "done":
+        if not result.strip():
+            result = (
+                "_Task finished with no text output — check the agent trace for what ran._"
+            )
+        update_queued_task(task_id, status="done", result=result,
+                           completed_at=completed_at, cost_usd=cost)
+    else:
+        update_queued_task(task_id, status=status, error=error, result=result,
+                           completed_at=completed_at, cost_usd=cost)
+
+    # Cron escalation ladder — same accounting the master lane does.
+    if cron_job_id:
+        try:
+            if status == "done":
+                from app.utils.cron_parser import record_cron_success
+                record_cron_success(cron_job_id)
+            else:
+                from app.utils.cron_parser import get_failure_count, record_cron_failure
+                if record_cron_failure(cron_job_id):
+                    logger.warning(
+                        "Cron job {} auto-disabled after {} consecutive failures",
+                        cron_job_id, get_failure_count(cron_job_id),
+                    )
+                    await _push_task_state("task_error", {
+                        "task_id": task_id, "status": "cron_disabled",
+                        "error": f"Cron job {cron_job_id} auto-disabled after "
+                                 f"{get_failure_count(cron_job_id)} consecutive failures",
+                        "session_id": session_id, "source": source,
+                    })
+        except Exception as exc:
+            logger.warning("Cron escalation record failed for {}: {}", cron_job_id, exc)
+
+    if not silent:
+        payload = {
+            "task_id": task_id, "status": status, "completed_at": completed_at,
+            "session_id": session_id, "source": source, "prompt": prompt,
+            "agent": agent_name,
+        }
+        if status == "done":
+            await _push_task_state("task_complete", {
+                **payload, "result": result, "messages": [result],
+            })
+        else:
+            await _push_task_state("task_error", {**payload, "error": error})
+
+    if status == "done":
+        logger.info(
+            "Delegated task {}… completed on '{}' ({} chars)",
+            task_id[:8], agent_name, len(result),
+        )
+    else:
+        logger.error(
+            "Delegated task {}… {} on '{}': {}", task_id[:8], status, agent_name, error,
+        )
+
+    # Morning report — with master out of the loop there is no chat message
+    # narrating this run, so the report is the operator's view of it.
+    if not silent:
+        try:
+            from app.backend.morning_report import write_morning_report
+            asyncio.create_task(asyncio.to_thread(
+                write_morning_report, "goal_completed", {
+                    "task_id": task_id[:8],
+                    "source": source,
+                    "agent": agent_name,
+                    "result_preview": (result or error)[:180],
+                    "via": "dispatcher direct route",
+                },
+            ))
+        except Exception:
+            pass
+
+    await _deliver_webhook_callback(task_id, result or error)
+
+
 async def _check_timeouts() -> None:
     """Expire orphaned rows; live executions own their configured timeout."""
     running = get_tasks_by_status("running")
@@ -680,28 +1071,35 @@ async def dispatcher_loop() -> None:
             # Check for timed-out tasks
             await _check_timeouts()
 
-            # How many slots are available?
-            # All queue entries execute through the one master. Do not mark
-            # lock waiters running or let them occupy foreground slots.
+            # How many slots are available in each lane?
+            # Master runs one task at a time — everything on that lane shares
+            # the one in-process agent and its _run_lock. Do not mark lock
+            # waiters running or let them occupy the slot.
             from app.agents.master.agent import master_agent
-            if master_agent.is_busy():
-                await asyncio.sleep(0.2)
-                continue
-            running_count = len(_running_task_ids)
-            available = 1 - running_count
-            if available <= 0:
-                await asyncio.sleep(1)
+            master_free = not master_agent.is_busy() and not _master_task_ids
+            delegated_running = len(_running_task_ids) - len(_master_task_ids)
+            delegated_free = max(0, settings.max_concurrent_tasks - delegated_running)
+            if not master_free and delegated_free <= 0:
+                await asyncio.sleep(0.5)
                 continue
 
-            # Fetch pending tasks
+            # Fetch a window of pending tasks and assign each to its lane.
+            # Reading more rows than either lane can take is deliberate: a
+            # queued cron sweep must not hide the user's chat message behind
+            # it just because the delegated lane happens to be full.
             from app.utils.db import get_db
             pending = [dict(r) for r in get_db().execute(
-                "SELECT * FROM task_queue WHERE status='pending' ORDER BY CASE WHEN source IN ('ui','cli','telegram','resume') THEN 0 ELSE 1 END, created_at, rowid LIMIT ?", (available,)
+                PENDING_QUERY, (_PENDING_WINDOW,)
             ).fetchall()]
             for task in pending:
                 tid = task["id"]
                 if tid in _running_task_ids:
                     continue  # already dispatched
+                target = direct_target(task)
+                if target is None and not master_free:
+                    continue
+                if target is not None and delegated_free <= 0:
+                    continue
                 # Check autonomous budget for non-user tasks
                 source = task.get("source", "ui")
                 if source in ("cron", "goal", "doctor", "webhook"):
@@ -721,7 +1119,15 @@ async def dispatcher_loop() -> None:
                         pass
 
                 _running_task_ids.add(tid)
-                _running_tasks[tid] = asyncio.create_task(_execute_task(tid))
+                if target is None:
+                    master_free = False
+                    _master_task_ids.add(tid)
+                    _running_tasks[tid] = asyncio.create_task(_execute_task(tid))
+                else:
+                    delegated_free -= 1
+                    _running_tasks[tid] = asyncio.create_task(
+                        _execute_delegated_task(tid, target)
+                    )
 
             # Goal-driven task creation: when no pending or running tasks, check GOALS.MD
             if not pending and not _running_task_ids:

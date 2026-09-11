@@ -5,10 +5,9 @@ It is deliberately narrow: the same file operations the agent already has as
 tools, exposed as plain Python functions so a *mechanical* pipeline can run as
 one call instead of one LLM turn per step.
 
-Every path goes through the same project-root sandbox the file tools use, and
-write/edit/delete additionally honour the calling agent's ``forbidden_paths``
-policy, which is passed in from the parent process. A script cannot widen its
-own permissions: the policy is applied here, in the child, before any I/O.
+Helpers validate project paths and forbidden writes for useful errors. The
+actual security boundary is the OS namespace in process_sandbox: generated
+Python can bypass helpers, so helper validation alone is not isolation.
 
 Not a general-purpose SDK. If a script needs reasoning, it should have been a
 delegated agent task instead — that is exactly the split this tool exists to

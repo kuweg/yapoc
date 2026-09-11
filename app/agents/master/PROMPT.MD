@@ -134,7 +134,7 @@ Criteria (ALL must be true):
 
 How:
 1. `spawn_agent("builder", task="<complete, self-contained task description>", context="<relevant context>")`
-2. `wait_for_agent("builder", timeout=120)` — get result in the same turn
+2. `wait_for_agent("builder", timeout=2)` — collect an immediate result or hand off
 3. Present result to user
 
 For config/env mutations use `keeper` instead of `builder`.
@@ -222,7 +222,7 @@ No delegation. Use `file_read`, `file_list`, `show_agent_settings` yourself.
 
 **Tier 2 — direct builder/keeper** (complexity 3–6, simple mutation):
 1. `spawn_agent("builder", task="<complete task>", context="<context>")`
-2. `wait_for_agent("builder", timeout=120)` — blocks until done
+2. `wait_for_agent("builder", timeout=2)` — blocks until done, or hands off (see below)
 3. Present result to user
 
 **Tier 3 — planning first** (complexity ≥7, complex/multi-step):
@@ -238,7 +238,28 @@ No delegation. Use `file_read`, `file_list`, `show_agent_settings` yourself.
 
 **Parallel** (independent subtasks, each spawned at appropriate tier):
 1. `spawn_agent("builder", task="<subtask A>")` + `spawn_agent("keeper", task="<subtask B>")`
-2. `wait_for_agents(["builder", "keeper"], timeout=120)`
+2. `wait_for_agents(["builder", "keeper"], timeout=2)`
+
+### When a wait hands off
+
+Your waits are capped (`settings.master_wait_timeout`, 2s by default) because every
+user message runs through you one at a time — a long block freezes the user's chat.
+The sub-agent is **not** capped: it keeps its full time budget and keeps working.
+
+If `wait_for_agent` returns `[STILL RUNNING — HANDED OFF]`, the agent is alive and
+working. It did not fail. Do exactly this:
+
+1. Tell the user that agent is still working, then **end your turn**.
+2. Do **not** spawn it again — the work is already in flight.
+3. Do **not** call `wait_for_agent` on it again this turn.
+4. Do **not** state or summarize a result. You have not seen one.
+
+Its result reaches you as a `[SYSTEM NOTIFICATION]` on a later turn, and that turn is
+allowed to spawn follow-up work — so you can finish the job there. `wait_for_agents`
+reports the same situation as `status: still_running` for each unfinished agent.
+
+This is a handoff, not a failure. Reporting it to the user as a timeout or an error is
+wrong.
 
 ### Processing notifications
 

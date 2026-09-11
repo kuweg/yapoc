@@ -16,7 +16,11 @@ from typing import Optional
 import yaml
 
 from app.backend.services.spawn_registry import SpawnRegistry, registry as default_registry
-from app.backend.services.notification_queue import NotificationQueue, notification_queue as default_queue
+from app.backend.services.notification_queue import (
+    NON_AGENT_PARENTS,
+    NotificationQueue,
+    notification_queue as default_queue,
+)
 
 from app.utils.file_lock import file_lock
 
@@ -274,13 +278,21 @@ class NotificationPoller:
             if dedup_key in self._notified:
                 continue  # Already processed this completion
 
-            # Look up parent
-            parent = self._registry.get_parent(agent_name)
-            if parent is None:
-                # Fall back to assigned_by field in frontmatter
-                parent = fm.get("assigned_by")
+            # Look up parent. assigned_by wins over the registry when it
+            # names a non-agent starter: the registry keeps the LAST spawn
+            # relationship, so a librarian previously spawned by master still
+            # maps to master there long after the dispatcher took over its
+            # cron runs. Trusting it would resurrect the very notification the
+            # direct route exists to avoid.
+            assigned_by = str(fm.get("assigned_by") or "")
+            if assigned_by in NON_AGENT_PARENTS:
+                parent = assigned_by
+            else:
+                parent = self._registry.get_parent(agent_name)
+                if parent is None:
+                    parent = assigned_by or None
 
-            if parent is None or parent == agent_name:
+            if parent is None or parent in NON_AGENT_PARENTS or parent == agent_name:
                 logger.debug(
                     "NotificationPoller: %s completed but no parent found — skipping",
                     agent_name,

@@ -244,6 +244,20 @@ class HierarchyMetrics(BaseModel):
     average_completion_seconds_by_parent: dict[str, float]
 
 
+class BranchCost(BaseModel):
+    agent: str
+    own_cost_usd: float
+    subtree_cost_usd: float
+    subtree_tasks: int
+    direct_children: list[str]
+    depth: int
+
+
+class BranchCostsResponse(BaseModel):
+    generated_at: str
+    branches: list[BranchCost]
+
+
 def _read_usage_json(agent_dir: Path) -> dict[str, Any] | None:
     """Read and return USAGE.json data, or None if missing/corrupt."""
     usage_path = agent_dir / "USAGE.json"
@@ -837,6 +851,84 @@ async def get_hierarchy_metrics():
         delegated_by_parent=dict(delegated_by_parent),
         average_completion_seconds_by_parent=avg_completion_by_parent,
     )
+
+
+@router.get("/branch-costs", response_model=BranchCostsResponse)
+async def get_branch_costs():
+    """Return per-agent subtree cost rollups over the delegation tree.
+
+    Joins cost onto the delegation topology: each agent's ``own_cost_usd`` is
+    the sum of its own tasks, while ``subtree_cost_usd`` folds in every
+    descendant's cost too, so a parent's "budget flowed" figure includes its
+    whole subtree. Defensive: any DB error yields an empty branch list.
+    """
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    try:
+        db = get_db()
+        rows = db.execute(
+            "SELECT agent, assigned_by, cost_usd, status FROM tasks"
+        ).fetchall()
+    except Exception:
+        return BranchCostsResponse(generated_at=generated_at, branches=[])
+
+    # parent -> children adjacency, and per-agent own cost / task count.
+    children: defaultdict[str, set[str]] = defaultdict(set)
+    own_cost: defaultdict[str, float] = defaultdict(float)
+    own_tasks: Counter[str] = Counter()
+    agents: set[str] = set()
+
+    for r in rows:
+        agent = (r["agent"] or "").strip()
+        if not agent:
+            continue
+        parent = (r["assigned_by"] or "").strip()
+        agents.add(agent)
+        own_cost[agent] += float(r["cost_usd"] or 0.0)
+        own_tasks[agent] += 1
+        if parent and parent != agent:
+            children[parent].add(agent)
+            agents.add(parent)
+
+    # Memoized recursive rollup with cycle guard.
+    memo: dict[str, tuple[float, int, int]] = {}
+
+    def rollup(agent: str, visiting: set[str]) -> tuple[float, int, int]:
+        """Return (subtree_cost, subtree_tasks, depth) for an agent."""
+        if agent in memo:
+            return memo[agent]
+        if agent in visiting:
+            # Cycle back-edge — skip it.
+            return own_cost[agent], own_tasks[agent], 0
+        visiting.add(agent)
+        subtree_cost = own_cost[agent]
+        subtree_tasks = own_tasks[agent]
+        depth = 0
+        for child in sorted(children[agent]):
+            c_cost, c_tasks, c_depth = rollup(child, visiting)
+            subtree_cost += c_cost
+            subtree_tasks += c_tasks
+            depth = max(depth, 1 + c_depth)
+        visiting.discard(agent)
+        memo[agent] = (subtree_cost, subtree_tasks, depth)
+        return memo[agent]
+
+    branches: list[BranchCost] = []
+    for agent in agents:
+        subtree_cost, subtree_tasks, depth = rollup(agent, set())
+        branches.append(
+            BranchCost(
+                agent=agent,
+                own_cost_usd=round(own_cost[agent], 8),
+                subtree_cost_usd=round(subtree_cost, 8),
+                subtree_tasks=subtree_tasks,
+                direct_children=sorted(children[agent]),
+                depth=depth,
+            )
+        )
+
+    branches.sort(key=lambda b: b.subtree_cost_usd, reverse=True)
+    return BranchCostsResponse(generated_at=generated_at, branches=branches)
 
 
 # ── Active running time ──────────────────────────────────────────────────────

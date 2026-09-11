@@ -25,6 +25,7 @@ from loguru import logger
 from app.backend.message_bus import bus
 from app.backend.services import _read_status_json
 from app.config import settings
+from app.backend.services.task_progress import present_task
 from app.utils.db import recent_tasks_queue, session_tasks_queue
 
 
@@ -43,7 +44,8 @@ class WebSocketManager:
             self._clients.add(ws)
         logger.info(f"WebSocket client connected ({len(self._clients)} total)")
         try:
-            recent = recent_tasks_queue(limit=20)
+            from app.backend.services.task_progress import present_task
+            recent = [present_task(row) for row in recent_tasks_queue(limit=20)]
             await ws.send_text(json.dumps({
                 "type": "state_sync",
                 "tasks": recent,
@@ -64,6 +66,16 @@ class WebSocketManager:
             task = get_queued_task(payload["task_id"])
             if task and task.get("structured_result"):
                 payload = {**payload, "structured_result": task["structured_result"]}
+        if event_type.startswith('task_') and payload.get('task_id'):
+            from app.utils.db import get_queued_task
+            from app.backend.services.task_progress import progress
+            row = get_queued_task(payload['task_id'])
+            if row:
+                from app.backend.services.task_progress import present_task
+                view = present_task(row)
+                payload = {**payload, 'progress': view['progress']}
+                if view.get('structured_result'):
+                    payload['structured_result'] = view['structured_result']
         message = json.dumps({"type": event_type, **payload})
         async with self._lock:
             clients = list(self._clients)
@@ -149,7 +161,7 @@ class WebSocketManager:
         # in this snapshot or delivered live. Client IDs deduplicate overlap.
         await ws.send_text(json.dumps({
             "type": "session_sync", "session_id": session_id,
-            "tasks": session_tasks_queue(session_id),
+            "tasks": [present_task(row) for row in session_tasks_queue(session_id)],
         }))
         logger.debug(f"WebSocket subscribed to session {session_id}")
 

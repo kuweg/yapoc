@@ -10,8 +10,8 @@
 # If you edit adapter/model here expecting it to apply, ALSO update
 # app/config/agent-settings.json.
 
-adapter: openai
-model: gpt-5.6-terra
+adapter: deepseek
+model: deepseek-v4-pro
 temperature: 0.3
 tools:
   # GitHub read-only grants; keep synchronized with agent-settings.json.
@@ -54,6 +54,7 @@ tools:
   - process_restart
   - web_search
   - fetch_page
+  - super_fetch_page
   - memory_append
   - notes_read
   - notes_write

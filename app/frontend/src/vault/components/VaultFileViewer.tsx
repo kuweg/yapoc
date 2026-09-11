@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/common'
 import type { VaultFile } from '../types'
 
 // ── Code block with highlight.js ───────────────────────────────────────────

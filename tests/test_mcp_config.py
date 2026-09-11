@@ -8,6 +8,7 @@ and ``chrome-devtools`` in its ``mcp_servers`` allowlist.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from app.utils.mcp.config import load_mcp_config
@@ -102,6 +103,29 @@ def test_server_args_resolve_env_references(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("PROBE_BROWSER", "/opt/google/chrome/chrome")
     servers = {s.name: s for s in load_mcp_config(tmp_path).mcp_servers}
     assert servers["probe"].args[-1] == "/opt/google/chrome/chrome", "env not honoured"
+
+
+def test_dotenv_resolution_does_not_pollute_restart_environment(monkeypatch, tmp_path) -> None:
+    """A changed .env must not be shadowed by values copied into os.environ."""
+    (tmp_path / "mcp-servers.json").write_text(
+        json.dumps({"mcp_servers": [{
+            "name": "probe",
+            "command": "probe",
+            "env": {"TOKEN": "${RESTART_TOKEN}"},
+        }]}),
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("RESTART_TOKEN=first\n", encoding="utf-8")
+    monkeypatch.delenv("RESTART_TOKEN", raising=False)
+
+    first = load_mcp_config(tmp_path).mcp_servers[0]
+    assert first.env["TOKEN"] == "first"
+    assert "RESTART_TOKEN" not in os.environ
+
+    (tmp_path / ".env").write_text("RESTART_TOKEN=second\n", encoding="utf-8")
+    second = load_mcp_config(tmp_path).mcp_servers[0]
+    assert second.env["TOKEN"] == "second"
+    assert "RESTART_TOKEN" not in os.environ
 
 
 def test_chrome_devtools_pins_a_browser_path() -> None:

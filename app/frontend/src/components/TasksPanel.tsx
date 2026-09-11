@@ -1,3 +1,5 @@
+import { useTaskProgressStore } from '../store/taskProgressStore'
+import { TaskProgressDetails } from './TaskProgress'
 import { StructuredResultCard } from './StructuredResultCard'
 import { useEffect, useState, useRef } from 'react'
 import { getTasks, type QueuedTask } from '../api/client'
@@ -8,6 +10,8 @@ const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }>
   queued: { label: 'queued', color: '#a1a1aa', bg: 'rgba(161,161,170,0.12)' },
   running: { label: 'running', color: '#fbbf24', bg: 'rgba(251,191,36,0.14)' },
   in_progress: { label: 'running', color: '#fbbf24', bg: 'rgba(251,191,36,0.14)' },
+  waiting: { label: 'waiting', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
+  interrupted: { label: 'interrupted', color: '#f97316', bg: 'rgba(249,115,22,0.14)' },
   blocked: { label: 'blocked', color: '#f97316', bg: 'rgba(249,115,22,0.14)' },
   done: { label: 'done', color: '#34d399', bg: 'rgba(52,211,153,0.12)' },
   completed: { label: 'done', color: '#34d399', bg: 'rgba(52,211,153,0.12)' },
@@ -21,7 +25,7 @@ function styleFor(status: string) {
 }
 
 // Active work first, then the rest by recency.
-const ORDER = ['running', 'in_progress', 'blocked', 'pending', 'queued', 'error', 'failed', 'done', 'completed', 'cancelled']
+const ORDER = ['running', 'in_progress', 'waiting', 'interrupted', 'blocked', 'pending', 'queued', 'error', 'failed', 'done', 'completed', 'cancelled']
 /** "Today" / "Yesterday" / "Mon 25 Aug" — a day header the eye can scan. */
 function dayLabel(iso?: string): string {
   if (!iso) return 'Unknown date'
@@ -61,7 +65,7 @@ function rank(status: string) {
  * in-progress / blocked. Polls the backend task_queue (~2.5s) and renders each
  * task with its assigned agent's identity (avatar + color from agentIdentity).
  */
-export function TasksPanel() {
+export function TasksPanel({ active = true }: { active?: boolean }) {
   const [tasks, setTasks] = useState<QueuedTask[]>([])
   const [error, setError] = useState<string | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -70,11 +74,12 @@ export function TasksPanel() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!active) return
     let alive = true
     const tick = async () => {
       try {
         const t = await getTasks(60)
-        if (alive) { setTasks(t); setError(null) }
+        if (alive) { setTasks(t); useTaskProgressStore.getState().ingest(t); setError(null) }
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : String(e))
       }
@@ -82,16 +87,16 @@ export function TasksPanel() {
     tick()
     timerRef.current = window.setInterval(tick, 2500)
     return () => { alive = false; if (timerRef.current) window.clearInterval(timerRef.current) }
-  }, [])
+  }, [active])
 
   const counts = tasks.reduce<Record<string, number>>((m, t) => {
-    const k = styleFor(t.status).label
+    const k = styleFor(t.progress?.state ?? t.status).label
     m[k] = (m[k] || 0) + 1
     return m
   }, {})
 
   const visible = tasks.filter((t) => {
-    if (filter !== 'all' && styleFor(t.status).label !== filter) return false
+    if (filter !== 'all' && styleFor(t.progress?.state ?? t.status).label !== filter) return false
     if (!query.trim()) return true
     const q = query.toLowerCase()
     return (t.prompt || '').toLowerCase().includes(q)
@@ -100,7 +105,7 @@ export function TasksPanel() {
   })
 
   const sorted = [...visible].sort((a, b) => {
-    const r = rank(a.status) - rank(b.status)
+    const r = rank(a.progress?.state ?? a.status) - rank(b.progress?.state ?? b.status)
     if (r !== 0) return r
     return (b.created_at || '').localeCompare(a.created_at || '')
   })
@@ -166,7 +171,7 @@ export function TasksPanel() {
               {g.day} <span className="text-zinc-600">· {g.items.length}</span>
             </div>
             {g.items.map((t) => {
-          const st = styleFor(t.status)
+          const st = styleFor(t.progress?.state ?? t.status)
           const agent = t.assigned_agent || undefined
           const active = st.label === 'running' || st.label === 'blocked'
           const isOpen = expanded === t.id
@@ -187,6 +192,7 @@ export function TasksPanel() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-zinc-200 truncate">{t.prompt || '(no prompt)'}</p>
+                <TaskProgressDetails task={t} />
                 <div className="flex items-center gap-2 mt-0.5 text-[13px] text-zinc-500">
                   {agent && (
                     <span className="inline-flex items-center gap-1" style={{ color: getAgentColor(agent) }}>

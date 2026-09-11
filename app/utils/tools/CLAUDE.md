@@ -9,7 +9,14 @@ _AGENT_DIR_TOOLS = {"memory_append", "notes_read", "notes_write", "notes_append"
 ```
 
 ## Execution model
-All tools execute immediately. There is no approval gate, no risk-tier system, and no per-agent `autonomous_policy` block — the LLM is solely responsible for not invoking destructive tools without good reason. Sandboxing (`sandbox.forbidden`, `sandbox.shell_allowlist` in CONFIG.yaml) is the remaining safety boundary.
+
+Tool execution passes through the deterministic/LLM security gate; review failures
+are denied. Shell and Python tools also require OS isolation via bubblewrap and
+prlimit, without inherited credentials. Validated Poetry dependency commands
+can download packages and write the project's managed virtualenv; other
+execution supports installed Node/package-manager runtimes and frontend builds, with internet/DNS access by default (`EXECUTION_NETWORK_ENABLED=false` disables it). See
+[execution-security.md](../../../docs/execution-security.md) for requirements,
+limits, and operational changes.
 
 ## Full tool list by file
 
@@ -31,50 +38,16 @@ All tools execute immediately. There is no approval gate, no risk-tier system, a
 ## Key tool behaviors
 
 ### `shell_exec`
-Runs in `/bin/sh -c` with `start_new_session=True`. Timeout hard-capped at `settings.max_shell_timeout` (120s); kills entire process group on timeout. Output truncated at 10,000 chars. Optional `sandbox.shell_allowlist` in the agent's CONFIG.yaml restricts commands by binary name.
+Runs inside a Linux bubblewrap namespace. Restricted agents use one exact
+executable plus arguments, without shell expansion. The timeout kills and reaps
+the process group; stdout/stderr are read with a shared byte limit. Output is
+redacted and capped. Native Git/integration tools handle authenticated operations.
 
 ### `execute_code`
-Runs a Python script in a **subprocess** — no LLM loop, no sub-agent. This is the cheap
-half of the delegation split: `spawn_agent` starts a full reasoning loop with fresh
-context (~30s + model spend), which is right for work needing judgement and wasteful for
-work that is merely mechanical. `execute_code` covers the multi-step mechanical case the
-tool ladder's single-read guidance doesn't reach.
-
-The script is written to a tempfile with a bootstrap that imports `code_api as yapoc`,
-then run with `cwd=project_root` and `start_new_session=True`. **stdout is the result** —
-a script that prints nothing gets a reminder back, not silence. Non-zero exit returns the
-traceback so the calling agent can fix its own script and retry. Default timeout 30s,
-max 120s; on timeout the process *group* is SIGKILLed and then reaped (skipping the reap
-leaks a pipe per timed-out script and raises `Event loop is closed` at GC).
-
-**Never run in-process.** A generated script must not be able to corrupt the backend, and
-a hung one must be killable.
-
-#### `code_api` — the `yapoc.*` surface
-| Call | Behavior |
-|---|---|
-| `yapoc.read(path, tail_lines=0)` | File text; `tail_lines=N` returns the last N lines |
-| `yapoc.write(path, content)` | Atomic (`mkstemp` + `os.replace`), creates parents |
-| `yapoc.edit(path, old, new)` | `old` must appear exactly once — same contract as `file_edit` |
-| `yapoc.delete(path)` | Unlink |
-| `yapoc.ls(path, pattern='*')` | Entries relative to project root, dirs suffixed `/` |
-| `yapoc.grep(pattern, path, glob='**/*', max_results=200)` | `path:lineno:line` |
-| `yapoc.exists(path)` | Bool |
-
-`grep` is **pure Python on purpose** — the shell `grep` available via `shell_exec` has a
-recorded false-negative problem (negative-knowledge store), and a mechanical pipeline
-should not inherit an unreliable primitive.
-
-#### Sandbox
-Enforced in `code_api`, **inside the child, before any I/O** — a script cannot widen its
-own permissions:
-- `_resolve()` rejects anything escaping `project_root` (so `../../../etc/passwd` fails).
-- `_check_writable()` additionally rejects the calling agent's `forbidden_paths` (passed
-  in as `YAPOC_FORBIDDEN_PATHS`) and the same `_PROTECTED_NAMES` set `file_delete` uses.
-- Reads are root-scoped only; forbidden paths are a *write* boundary, matching the file tools.
-
-Both boundaries are covered by tests; the four that matter are root escape, forbidden
-path, protected filename, and timeout.
+Runs a Python subprocess in the same OS boundary. `yapoc` provides read, write,
+edit, delete, ls, grep, and exists helpers. Helpers improve errors; OS mounts
+protect forbidden paths even when scripts bypass helpers with ordinary Python.
+Default timeout 30s, maximum 120s. Missing isolation means execution is refused.
 
 ### `file_edit`
 `old_string` must appear **exactly once** in the file. Atomic write via `mkstemp + os.replace`.
@@ -83,7 +56,7 @@ path, protected filename, and timeout.
 Refuses to delete: `.env`, `.git`, `.gitignore`, `PROMPT.MD`, `TASK.MD`, `MEMORY.MD`, `NOTES.MD`, `HEALTH.MD`, `CONFIG.yaml`.
 
 ### `file_read`
-Truncates output at 8,000 chars. All file tools enforce sandbox via `_sandbox(path)` — resolves to absolute path and checks it's inside `project_root`.
+Rejects credential files and their symlink aliases. Redacts and caps direct output at 50 KiB; the agent result boundary applies a 20,000-character cap. Paths must resolve inside `project_root`.
 
 ### `spawn_agent`
 Writes structured TASK.MD frontmatter (`assigned_by: master`, `status: pending`), then either assigns to a running agent (watchdog picks up) or spawns subprocess. Polls STATUS.json for `agent_spawn_timeout` seconds.

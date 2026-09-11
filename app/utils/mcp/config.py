@@ -24,24 +24,30 @@ logger = logging.getLogger(__name__)
 _ENV_REF_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
-def _try_load_dotenv(project_root: Path) -> None:
-    """Best-effort load of the root ``.env`` into ``os.environ``.
+def _resolution_env(project_root: Path) -> dict[str, str]:
+    """Read values used by ``${VAR}`` references without mutating the process.
 
-    Uses ``python-dotenv`` if present; silently ignores failure so the
-    absence of ``.env`` or ``dotenv`` never breaks config loading.
+    Copying ``.env`` into ``os.environ`` made those values survive an in-process
+    backend restart.  A later edit to ``.env`` was then ignored because the
+    inherited environment has higher precedence than the file.  Keep the same
+    precedence here (real environment over ``.env``), but return a local map.
     """
+    resolved: dict[str, str] = {}
     env_file = project_root / ".env"
-    if not env_file.exists():
-        return
-    try:
-        from dotenv import load_dotenv
+    if env_file.exists():
+        try:
+            from dotenv import dotenv_values
 
-        load_dotenv(env_file, override=False)
-    except Exception:  # pragma: no cover - defensive
-        logger.debug("dotenv unavailable; skipping .env load", exc_info=True)
+            resolved.update(
+                {str(key): str(value) for key, value in dotenv_values(env_file).items() if value is not None}
+            )
+        except Exception:  # pragma: no cover - defensive
+            logger.debug("dotenv unavailable; skipping .env resolution", exc_info=True)
+    resolved.update(os.environ)
+    return resolved
 
 
-def _resolve(value: str) -> str:
+def _resolve(value: str, environment: dict[str, str]) -> str:
     """Resolve ``${VAR}`` and ``${VAR:-default}`` references to env values.
 
     A reference with no value and no default is resolved to an empty
@@ -50,8 +56,8 @@ def _resolve(value: str) -> str:
 
     def _sub(match: "re.Match[str]") -> str:
         var, default = match.group(1), match.group(2)
-        if var in os.environ:
-            return os.environ[var]
+        if var in environment:
+            return environment[var]
         if default is not None:
             return default
         return ""
@@ -63,7 +69,7 @@ def _resolve(value: str) -> str:
     return _ENV_REF_RE.sub(_sub, value)
 
 
-def _resolve_env_dict(env: Any) -> dict[str, str]:
+def _resolve_env_dict(env: Any, environment: dict[str, str]) -> dict[str, str]:
     """Resolve a parsed ``env`` object (dict of str) resolving ``${VAR}``."""
     if not isinstance(env, dict):
         return {}
@@ -71,11 +77,11 @@ def _resolve_env_dict(env: Any) -> dict[str, str]:
     for key, val in env.items():
         if not isinstance(val, str):
             continue
-        resolved[str(key)] = _resolve(val)
+        resolved[str(key)] = _resolve(val, environment)
     return resolved
 
 
-def _parse_server(raw: Any) -> MCPServerConfig:
+def _parse_server(raw: Any, environment: dict[str, str]) -> MCPServerConfig:
     """Parse one raw server dict into an :class:`MCPServerConfig`.
 
     Unknown/odd types in individual fields are coerced to a safe default
@@ -105,7 +111,7 @@ def _parse_server(raw: Any) -> MCPServerConfig:
         # entry can carry a machine-dependent value (a browser path, a port)
         # as ${VAR:-default} instead of hard-coding one developer's layout.
         cfg.args = [
-            _resolve(str(a)) for a in args if isinstance(a, (str, int, float))
+            _resolve(str(a), environment) for a in args if isinstance(a, (str, int, float))
         ]
 
     tools_allow = raw.get("tools_allowlist")
@@ -128,9 +134,9 @@ def _parse_server(raw: Any) -> MCPServerConfig:
         cfg.auto_reconnect = raw["auto_reconnect"]
 
     # Resolve secret-bearing env / api_key / token from .env.
-    cfg.env = _resolve_env_dict(raw.get("env"))
-    cfg.api_key = _resolve(cfg.api_key)
-    cfg.token = _resolve(cfg.token)
+    cfg.env = _resolve_env_dict(raw.get("env"), environment)
+    cfg.api_key = _resolve(cfg.api_key, environment)
+    cfg.token = _resolve(cfg.token, environment)
 
     return cfg
 
@@ -164,8 +170,9 @@ def load_mcp_config(project_root: Path | None = None) -> MCPConfig:
             project_root = Path(__file__).resolve().parent.parent.parent  # app/ → root
 
     project_root = Path(project_root)
-    # Give .env a chance to populate env vars before resolving ${VAR}.
-    _try_load_dotenv(project_root)
+    # Resolve .env references locally. Never seed os.environ: inherited values
+    # can outlive a config-file edit across an in-process backend restart.
+    resolution_env = _resolution_env(project_root)
 
     config_path = project_root / "mcp-servers.json"
     if not config_path.exists():
@@ -190,7 +197,7 @@ def load_mcp_config(project_root: Path | None = None) -> MCPConfig:
 
     servers: list[MCPServerConfig] = []
     for raw in servers_raw:
-        cfg = _parse_server(raw)
+        cfg = _parse_server(raw, resolution_env)
         if cfg.name:  # drop skipped / unnamed entries
             servers.append(cfg)
 

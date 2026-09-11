@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator
 
 from app.agents.base import BaseAgent
 from app.utils import AGENTS_DIR
+from app.utils.runtime_identity import PROCESS_IDENTITY
 from app.utils.adapters import Message, StreamEvent
 
 
@@ -45,6 +46,7 @@ class MasterAgent(BaseAgent):
         data = {
             "state": state,
             "pid": os.getpid(),
+            "runtime": PROCESS_IDENTITY,
             "task_summary": task_summary,
             "started_at": self._started_at,
             "updated_at": now,

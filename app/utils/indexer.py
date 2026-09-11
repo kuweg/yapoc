@@ -24,7 +24,7 @@ from app.utils.db import (
     set_checkpoint,
     set_checkpoint_hash,
 )
-from app.utils.embeddings import embed_batch
+from app.utils.embeddings import embed_batch_optional as embed_batch
 
 # Agents that should not be indexed (base is a module, not an agent)
 _SKIP_DIRS = {"base", "__pycache__"}

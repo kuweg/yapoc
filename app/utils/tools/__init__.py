@@ -3,14 +3,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import inspect
 import re
+import shlex
 from typing import Any
 
 from app.utils.adapters import ToolDefinition
 
 
 def truncate_tool_output(text: str, *, cap: int = 0, note: str = "") -> str:
-    """No-op pass-through. All truncation caps have been removed."""
-    return text
+    """Redact before truncation so a cut token cannot escape detection."""
+    from app.utils.secrets import scrub
+    text = scrub(text)
+    limit = cap if cap > 0 else 20_000
+    if len(text) <= limit:
+        return text
+    marker = '\n[Output truncated' + (': ' + note if note else '') + ']'
+    return text[:max(0, limit - len(marker))] + marker[:limit]
 
 
 # ── Sandbox ───────────────────────────────────────────────────────────────
@@ -24,13 +31,12 @@ class SandboxPolicy:
     - ``forbidden_paths``: list of path prefixes (relative to project
       root) the agent must not write to, edit, or delete. Enforced by
       the file-mutating tools.
-    - ``shell_allowlist``: list of command-name prefixes the agent is
+    - ``shell_allowlist``: list of exact executable names the agent is
       allowed to pass to ``shell_exec``. Empty list means "no
       restriction" (the existing behavior for agents that haven't
       opted in).
 
-    Both lists are matched as simple string prefixes, not regex, to
-    keep the policy auditable.
+    File paths use directory prefixes; executable names use exact matches.
     """
 
     forbidden_paths: list[str] = field(default_factory=list)
@@ -55,14 +61,51 @@ class SandboxPolicy:
         """True if the command is allowed under the shell allowlist.
 
         Empty allowlist means "no restriction". Otherwise the first
-        whitespace-separated token of ``command`` must start with one
-        of the allowed prefixes (so ``poetry add foo`` is allowed by
+        executable in a single argument vector must match one
+        of the allowed names (so ``poetry add foo`` is allowed by
         allowlist ``["poetry"]``).
         """
         if not self.shell_allowlist:
             return True
-        first = command.strip().split(None, 1)[0] if command.strip() else ""
-        return any(first == prefix or first.startswith(prefix) for prefix in self.shell_allowlist)
+        try:
+            _, argv = project_shell_arguments(command)
+        except ValueError:
+            return False
+        if argv and argv[0] in self.shell_allowlist:
+            return True
+        from .poetry_execution import operation
+        from .javascript_execution import executable_name
+        return (executable_name(argv) in self.shell_allowlist
+                or ('poetry' in self.shell_allowlist and operation(argv) is not None))
+
+
+def shell_arguments(command: str) -> list[str]:
+    """Restricted commands are a single argv, never a shell program."""
+    if any(char in command for char in ('\n', '\r', '\x00', '`', '$')):
+        raise ValueError('Shell expansion is not permitted')
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|<>()')
+    lexer.whitespace_split = True
+    lexer.commenters = ''
+    argv = list(lexer)
+    if not argv or any(arg and all(c in ';&|<>()' for c in arg) for arg in argv):
+        raise ValueError('Use one executable with arguments; shell operators are not permitted')
+    return argv
+
+
+def project_shell_arguments(command: str) -> tuple[str | None, list[str]]:
+    """Accept a leading `cd directory && command` without executing a shell."""
+    try:
+        return None, shell_arguments(command)
+    except ValueError:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=';&|<>()')
+        lexer.whitespace_split = True
+        lexer.commenters = ''
+        parts = list(lexer)
+        if len(parts) < 4 or parts[0] != 'cd' or parts[2] != '&&':
+            raise ValueError('Use one command, optionally preceded by cd directory &&')
+        # Reparse reconstructed argv through the same expansion/operator rules.
+        directory = shell_arguments(shlex.quote(parts[1]))[0]
+        return directory, shell_arguments(shlex.join(parts[3:]))
 
 
 def _parse_sandbox_policy(agent_dir: Path) -> SandboxPolicy:
@@ -144,7 +187,7 @@ from .file import FileDeleteTool, FileEditTool, FileListTool, FileReadTool, File
 from .memory import AgentAmnesiaTool, HealthLogTool, LearningsAppendTool, MemoryAppendTool, NotesAppendTool, NotesReadTool, NotesWriteTool, SharedKnowledgeAppendTool
 from .server import ProcessRestartTool, ServerRestartTool
 from .shell import ShellExecTool
-from .web import FetchPageTool, WebSearchTool
+from .web import FetchPageTool, SuperFetchPageTool, WebSearchTool
 from .browser import FetchPageJsTool
 from .telegram import SendTelegramMessageTool, SendTelegramMediaTool, SendTelegramVoiceTool
 from .logs import ReadAgentLogsTool
@@ -204,6 +247,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "agent_amnesia": AgentAmnesiaTool,
     "web_search": WebSearchTool,
     "fetch_page": FetchPageTool,
+    "super_fetch_page": SuperFetchPageTool,
     "fetch_page_js": FetchPageJsTool,
     "spawn_agent": SpawnAgentTool,
     "delegate_task": DelegateTaskTool,

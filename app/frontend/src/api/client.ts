@@ -27,6 +27,7 @@ export async function killAgent(name: string): Promise<{ status: string; name: s
 
 // ── Task queue (live task tracking) ──────────────────────────────────────────
 export interface QueuedTask {
+  progress?: { state: string; waiting_on: string[]; last_activity_at: string | null; last_activity: string; next_action: string; recovery_count: number }
   structured_result?: StructuredTaskResult
 
   id: string

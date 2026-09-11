@@ -66,3 +66,7 @@ docker run -d --name yapoc --network yapoc-net --init --restart unless-stopped -
 For local model servers, `localhost` inside the container means the container.
 Configure an address reachable from Docker in the workspace `.env`; Docker
 Desktop provides `host.docker.internal` for services on the host.
+
+The default image excludes local embeddings, notebooks and offline speech. Set
+`YAPOC_EXTRAS="embeddings voice"` before `docker compose build yapoc` to opt in.
+See the [cross-platform installation guide](../docs/installation.md#lightweight-core-and-optional-capabilities).

@@ -39,3 +39,7 @@
 .universe-integration code {display:block;overflow-wrap:anywhere;margin-block:8px}
 .universe-mobile-tabs {display:none}
 @media(max-width:700px) {.universe-dialog{padding:14px}.universe-form-grid,.universe-comparison{grid-template-columns:1fr}.universe-comparison>[data-mobile-active=false]{display:none}.universe-mobile-tabs{display:flex;gap:8px;margin-bottom:12px}.universe-mobile-tabs button[aria-pressed=true]{color:var(--color-accent);border-color:var(--color-accent)}.universe-missions small{display:none}.universe-header h2{font-size:18px}}
+
+.universe-discard {padding:12px;border:1px solid var(--color-border-muted);margin:12px 0;font-size:12px}
+.universe-discard p {margin-bottom:8px;color:var(--color-text-muted)}
+.universe-discard button {padding:7px 12px;border:1px solid var(--color-border-muted);margin:0 8px 4px 0}

@@ -77,3 +77,16 @@ restart presentation, restricted worker tools and preview traversal protection.
 `poetry run python scripts/check_universes_browser.py --dist app/frontend/dist`
 checks launch, independent cancellation, comparison tabs, selection and mobile.
 The agent-building regression is `scripts/check_office_browser.py`.
+
+## Rejecting and removing attempts
+
+In Compare, **Discard both** stops both attempts, closes their previews, and
+removes their residents from the building. Files and comparison history remain
+available for review, but discarded candidates cannot be chosen.
+
+**Clean up saved work** then asks you to confirm **Delete saved work**. This
+permanently removes the comparison's two worktrees, candidate branches and history.
+It preserves the main workspace and unrelated branches. Cleanup refuses moved
+worktrees or branches checked out elsewhere; resolve those manually before retrying.
+Comparisons with an integration branch cannot be discarded or cleaned up through
+these controls, preserving the result you already chose.

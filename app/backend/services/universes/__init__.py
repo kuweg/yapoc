@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -260,6 +261,7 @@ async def changes(mid, letter):
 async def integrate(mid, letter):
     async with _lock:
         mission = read(mid)
+        if mission.get('discarded_at'): raise ValueError('This comparison was discarded.')
         if any(r['status'] in ACTIVE for r in mission['runs']): raise ValueError('Wait for both attempts to stop before choosing.')
         run = next((r for r in mission['runs'] if r['letter'] == letter), None)
         if not run or run['status'] != 'completed' or not run.get('commit'): raise ValueError('Choose a completed candidate.')
@@ -289,6 +291,61 @@ async def integrate(mid, letter):
             _integrating.discard(mid)
 
 
+async def discard(mid):
+    async with _lock:
+        mission = read(mid)
+        if mission.get('integration'):
+            raise ValueError('An integration branch already exists. Retain this comparison for review.')
+        await stop(mid)
+        mission = read(mid)
+        mission.pop('runs')
+        mission['discarded_at'] = now()
+        write(folder(mid) / 'mission.json', mission)
+        from .preview import stop_preview
+        for letter in ('a', 'b'):
+            await asyncio.to_thread(stop_preview, f'{mid}-{letter}')
+        return read(mid)
+
+
+async def cleanup(mid):
+    async with _lock:
+        mission = read(mid)
+        if not mission.get('discarded_at') or mission.get('integration'):
+            raise ValueError('Discard both attempts before cleaning up.')
+        if any(not _jobs[key].done() for key in (f'{mid}-a', f'{mid}-b') if key in _jobs):
+            raise ValueError('Wait for the attempts to stop before cleaning up.')
+        root = settings.project_root.resolve()
+        directory = folder(mid)
+        # Never follow redirected control directories or remove a branch checked out elsewhere.
+        for path in (home(), directory, directory / 'a', directory / 'b'):
+            if path.is_symlink() or not path.resolve().is_relative_to(root):
+                raise ValueError('Comparison storage was moved. Cleanup requires manual review.')
+        records = (await git(root, 'worktree', 'list', '--porcelain', '-z')).decode().split('\0\0')
+        worktrees = []
+        for record in records:
+            fields = dict(line.split(' ', 1) for line in record.split('\0') if ' ' in line)
+            if 'worktree' in fields: worktrees.append(fields)
+        for letter in ('a', 'b'):
+            workspace = directory / letter / 'worktree'
+            branch = f'refs/heads/yapoc/universe/{mid}/{letter}'
+            if workspace.is_symlink(): raise ValueError('Comparison worktree was moved. Cleanup requires manual review.')
+            for item in worktrees:
+                if item.get('branch') == branch and Path(item['worktree']).resolve() != workspace.resolve():
+                    raise ValueError('A candidate branch is in use outside this comparison. Cleanup requires manual review.')
+                if Path(item['worktree']).resolve() == workspace.resolve() and item.get('branch') != branch:
+                    raise ValueError('A comparison worktree changed branches. Cleanup requires manual review.')
+        from .preview import stop_preview
+        for letter in ('a', 'b'):
+            await asyncio.to_thread(stop_preview, f'{mid}-{letter}')
+            workspace = directory / letter / 'worktree'
+            if any(Path(item['worktree']).resolve() == workspace.resolve() for item in worktrees):
+                await git(root, 'worktree', 'remove', '--force', str(workspace))
+            branch = f'refs/heads/yapoc/universe/{mid}/{letter}'
+            await git(root, 'update-ref', '-d', branch)
+        await asyncio.to_thread(shutil.rmtree, directory)
+        return {'id': mid, 'deleted': True}
+
+
 async def shutdown():
     tasks = list(_jobs.values())
     for task in tasks: task.cancel()
@@ -308,6 +365,7 @@ def residents():
     from app.backend.models import AgentStatus
     result = []
     for mission in listing()[:1]:
+        if mission.get('discarded_at'): continue
         for run in mission['runs']:
             runtime = 'running' if run['status'] in ACTIVE else 'idle' if run['status'] == 'completed' else 'interrupted'
             result.append(AgentStatus(name=run['id'], office_role='builder', runtime_state=runtime,
@@ -320,6 +378,7 @@ def residents():
 
 def open_preview(mid, letter):
     mission = read(mid)
+    if mission.get('discarded_at'): raise ValueError('This comparison was discarded.')
     run_path(mid, letter)
     run = next(r for r in mission['runs'] if r['letter'] == letter)
     if run['status'] != 'completed': raise ValueError('Wait for a completed frontend build.')

@@ -33,6 +33,13 @@ async def check(dist):
                     mission={**data,'id':mid,'integration':None,'runs':[{'id':f'universe_{mid}_{letter}','letter':letter,'approach':approach,'status':'running','summary':'','checks':[],'cost_usd':0.02,'branch':f'branch-{letter}','preview_url':None} for letter,approach in zip('ab',data['approaches'])]}
                     await route.fulfill(json=mission); return
                 if path=='/api/universes': await route.fulfill(json=[mission] if mission else []); return
+                if path==f'/api/universes/{mid}' and route.request.method=='DELETE':
+                    assert mission.get('discarded_at')
+                    mission=None; await route.fulfill(json={'deleted':True}); return
+                if path==f'/api/universes/{mid}/discard':
+                    mission['discarded_at']='2026-09-11'
+                    for run in mission['runs']: run['status']='cancelled'
+                    await route.fulfill(json=mission); return
                 if path==f'/api/universes/{mid}': await route.fulfill(json=mission); return
                 if path.endswith('/a/stop'):
                     stopped.append('a'); mission['runs'][0]['status']='cancelled'; await route.fulfill(json=mission); return
@@ -80,11 +87,27 @@ async def check(dist):
             assert chosen==['b']
             await dialog.get_by_role('button',name='Close parallel universes',exact=True).click()
             await expect(dialog).to_have_count(0)
+            close_nav = page.get_by_role('button', name='Close navigation', exact=True)
+            if await close_nav.is_visible(): await close_nav.click()
+            await page.get_by_role('button',name='Composer actions',exact=True).click()
+            await page.get_by_role('button',name='Try parallel approaches',exact=True).click()
+            await dialog.get_by_label('What should we achieve?',exact=True).fill('Discard this experiment')
+            await dialog.get_by_role('button',name='Start 2 universes',exact=True).click()
+            await dialog.get_by_role('button',name='Discard both',exact=True).click()
+            await expect(dialog).to_contain_text('Both attempts discarded')
+            await dialog.get_by_role('button',name='Clean up saved work',exact=True).click()
+            await dialog.get_by_role('button',name='Cancel',exact=True).click()
+            assert mission is not None
+            await dialog.get_by_role('button',name='Clean up saved work',exact=True).click()
+            await dialog.get_by_role('button',name='Delete saved work',exact=True).click()
+            await expect(dialog).to_have_count(0)
+            await expect(page.get_by_label('Parallel comparisons')).to_have_count(0)
+            assert mission is None
             assert not errors,errors
             await browser.close()
     finally:
         server.should_exit=True; worker.join(timeout=5); listener.close()
-    print('PASS: composer launch, one mission, independent stop, checks/diffs, selection, desktop/mobile')
+    print('PASS: composer launch, one mission, independent stop, checks/diffs, selection, discard, cleanup confirmation, desktop/mobile')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(); parser.add_argument('--dist',type=Path,required=True)

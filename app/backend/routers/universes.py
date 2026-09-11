@@ -57,6 +57,16 @@ async def stop_all(mid: str):
     return await call(universes.stop, mid)
 
 
+@router.post('/{mid}/discard')
+async def discard(mid: str):
+    return await call(universes.discard, mid)
+
+
+@router.delete('/{mid}')
+async def cleanup(mid: str):
+    return await call(universes.cleanup, mid)
+
+
 @router.post('/{mid}/{letter}/stop')
 async def stop_one(mid: str, letter: str):
     return await call(universes.stop, mid, letter)

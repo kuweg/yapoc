@@ -200,3 +200,45 @@ async def test_stop_api_keeps_other_universe_running(repository, monkeypatch):
     await u.stop(mid)
     assert second.cancelled()
     u._jobs.clear()
+
+
+async def test_discard_stops_runs_and_cleanup_preserves_project(repository, monkeypatch):
+    mission = await setup_pair(repository, monkeypatch)
+    mid = mission['id']
+    before = await u.git(repository, 'status', '--porcelain')
+    async def wait(): await asyncio.Event().wait()
+    tasks = [asyncio.create_task(wait()) for _ in range(2)]
+    for letter, task in zip(('a', 'b'), tasks): u._jobs[f'{mid}-{letter}'] = task
+    with pytest.raises(ValueError, match='Discard both'): await u.cleanup(mid)
+    discarded = await u.discard(mid)
+    assert discarded['discarded_at'] and all(task.cancelled() for task in tasks)
+    assert not u.residents()
+    assert (u.run_path(mid, 'a') / 'worktree/code.txt').exists()
+    with pytest.raises(ValueError, match='discarded'): await u.integrate(mid, 'a')
+    assert (await u.cleanup(mid))['deleted']
+    assert not u.folder(mid).exists() and not u.listing()
+    assert mid not in (await u.git(repository, 'branch')).decode()
+    assert mid not in (await u.git(repository, 'worktree', 'list')).decode()
+    assert before == await u.git(repository, 'status', '--porcelain')
+    assert (repository / 'code.txt').read_text() == 'original\n'
+    u._jobs.clear()
+
+
+async def test_discard_preserves_chosen_integration(repository, monkeypatch):
+    mission = await setup_pair(repository, monkeypatch)
+    monkeypatch.setattr('app.backend.services.universes.checks.run_check_process', AsyncMock(return_value={'command':'fixture','exit_code':0,'output':'ok'}))
+    await u.integrate(mission['id'], 'a')
+    with pytest.raises(ValueError, match='integration branch'): await u.discard(mission['id'])
+    with pytest.raises(ValueError): await u.cleanup(mission['id'])
+    assert (u.folder(mission['id']) / 'integration/code.txt').exists()
+
+
+async def test_cleanup_refuses_candidate_checked_out_elsewhere(repository, monkeypatch):
+    mission = await setup_pair(repository, monkeypatch)
+    mid = mission['id']
+    await u.discard(mid)
+    moved = repository / 'retained-worktree'
+    await u.git(repository, 'worktree', 'move', str(u.run_path(mid, 'a') / 'worktree'), str(moved))
+    with pytest.raises(ValueError, match='outside this comparison'): await u.cleanup(mid)
+    assert (moved / 'code.txt').exists()
+    assert (u.run_path(mid, 'b') / 'worktree/code.txt').exists()

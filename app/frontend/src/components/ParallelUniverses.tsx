@@ -9,7 +9,7 @@ import './parallelUniverses.css'
 
 type Check = { command: string; exit_code: number; output: string }
 type Run = { id: string; letter: string; approach: string; status: string; summary: string; checks: Check[]; cost_usd: number; branch: string; preview_url?: string | null; preview_available?: boolean }
-type Mission = { id: string; objective: string; requirements: string; budget_usd: number; runs: Run[]; integration?: { branch: string; status: string; checks: Check[] } | null }
+type Mission = { id: string; objective: string; requirements: string; budget_usd: number; discarded_at?: string; runs: Run[]; integration?: { branch: string; status: string; checks: Check[] } | null }
 const active = ['preparing', 'running', 'checking']
 async function request<T>(path = '', method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(`/api/universes${path}`, { method, headers: { 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
@@ -51,7 +51,7 @@ function Attempt({ mission, run, refresh }: { mission: Mission; run: Run; refres
     <footer>
       <button onClick={() => { useAgentChatStore.getState().setSelectedLogAgent(run.id); useUniverseStore.getState().close() }}>Agent flow</button>
       {active.includes(run.status) ? <button disabled={busy} onClick={() => void action('stop')}>Stop {run.letter.toUpperCase()}</button>
-        : <button className="universe-primary" disabled={busy || run.status !== 'completed' || !run.checks.length || run.checks.some(c => c.exit_code !== 0) || mission.runs.some(r => active.includes(r.status)) || Boolean(mission.integration)} onClick={() => void action('choose')}>{busy ? 'Checking integration…' : `Choose ${run.letter.toUpperCase()}`}</button>}
+        : <button className="universe-primary" disabled={busy || Boolean(mission.discarded_at) || run.status !== 'completed' || !run.checks.length || run.checks.some(c => c.exit_code !== 0) || mission.runs.some(r => active.includes(r.status)) || Boolean(mission.integration)} onClick={() => void action('choose')}>{busy ? 'Checking integration…' : `Choose ${run.letter.toUpperCase()}`}</button>}
     </footer>
   </section>
 }
@@ -73,6 +73,18 @@ export function ParallelUniverses() {
   const [error, setError] = useState('')
   const [mobile, setMobile] = useState('a')
   const [tick, setTick] = useState(0)
+  const [confirmCleanup, setConfirmCleanup] = useState(false)
+  useEffect(() => { setConfirmCleanup(false) }, [ui.missionId, ui.open])
+  async function discardOrCleanup(cleanup = false) {
+    if (!selected) return
+    setBusy(true); setError('')
+    try {
+      await request(`/${selected.id}${cleanup ? '' : '/discard'}`, cleanup ? 'DELETE' : 'POST')
+      if (cleanup) { setSelected(null); ui.close() }
+      setConfirmCleanup(false); setTick(n => n + 1)
+    } catch (e) { setError((e as Error).message) }
+    finally { setBusy(false) }
+  }
   useEffect(() => { setObjective(ui.draft); setError('') }, [ui.draft, ui.open])
   useEffect(() => {
     let live = true
@@ -103,7 +115,7 @@ export function ParallelUniverses() {
     finally { setBusy(false) }
   }
   return <>
-    {missions.length > 0 && <div className="universe-missions" aria-label="Parallel comparisons">{missions.slice(0, 3).map(mission => <button key={mission.id} onClick={() => ui.compare(mission.id)}><GitBranch size={15} /><span>{mission.objective}</span><small>{mission.runs.map(r => `${r.letter.toUpperCase()} · ${r.status.replace(/_/g, ' ')}`).join(' / ')}</small></button>)}</div>}
+    {missions.length > 0 && <div className="universe-missions" aria-label="Parallel comparisons">{missions.slice(0, 3).map(mission => <button key={mission.id} onClick={() => ui.compare(mission.id)}><GitBranch size={15} /><span>{mission.objective}</span><small>{mission.discarded_at ? 'Discarded · saved files retained' : mission.runs.map(r => `${r.letter.toUpperCase()} · ${r.status.replace(/_/g, ' ')}`).join(' / ')}</small></button>)}</div>}
     {ui.open && <StudioDialog label="Parallel universes" onClose={ui.close}><div className="universe-dialog">
       <header className="universe-header"><div><p className="universe-muted">CONVERSATION / PARALLEL UNIVERSES</p><h2>{ui.missionId ? selected?.objective || 'Loading comparison…' : 'One objective. Two approaches.'}</h2></div><button aria-label="Close parallel universes" onClick={ui.close}><X size={20} /></button></header>
       {error && <p role="alert" className="universe-error">{error}</p>}
@@ -117,6 +129,19 @@ export function ParallelUniverses() {
         <button className="universe-primary" disabled={busy}>{busy ? 'Preparing isolated worktrees…' : 'Start 2 universes'}</button>
       </form> : selected && <>
         <div className="universe-toolbar"><span>Total ${selected.runs.reduce((sum, r) => sum + r.cost_usd, 0).toFixed(3)} / ${selected.budget_usd.toFixed(2)} estimated</span><button disabled={!selected.runs.some(r => active.includes(r.status))} onClick={() => { void request(`/${selected.id}/stop`, 'POST').then(() => setTick(n => n + 1)).catch(e => setError(e.message)) }}>Stop all</button></div>
+        {!selected.integration && <div className="universe-discard">
+          {selected.discarded_at ? <>
+            <p>Both attempts discarded. Saved work is retained until you clean up.</p>
+            {confirmCleanup ? <>
+              <p>Permanently delete both candidate branches, worktrees, previews and comparison history? Your current project is preserved.</p>
+              <button disabled={busy} onClick={() => void discardOrCleanup(true)}>{busy ? 'Cleaning up…' : 'Delete saved work'}</button>
+              <button disabled={busy} onClick={() => setConfirmCleanup(false)}>Cancel</button>
+            </> : <button disabled={busy} onClick={() => setConfirmCleanup(true)}>Clean up saved work</button>}
+          </> : <>
+            <p>Reject both approaches and stop their builders. Keep their files for review until cleanup.</p>
+            <button disabled={busy} onClick={() => void discardOrCleanup()}>{busy ? 'Discarding…' : 'Discard both'}</button>
+          </>}
+        </div>}
         {selected.integration && <div className="universe-integration"><strong>Integration: {selected.integration.status.replace(/_/g, ' ')}</strong><code>{selected.integration.branch}</code><p>Your live workspace is unchanged. Review this branch before merging.</p>{selected.integration.checks.map((c,i) => <details key={i}><summary>{c.exit_code === 0 ? 'Checks passed' : 'Checks failed'}</summary><pre>{c.output}</pre></details>)}</div>}
         <div className="universe-mobile-tabs">{['a', 'b'].map(letter => <button key={letter} aria-pressed={mobile === letter} onClick={() => setMobile(letter)}>Universe {letter.toUpperCase()}</button>)}</div>
         <div className="universe-comparison">{selected.runs.map(run => <div key={run.id} data-mobile-active={mobile === run.letter}><Attempt mission={selected} run={run} refresh={() => setTick(n => n + 1)} /></div>)}</div>

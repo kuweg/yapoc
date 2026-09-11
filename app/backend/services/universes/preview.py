@@ -40,6 +40,13 @@ def start_preview(key, root):
     return f'http://127.0.0.1:{server.server_port}'
 
 
+def stop_preview(key):
+    server = _servers.pop(key, None)
+    if server:
+        server.shutdown()
+        server.server_close()
+
+
 def stop_previews():
     for server in _servers.values(): server.shutdown(); server.server_close()
     _servers.clear()

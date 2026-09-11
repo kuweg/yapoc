@@ -89,6 +89,8 @@ async def check(dist):
             await expect(dialog).to_have_count(0)
             close_nav = page.get_by_role('button', name='Close navigation', exact=True)
             if await close_nav.is_visible(): await close_nav.click()
+            close_team = page.get_by_role('button', name='Close agent team', exact=True)
+            if await close_team.is_visible(): await close_team.click()
             await page.get_by_role('button',name='Composer actions',exact=True).click()
             await page.get_by_role('button',name='Try parallel approaches',exact=True).click()
             await dialog.get_by_label('What should we achieve?',exact=True).fill('Discard this experiment')

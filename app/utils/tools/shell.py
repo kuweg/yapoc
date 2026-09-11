@@ -1,8 +1,21 @@
+import shutil
+import sys
 from typing import Any
+
+from loguru import logger as _log
 
 from app.config import settings
 
 from . import BaseTool
+
+
+def _host_poetry() -> str | None:
+    """Resolve poetry on the host, for the unsandboxed path.
+
+    The sandboxed path gets poetry bound into the namespace by
+    process_sandbox; without a sandbox we have to find it on PATH ourselves.
+    """
+    return shutil.which('poetry')
 
 
 class ShellExecTool(BaseTool):
@@ -46,7 +59,12 @@ class ShellExecTool(BaseTool):
                 return "ERROR: cwd escapes project root"
 
         from . import project_shell_arguments, truncate_tool_output
-        from .process_sandbox import command as isolated_command, run, SandboxUnavailable
+        from .process_sandbox import (
+            SANDBOX_REQUIRED,
+            SandboxUnavailable,
+            command as isolated_command,
+            run,
+        )
         from .poetry_execution import operation
         try:
             restricted = bool(self._policy and self._policy.shell_allowlist)
@@ -69,12 +87,29 @@ class ShellExecTool(BaseTool):
                 raise ValueError('Invalid command')
             if not argv:
                 raise ValueError('Invalid command')
-            args = isolated_command(settings.project_root, argv,
-                                    forbidden=getattr(self._policy, 'forbidden_paths', ()), cwd=cwd or '.',
-                                    poetry_mode=poetry_mode, profile="shell")
-            returncode, stdout, stderr = await run(args, max(1, timeout))
+            if SANDBOX_REQUIRED:
+                args = isolated_command(settings.project_root, argv,
+                                        forbidden=getattr(self._policy, 'forbidden_paths', ()), cwd=cwd or '.',
+                                        poetry_mode=poetry_mode, profile="shell")
+                returncode, stdout, stderr = await run(args, max(1, timeout))
+            else:
+                # No bubblewrap equivalent on this platform. The command runs
+                # as the user, with the host environment and no isolation —
+                # the allowlist and cwd checks above are the only limits left.
+                if poetry_mode:
+                    poetry = _host_poetry()
+                    if poetry is None:
+                        return 'ERROR: poetry is not installed on this host.'
+                    argv = [poetry, *argv[1:]] if argv[:1] == ['poetry'] else argv
+                _log.warning(
+                    "shell_exec running WITHOUT isolation on {} — no sandbox available "
+                    "for this platform", sys.platform,
+                )
+                returncode, stdout, stderr = await run(
+                    argv, max(1, timeout), env=None, cwd=work_dir,
+                )
             return truncate_tool_output(f'{stdout}\n{stderr}\nExit code: {returncode}', cap=20_000)
         except TimeoutError:
             return 'ERROR: Command timed out; process group terminated.'
         except (SandboxUnavailable, OSError, ValueError):
-            return 'ERROR: Isolated shell unavailable, command refused, or resource limit exceeded. Linux bubblewrap and util-linux are required.'
+            return 'ERROR: Shell execution unavailable, command refused, or resource limit exceeded.'

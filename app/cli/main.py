@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re as _re
+import shutil
 import signal
 import subprocess
 import sys
@@ -45,12 +46,16 @@ doctor_app = typer.Typer(
     invoke_without_command=True,
 )
 git_app = typer.Typer(help="Git autocheckpoint commands", no_args_is_help=True)
+redis_app = typer.Typer(help="Redis lifecycle commands", no_args_is_help=True)
+front_app = typer.Typer(help="Frontend dev-server lifecycle commands", no_args_is_help=True)
 
 app.add_typer(agents_app, name="agents")
 app.add_typer(models_app, name="models")
 app.add_typer(cron_app, name="cron")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(git_app, name="git")
+app.add_typer(redis_app, name="redis")
+app.add_typer(front_app, name="front")
 
 console = Console()
 
@@ -2055,6 +2060,200 @@ def memory_embeddings(batch_size: int = typer.Option(64, min=1, max=256)):
         console.print(str(exc), markup=False)
         raise typer.Exit(1) from None
     console.print(f"Added embeddings to {count} memory entries.")
+
+
+# -- Side-process lifecycle (redis, frontend dev server) -----------------------
+#
+# Both follow the pattern `_do_stop` already uses for the backend: a PID file is
+# a hint, not the truth. A process can outlive its PID file (crash before
+# cleanup), release its port but keep running, or have been started by hand
+# outside yapoc entirely. So `stop` unions three independent sources — tracked
+# PID, command-line scan, port listeners — and kills everything it finds.
+
+_REDIS_PID_FILE = settings.project_root / ".yapoc-redis.pid"
+_FRONT_PID_FILE = settings.project_root / ".yapoc-front.pid"
+_FRONT_DIR = settings.project_root / "app" / "frontend"
+_FRONT_LOG = _FRONT_DIR / ".vite.log"
+_FRONT_PORT = 5173
+
+
+def _redis_port() -> int:
+    """Port from settings.redis_url, falling back to the default."""
+    match = _re.search(r":(\d+)", settings.redis_url.rsplit("/", 1)[0])
+    return int(match.group(1)) if match else 6379
+
+
+def _read_pid_file(path) -> int | None:
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _clear_pid_file(path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _redis_process_pids() -> list[int]:
+    """Every running redis-server, by command line."""
+    try:
+        import psutil
+    except ImportError:
+        return []
+    out: list[int] = []
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            if "redis-server" in " ".join(proc.info.get("cmdline") or []):
+                out.append(proc.info["pid"])
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            continue
+    return out
+
+
+def _frontend_process_pids() -> list[int]:
+    """Vite/pnpm dev processes belonging to THIS project's frontend.
+
+    Matched on cwd as well as command line: a bare "vite" match would happily
+    kill an unrelated dev server the user is running from another checkout.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return []
+    root = str(_FRONT_DIR.resolve())
+    out: list[int] = []
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            joined = " ".join(proc.info.get("cmdline") or [])
+            if "vite" not in joined and not ("pnpm" in joined and "dev" in joined):
+                continue
+            try:
+                cwd = proc.cwd()
+            except (psutil.AccessDenied, psutil.NoSuchProcess):
+                continue
+            if cwd == root or cwd.startswith(root + os.sep):
+                out.append(proc.info["pid"])
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            continue
+    return out
+
+
+def _stop_managed(label: str, pid_file, port: int, scan) -> None:
+    """Kill everything matching, from all three sources. Idempotent."""
+    targets: list[int] = []
+
+    tracked = _read_pid_file(pid_file)
+    if tracked and _is_pid_alive(tracked):
+        targets.append(tracked)
+    for pid in scan():
+        if pid not in targets and pid != os.getpid():
+            targets.append(pid)
+    for pid in _pids_listening_on(port):
+        if pid not in targets and pid != os.getpid():
+            targets.append(pid)
+
+    if not targets:
+        _clear_pid_file(pid_file)
+        console.print(f"[yellow]{label} is not running[/yellow]")
+        return
+
+    stopped, survived = [], []
+    for pid in targets:
+        (stopped if _kill_pid(pid, label=label) else survived).append(pid)
+
+    _clear_pid_file(pid_file)
+    if stopped:
+        console.print(f"[yellow]Stopped {label}[/yellow] PID(s) {stopped}")
+    if survived:
+        console.print(f"[red]{label} PID(s) {survived} would not die[/red]")
+
+
+def _already_running(label: str, command: str, pid_file, port: int, scan) -> bool:
+    """`command` is the CLI verb (`redis`/`front`), which is not always the
+    lowercased label — the hint has to name something the user can actually run.
+    """
+    tracked = _read_pid_file(pid_file)
+    if tracked and _is_pid_alive(tracked):
+        console.print(f"[yellow]{label} already running (PID {tracked})[/yellow]")
+        return True
+    if tracked:
+        _clear_pid_file(pid_file)  # stale file, don't bail on it forever
+    held = _pids_listening_on(port) or scan()
+    if held:
+        console.print(
+            f"[magenta]{label} appears to be running already (PID(s) {held}, "
+            f"port {port}) but is not tracked by yapoc.[/magenta] "
+            f"Run [bold]yapoc {command} stop[/bold] first."
+        )
+        return True
+    return False
+
+
+@redis_app.command("start")
+def redis_start() -> None:
+    """Start redis-server in the background."""
+    port = _redis_port()
+    if _already_running("Redis", "redis", _REDIS_PID_FILE, port, _redis_process_pids):
+        return
+    binary = shutil.which("redis-server")
+    if binary is None:
+        console.print(
+            "[red]redis-server not found on PATH.[/red] Install it "
+            "(Arch: [bold]valkey[/bold], macOS: [bold]brew install redis[/bold])."
+        )
+        raise typer.Exit(1)
+    proc = subprocess.Popen(
+        [binary, "--port", str(port)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    _REDIS_PID_FILE.write_text(str(proc.pid))
+    console.print(f"[yellow]Redis started[/yellow] (PID {proc.pid}) on port {port}")
+
+
+@redis_app.command("stop")
+def redis_stop() -> None:
+    """Stop redis-server, including instances yapoc did not start."""
+    _stop_managed("Redis", _REDIS_PID_FILE, _redis_port(), _redis_process_pids)
+
+
+@front_app.command("start")
+def front_start() -> None:
+    """Start the Vite dev server (pnpm dev) in app/frontend."""
+    if _already_running("Frontend", "front", _FRONT_PID_FILE, _FRONT_PORT, _frontend_process_pids):
+        return
+    if not _FRONT_DIR.is_dir():
+        console.print(f"[red]Frontend directory not found: {_FRONT_DIR}[/red]")
+        raise typer.Exit(1)
+    binary = shutil.which("pnpm")
+    if binary is None:
+        console.print("[red]pnpm not found on PATH.[/red] Install it with [bold]npm i -g pnpm[/bold].")
+        raise typer.Exit(1)
+    log_fh = open(_FRONT_LOG, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [binary, "dev"],
+        cwd=str(_FRONT_DIR),
+        stdin=subprocess.DEVNULL,
+        stdout=log_fh,
+        stderr=log_fh,
+        start_new_session=True,
+    )
+    _FRONT_PID_FILE.write_text(str(proc.pid))
+    console.print(
+        f"[yellow]Frontend started[/yellow] (PID {proc.pid}) on "
+        f"http://localhost:{_FRONT_PORT} — logs: {_FRONT_LOG}"
+    )
+
+
+@front_app.command("stop")
+def front_stop() -> None:
+    """Stop the Vite dev server, including instances yapoc did not start."""
+    _stop_managed("Frontend", _FRONT_PID_FILE, _FRONT_PORT, _frontend_process_pids)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import shutil
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -66,11 +67,62 @@ assert s.connect_ex(('1.1.1.1', 443)) != 0
     assert (protected / 'file.txt').read_text() == 'unchanged'
 
 
+@pytest.mark.skipif(
+    sys.platform != 'linux',
+    reason='fail-closed isolation is a Linux guarantee; other platforms have no '
+           'bubblewrap equivalent and run unsandboxed by design',
+)
 async def test_missing_sandbox_never_executes(isolated_root, monkeypatch):
+    """A Linux host missing bwrap/prlimit is a broken install, not a platform
+    limit — it must refuse to run, never silently drop isolation."""
     monkeypatch.setattr(process_sandbox.shutil, 'which', lambda _: None)
     result = await execute_code.ExecuteCodeTool().execute(code="yapoc.write('escaped', 'bad')")
     assert result.startswith('ERROR:')
     assert not (isolated_root / 'escaped').exists()
+
+
+def test_sandbox_is_mandatory_on_linux():
+    """The fallback must key on the platform, not on tool availability."""
+    assert process_sandbox.SANDBOX_REQUIRED == (sys.platform == 'linux')
+
+
+def test_sandbox_available_needs_linux_and_both_binaries(monkeypatch):
+    monkeypatch.setattr(process_sandbox.shutil, 'which', lambda _: None)
+    assert process_sandbox.sandbox_available() is False
+    monkeypatch.setattr(process_sandbox.shutil, 'which', lambda name: f'/usr/bin/{name}')
+    monkeypatch.setattr(process_sandbox.sys, 'platform', 'darwin')
+    assert process_sandbox.sandbox_available() is False
+
+
+async def test_unsandboxed_platforms_still_execute(isolated_root, monkeypatch):
+    """macOS/Windows have no bubblewrap equivalent: the script runs directly.
+
+    Simulated by flipping SANDBOX_REQUIRED, which is the only thing the tools
+    branch on. Proves the fallback path actually runs code rather than erroring.
+    """
+    monkeypatch.setattr(process_sandbox, 'SANDBOX_REQUIRED', False)
+    result = await execute_code.ExecuteCodeTool().execute(
+        code="yapoc.write('made-by-fallback.txt', 'ok'); print('ran unsandboxed')"
+    )
+    assert 'ran unsandboxed' in result
+    assert (isolated_root / 'made-by-fallback.txt').read_text() == 'ok'
+
+
+async def test_forbidden_paths_still_refused_without_a_sandbox(isolated_root, monkeypatch):
+    """Without an OS boundary the yapoc helpers are the only guard left, so
+    they must still enforce the agent's forbidden_paths."""
+    monkeypatch.setattr(process_sandbox, 'SANDBOX_REQUIRED', False)
+    locked = isolated_root / 'locked'
+    locked.mkdir()
+    (locked / 'file.txt').write_text('unchanged')
+
+    result = await execute_code.ExecuteCodeTool(
+        SandboxPolicy(forbidden_paths=['locked'])
+    ).execute(code="yapoc.write('locked/file.txt', 'bad')")
+
+    assert (locked / 'file.txt').read_text() == 'unchanged'
+    assert 'bad' not in (locked / 'file.txt').read_text()
+    assert result.startswith('ERROR:') or 'FAILED' in result
 
 
 async def test_missing_forbidden_path_fails_closed(isolated_root):

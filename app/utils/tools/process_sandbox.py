@@ -1,8 +1,15 @@
-"""Fail-closed Linux execution boundary shared by agent shell/Python tools.
+"""Execution boundary shared by agent shell/Python tools.
 
-Bubblewrap supplies mount, PID, IPC, user and network namespaces. Only the
-project and language runtime are visible; credentials and policy-protected
-paths are overmounted. There is deliberately no unsandboxed fallback.
+On Linux, bubblewrap supplies mount, PID, IPC, user and network namespaces:
+only the project and language runtime are visible, and credentials plus
+policy-protected paths are overmounted. That path is **fail-closed** — if
+bwrap or prlimit is missing on a Linux host, execution is refused rather than
+downgraded. ``SANDBOX_REQUIRED`` encodes that.
+
+Platforms with no bubblewrap equivalent (macOS, Windows) cannot offer the
+boundary at all. There the tools run the command directly, with NO isolation:
+full host environment, full filesystem access, real network. Callers must
+treat that as running the code as the user, because that is what it is.
 """
 from __future__ import annotations
 
@@ -17,8 +24,38 @@ from app.config import settings
 from app.utils.secrets import credential_path
 
 
+# Distinguishes "caller said inherit the host env" (None) from "caller said
+# nothing", which must keep the empty-env default the sandbox relies on.
+_INHERIT_NOTHING: dict[str, str] = {}
+
+
 class SandboxUnavailable(RuntimeError):
     pass
+
+
+# Platforms where a sandbox is mandatory. Linux can always provide one, so a
+# missing bwrap/prlimit there is a broken install, not a platform limit — and
+# must fail closed rather than silently dropping isolation. Keep the fallback
+# in the tools keyed on THIS, never on SANDBOX_AVAILABLE alone.
+SANDBOX_REQUIRED: bool = sys.platform == 'linux'
+
+
+def sandbox_available() -> bool:
+    """True when an isolated run is possible right now.
+
+    Note this is NOT the fallback condition — a Linux host missing bwrap is a
+    broken install and must still refuse to run. See ``SANDBOX_REQUIRED``.
+    """
+    return (
+        sys.platform == 'linux'
+        and bool(shutil.which('bwrap'))
+        and bool(shutil.which('prlimit'))
+    )
+
+
+# Snapshot for callers that just want to branch on it. PATH is fixed for a
+# process's life in practice; use sandbox_available() if you need a live read.
+SANDBOX_AVAILABLE: bool = sandbox_available()
 
 
 def command(root: Path, argv: list[str], *, forbidden=(), cwd: str = '.', bindings=(), poetry_mode=None, profile="python") -> list[str]:
@@ -153,11 +190,26 @@ def command(root: Path, argv: list[str], *, forbidden=(), cwd: str = '.', bindin
     return args
 
 
-async def run(argv: list[str], timeout: int, cap: int = 200_000) -> tuple[int, str, str]:
-    """Read concurrently with a shared byte budget; kill and reap on every exit."""
+async def run(
+    argv: list[str],
+    timeout: int,
+    cap: int = 200_000,
+    *,
+    env: dict[str, str] | None = _INHERIT_NOTHING,
+    cwd: str | Path | None = None,
+) -> tuple[int, str, str]:
+    """Read concurrently with a shared byte budget; kill and reap on every exit.
+
+    ``env`` defaults to an empty mapping, matching the bubblewrap path where
+    the sandbox supplies the whole environment. Pass ``env=None`` to inherit
+    the host environment — only correct for an unsandboxed run, which is
+    already running as the user.
+    """
     proc = await asyncio.create_subprocess_exec(
         *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-        env={}, start_new_session=True,
+        env={} if env is _INHERIT_NOTHING else env,
+        cwd=str(cwd) if cwd else None,
+        start_new_session=True,
     )
     total = 0
     async def read(stream):

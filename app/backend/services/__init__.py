@@ -334,6 +334,12 @@ class AgentService:
             except Exception:
                 pass
 
+        from app.backend.services.universes import residents
+        try:
+            statuses.extend(residents())
+        except (OSError, ValueError, KeyError, TypeError):
+            pass  # Optional experiment metadata must not break ordinary agent status.
+
         # Sort: running first, then error/critical, then idle, then done
         order = {"running": 0, "error": 1, "idle": 2, "done": 3}
         statuses.sort(key=lambda a: order.get(a.state, 2))

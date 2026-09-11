@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from 'react'
 import type { AgentStatus } from '../api/types'
 import { getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import './agentOffice.css'
+import { useUniverseStore } from '../store/universeStore'
 
 export function officeState(agent: AgentStatus, disconnected = false) {
   if (disconnected) return 'offline'
@@ -40,7 +41,7 @@ function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconn
       {state === 'attention' && <path d="M25 5h2v5h-2zm0 6h2v2h-2z" fill="#f0bd69" />}
       {state === 'waiting' && <g><path d="M24 7h5v1h1v5h-1v1h-5v-1h-1V8h1z" fill="#91aaa3" /><path d="M26 8h1v3h2v1h-3z" fill="#263e39" /></g>}
     </svg>
-    <span className="office-person-name">{getAgentDisplayName(agent.name)}</span>
+    <span className="office-person-name">{agent.universe_letter ? `Builder ${agent.universe_letter.toUpperCase()}` : getAgentDisplayName(agent.name)}</span>
     <span className="office-person-state">{labels[state]}</span>
   </button>
 }
@@ -63,7 +64,7 @@ export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentSta
       </button>
       {!collapsed.has(role) && <div className="office-apartment">
         <div className="office-window" aria-hidden="true" /><div className="office-lamp" aria-hidden="true" />
-        <div className="office-residents">{[...residents].sort((a, b) => a.name.localeCompare(b.name)).map(agent => <Resident key={agent.name} agent={agent} disconnected={disconnected} onOpen={onOpen} />)}</div>
+        <div className="office-residents">{[...residents].sort((a, b) => a.name.localeCompare(b.name)).map(agent => <div key={agent.name}><Resident agent={agent} disconnected={disconnected} onOpen={onOpen} />{agent.universe_id && <button className="office-universe-badge" onClick={() => useUniverseStore.getState().compare(agent.universe_id!)} aria-label={`Compare universe ${agent.universe_letter?.toUpperCase()}`}>{agent.universe_letter?.toUpperCase()} · Compare</button>}</div>)}</div>
       </div>}
     </section>)}
     {!agents.length && <p className="office-empty">Your agents will appear here when connected.</p>}

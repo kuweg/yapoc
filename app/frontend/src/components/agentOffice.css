@@ -35,3 +35,6 @@
 
 .office-roof,.office-floor-heading,.office-person-name,.office-person-state {font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .office-floor {box-shadow:inset 2px 0 #3c5344,inset -2px 0 #3c5344}
+
+.office-residents .office-resident {width:100%}
+.office-universe-badge {display:block;margin:2px auto;padding:3px 7px;border:1px solid #557f71;font:10px monospace;color:#a7daca}

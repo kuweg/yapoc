@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +9,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
+    # Set only inside an isolated universe worker; never read from .env.
+    _execution_root: Path | None = PrivateAttr(default=None)
     model_config = SettingsConfigDict(
         # Absolute path anchored to the project root so .env is found
         # regardless of CWD. Subprocess uvicorn / agent runners would
@@ -260,7 +262,7 @@ class Settings(BaseSettings):
     # ── Paths ────────────────────────────────────────────────────────────────
     @property
     def project_root(self) -> Path:
-        return Path(__file__).parent.parent.parent
+        return self._execution_root or Path(__file__).parent.parent.parent
 
     @property
     def agents_dir(self) -> Path:

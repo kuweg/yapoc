@@ -323,6 +323,10 @@ async def get_agent_activity(name: str):
     tab's "Live" sub-tab to hydrate on cold load before the WebSocket
     subscription (``subscribe_agent``) takes over for live streaming.
     """
+    from app.backend.services.universes import instance_parts, activity
+    parts = instance_parts(name)
+    if parts:
+        return {"name": name, "events": activity(*parts)}
     agent_dir = settings.agents_dir / name
     if not agent_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")

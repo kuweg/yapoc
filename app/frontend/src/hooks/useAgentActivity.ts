@@ -152,6 +152,20 @@ export function useAgentActivity(agentName: string): AgentActivityLog[] {
     return () => { cancelled = true }
   }, [agentName])
 
+  // Isolated runs persist their own activity instead of sharing the named-agent relay.
+  useEffect(() => {
+    if (!/^universe_[0-9a-f]{32}_[ab]$/.test(agentName)) return
+    let live = true
+    const timer = setInterval(() => {
+      if (document.hidden) return
+      getAgentActivity(agentName).then(snapshot => {
+        if (!live || !Array.isArray(snapshot)) return
+        setActivities(appendCoalesced([], snapshot.map(eventToActivity).filter((item): item is AgentActivityLog => item !== null)))
+      }).catch(() => {})
+    }, 2000)
+    return () => { live = false; clearInterval(timer) }
+  }, [agentName])
+
   // Process new WebSocket events as they arrive
   useEffect(() => {
     if (!wsEvents || wsEvents.length === 0) return

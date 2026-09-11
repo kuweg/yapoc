@@ -103,14 +103,14 @@ export function AgentSidebar({ onClose }: { onClose?: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={handleSpawn}
-            disabled={!selected}
+            disabled={!selected || selected.startsWith('universe_')}
             className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Start agent
           </button>
           <button
             onClick={handleKill}
-            disabled={!selected || selected === 'master'}
+            disabled={!selected || selected === 'master' || selected.startsWith('universe_')}
             title={selected === 'master' ? 'master runs the backend — cannot be killed' : undefined}
             className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >

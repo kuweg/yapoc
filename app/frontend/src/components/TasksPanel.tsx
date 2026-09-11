@@ -1,3 +1,5 @@
+import { useUniverseStore } from '../store/universeStore'
+import { useAppStore } from '../store/appStore'
 import { useTaskProgressStore } from '../store/taskProgressStore'
 import { TaskProgressDetails } from './TaskProgress'
 import { StructuredResultCard } from './StructuredResultCard'
@@ -210,6 +212,7 @@ export function TasksPanel({ active = true }: { active?: boolean }) {
                 </div>
                 {/* What actually happened — the list used to show only what was
                     asked, so every row looked identical. */}
+                {isOpen && <button className="mt-2 text-xs text-emerald-300 underline" onClick={event => { event.stopPropagation(); useAppStore.getState().setActiveTab('chat'); useUniverseStore.getState().setup(t.prompt) }}>Try parallel approaches</button>}
                 {isOpen && t.structured_result && <StructuredResultCard result={t.structured_result} />}
                 {outcome && !(isOpen && t.structured_result) && (
                   <p

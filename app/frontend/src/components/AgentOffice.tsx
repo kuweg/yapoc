@@ -15,6 +15,23 @@ export function officeState(agent: AgentStatus, disconnected = false) {
 }
 const labels: Record<string, string> = { working: 'Working', waiting: 'Waiting', attention: 'Needs attention', idle: 'Idle', offline: 'Status unavailable' }
 
+function RoomDetails() {
+  return <svg className="office-room-details" viewBox="0 0 240 110" preserveAspectRatio="none" shapeRendering="crispEdges" aria-hidden="true">
+    {/* Small furnishings stay behind the interactive residents. */}
+    <path d="M14 27h46v3H14zm3 3h3v4h-3zm37 0h3v4h-3z" fill="#846747" />
+    <path d="M19 15h5v12h-5z" fill="#799c82" /><path d="M25 18h4v9h-4z" fill="#ba8868" />
+    <path d="M30 13h5v14h-5z" fill="#718caa" /><path d="M36 17h4v10h-4z" fill="#baa36b" />
+    <path d="M47 22h8v5h-8z" fill="#a78e73" /><path d="M50 16h2v6h-2zm-4 1h4v3h-4zm6-3h4v4h-4z" fill="#779768" />
+    <path d="M91 14h27v23H91z" fill="#987653" /><path d="M94 17h21v17H94z" fill="#c1b48c" />
+    <path d="M96 29h3v-4h4v-4h3v4h4v4h3v3H96z" fill="#638378" /><path d="M109 19h3v3h-3z" fill="#e1ba6e" />
+    <path d="M202 87h18v3h-18zm3 3h12v10h-12z" fill="#ae7b5d" /><path d="M207 91h3v7h-3z" fill="#c79b73" />
+    <path d="M210 64h3v23h-3zm-8 7h8v5h-5v-2h-3zm11-7h8v5h-5v3h-3zm0 14h10v4h-7v3h-3zm-13 1h10v5h-7v-2h-3z" fill="#668761" />
+    <path d="M210 66h2v20h-2zm5 13h6v1h-6z" fill="#8fac76" />
+    <path d="M19 83h17v3H19zm2 3h2v13h-2zm11 0h2v13h-2z" fill="#8b6d50" />
+    <path d="M23 76h7v7h-7zm7 1h3v4h-3z" fill="#b9b2a0" /><path d="M24 75h5v2h-5z" fill="#473e33" />
+  </svg>
+}
+
 function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconnected: boolean; onOpen: (agent: AgentStatus) => void }) {
   const state = officeState(agent, disconnected)
   return <button className={`office-resident is-${state}`} onClick={() => onOpen(agent)}
@@ -64,6 +81,7 @@ export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentSta
       </button>
       {!collapsed.has(role) && <div className="office-apartment">
         <div className="office-window" aria-hidden="true" /><div className="office-lamp" aria-hidden="true" />
+        <RoomDetails />
         <div className="office-residents">{[...residents].sort((a, b) => a.name.localeCompare(b.name)).map(agent => <div key={agent.name}><Resident agent={agent} disconnected={disconnected} onOpen={onOpen} />{agent.universe_id && <button className="office-universe-badge" onClick={() => useUniverseStore.getState().compare(agent.universe_id!)} aria-label={`Compare universe ${agent.universe_letter?.toUpperCase()}`}>{agent.universe_letter?.toUpperCase()} · Compare</button>}</div>)}</div>
       </div>}
     </section>)}

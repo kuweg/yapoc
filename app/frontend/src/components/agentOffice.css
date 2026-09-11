@@ -8,14 +8,17 @@
 .office-floor-heading {display:flex;align-items:center;gap:8px;width:100%;padding:9px 8px;font-size:11px;text-align:left;color:#bed1c8;background:#182923;text-transform:capitalize}
 .office-floor-number {font-size:9px;color:#77988b;font-variant-numeric:tabular-nums}
 .office-floor-count {margin-left:auto;font-size:9px;color:#83a093;text-transform:none}
-.office-apartment {position:relative;isolation:isolate;background:repeating-linear-gradient(0deg,transparent 0 15px,#22352b 15px 16px),#182822;min-height:128px}
+.office-apartment {position:relative;isolation:isolate;background:linear-gradient(0deg,#423b2c 0 33px,transparent 33px),repeating-linear-gradient(0deg,transparent 0 15px,#22352b 15px 16px),#182822;min-height:128px}
+.office-apartment:before {content:'';position:absolute;left:19%;right:19%;bottom:49px;height:14px;background:repeating-linear-gradient(90deg,transparent 0 9px,#b8996422 9px 11px),#70664a;border:3px solid #95815b;box-shadow:0 2px #211f19;z-index:-1;pointer-events:none}
+.office-room-details {position:absolute;inset:0;width:100%;height:110px;z-index:-1;pointer-events:none}
 .office-window {position:absolute;right:14px;top:10px;width:40px;height:43px;border:3px solid #395249;background:#1b3540;z-index:-1}
-.office-window:after {content:'';position:absolute;inset:0 45%;border-left:2px solid #395249}
-.office-lamp {position:absolute;left:35px;top:0;width:25px;height:12px;border-radius:0;background:#cab578;border-bottom:3px solid #f3d990;box-shadow:0 8px #deba5d08;z-index:-1}
-.office-residents {display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));align-items:end;padding:4px 5px 10px;gap:4px}
+.office-window:before {content:'';position:absolute;inset:-3px -7px;border-inline:6px solid #797157;border-bottom:3px solid #8a795b;box-shadow:0 3px #17251f}
+.office-window:after {content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 45%,#395249 45% 52%,transparent 52%),linear-gradient(0deg,transparent 45%,#395249 45% 52%,transparent 52%);box-shadow:inset 2px 2px #78959a25}
+.office-lamp {position:absolute;left:60%;top:0;width:25px;height:12px;border-radius:0;background:#cab578;border-bottom:3px solid #f3d990;box-shadow:0 10px 0 5px #deba5d09,0 24px 0 12px #deba5d06;z-index:-1;pointer-events:none}
+.office-residents {display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));align-items:end;padding:24px 5px 10px;gap:4px}
 .office-resident {min-width:0;padding:0 2px 3px;border-radius:0;text-align:center;color:#bdd0c5;transition:background .2s}
 .office-resident:hover,.office-resident:focus-visible {background:#80d6b418;outline:1px solid #80d6b4}
-.office-resident svg {width:100%;height:96px;max-width:112px;image-rendering:pixelated;margin:auto}
+.office-resident svg {width:100%;height:75px;max-width:80px;image-rendering:pixelated;margin:auto}
 .office-person-name,.office-person-state {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
 .office-person-state {font-size:9px;color:#809c90;margin-top:2px}
 .is-attention .office-person-state {color:#f0bd69}

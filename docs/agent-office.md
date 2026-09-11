@@ -4,6 +4,9 @@ Open the team panel in Conversation and choose **Building** (default) or **List*
 The preference is saved locally. Each floor can collapse. Click a pixel-art person
 to open that named agent's flow; on phones the building closes to reveal the flow.
 
+Rooms include pixel-art books, plants, framed art, curtains, warm lamps and rugs.
+Smaller residents keep their full clickable area and visible status labels.
+
 The office uses the backend's `runtime_state`, independently of legacy task-based
 status. Old pending tasks do not animate an idle process. Failed status requests
 show disconnected residents. Reduced-motion preferences disable animation.

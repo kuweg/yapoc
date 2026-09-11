@@ -143,3 +143,9 @@ app/yapoc_*.mp3
 
 # Editor/agent backup files (only *.MD.bak was covered before)
 *.bak
+
+# Vite dev-server log — runtime output, never source
+app/frontend/.vite.log
+
+# pnpm content-addressable store — package cache, never source
+.pnpm-store/

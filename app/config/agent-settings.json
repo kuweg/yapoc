@@ -146,8 +146,8 @@
       ]
     },
     "builder": {
-      "adapter": "codex",
-      "model": "gpt-5.3-codex",
+      "adapter": "deepseek",
+      "model": "deepseek-v4-pro",
       "tools": [
         "delegate_task",
         "file_read",
@@ -668,6 +668,33 @@
         {
           "adapter": "deepseek",
           "model": "deepseek-v4-flash"
+        },
+        {
+          "adapter": "google",
+          "model": "gemini-2.5-pro"
+        }
+      ]
+    },
+    "lmstudio": {
+      "adapter": "lmstudio",
+      "model": "qwen3.8-27b-uncensored",
+      "temperature": 0.7
+    },
+    "lmstudio-test": {
+      "adapter": "lmstudio",
+      "model": "qwen3.8-27b-uncensored",
+      "temperature": 0.7,
+      "max_tokens": 8096,
+      "task_timeout": 300,
+      "delegation_targets": [],
+      "fallbacks": [
+        {
+          "adapter": "deepseek",
+          "model": "deepseek-v4-pro"
+        },
+        {
+          "adapter": "openai",
+          "model": "gpt-5.6-luna"
         },
         {
           "adapter": "google",

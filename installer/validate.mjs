@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { composeConfig, stageSource, includeInImage, parseExtras } from './index.mjs';
+import { composeConfig, stageSource, includeInImage, parseExtras, hostInfo, resolveHostPath, checkPrerequisites } from './index.mjs';
 
 for (const workspace of ['/home/alice/Work space', 'C:\\Users\\Alice\\YAPOC projects', '/Users/alice/$work']) {
   const config = composeConfig(workspace, '/source', 8050, 1000, 1000);
@@ -61,3 +61,31 @@ for (const workspace of ['/home/alice/YAPOC', 'C:\\Users\\Alice\\YAPOC', '/Users
   assert.equal(composeConfig(workspace, '/source', 8000, null, null, ['voice', 'notebooks']).services.yapoc.build.args.YAPOC_EXTRAS, 'voice notebooks');
 }
 console.log('PASS: lightweight defaults and validated optional capabilities on portable paths');
+
+for (const [platform, home, cwd, expected] of [
+  ['darwin', '/Users/alice', '/Users/alice/projects', '/Users/alice/YAPOC work'],
+  ['linux', '/home/alice', '/home/alice/projects', '/home/alice/YAPOC work'],
+  ['win32', 'C:\\Users\\Alice', 'C:\\work', 'C:\\Users\\Alice\\YAPOC work'],
+]) {
+  const host = { platform, home, cwd };
+  assert.equal(resolveHostPath('~/YAPOC work', host), expected);
+  assert.equal(resolveHostPath(`"${expected}"`, host), expected);
+  assert.equal(resolveHostPath('~', host), home);
+}
+assert.throws(() => resolveHostPath('C:\\Users\\Alice', {platform:'darwin', home:'/Users/alice', cwd:'/tmp'}), /macOS/);
+assert.throws(() => resolveHostPath('~someone/YAPOC'), /absolute path/);
+assert.throws(() => hostInfo('unknown'), /Unsupported/);
+assert.doesNotMatch(hostInfo('darwin').dockerHelp, /Windows|WSL|C:/);
+assert.match(hostInfo('darwin', 'arm64').dockerHelp, /Apple silicon/);
+assert.match(hostInfo('win32').dockerHelp, /WSL/);
+const missingDocker = await checkPrerequisites(async () => { throw Error('private raw diagnostic'); }, 'darwin');
+assert.equal(missingDocker.ready, false);
+assert.doesNotMatch(JSON.stringify(missingDocker), /private raw diagnostic|Windows/);
+const mockDocker = async (_, args) => args[0] === 'info' ? 'linux' : args[0] === 'context' ? 'unix:///var/run/docker.sock' : '2.0';
+const previousHost = process.env.DOCKER_HOST;
+delete process.env.DOCKER_HOST;
+assert.equal((await checkPrerequisites(mockDocker, 'darwin')).ready, true);
+process.env.DOCKER_HOST = 'ssh://remote';
+assert.equal((await checkPrerequisites(mockDocker, 'darwin')).ready, false);
+if (previousHost === undefined) delete process.env.DOCKER_HOST; else process.env.DOCKER_HOST = previousHost;
+console.log('PASS: OS-specific folders, macOS guidance, Docker readiness and remote-context rejection');

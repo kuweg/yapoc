@@ -271,3 +271,23 @@ execution is not the supported path for agent shell isolation; use Docker.
 Validation includes portable installer checks on Linux/Windows/macOS in CI, core
 and embedding-enabled backend test jobs, and a core container import/build check.
 A Linux-only development test does not establish a Windows/macOS end-to-end pass.
+
+### OS-aware installer diagnostics
+
+Run `node install.mjs --check` from a checkout to see the detected host OS,
+architecture and Docker readiness without changing any files. On macOS, launch
+with `bash install.sh`; missing/outdated Node can be installed through Homebrew
+with your confirmation. The wizard can open Docker Desktop and wait for it.
+No Windows paths or WSL instructions are used for the macOS prerequisite step.
+
+Folder prompts accept `~/YAPOC`, absolute paths, spaces and surrounding quotes.
+Use macOS paths such as `/Users/your-name/YAPOC` on a Mac. A Windows drive path
+is rejected before directory creation, with a chance to enter it again.
+`/workspace` in container output is the Linux container's view of your chosen
+folder, not a Windows path or a different host installation directory.
+
+The setup experience follows the staged, OS-aware approach of the
+[Hermes installer](https://github.com/NousResearch/hermes-agent/blob/main/scripts/install.sh),
+while retaining YAPOC's Docker runtime and folder → provider/key → optional
+Telegram choices. A locally edited checkout must be used to try unpublished
+installer changes; a remote one-line command downloads its selected Git revision.

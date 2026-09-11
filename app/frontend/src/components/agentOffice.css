@@ -1,0 +1,37 @@
+.office-view-switch { display:flex; margin:0 16px 12px; padding:3px; gap:3px; border:1px solid var(--color-border-muted); border-radius:8px; }
+.office-view-switch button { flex:1; padding:6px; font-size:12px; border-radius:5px; color:var(--color-text-muted); }
+.office-view-switch button[aria-pressed=true] { background:var(--color-bg-secondary); color:var(--color-accent); }
+.agent-office { padding:0 3px 14px; }
+.office-roof { display:flex; justify-content:space-between; align-items:center; padding:15px 12px 10px; border:1px solid #36524b; border-bottom:3px solid #426257; border-radius:0;box-shadow:inset 0 4px #4b6b59; background:#152922; color:#a7c9b7; font-size:10px; letter-spacing:2px; }
+.office-roof span:last-child {font-size:8px; letter-spacing:1px;opacity:.6}
+.office-floor {border-inline:4px solid #293d37;border-bottom:5px solid #293d37;background:#101e1c}
+.office-floor-heading {display:flex;align-items:center;gap:8px;width:100%;padding:9px 8px;font-size:11px;text-align:left;color:#bed1c8;background:#182923;text-transform:capitalize}
+.office-floor-number {font-size:9px;color:#77988b;font-variant-numeric:tabular-nums}
+.office-floor-count {margin-left:auto;font-size:9px;color:#83a093;text-transform:none}
+.office-apartment {position:relative;isolation:isolate;background:repeating-linear-gradient(0deg,transparent 0 15px,#22352b 15px 16px),#182822;min-height:128px}
+.office-window {position:absolute;right:14px;top:10px;width:40px;height:43px;border:3px solid #395249;background:#1b3540;z-index:-1}
+.office-window:after {content:'';position:absolute;inset:0 45%;border-left:2px solid #395249}
+.office-lamp {position:absolute;left:35px;top:0;width:25px;height:12px;border-radius:0;background:#cab578;border-bottom:3px solid #f3d990;box-shadow:0 8px #deba5d08;z-index:-1}
+.office-residents {display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));align-items:end;padding:4px 5px 10px;gap:4px}
+.office-resident {min-width:0;padding:0 2px 3px;border-radius:0;text-align:center;color:#bdd0c5;transition:background .2s}
+.office-resident:hover,.office-resident:focus-visible {background:#80d6b418;outline:1px solid #80d6b4}
+.office-resident svg {width:100%;height:96px;max-width:112px;image-rendering:pixelated;margin:auto}
+.office-person-name,.office-person-state {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.office-person-state {font-size:9px;color:#809c90;margin-top:2px}
+.is-attention .office-person-state {color:#f0bd69}
+.is-offline svg {opacity:.35;filter:grayscale(1)}
+.office-foundation {padding:12px 4px;text-align:center;font-size:9px;color:var(--color-text-muted)}
+.office-empty {padding:20px 8px;font-size:12px;color:var(--color-text-muted)}
+@media(prefers-reduced-motion:no-preference) {
+ .is-working .office-arm {animation:office-type .55s steps(2,end) infinite alternate;transform-origin:14px 14px}
+ .is-working .office-head {animation:office-nod 3s steps(2,end) infinite;transform-origin:12px 12px}
+ .is-working .office-screen {animation:office-code 1.8s steps(2) infinite}
+ .is-attention .office-arm {animation:office-wave 1s steps(2,end) infinite alternate;transform-origin:14px 14px}
+ @keyframes office-type {to{transform:translateY(-1px)}}
+ @keyframes office-nod {50%{transform:translateY(1px)}}
+ @keyframes office-wave {to{transform:translateY(-2px)}}
+ @keyframes office-code {50%{opacity:.4}}
+}
+
+.office-roof,.office-floor-heading,.office-person-name,.office-person-state {font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.office-floor {box-shadow:inset 2px 0 #3c5344,inset -2px 0 #3c5344}

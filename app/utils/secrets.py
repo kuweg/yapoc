@@ -12,8 +12,29 @@ Usage:
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+
+def credential_path(path: str | Path) -> bool:
+    """Credential stores must not be exposed by generic file/execution tools."""
+    parts = Path(path).parts
+    for part in parts:
+        name = part.lower()
+        if (name.startswith('.env') and name != '.env.example') or name in {
+            '.git', '.ssh', '.aws', '.azure', '.kube', '.gnupg', '.credentials',
+            'credentials', 'credentials.json', 'token.json', 'tokens.json',
+            '.netrc', '.npmrc', '.pypirc', 'id_rsa', 'id_ed25519',
+        }:
+            return True
+        if name.endswith(('.pem', '.key', '.p12', '.pfx')) or (
+            name.endswith('.json') and any(word in name for word in ('token', 'credential', 'client_secret'))
+        ):
+            return True
+    return False
 
 _PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r'(?:github_pat_[A-Za-z0-9_]+|gh[pousr]_[A-Za-z0-9_]+)'),
+    re.compile(r'(?i)\b[A-Z0-9_]*TOKEN\s*[:=]\s*\S+'),
     # Anthropic API keys
     re.compile(r"sk-ant-[a-zA-Z0-9_-]{20,}"),
     # OpenAI API keys
@@ -28,7 +49,7 @@ _PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"(?i)(?:secret|client_secret)\s*[:=]\s*\S+"),
     re.compile(r"(?i)(?:access[_-]?token|auth[_-]?token|bearer)\s*[:=]\s*\S+"),
     # PEM private keys
-    re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?(?:-----END (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----|\Z)"),
     # Connection strings with embedded credentials
     re.compile(r"(?i)(?:postgres|mysql|mongodb|redis)://\S+:\S+@\S+"),
 ]
@@ -41,6 +62,20 @@ def scrub(text: str) -> str:
     the original string unchanged.
     """
     result = text
+    # Import lazily: settings initialization must not depend on this module.
+    from app.config import settings
+    from pydantic import SecretStr
+    from urllib.parse import quote
+    import base64
+    for name in type(settings).model_fields:
+        value = getattr(settings, name)
+        if isinstance(value, SecretStr):
+            value = value.get_secret_value()
+        elif not any(word in name for word in ('api_key', 'token', 'secret', 'password')):
+            continue
+        if isinstance(value, str) and value:
+            for variant in (value, quote(value, safe=''), base64.b64encode(value.encode()).decode()):
+                result = result.replace(variant, '[REDACTED]')
     for pattern in _PATTERNS:
         result = pattern.sub("[REDACTED]", result)
     return result

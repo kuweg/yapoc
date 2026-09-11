@@ -43,6 +43,13 @@ class GenerateImageTool(BaseTool):
         "required": ["prompt"],
     }
 
+    def __init__(self, agent_dir: Path | None = None, session_id: str | None = None) -> None:
+        # Provenance context. Registration happens at creation because that is
+        # the only moment the producing task is knowable — see
+        # app/backend/services/artifacts.register_generated.
+        self._agent_dir = agent_dir
+        self._session_id = session_id
+
     async def execute(self, **params: Any) -> str:
         try:
             api_key = settings.openai_api_key
@@ -98,9 +105,12 @@ class GenerateImageTool(BaseTool):
             output_path.write_bytes(image_bytes)
 
             path = relative_path.as_posix()
+            from app.backend.services.artifacts import register_generated
+            record = register_generated(output_path, self._agent_dir, self._session_id)
             return json.dumps(
                 {
                     "type": "image_generated",
+                    "artifact_id": (record or {}).get("id"),
                     "path": path,
                     "url": f"/api/files/image?path={path}",
                     "media_type": "image/png",

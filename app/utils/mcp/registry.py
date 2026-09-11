@@ -127,6 +127,10 @@ async def register_server_tools(host_manager: Any) -> int:
             tool_name = str(getattr(mcp_tool, "name", ""))
             if not tool_name:
                 continue
+            if server_name == "github":
+                from app.utils.github.mcp import TOOLS
+                if tool_name not in TOOLS:
+                    continue
             if not _matches_allowlist(tool_name, allowlist):
                 continue
             key = f"mcp__{server_name}__{tool_name}"

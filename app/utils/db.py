@@ -100,6 +100,8 @@ def init_schema() -> None:
             tokenize='porter unicode61'
         );
 
+        CREATE TABLE IF NOT EXISTS task_results (result_key TEXT PRIMARY KEY, payload TEXT NOT NULL);
+
         CREATE TABLE IF NOT EXISTS task_queue (
             id              TEXT PRIMARY KEY,
             prompt          TEXT NOT NULL,
@@ -279,6 +281,8 @@ def insert_task(
             verification or "",
         ),
     )
+    from app.utils.task_results import save_result
+    save_result(db, f'agent:{agent}:{cur.lastrowid}', task_id, status, result_summary, error_summary)
     db.commit()
     return cur.lastrowid
 
@@ -295,7 +299,8 @@ def recent_tasks(agent: str | None = None, limit: int = 20) -> list[dict[str, An
         rows = db.execute(
             "SELECT * FROM tasks ORDER BY id DESC LIMIT ?", (limit,)
         ).fetchall()
-    return [dict(r) for r in rows]
+    from app.utils.task_results import attach_result
+    return [attach_result(db, r, f"agent:{r['agent']}:{r['id']}") for r in rows]
 
 
 # ── Memory / embedding helpers ────────────────────────────────────────────
@@ -497,7 +502,8 @@ def get_queued_task(task_id: str) -> dict[str, Any] | None:
     """Fetch a single task from the queue by id."""
     db = get_db()
     row = db.execute("SELECT * FROM task_queue WHERE id = ?", (task_id,)).fetchone()
-    return dict(row) if row else None
+    from app.utils.task_results import attach_result
+    return attach_result(db, row, task_id) if row else None
 
 
 def update_queued_task(task_id: str, **fields: Any) -> dict[str, Any] | None:
@@ -510,6 +516,10 @@ def update_queued_task(task_id: str, **fields: Any) -> dict[str, Any] | None:
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     vals = list(fields.values()) + [task_id]
     db.execute(f"UPDATE task_queue SET {set_clause} WHERE id = ?", vals)
+    row = db.execute('SELECT * FROM task_queue WHERE id=?', (task_id,)).fetchone()
+    if row and row['status'] in {'done', 'error', 'timeout', 'cancelled', 'blocked', 'failed'}:
+        from app.utils.task_results import save_result
+        save_result(db, task_id, task_id, row['status'], row['result'], row['error'])
     db.commit()
     return get_queued_task(task_id)
 
@@ -522,7 +532,8 @@ def get_tasks_by_status(*statuses: str, limit: int = 50) -> list[dict[str, Any]]
         f"SELECT * FROM task_queue WHERE status IN ({placeholders}) ORDER BY created_at DESC LIMIT ?",
         (*statuses, limit),
     ).fetchall()
-    return [dict(r) for r in rows]
+    from app.utils.task_results import attach_result
+    return [attach_result(db, r, r['id']) for r in rows]
 
 
 def clear_session_tasks(session_id: str, source: str = "telegram") -> int:
@@ -542,7 +553,8 @@ def session_tasks_queue(session_id: str, limit: int = 100) -> list[dict[str, Any
         "SELECT * FROM task_queue WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
         (session_id, limit),
     ).fetchall()
-    return [dict(row) for row in rows]
+    from app.utils.task_results import attach_result
+    return [attach_result(get_db(), row, row['id']) for row in rows]
 
 
 def recent_tasks_queue(limit: int = 50, status: str | None = None) -> list[dict[str, Any]]:
@@ -558,12 +570,13 @@ def recent_tasks_queue(limit: int = 50, status: str | None = None) -> list[dict[
             "SELECT * FROM task_queue ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
-    return [dict(r) for r in rows]
+    from app.utils.task_results import attach_result
+    return [attach_result(db, r, r['id']) for r in rows]
 
 
 def search_hybrid(
     query: str,
-    query_embedding: np.ndarray,
+    query_embedding: np.ndarray | None,
     agent: str | None = None,
     top_k: int = 10,
     include_cold: bool = False,
@@ -583,7 +596,7 @@ def search_hybrid(
     # Vector results
     vec_results = search_vector(
         query_embedding, agent=agent, limit=top_k * 3, include_cold=include_cold
-    )
+    ) if query_embedding is not None else []
 
     # Build RRF scores keyed by memory_entries.id
     rrf_scores: dict[int, float] = {}

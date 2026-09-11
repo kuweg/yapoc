@@ -14,6 +14,12 @@ adapter: codex
 model: gpt-5.3-codex
 temperature: 1.0
 tools:
+  # GitHub read-only grants; keep synchronized with agent-settings.json.
+  - github_get_repo
+  - github_list_branches
+  - github_list_commits
+  - github_read_file
+  - github_search_code
   - plugin:gmail:*
   - delegate_task
   - file_read
@@ -74,6 +80,10 @@ sandbox:
     - wc
     - uname
     - which
+    - pnpm
+    - yarn
+    - corepack
+    - bun
     - npm
     - npx
     - node

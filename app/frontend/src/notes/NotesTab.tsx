@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, Code2, Columns2, Download, FilePlus2, GitBranch, Link2, MessageSquarePlus, Pin, RefreshCw, Save, Search, Trash2, Upload } from 'lucide-react'
 import { StudioDialog } from '../studio/StudioDialog'
 import { useAppStore } from '../store/appStore'
@@ -10,7 +10,7 @@ import { useAgentChatStore } from '../store/agentChatStore'
 import { createNote, findNote, listNotes, noteTarget, readNote, saveNote, trashNote, type Note, type NoteSummary } from './api'
 import { useNotesStore } from './store'
 import { headingId, NoteMarkdown } from './NoteMarkdown'
-import { NotesGraph } from './NotesGraph'
+const NotesGraph = lazy(() => import('./NotesGraph').then(module => ({ default: module.NotesGraph })))
 import './notes.css'
 
 type Mode = 'preview' | 'edit' | 'split' | 'graph'
@@ -222,7 +222,7 @@ export function NotesTab() {
           {note && <><button onClick={download}>Download draft</button><button onClick={() => { useNotesStore.getState().clearDraft(note.id); void open(note.id) }}>Discard draft and reload</button></>}
           {!note && <button onClick={() => { void refresh(); if (selectedId) void open(selectedId) }}>Try again</button>}
         </div>}
-        {mode === 'graph' ? <NotesGraph notes={notes} selectedId={selectedId} onNavigate={target => void navigate(target)} />
+        {mode === 'graph' ? <Suspense fallback={<div role="status">Loading graph…</div>}><NotesGraph notes={notes} selectedId={selectedId} onNavigate={target => void navigate(target)} /></Suspense>
           : reading ? <div className="studio-empty" role="status">Opening note…</div>
           : !note ? <div className="studio-empty notes-empty"><BookOpen size={32} /><h2>A place for connected thinking</h2><p>Write in Markdown. Link ideas with [[note names]]. Bring the right knowledge into a conversation.</p><button className="studio-primary-button" onClick={() => { setNewTitle(''); setFormError(''); setCreating(true) }}>Create a note</button></div>
           : <>

@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        YAPOC_EXTRAS: ${YAPOC_EXTRAS:-}
     init: true
     restart: unless-stopped
     stop_grace_period: 25s

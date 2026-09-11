@@ -11,6 +11,8 @@ from app.backend.models import TaskRequest, TaskResponse
 from app.utils.adapters import CompactEvent, Message, MessageBoundary, ModelSwapped, TextDelta, ThinkingDelta, ToolDone, ToolStart, UsageStats
 from app.utils.db import create_queued_task, get_queued_task, recent_tasks_queue
 
+from app.backend.services.task_progress import present_task
+
 router = APIRouter()
 
 
@@ -87,9 +89,17 @@ async def submit_task(request: TaskRequest):
 async def list_tasks(
     status: str | None = Query(None, description="Filter by status"),
     limit: int = Query(50, ge=1, le=200),
+    session_id: str | None = Query(None),
 ):
     """List recent tasks from the queue."""
-    return recent_tasks_queue(limit=limit, status=status)
+    if session_id:
+        from app.utils.db import session_tasks_queue
+        rows = session_tasks_queue(session_id, limit=limit)
+        if status:
+            rows = [row for row in rows if row['status'] == status]
+    else:
+        rows = recent_tasks_queue(limit=limit, status=status)
+    return [present_task(row) for row in rows]
 
 
 @router.get("/tasks/{task_id}")
@@ -98,7 +108,21 @@ async def get_task(task_id: str):
     task = get_queued_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return task
+    return present_task(task)
+
+
+@router.get("/tasks/{task_id}/evidence/{seq}")
+async def task_evidence(task_id: str, seq: int):
+    """Return a captured tool result, scoped to its exact execution ID."""
+    from fastapi.responses import PlainTextResponse
+    from app.utils.db import get_db
+    row = get_db().execute('SELECT payload FROM task_events WHERE task_id=? AND seq=?', (task_id, seq)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail='Evidence not found')
+    event = json.loads(row['payload'])
+    if event.get('type') != 'tool_done':
+        raise HTTPException(status_code=404, detail='Evidence not found')
+    return PlainTextResponse(str(event.get('result', '')), headers={'X-Content-Type-Options': 'nosniff'})
 
 
 @router.get("/sessions/{session_id}/events")
@@ -146,11 +170,21 @@ async def submit_task_stream(request: TaskRequest):
         raise HTTPException(409, "Task ID belongs to another session")
     if not row:
         from app.backend.services.notes import build_note_context
+        from app.backend.services.uploads import build_attachment_injection, resolve_file_refs_in_text
         note_context, notes = build_note_context(request.task, request.note_ids)
+        # Resolve attachment IDs from two sources: (1) the explicit `attachments`
+        # list the frontend sends, and (2) any `@file:<id>` / `@file:<name>`
+        # references embedded in the prompt text itself. The latter is a fallback
+        # for when the frontend failed to resolve a reference (e.g. a full
+        # `@file:<hex32>` pasted directly, which never populates the client's
+        # upload list) — the reference must still resolve to the real file.
+        attachment_ids: list[str] = list(request.attachments or [])
+        for fid in resolve_file_refs_in_text(request.task or "", owner="local"):
+            if fid not in attachment_ids:
+                attachment_ids.append(fid)
         suffix, attachments = "", []
-        if request.attachments:
-            from app.backend.services.uploads import build_attachment_injection
-            suffix, attachments = build_attachment_injection(request.attachments, owner="local")
+        if attachment_ids:
+            suffix, attachments = build_attachment_injection(attachment_ids, owner="local")
         row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context,
                                  source=request.source or "ui", session_id=session_id,
                                  metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "transport": "sse"}))
@@ -172,6 +206,9 @@ async def submit_task_stream(request: TaskRequest):
                     continue  # exhaust the final page before closing
                 if state["status"] != "done":
                     yield f'data: {json.dumps({"type": "error", "error": state.get("error") or state["status"]})}\n\n'
+                state = present_task(state)
+                if state.get('structured_result'):
+                    yield f'data: {json.dumps({"type": "task_result", "result": state["structured_result"]})}\n\n'
                 yield "data: [DONE]\n\n"
                 return
             yield ": keepalive\n\n"
@@ -179,3 +216,15 @@ async def submit_task_stream(request: TaskRequest):
 
     return StreamingResponse(event_generator(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.post('/tasks/{task_id}/recover')
+async def recover_task(task_id: str):
+    from app.backend.services.recovery import recover_interrupted_tasks
+    row = get_queued_task(task_id)
+    if not row:
+        raise HTTPException(404, 'Task not found')
+    if row['status'] not in {'interrupted', 'blocked', 'error', 'timeout', 'failed'} and present_task(row)['progress']['state'] != 'blocked':
+        raise HTTPException(409, 'Only interrupted or unsuccessful tasks can resume')
+    recover_interrupted_tasks(task_id, manual=True)
+    return present_task(get_queued_task(task_id))

@@ -504,14 +504,14 @@ async def test_outward_facing_tools_fail_closed_when_review_is_unavailable(audit
     assert any("decision=deny" in line for line in audit_log())
 
 
-async def test_recoverable_tools_still_fail_open(audit_log, monkeypatch):
-    """The existing tradeoff must survive: don't halt the system on a hiccup."""
+async def test_risky_tools_fail_closed(audit_log, monkeypatch):
+    """An unavailable reviewer cannot authorize a mutation."""
     from app.utils.tools import security_gate as gate
 
     _patch_failing_provider(monkeypatch)
 
     decision, _ = await gate.classify("file_delete", {"path": "app/tmp/x"}, "builder")
-    assert decision == "allow"
+    assert decision == "deny"
 
 
 async def test_sending_mail_is_audited(audit_log, monkeypatch):

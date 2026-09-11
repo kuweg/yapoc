@@ -17,6 +17,9 @@ permissions:
 
 jobs:
   pytest:
+    strategy:
+      matrix:
+        extras: ["", "embeddings"]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,16 +32,19 @@ jobs:
       - name: Install Poetry
         run: pipx install poetry
 
+      - name: Install execution isolation
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap util-linux
+
       - name: Cache virtualenv
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-${{ runner.os }}-py312-${{ hashFiles('poetry.lock') }}
+          key: venv-${{ runner.os }}-${{ matrix.extras }}-py312-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: |
           poetry config virtualenvs.in-project true
-          poetry install --no-interaction
+          poetry install --no-interaction ${{ matrix.extras && format('--extras {0}', matrix.extras) || '' }}
 
       # No API keys are provided, so anything reaching a real provider must be
       # skipped or mocked rather than left to fail the run. The suite is
@@ -67,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: |
           poetry config virtualenvs.in-project true
-          poetry install --no-interaction
+          poetry install --no-interaction -E embeddings
 
       # Reported, not enforced, for now. CI has no production task history, so
       # the reliability checks will SKIP here (too few tasks) and only the

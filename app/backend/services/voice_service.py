@@ -55,7 +55,7 @@ class TTSEngine:
     def _synthesize_offline(self, text: str, voice: str, speed: float, fmt: str) -> bytes:
         engine = self._get_offline_engine()
         if engine is None:
-            raise RuntimeError("Offline TTS engine (pyttsx3) not available")
+            raise RuntimeError("Offline speech is optional. Install poetry install -E voice and the platform speech runtime; restart YAPOC.")
 
         import pyttsx3
 

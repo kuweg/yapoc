@@ -14,7 +14,7 @@ poetry run yapoc start   # wraps: uvicorn app.backend.main:app
 | `POST` | `/task` | Blocking, returns `TaskResponse` |
 | `POST` | `/task/stream` | SSE stream, event types: `text`, `tool_start`, `tool_done`, `usage_stats` |
 
-**Important**: all tools execute automatically — there is no approval gate.
+**Important**: tool calls pass through the security policy gate; unavailable review denies execution. Shell/Python execution additionally requires OS isolation.
 
 ### `/agents` (agents.py)
 | Method | Path | Notes |

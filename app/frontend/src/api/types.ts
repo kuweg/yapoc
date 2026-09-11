@@ -35,6 +35,7 @@ export type ModelSwappedEvent = {
   model: string
 }
 export type StreamEvent =
+  | { type: 'task_result'; result: StructuredTaskResult }
   | TextEvent
   | ThinkingEvent
   | ToolStartEvent
@@ -126,6 +127,8 @@ export interface Attachment {
 }
 
 export interface TaskCompletionMeta {
+  structured_result?: StructuredTaskResult
+
   status?: string
   prompt?: string
   result?: string
@@ -235,4 +238,18 @@ export interface ChannelSessionMessagesResponse {
   session_id: string
   source: string
   messages: Message[]
+}
+
+export interface StructuredTaskResult {
+  progress?: import('./client').QueuedTask['progress']
+  schema_version: 1
+  task_id: string
+  status: 'succeeded' | 'partial' | 'failed' | 'blocked' | 'cancelled'
+  summary: string
+  changes: { files: string[] }
+  verification_status: 'checks_passed' | 'failed' | 'unknown' | 'not_run'
+  verification: Array<{ command: string; status: string; exit_code: number | null; evidence_event_seq: number; evidence_url: string }>
+  artifacts: Array<{ id: string; type: string; name: string; url: string }>
+  usage: { input_tokens: number | null; output_tokens: number | null; estimated_cost_usd: number | null; scope: string }
+  limitations: string[]
 }

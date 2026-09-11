@@ -59,6 +59,21 @@ export interface HierarchyResponse {
   average_completion_seconds_by_parent: Record<string, number>
 }
 
+// ── /api/metrics/branch-costs ────────────────────────────────────────────────
+export interface BranchCost {
+  agent: string
+  own_cost_usd: number
+  subtree_cost_usd: number
+  subtree_tasks: number
+  direct_children: string[]
+  depth: number
+}
+
+export interface BranchCostsResponse {
+  generated_at: string
+  branches: BranchCost[]
+}
+
 // ── /api/metrics/observability ───────────────────────────────────────────────
 export interface ObsTotals {
   total_cost_usd: number

@@ -44,10 +44,28 @@ tools:
   - git_status
   - git_diff
   - git_log
+  - shell_exec
 delegation_targets:
   - builder
   - keeper
   - model_manager
+sandbox:
+  # Planning inspects the project to decompose tasks. Read-only shell
+  # inspection only — no arbitrary/destructive commands.
+  shell_allowlist:
+    - ls
+    - cd
+    - cat
+    - pwd
+    - find
+    - grep
+    - wc
+    - head
+    - tail
+    - echo
+    - which
+    - python
+    - python3
 runner:
   max_turns: 60
   task_timeout: 600

@@ -10,7 +10,7 @@ from typing import Any
 import aiofiles
 
 from app.config import settings
-from app.utils.secrets import scrub_pii
+from app.utils.secrets import scrub_pii, credential_path
 
 from . import BaseTool, truncate_tool_output
 
@@ -98,6 +98,9 @@ class FileReadTool(BaseTool):
         return lines, total_lines
 
     async def execute(self, **params: Any) -> str:
+        return truncate_tool_output(await self._read(**params), cap=_MAX_READ_BYTES)
+
+    async def _read(self, **params: Any) -> str:
         try:
             resolved = _sandbox(params["path"])
         except ValueError as exc:
@@ -107,6 +110,9 @@ class FileReadTool(BaseTool):
             return f"ERROR: File not found: {params['path']}"
         if not resolved.is_file():
             return f"ERROR: Not a file: {params['path']}"
+
+        if credential_path(params['path']) or credential_path(resolved.relative_to(settings.project_root.resolve())):
+            return 'ERROR: Credential files are not available through file_read.'
 
         file_size = resolved.stat().st_size
         tail_lines = params.get("tail_lines", 0)
@@ -119,7 +125,7 @@ class FileReadTool(BaseTool):
                     content = await f.read()
             except Exception as exc:
                 return f"ERROR: {exc}"
-            return content
+            return truncate_tool_output(content, cap=_MAX_READ_BYTES)
 
         # ── start_line mode: read a specific line range ────────────────────
         if start_line > 0:

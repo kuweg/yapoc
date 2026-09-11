@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { composeConfig, stageSource, includeInImage } from './index.mjs';
+import { composeConfig, stageSource, includeInImage, parseExtras } from './index.mjs';
 
 for (const workspace of ['/home/alice/Work space', 'C:\\Users\\Alice\\YAPOC projects', '/Users/alice/$work']) {
   const config = composeConfig(workspace, '/source', 8050, 1000, 1000);
@@ -50,3 +50,14 @@ assert.match(rootHelp.stdout, /Usage: yapoc-install/);
 const invalid = spawnSync(process.execPath, [rootInstaller, '--unknown'], { encoding: 'utf8' });
 assert.equal(invalid.status, 1);
 assert.match(invalid.stderr, /Unknown or incomplete option/);
+
+assert.deepEqual(parseExtras(), []);
+assert.deepEqual(parseExtras('none'), []);
+assert.deepEqual(parseExtras('all'), ['embeddings', 'notebooks', 'voice']);
+assert.deepEqual(parseExtras('voice,voice'), ['voice']);
+assert.throws(() => parseExtras('voice;echo nope'));
+for (const workspace of ['/home/alice/YAPOC', 'C:\\Users\\Alice\\YAPOC', '/Users/alice/YAPOC']) {
+  assert.equal(composeConfig(workspace, '/source', 8000).services.yapoc.build.args.YAPOC_EXTRAS, '');
+  assert.equal(composeConfig(workspace, '/source', 8000, null, null, ['voice', 'notebooks']).services.yapoc.build.args.YAPOC_EXTRAS, 'voice notebooks');
+}
+console.log('PASS: lightweight defaults and validated optional capabilities on portable paths');

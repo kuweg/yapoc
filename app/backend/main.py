@@ -47,6 +47,7 @@ from app.backend.websocket import websocket_endpoint
 from app.backend.message_bus import bus
 from app.backend.services.graph_events import graph_event_bus
 from app.config import settings
+from app.utils.runtime_identity import PROCESS_IDENTITY
 
 
 def _pid_alive_local(pid: int) -> bool:
@@ -95,8 +96,12 @@ def _cleanup_stale_agent_statuses() -> list[str]:
                     try:
                         proc.wait(timeout=2)
                     except psutil.TimeoutExpired:
-                        logger.warning("Agent {} still shutting down; preserving its current files", agent_dir.name)
-                        continue
+                        proc.kill()
+                        try:
+                            proc.wait(timeout=2)
+                        except psutil.TimeoutExpired:
+                            logger.warning("Agent {} survived shutdown; preserving its files", agent_dir.name)
+                            continue
             except (psutil.NoSuchProcess, psutil.AccessDenied, IndexError, OSError):
                 pass
         if fields.get("status") in {"pending", "running"}:
@@ -958,38 +963,9 @@ async def lifespan(app: FastAPI):
     from app.agents.master.agent import master_agent
     master_agent._write_status("idle")
 
-    # Recover stale tasks from previous server run. Goal-source tasks
-    # naturally resume because _check_goals' new duplicate guard sees the
-    # pending task and skips re-dispatching the same goal text.
-    stale = get_tasks_by_status("running", "interrupted", limit=10000)
-    _resumed_goals: list[str] = []
-    for task in stale:
-        tid = task["id"]
-        src = (task.get("source") or "").lower()
-        prompt_preview = (task.get("prompt") or "")[:80]
-        logger.info(
-            "Recovering stale task {} source={} prompt={!r} (running → pending)",
-            tid[:8], src, prompt_preview,
-        )
-        from app.utils.conversation_store import load as load_snapshot
-        transcript = load_snapshot("run-" + tid) or "No tool checkpoint available. Inspect durable events and child assignments before acting."
-        meta = json.loads(task.get("metadata") or "{}")
-        meta.setdefault("original_prompt", task["prompt"])
-        meta.pop("history", None)
-        prompt = (
-            "[Recover interrupted run] Continue the original request below. The previous process stopped; "
-            "a tool without a recorded result has an UNKNOWN outcome. Inspect files, child status and external "
-            "state before repeating side effects. Do not assume a restart completed any pending action.\n\n"
-            + meta["original_prompt"] + "\n\nWorking checkpoint:\n" + transcript
-        )
-        update_queued_task(tid, status="pending", prompt=prompt, metadata=json.dumps(meta), started_at=None, assigned_agent=None)
-        if src == "goal":
-            _resumed_goals.append(prompt_preview)
-    if _resumed_goals:
-        logger.info(
-            "Goal resumption: {} goal-source task(s) re-queued for pickup: {}",
-            len(_resumed_goals), _resumed_goals,
-        )
+    from app.backend.services.recovery import recover_interrupted_tasks
+    recovered_runs = recover_interrupted_tasks()
+    logger.info("Recovered {} interrupted queue runs", len(recovered_runs))
 
     # Load tool plugins from plugins/ directory
     from app.utils.tools.plugin_loader import load_plugins
@@ -1122,6 +1098,10 @@ async def lifespan(app: FastAPI):
         hours=settings.goal_proposer_interval_hours,
         id="goal_proposer",
     )
+    if settings.github_enabled and settings.github_poll_interval_seconds > 0:
+        from app.utils.github.observability import check_health
+        scheduler.add_job(check_health, 'interval', seconds=max(300, settings.github_poll_interval_seconds),
+                          id='github_health', max_instances=1, coalesce=True)
     scheduler.start()
     # Run initial checks shortly after startup
     loop = asyncio.get_event_loop()
@@ -1204,6 +1184,8 @@ app.add_middleware(
 )
 
 app.websocket("/ws")(websocket_endpoint)
+from app.backend.routers.github import router as github_router
+app.include_router(github_router)
 app.include_router(health_router)
 app.include_router(tasks_router)
 app.include_router(agents_router)

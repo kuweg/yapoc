@@ -52,4 +52,4 @@ jobs:
         run: docker build -f docker/Dockerfile -t yapoc-installer-check .
       - name: Verify packaged imports and dashboard without credentials
         run: |
-          docker run --rm --entrypoint python yapoc-installer-check -c 'import sys; sys.path.insert(0,"/opt/yapoc"); import app.backend.main; from pathlib import Path; assert Path("/opt/yapoc/app/frontend/dist/index.html").is_file()'
+          docker run --rm --entrypoint python yapoc-installer-check -c 'import sys; sys.path.insert(0,"/opt/yapoc"); import app.backend.main; from pathlib import Path; assert Path("/opt/yapoc/app/frontend/dist/index.html").is_file(); import importlib.util; assert all(importlib.util.find_spec(m) is None for m in ("torch","sentence_transformers","ipykernel","pyttsx3"))'

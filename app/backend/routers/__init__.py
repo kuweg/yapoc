@@ -27,6 +27,7 @@ from .plugins import router as plugins_router
 from .notes import router as notes_router
 from .cron import router as cron_router
 from .drive_oauth import router as drive_oauth_router
+from .github import router as github_router
 
 __all__ = [
     "artifacts_router",
@@ -59,4 +60,5 @@ __all__ = [
     "notes_router",
     "cron_router",
     "drive_oauth_router",
+    "github_router",
 ]

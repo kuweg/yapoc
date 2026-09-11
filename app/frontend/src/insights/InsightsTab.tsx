@@ -4,6 +4,7 @@
  * went, who delegates to whom, and what's failing together.
  */
 import { useState } from 'react'
+import { BranchCosts } from './BranchCosts'
 import { CostExplorer } from './CostExplorer'
 import { DelegationTopology } from './DelegationTopology'
 import { ErrorHeatmap } from './ErrorHeatmap'
@@ -13,6 +14,7 @@ const VIEWS = [
   { id: 'cost', label: 'Cost', hint: 'Spend by agent and model' },
   { id: 'trace', label: 'Trace', hint: 'Task waterfall over time' },
   { id: 'topology', label: 'Topology', hint: 'Delegation graph' },
+  { id: 'branch', label: 'Branch', hint: 'Cost by delegation subtree' },
   { id: 'errors', label: 'Errors', hint: 'Cross-agent failure heatmap' },
 ] as const
 
@@ -57,6 +59,7 @@ export function InsightsTab() {
         {view === 'cost' && <CostExplorer />}
         {view === 'trace' && <TraceWaterfall />}
         {view === 'topology' && <DelegationTopology />}
+        {view === 'branch' && <BranchCosts />}
         {view === 'errors' && <ErrorHeatmap />}
       </div>
     </div>

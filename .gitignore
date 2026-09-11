@@ -149,6 +149,22 @@ app/agents/concilium/
 # ── Personal notes ──────────────────────────────────────────────────────
 personal_notes_do_not_read.md
 
+# User and agent memory is local runtime state; never publish it.
+app/memory/
+
+# Local scratch, generated state, and accidental root artifacts.
+app/agents/*/.repl_history
+app/agents/*/_diag_*.py
+app/agents/*/fix_task.md
+app/agents/*/prompt_structure.txt
+app/agents/*/test-doc.md
+app/agents/shared/
+app/skills/.health.json
+app/skills/parent_id_*.yaml
+*.tsbuildinfo
+/=1.1.0
+/yapoc_chain.txt
+
 # ── Test artifacts ──────────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/

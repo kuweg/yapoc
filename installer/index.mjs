@@ -12,7 +12,16 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const exists = async file => { try { await access(file); return true; } catch { return false; } };
 const literal = value => value.replaceAll('$', () => '$$'); // Avoid JS replacement-string escaping too.
 
-export function composeConfig(workspace, context, port, uid = null, gid = null) {
+export function parseExtras(value = '') {
+  const allowed = ['embeddings', 'notebooks', 'voice'];
+  if (value === 'all') return allowed;
+  if (!value || value === 'none') return [];
+  const selected = [...new Set(value.split(',').map(name => name.trim()))];
+  if (selected.some(name => !allowed.includes(name))) throw new Error('Extras must be embeddings, notebooks, voice, all, or none.');
+  return selected;
+}
+
+export function composeConfig(workspace, context, port, uid = null, gid = null, extras = []) {
   return {
     name: 'yapoc-' + createHash('sha256').update(workspace).digest('hex').slice(0, 10),
     services: {
@@ -23,7 +32,7 @@ export function composeConfig(workspace, context, port, uid = null, gid = null) 
         healthcheck: { test: ['CMD', 'redis-cli', 'ping'], interval: '3s', timeout: '2s', retries: 20 },
       },
       yapoc: {
-        build: { context: literal(context), dockerfile: 'docker/Dockerfile' },
+        build: { context: literal(context), dockerfile: 'docker/Dockerfile', args: { YAPOC_EXTRAS: parseExtras(extras.join(',')).join(' ') } },
         init: true, restart: 'unless-stopped', stop_grace_period: '25s',
         ...(uid === null ? {} : { user: `${uid}:${gid}` }),
         security_opt: ['no-new-privileges:true'], cap_drop: ['ALL'],
@@ -167,16 +176,17 @@ async function waitReady(url, token, seconds = 180) {
 export async function main(args = process.argv.slice(2)) {
   if (Number(process.versions.node.split('.')[0]) < 22) throw new Error('Install Node.js 22 or newer and retry.');
   if (args.includes('--help')) {
-    console.log('YAPOC guided installer (Node 22+, Docker)\nUsage: yapoc-install [--source PATH] [--ref BRANCH_OR_COMMIT] [--workspace PATH] [--no-browser]\nLinux, Windows and macOS. Credentials are requested interactively.');
+    console.log('YAPOC guided installer (Node 22+, Docker)\nUsage: yapoc-install [--source PATH] [--ref BRANCH_OR_COMMIT] [--workspace PATH] [--extras embeddings,notebooks,voice|all|none] [--no-browser]\nLinux, Windows and macOS. Credentials are requested interactively.');
     return;
   }
-  let source, requestedWorkspace, ref = 'main', noBrowser = false;
+  let source, requestedWorkspace, extras, ref = 'main', noBrowser = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--no-browser') noBrowser = true;
-    else if (['--source', '--workspace', '--ref'].includes(args[i]) && args[i+1]) {
+    else if (['--source', '--workspace', '--ref', '--extras'].includes(args[i]) && args[i+1]) {
       const option = args[i++];
       if (option === '--source') source = path.resolve(args[i]);
       else if (option === '--ref') ref = args[i];
+      else if (option === '--extras') extras = parseExtras(args[i]);
       else requestedWorkspace = args[i];
     } else throw new Error(`Unknown or incomplete option: ${args[i]}`);
   }
@@ -213,9 +223,14 @@ export async function main(args = process.argv.slice(2)) {
     source ||= await exists(path.join(local, 'pyproject.toml')) ? local : await downloadSource(ref);
     await stageSource(source, context);
     const port = await availablePort();
-    config = composeConfig(workspace, context, port, process.getuid?.() ?? null, process.getgid?.() ?? null);
+    config = composeConfig(workspace, context, port, process.getuid?.() ?? null, process.getgid?.() ?? null, extras ?? []);
     await writeFile(composeFile, JSON.stringify(config, null, 2) + '\n');
   }
+  if (extras !== undefined) {
+    config.services.yapoc.build.args = { ...config.services.yapoc.build.args, YAPOC_EXTRAS: extras.join(' ') };
+    await writeFile(composeFile, JSON.stringify(config, null, 2) + '\n');
+  }
+  console.log(`Optional capabilities: ${config.services.yapoc.build.args?.YAPOC_EXTRAS || 'none (lightweight core)'}`);
   const docker = (...args) => run('docker', ['compose', '-f', composeFile, ...args]);
   const prefix = `docker compose -f "${composeFile}"`;
   console.log(`\nManage this installation:\n  ${prefix} stop\n  ${prefix} start\n  ${prefix} logs --tail 100\n`);

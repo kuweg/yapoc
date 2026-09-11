@@ -1,7 +1,7 @@
 import { Children, isValidElement, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/common'
 import { findNote, type NoteSummary } from './api'
 
 interface Node { type: string; value?: string; url?: string; children?: Node[]; data?: { hName?: string; hProperties?: Record<string, string> } }

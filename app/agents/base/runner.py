@@ -16,6 +16,7 @@ from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 from watchdog.observers import Observer
 
 from app.config import settings
+from app.utils.runtime_identity import PROCESS_IDENTITY
 from app.agents.base import BaseAgent, TurnLimitReached
 from app.agents.base.context import _parse_runner_config
 from app.utils.adapters import ToolStart, UsageStats
@@ -150,6 +151,7 @@ class AgentRunner:
         data = {
             "state": state,
             "pid": os.getpid(),
+            "runtime": PROCESS_IDENTITY,
             "task_summary": task_summary,
             "started_at": getattr(self, "_started_at", now),
             "updated_at": now,
@@ -389,6 +391,9 @@ class AgentRunner:
             )
 
         try:
+            if effective_task_id:
+                from app.utils.db import init_schema
+                init_schema()
             last_tps: float | None = None
             last_input: int | None = None
             last_output: int | None = None
@@ -409,6 +414,12 @@ class AgentRunner:
                 notifications_context=notifications_context,
                 blocked_tools=_blocked,
             ):
+                if effective_task_id:
+                    from app.backend.routers.tasks import _event_to_dict
+                    from app.backend.services.task_runtime import append_event
+                    serialized = _event_to_dict(event)
+                    if serialized:
+                        append_event(effective_task_id, serialized)
                 if isinstance(event, ToolStart):
                     record = self._mutation_from_event(event)
                     if record and record not in _mutations:
@@ -1131,9 +1142,14 @@ class AgentRunner:
 
     async def _notify_parent_via_bus(self, result: str, status: str) -> None:
         """Publish task result to the parent via Redis, falling back to notification_queue."""
+        from app.backend.services.notification_queue import NON_AGENT_PARENTS
+
         fm = self._parse_task_frontmatter()
         parent = fm.get("assigned_by", "")
-        if not parent or parent == self._name:
+        # A non-agent parent has no inbox — the starter collects the result
+        # from TASK.MD itself. Publishing anyway leaks an outbox entry that
+        # queue_pending_notifications will never drain.
+        if parent in NON_AGENT_PARENTS or parent == self._name:
             return
 
         session_id = fm.get("session_id", "")

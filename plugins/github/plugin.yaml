@@ -1,0 +1,37 @@
+name: github
+display_name: GitHub
+description: Configurable repository health and maintenance. Configure through environment settings; writes require explicit policy and grants.
+category: integrations
+version: 0.1.0
+tools:
+  - github_get_repo
+  - github_list_issues
+  - github_get_issue
+  - github_list_issue_comments
+  - github_list_labels
+  - github_list_pull_requests
+  - github_get_pull_request
+  - github_list_pull_request_files
+  - github_list_pull_request_reviews
+  - github_list_pull_request_comments
+  - github_get_commit_checks
+  - github_get_commit_status
+  - github_list_workflow_runs
+  - github_get_workflow_run
+  - github_list_workflow_jobs
+  - github_list_commits
+  - github_list_branches
+  - github_list_releases
+  - github_list_tags
+  - github_get_community_health
+  - github_list_security_alerts
+  - github_read_file
+  - github_search_code
+  - github_get_health_summary
+  - github_get_workflow_job_logs
+  - github_create_issue
+  - github_comment_on_issue
+  - github_comment_on_pull_request
+  - github_update_labels
+  - github_create_draft_pull_request
+  - github_update_draft_pull_request

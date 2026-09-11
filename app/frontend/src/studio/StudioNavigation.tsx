@@ -4,7 +4,7 @@ import {
   Activity as EyeIcon, GitBranch as ScaleIcon, BrainCircuit as CircleStackIcon, Archive as ArchiveBoxIcon, WandSparkles as PuzzlePieceIcon,
   History as ClockIcon, Radio as SignalIcon, Plus as PlusIcon, PanelsTopLeft as Squares2X2Icon, FolderOpen as FolderOpenIcon,
   Unplug as ServerIcon, Blocks as CubeIcon, PanelLeftClose as ChevronDoubleLeftIcon, PanelLeftOpen as ChevronDoubleRightIcon,
-  HardDrive as HardDriveIcon,
+  HardDrive as HardDriveIcon, GitPullRequest,
 } from 'lucide-react'
 import type { useAppStore } from '../store/appStore'
 
@@ -26,6 +26,7 @@ export const NAV_SECTIONS: { title: string; items: { id: Tab; label: string; ico
     { id: 'skills', label: 'Skills', icon: PuzzlePieceIcon },
   ] },
   { title: 'Connections', items: [
+    { id: 'github', label: 'GitHub', icon: GitPullRequest },
     { id: 'mcp', label: 'MCP servers', icon: ServerIcon },
     { id: 'plugins', label: 'Plugins', icon: CubeIcon },
     { id: 'drive', label: 'Google Drive', icon: HardDriveIcon },

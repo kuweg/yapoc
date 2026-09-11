@@ -149,7 +149,7 @@ async def search_memory(
     source + timestamp + score. Embeddings are not returned.
     """
     from app.utils.db import init_schema, search_hybrid
-    from app.utils.embeddings import embed
+    from app.utils.embeddings import embed_optional as embed
 
     init_schema()
     db = get_db()
@@ -184,4 +184,4 @@ async def search_memory(
         }
         for r in rows
     ]
-    return {"query": q, "results": results, "total_indexed": total, "include_cold": include_cold}
+    return {"query": q, "results": results, "total_indexed": total, "include_cold": include_cold, "search_mode": "keyword" if query_vec is None else "hybrid"}

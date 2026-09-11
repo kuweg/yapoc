@@ -23,10 +23,8 @@ Execution model
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import signal
 import sys
 import tempfile
 from pathlib import Path
@@ -42,13 +40,6 @@ _DEFAULT_TIMEOUT = 30
 _MAX_TIMEOUT = 120
 _MAX_OUTPUT = 20_000
 
-_BOOTSTRAP = """\
-import sys, os
-sys.path.insert(0, os.environ["YAPOC_PROJECT_ROOT"])
-from app.utils.tools import code_api as yapoc  # noqa: F401  (script API)
-"""
-
-
 class ExecuteCodeTool(BaseTool):
     name = "execute_code"
     description = (
@@ -62,6 +53,7 @@ class ExecuteCodeTool(BaseTool):
         "yapoc.edit(path, old, new), yapoc.delete(path), yapoc.ls(path, pattern), "
         "yapoc.grep(pattern, path, glob), yapoc.exists(path). All paths are "
         "relative to the project root and cannot escape it.\n\n"
+        "Internet and DNS are available unless EXECUTION_NETWORK_ENABLED=false. "
         "print() whatever you need to see — stdout is returned to you. "
         "Use a delegated agent instead when the work needs judgement or the "
         "steps depend on interpreting results."
@@ -97,79 +89,32 @@ class ExecuteCodeTool(BaseTool):
         timeout = max(1, min(int(params.get("timeout", _DEFAULT_TIMEOUT) or _DEFAULT_TIMEOUT), _MAX_TIMEOUT))
         root = settings.project_root.resolve()
 
+        from .process_sandbox import command, run, SandboxUnavailable
         forbidden = list(getattr(self._policy, "forbidden_paths", []) or [])
-        env = {
-            **os.environ,
-            "YAPOC_PROJECT_ROOT": str(root),
-            "YAPOC_FORBIDDEN_PATHS": json.dumps(forbidden),
-            # Keep the child from inheriting a half-initialised event loop or
-            # writing .pyc noise into the tree for a one-shot script.
-            "PYTHONDONTWRITEBYTECODE": "1",
-        }
-
-        fd, script_path = tempfile.mkstemp(suffix=".py", prefix="yapoc_exec_")
+        if len(code) > 200_000:
+            return 'ERROR: Script exceeds the size limit.'
+        bootstrap = (
+            "import os, importlib.util\n"
+            "os.environ['YAPOC_PROJECT_ROOT'] = '/work'\n"
+            f"os.environ['YAPOC_FORBIDDEN_PATHS'] = {json.dumps(forbidden)!r}\n"
+            "spec = importlib.util.spec_from_file_location('yapoc', '/run/code_api.py')\n"
+            "yapoc = importlib.util.module_from_spec(spec)\n"
+            "spec.loader.exec_module(yapoc)\n"
+        )
+        fd, script_path = tempfile.mkstemp(suffix='.py', prefix='yapoc_exec_')
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(_BOOTSTRAP)
-                f.write("\n")
-                f.write(code)
-
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    sys.executable, script_path,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=str(root),
-                    env=env,
-                    start_new_session=True,
-                )
-            except Exception as exc:
-                return f"ERROR: execute_code — could not start interpreter: {exc}"
-
-            try:
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            except asyncio.TimeoutError:
-                # Kill the whole group — a script may have spawned children.
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    proc.kill()
-                # Reap it. Without this the transport is closed by the GC later,
-                # which raises "Event loop is closed" noise and leaks a pipe per
-                # timed-out script.
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=5)
-                except (asyncio.TimeoutError, ProcessLookupError):
-                    pass
-                return (
-                    f"ERROR: execute_code — script timed out after {timeout}s. "
-                    "Mechanical work should be fast; if this needs to run long, "
-                    "it probably wants a delegated agent instead."
-                )
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+                stream.write(bootstrap + code)
+            args = command(root, [sys.executable, '-I', '/run/script.py'], forbidden=forbidden,
+                           bindings=[(script_path, '/run/script.py'),
+                                     (Path(__file__).with_name('code_api.py'), '/run/code_api.py')])
+            returncode, out, err = await run(args, timeout)
+            if returncode:
+                return truncate_tool_output(f'execute_code FAILED (exit {returncode})\n{out}\n{err}', cap=_MAX_OUTPUT)
+            return truncate_tool_output(out or err or 'execute_code completed; no output.', cap=_MAX_OUTPUT)
+        except TimeoutError:
+            return 'ERROR: execute_code timed out; process group terminated.'
+        except (SandboxUnavailable, OSError):
+            return 'ERROR: Isolated execution unavailable or resource limit exceeded. Linux bubblewrap and util-linux are required.'
         finally:
             Path(script_path).unlink(missing_ok=True)
-
-        out = stdout.decode(errors="replace") if stdout else ""
-        err = stderr.decode(errors="replace") if stderr else ""
-
-        if proc.returncode != 0:
-            # Surface the traceback: the agent wrote this script and is the one
-            # that has to fix it.
-            parts = [f"execute_code FAILED (exit {proc.returncode})"]
-            if out.strip():
-                parts.append(f"stdout:\n{out.rstrip()}")
-            if err.strip():
-                parts.append(f"traceback:\n{err.rstrip()}")
-            return truncate_tool_output("\n\n".join(parts), cap=_MAX_OUTPUT)
-
-        if not out.strip():
-            hint = (
-                "execute_code ran successfully but printed nothing. "
-                "Add print() for anything you need to see."
-            )
-            return f"{hint}\n\nSTDERR: {err.rstrip()}" if err.strip() else hint
-
-        result = out.rstrip()
-        if err.strip():
-            result += f"\n\nSTDERR: {err.rstrip()}"
-        return truncate_tool_output(result, cap=_MAX_OUTPUT)

@@ -30,6 +30,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from loguru import logger as _log
+
 from app.config import settings
 
 from . import BaseTool, truncate_tool_output
@@ -89,15 +91,21 @@ class ExecuteCodeTool(BaseTool):
         timeout = max(1, min(int(params.get("timeout", _DEFAULT_TIMEOUT) or _DEFAULT_TIMEOUT), _MAX_TIMEOUT))
         root = settings.project_root.resolve()
 
-        from .process_sandbox import command, run, SandboxUnavailable
+        from .process_sandbox import SANDBOX_REQUIRED, SandboxUnavailable, command, run
         forbidden = list(getattr(self._policy, "forbidden_paths", []) or [])
         if len(code) > 200_000:
             return 'ERROR: Script exceeds the size limit.'
+        # Inside the sandbox the project is bind-mounted at /work and the API
+        # at /run/code_api.py. Unsandboxed there is no namespace, so the script
+        # addresses both by their real paths.
+        api_path = Path(__file__).with_name('code_api.py')
+        script_root = '/work' if SANDBOX_REQUIRED else str(root)
+        api_module = '/run/code_api.py' if SANDBOX_REQUIRED else str(api_path)
         bootstrap = (
             "import os, importlib.util\n"
-            "os.environ['YAPOC_PROJECT_ROOT'] = '/work'\n"
+            f"os.environ['YAPOC_PROJECT_ROOT'] = {script_root!r}\n"
             f"os.environ['YAPOC_FORBIDDEN_PATHS'] = {json.dumps(forbidden)!r}\n"
-            "spec = importlib.util.spec_from_file_location('yapoc', '/run/code_api.py')\n"
+            f"spec = importlib.util.spec_from_file_location('yapoc', {api_module!r})\n"
             "yapoc = importlib.util.module_from_spec(spec)\n"
             "spec.loader.exec_module(yapoc)\n"
         )
@@ -105,16 +113,29 @@ class ExecuteCodeTool(BaseTool):
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 stream.write(bootstrap + code)
-            args = command(root, [sys.executable, '-I', '/run/script.py'], forbidden=forbidden,
-                           bindings=[(script_path, '/run/script.py'),
-                                     (Path(__file__).with_name('code_api.py'), '/run/code_api.py')])
-            returncode, out, err = await run(args, timeout)
+            if SANDBOX_REQUIRED:
+                args = command(root, [sys.executable, '-I', '/run/script.py'], forbidden=forbidden,
+                               bindings=[(script_path, '/run/script.py'),
+                                         (api_path, '/run/code_api.py')])
+                returncode, out, err = await run(args, timeout)
+            else:
+                # No bubblewrap equivalent on this platform. The script runs as
+                # the user with the host environment: `yapoc.*` helpers still
+                # refuse forbidden paths, but nothing stops ordinary Python from
+                # reaching the whole filesystem. There is no OS boundary here.
+                _log.warning(
+                    "execute_code running WITHOUT isolation on {} — no sandbox "
+                    "available for this platform", sys.platform,
+                )
+                returncode, out, err = await run(
+                    [sys.executable, '-I', script_path], timeout, env=None, cwd=root,
+                )
             if returncode:
                 return truncate_tool_output(f'execute_code FAILED (exit {returncode})\n{out}\n{err}', cap=_MAX_OUTPUT)
             return truncate_tool_output(out or err or 'execute_code completed; no output.', cap=_MAX_OUTPUT)
         except TimeoutError:
             return 'ERROR: execute_code timed out; process group terminated.'
         except (SandboxUnavailable, OSError):
-            return 'ERROR: Isolated execution unavailable or resource limit exceeded. Linux bubblewrap and util-linux are required.'
+            return 'ERROR: Code execution unavailable or resource limit exceeded.'
         finally:
             Path(script_path).unlink(missing_ok=True)

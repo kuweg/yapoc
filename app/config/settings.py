@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # ── Local / self-hosted endpoints ───────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
-    lmstudio_base_url: str = "http://localhost:1234"
+    lmstudio_base_url: str = "http://127.0.0.1:1234"  # not localhost: macOS resolves it to ::1 first and LM Studio binds IPv4
 
     # ── Fallback routing ─────────────────────────────────────────────────────
     default_n_fallbacks_models: int = 1  # number of fallback models per agent

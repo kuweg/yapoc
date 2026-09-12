@@ -81,3 +81,26 @@
  @keyframes office-rainfall {to{background-position:7px 12px}}
 }
 .quiet-office *, .quiet-office *:before,.quiet-office *:after {animation:none!important}
+
+/* Room silhouettes and materials differ as well as their palettes. */
+.room-library .office-window {width:29px;height:32px;right:20px}
+.room-greenhouse .office-window {width:76px;height:46px;right:11px;background:#476a60}
+.room-workshop .office-window {width:54px;height:28px;border-color:#66797b}
+.room-clinic .office-window {height:30px;background:#49646b}
+.room-studio .office-window {width:50px;height:35px;background:#55516c}
+.room-library .office-lamp {background:#a77551;left:63%}
+.room-clinic .office-lamp {width:52px;height:5px;background:#d6dfcf;box-shadow:0 10px 0 6px #d6dfcf09}
+.room-workshop .office-apartment:before {background:repeating-linear-gradient(90deg,#58666b 0 7px,#78816f 7px 9px);border-color:#8c947e}
+.room-clinic .office-apartment:before {background:#718e86;border-color:#9cae9b}
+.room-studio .office-apartment:before {background:repeating-linear-gradient(90deg,#826b85 0 15px,#879989 15px 30px);border-color:#a3949b}
+@media(prefers-reduced-motion:no-preference) {
+ .is-idle .office-blanket {animation:office-breathe 4s steps(2,end) infinite;transform-origin:19px 24px}
+ .is-idle .office-snooze {animation:office-dream 3s steps(4,end) infinite}
+ .is-waiting .office-head {animation:office-look 5s steps(2,end) infinite}
+ .is-waiting .office-clock-hand {animation:office-clock 8s steps(4,end) infinite;transform-origin:26.5px 10.5px}
+ .is-working .office-arm {animation-duration:.35s}
+ @keyframes office-breathe {50%{transform:translateY(-1px)}}
+ @keyframes office-dream {0%{opacity:.3;transform:translateY(1px)}70%{opacity:1}100%{opacity:.3;transform:translateY(-3px)}}
+ @keyframes office-look {40%,60%{transform:translateX(1px)}}
+ @keyframes office-clock {to{transform:rotate(360deg)}}
+}

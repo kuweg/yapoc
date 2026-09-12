@@ -45,3 +45,9 @@ status, not real weather or a separate CI health check. Text status remains visi
 
 Master has a study, Builder a workshop, Researcher a library, Keeper a greenhouse,
 Doctor a clinic, and Evaluator a studio. Custom roles get a stable room theme.
+
+Idle residents lie under a blanket with closed eyes and floating Zs; working
+residents type at their monitors. Waiting residents glance toward a ticking clock,
+and attention states wave. Unavailable status stays dim and still. Poses remain
+recognizable with animation disabled. Room-specific cabinets, equipment, windows
+and rugs distinguish the interiors; pet coats are stable per room theme.

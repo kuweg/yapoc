@@ -42,12 +42,19 @@ async def check(dist):
             await page.goto(f'http://127.0.0.1:{listener.getsockname()[1]}')
             floor = page.get_by_role('region', name='builder floor', exact=True)
             await expect(floor.locator('.office-resident')).to_have_count(2)
+            await expect(page.locator('.is-idle .office-sleeper')).to_have_count(1)
+            await expect(page.locator('.is-idle .office-human')).to_have_count(0)
+            coats = await page.locator('.office-pet > path:first-child').evaluate_all("nodes => nodes.map(n => n.getAttribute('fill'))")
+            assert len(set(coats)) == 3
+
             await expect(floor.get_by_role('button', name='builder_a: Working. Open agent flow')).to_be_visible()
             await expect(floor.get_by_role('button', name='builder_b: Waiting. Open agent flow')).to_be_visible()
             assert await floor.locator('.office-arm').first.evaluate("e => getComputedStyle(e).animationName") == 'none'
             await page.emulate_media(reduced_motion='no-preference')
             assert await floor.locator('.is-working .office-arm').evaluate("e => getComputedStyle(e).animationName") == 'office-type'
+            assert await page.locator('.is-idle .office-blanket').evaluate('e => getComputedStyle(e).animationName') == 'office-breathe'
             await page.emulate_media(reduced_motion='reduce')
+            assert await page.locator('.is-idle .office-blanket').evaluate('e => getComputedStyle(e).animationName') == 'none'
             await page.screenshot(path='/tmp/yapoc-office-desktop.png')
             await expect(floor).to_have_attribute('data-room', 'workshop')
             await expect(page.locator('.office-pet')).to_have_count(3)

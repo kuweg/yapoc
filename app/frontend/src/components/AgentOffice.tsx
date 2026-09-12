@@ -48,16 +48,24 @@ function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconn
         <path d="M4 19h17v6H4zm2-2h13v3H6z" fill="#456954" />
         <path d="M4 20h2v4H4zm15 0h2v4h-2zM6 25h2v2H6zm11 0h2v2h-2z" fill="#293f37" />
       </g>}
-      <g className="office-human">
+      {state === 'idle' ? <g className="office-sleeper">
+        <path d="M3 20h26v5H3zM4 25h2v2H4zm22 0h2v2h-2z" fill="#725f58" />
+        <path d="M4 18h8v5H4z" fill="#d6d2b7" />
+        <path d="M6 17h5v5H6z" fill="#dfb48c" /><path d="M5 16h5v2H7v4H5z" fill="#423a39" />
+        <path d="M9 19h2v1H9z" fill="#382c2b" />
+        <path className="office-blanket" d="M12 18h13v2h3v4H11v-4h1z" fill="var(--resident-color)" />
+        <path d="M13 20h10v1H13z" fill="#ffffff" opacity=".2" />
+        <path className="office-snooze" d="M9 10h4v1h-1v1h-1v1h2v1H9v-1h1v-1h1v-1H9zM18 5h5v1h-1v1h-1v1h-1v1h3v1h-5V9h1V8h1V7h1V6h-3z" fill="#c7d8d1" />
+      </g> : <g className="office-human">
         <path d="M9 19h4v3h4v4h-2v-3h-5v3H8v-5h1z" fill="#728ca7" />
         <path d="M8 26h4v1H8zm7 0h4v1h-4z" fill="#17252b" />
         <path d="M9 12h5v2h1v6H8v-6h1z" fill="var(--resident-color)" />
         <path d="M8 14h2v5H8z" fill="#000" opacity=".15" />
         <path className="office-arm" d={state === 'attention' ? 'M14 13h3v-3h2V5h-2v4h-2v2h-1z' : state === 'working' ? 'M14 14h2v3h3v1h2v2h-5v-1h-2z' : 'M14 14h2v4h2v2h-4z'} fill="#dfb48c" />
         <g className="office-head"><path d="M9 5h5v1h2v5h-2v2h-4v-2H8V7h1z" fill="#dfb48c" /><path d="M9 4h5v1h2v3h-2V7h-4v2H8V6h1z" fill="#423a39" /><path d="M14 8h1v1h-1z" fill="#18242b" /></g>
-      </g>
+      </g>}
       {state === 'attention' && <path d="M25 5h2v5h-2zm0 6h2v2h-2z" fill="#f0bd69" />}
-      {state === 'waiting' && <g><path d="M24 7h5v1h1v5h-1v1h-5v-1h-1V8h1z" fill="#91aaa3" /><path d="M26 8h1v3h2v1h-3z" fill="#263e39" /></g>}
+      {state === 'waiting' && <g><path d="M24 7h5v1h1v5h-1v1h-5v-1h-1V8h1z" fill="#91aaa3" /><path className="office-clock-hand" d="M26 8h1v3h2v1h-3z" fill="#263e39" /></g>}
     </svg>
     <span className="office-person-name">{agent.universe_letter ? `Builder ${agent.universe_letter.toUpperCase()}` : getAgentDisplayName(agent.name)}</span>
     <span className="office-person-state">{labels[state]}</span>
@@ -90,7 +98,7 @@ export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentSta
         <div className="office-window" aria-hidden="true" /><div className="office-lamp" aria-hidden="true" />
         <RoomDetails />
         <OfficeFurnishing role={role} />
-        {atmosphere && <><OfficePet sleeping={!residents.some(agent => officeState(agent, disconnected) === 'working')} /><OfficeDelivery connected={!disconnected} signature={residents.filter(agent => officeState(agent, disconnected) === 'working').map(agent => JSON.stringify([agent.name, agent.task_summary])).sort().join('|')} /></>}
+        {atmosphere && <><OfficePet role={role} sleeping={!residents.some(agent => officeState(agent, disconnected) === 'working')} /><OfficeDelivery connected={!disconnected} signature={residents.filter(agent => officeState(agent, disconnected) === 'working').map(agent => JSON.stringify([agent.name, agent.task_summary])).sort().join('|')} /></>}
         <div className="office-residents">{[...residents].sort((a, b) => a.name.localeCompare(b.name)).map(agent => <div key={agent.name} className={`office-resident-slot portal-${agent.universe_letter || "none"}`}>{atmosphere && agent.universe_id && <span className="office-portal" aria-hidden="true" />}<Resident agent={agent} disconnected={disconnected} onOpen={onOpen} />{agent.universe_id && <button className="office-universe-badge" onClick={() => useUniverseStore.getState().compare(agent.universe_id!)} aria-label={`Compare universe ${agent.universe_letter?.toUpperCase()}`}>{agent.universe_letter?.toUpperCase()} · Compare</button>}</div>)}</div>
       </div>}
     </section>)}

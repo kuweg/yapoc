@@ -5,7 +5,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
-from app.backend.services import books
+from app.backend.services import books, book_maps
 from app.utils.db import get_db
 
 router = APIRouter(prefix='/books', tags=['books'])
@@ -31,12 +31,19 @@ class Question(BaseModel):
     start: int = Field(ge=1)
     end: int = Field(ge=1)
     selection: str = Field(default='', max_length=10000)
-    action: Literal['ask','explain','summarize','quiz','guide','flashcards','connect'] = 'ask'
+    action: Literal['ask','explain','summarize','quiz','guide','flashcards','connect','translate','example'] = 'ask'
+    explanation_style: Literal['beginner','technical','analogy','worked_example'] = 'beginner'
+    language: str = Field(default='English', min_length=1, max_length=60)
     avoid_spoilers: bool = True
 
 
 @router.get('')
 def library(): return books.list_books()
+
+
+@router.get('/shelf')
+def shelf(q: str = '', offset: int = 0):
+    return books.knowledge_shelf(q, max(0, offset))
 
 
 @router.post('', status_code=201)
@@ -128,3 +135,13 @@ def remove(book_id: str):
         db.execute('DELETE FROM books WHERE id=?', (book_id,))
     (books.library_root() / f'{b["id"]}.{b["format"]}').unlink(missing_ok=True)
     return Response(status_code=204)
+
+
+@router.post('/{book_id}/map/preview')
+async def map_preview(book_id: str, request: book_maps.MapRequest):
+    return await book_maps.preview(book_id, **request.model_dump())
+
+
+@router.post('/{book_id}/map', status_code=201)
+def map_create(book_id: str, request: book_maps.MapDraft):
+    return book_maps.create(book_id, request)

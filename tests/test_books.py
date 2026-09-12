@@ -119,3 +119,81 @@ def test_pdf_text_range_citations_and_ambiguous_mentions(library):
     books.import_book(data.getvalue(),'Citrus.pdf')
     with pytest.raises(HTTPException,match='ambiguous'):
         books.build_book_context('@book:Citrus:pages:1-1')
+
+
+def test_knowledge_shelf_search_sources_and_delete(library):
+    first = books.import_book(epub(), 'one.epub')
+    second = books.import_book(epub(), 'two.epub')
+    books.annotate(first['id'], 1, 'highlight', 'Systems communicate through events.', '', 'amber')
+    books.annotate(second['id'], 2, 'note', '', 'My explanation: queues decouple workers.', 'mint')
+    books.annotate(first['id'], 1, 'bookmark', '', '', 'amber')
+    shelf = library.get('/books/shelf').json()
+    assert len(shelf['items']) == 2
+    assert {r['book_id'] for r in shelf['items']} == {first['id'], second['id']}
+    assert all(r['book_title'] == 'Test Book' for r in shelf['items'])
+    assert len(library.get('/books/shelf?q=decouple').json()['items']) == 1
+    assert library.get('/books/shelf?offset=50').json()['items'] == []
+    library.delete(f'/books/{second["id"]}')
+    assert len(library.get('/books/shelf').json()['items']) == 1
+
+
+async def test_explanation_styles_and_translation(library, monkeypatch):
+    from app.utils import adapters, agent_settings
+    captured = {}
+    class Adapter:
+        async def complete(self, **kwargs):
+            captured.update(kwargs)
+            return 'An illustrative explanation [S1].'
+    monkeypatch.setattr(adapters, 'get_adapter', lambda _: Adapter())
+    monkeypatch.setattr(agent_settings, 'resolve_agent', lambda _: None)
+    book = books.import_book(epub(), 'one.epub')
+    for style, instruction in [('beginner', 'plain language'), ('technical', 'precise terminology'),
+                                ('analogy', 'analogy'), ('worked_example', 'step by step')]:
+        turn = await books.ask(book['id'], '', 1, 1, action='explain', explanation_style=style)
+        assert instruction in captured['system_prompt']
+        assert turn['scope']['explanation_style'] == style
+    await books.ask(book['id'], '', 1, 1, action='translate', language='Serbian')
+    assert 'Serbian' in captured['user_message']
+    assert library.post(f'/books/{book["id"]}/ask', json={'start':1,'end':1,'explanation_style':'unknown'}).status_code == 422
+
+
+async def test_reading_map_preview_and_source_validation(library, monkeypatch):
+    from app.backend.services import book_maps
+    from app.utils import adapters, agent_settings, whiteboard
+    class Adapter:
+        async def complete(self, **kwargs):
+            assert 'secret ending' not in kwargs['user_message']
+            return json.dumps({'nodes':[{'key':'events','title':'Events','body':'Systems communicate via events [S1].','source_id':'S1'},
+                                        {'key':'systems','title':'Systems','body':'Communicating systems [S1].','source_id':'S1'}],
+                               'edges':[{'source':'events','target':'systems','label':'connect'}]})
+    monkeypatch.setattr(adapters, 'get_adapter', lambda _: Adapter())
+    monkeypatch.setattr(agent_settings, 'resolve_agent', lambda _: None)
+    b = books.import_book(epub(), 'one.epub')
+    draft = await book_maps.preview(b['id'], 1, 2)
+    assert draft['nodes'][0]['number'] == 1
+    before = len(whiteboard.list_boards())
+    result = library.post(f'/books/{b["id"]}/map', json=draft)
+    assert result.status_code == 201, result.text
+    board = result.json()
+    assert len(board['cards']) == 2 and len(board['edges']) == 1
+    assert board['edges'][0]['direction'] == 'forward'
+    assert board['cards'][0]['details']['book_id'] == b['id']
+    assert len(whiteboard.list_boards()) == before + 1
+    draft['nodes'][0]['excerpt'] = 'Fabricated quotation'
+    assert library.post(f'/books/{b["id"]}/map', json=draft).status_code == 422
+    assert len(whiteboard.list_boards()) == before + 1
+
+
+async def test_reading_map_bad_response_does_not_create_canvas(library, monkeypatch):
+    from app.backend.services import book_maps
+    from app.utils import adapters, agent_settings, whiteboard
+    class Adapter:
+        async def complete(self, **kwargs): return 'Not a valid diagram [S1].'
+    monkeypatch.setattr(adapters, 'get_adapter', lambda _: Adapter())
+    monkeypatch.setattr(agent_settings, 'resolve_agent', lambda _: None)
+    b = books.import_book(epub(), 'one.epub')
+    before = len(whiteboard.list_boards())
+    with pytest.raises(HTTPException) as exc:
+        await book_maps.preview(b['id'], 1, 1)
+    assert exc.value.status_code == 502
+    assert len(whiteboard.list_boards()) == before

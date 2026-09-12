@@ -172,6 +172,16 @@ def annotations(book_id):
     return [dict(r) for r in get_db().execute('SELECT * FROM book_annotations WHERE book_id=? ORDER BY created_at DESC', (book_id,))]
 
 
+def knowledge_shelf(query='', offset=0):
+    rows = get_db().execute('''SELECT a.*, b.title AS book_title, b.author, b.format,
+        s.title AS section_title FROM book_annotations a JOIN books b ON b.id=a.book_id
+        JOIN book_sections s ON s.book_id=a.book_id AND s.number=a.section
+        WHERE a.kind IN ('highlight','note') AND
+        instr(lower(b.title || ' ' || a.quote || ' ' || a.note),lower(?))>0
+        ORDER BY a.created_at DESC, a.id LIMIT 51 OFFSET ?''', (query[:300], offset)).fetchall()
+    return {'items': [dict(r) for r in rows[:50]], 'has_more': len(rows)>50}
+
+
 def annotate(book_id, number, kind, quote, note, color):
     page = section(book_id, number)
     if quote and quote not in page['text']: raise HTTPException(400, 'Selected text must belong to this reading location')
@@ -210,7 +220,8 @@ def passages(book_id, start, end, question='', selection='', spoiler_limit=None)
     return sorted(chunks, key=lambda c: c['number'])
 
 
-async def ask(book_id, question, start, end, selection='', action='ask', avoid_spoilers=True):
+async def ask(book_id, question, start, end, selection='', action='ask', avoid_spoilers=True,
+              explanation_style='beginner', language='English'):
     from app.utils.adapters import AgentConfig, Message, get_adapter
     from app.utils.agent_settings import resolve_agent
     current = book(book_id)
@@ -222,6 +233,9 @@ async def ask(book_id, question, start, end, selection='', action='ask', avoid_s
         'guide': 'Introduce this section, explain prerequisites, suggest a short reading goal, and ask one reflection question. Do not reveal later material.',
         'flashcards': 'Create concise question-and-answer flashcards with source citations.',
         'connect': 'Explain connections between ideas supported by these excerpts.',
+        'translate': f'Translate the supplied passage into {language}. Preserve its meaning and cite its source.',
+        'example': 'Give a small illustrative example of the passage. Label invented examples as illustrations, not quotations or facts from the book.',
+        'concept_map': 'Return ONLY compact JSON with nodes and edges. Nodes: 3-8 objects with key, title, body, source_id (one current source ID such as S1). Edges: objects with source and target node keys and label describing their relationship. Each node body must cite its source as [S1]. Do not add markdown fences. Map only ideas supported by the sources.',
     }
     binding = resolve_agent('master') or {}
     source = '\n\n'.join(f'[S{i+1}] Location {p["number"]}, label {p["label"]}\n{p["text"]}' for i,p in enumerate(evidence))
@@ -232,6 +246,11 @@ async def ask(book_id, question, start, end, selection='', action='ask', avoid_s
               'Source IDs refer ONLY to the current excerpts; old citations are not evidence. Say when evidence is insufficient. '
               'Do not invent quotes, use tools, access the web, or discuss material beyond supplied excerpts. '
               'Respond to a reader answering an earlier quiz with supportive feedback grounded in current excerpts.')
+    styles = {'beginner': 'Use plain language and define unfamiliar terms.',
+              'technical': 'Use precise terminology and explain mechanisms and assumptions.',
+              'analogy': 'Use an analogy; explicitly distinguish the analogy from book facts and explain where it breaks down.',
+              'worked_example': 'Walk through a worked example step by step; label invented details as illustrative.'}
+    if action != 'concept_map': system += ' Explanation style: ' + styles.get(explanation_style, styles['beginner'])
     try:
         adapter = get_adapter(AgentConfig(adapter=binding.get('adapter') or settings.default_adapter,
                                          model=binding.get('model') or settings.default_model, temperature=.2, max_tokens=2400))
@@ -244,7 +263,8 @@ async def ask(book_id, question, start, end, selection='', action='ask', avoid_s
     answer = re.sub(r'\[(S\d+)\]', lambda m: m[0] if m[1] in valid else '[unverified source]', answer)
     citations = [{'id': key, 'number': p['number'], 'label': p['label'], 'excerpt': p['text']} for key,p in valid.items() if f'[{key}]' in answer]
     item = dict(id=uuid4().hex, book_id=book_id, question=scrub(question or instructions[action]), answer=answer,
-                scope={'start': start, 'end': end, 'selection': selection, 'action': action}, citations=citations, created_at=now())
+                scope={'start': start, 'end': end, 'selection': selection, 'action': action, 'explanation_style': explanation_style}, citations=citations, created_at=now())
+    if action == 'concept_map': return item
     with get_db() as db:
         db.execute('INSERT INTO book_messages VALUES(?,?,?,?,?,?,?)', (item['id'], book_id, item['question'], answer, json.dumps(item['scope']), json.dumps(citations), item['created_at']))
     return item

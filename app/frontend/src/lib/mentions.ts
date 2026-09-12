@@ -172,6 +172,7 @@ export function subsystemForKind(token: string): MentionSubsystem | undefined {
 
 /** Entities the resolver matches specific mentions against. */
 export interface MentionSources {
+  books?: Array<{ id: string; title: string; author: string; position: number; total: number }>
   uploads?: Attachment[]
   artifacts?: Artifact[]
   notes?: Array<{ id: string; title: string; excerpt?: string }>

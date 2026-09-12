@@ -19,7 +19,6 @@ import { MENTION_SUBSYSTEMS, type MentionKind, type MentionSources } from './men
 const TTL_MS = 20_000
 
 const sources: MentionSources = {}
-let bookRows: Book[] = []
 const fetchedAt = new Map<MentionKind, number>()
 const inflight = new Map<MentionKind, Promise<boolean>>()
 
@@ -37,8 +36,18 @@ interface Source {
 
 const SOURCES: Partial<Record<MentionKind, Source>> = {
   book: {
-    load: async () => { bookRows = await bookRequest<Book[]>() },
-    rows: () => bookRows.map(b => ({value:b.title.includes('"')?b.id:b.title,label:b.title,desc:`${b.author} · ${b.position}/${b.total}`})),
+    load: async () => {
+      const books = await bookRequest<Book[]>()
+      // Validate before replacing the cache: a failed or malformed response
+      // must not turn the next autocomplete render into an application crash.
+      if (!Array.isArray(books)) throw new Error('Invalid book list')
+      sources.books = books.filter(b => b && typeof b.id === 'string' && typeof b.title === 'string')
+    },
+    rows: () => (sources.books ?? []).map(b => ({
+      value: b.title.includes('"') ? b.id : b.title,
+      label: b.title,
+      desc: `${b.author || 'Book'} · ${b.position}/${b.total}`,
+    })),
   },
   note: {
     load: async () => {

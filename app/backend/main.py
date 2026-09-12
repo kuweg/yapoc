@@ -23,6 +23,7 @@ from app.backend.routers import (
     files_router,
     graph_router,
     health_router,
+    link_previews_router,
     memory_graph_router,
     mcp_router,
     mcp_servers_router,
@@ -1219,6 +1220,7 @@ app.include_router(plugins_router)
 app.include_router(pptx_router)
 app.include_router(cron_router)
 app.include_router(drive_oauth_router)
+app.include_router(link_previews_router)
 
 # Release installs serve the prebuilt UI without Node or a Vite process.
 from app.backend.dashboard import mount_dashboard

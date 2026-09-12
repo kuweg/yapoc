@@ -1,7 +1,11 @@
+import { MessageResources } from './MessageResources'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { StructuredResultCard } from './StructuredResultCard'
 import type { StructuredTaskResult } from '../api/types'
 import { AgentAvatar, getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import type { BackgroundTask } from '../store/wsStore'
+import type { Artifact } from '../artifacts/types'
 
 /**
  * Rich "what just finished" card shown when a background task completes.
@@ -39,6 +43,7 @@ export interface TaskCompletionCardModel {
 
 interface TaskCompletionCardProps {
   task: TaskCompletionCardModel | BackgroundTask
+  artifacts?: Artifact[]
   /** Override the header title (used when surfacing a task-group completion). */
   title?: string
 }
@@ -53,7 +58,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 function isErrorStatus(status?: string): boolean {
   const s = (status ?? '').toLowerCase()
-  return s === 'error' || s === 'failed'
+  return ['error', 'failed', 'timeout', 'interrupted', 'blocked'].includes(s)
 }
 
 function isRunningStatus(status?: string): boolean {
@@ -86,7 +91,7 @@ function formatSource(source?: string): string {
   return SOURCE_LABELS[s] ?? (s ? s.replace(/_/g, ' ') : 'task')
 }
 
-/** Determine the best single body paragraph from the data we have. */
+/** Legacy completion cards replace the message bubble, so they retain its text. */
 function bodySummary(task: TaskCompletionCardModel): string {
   const prompt = stripResumePrefix((task.prompt ?? '').trim())
   if (prompt) return prompt
@@ -96,8 +101,8 @@ function bodySummary(task: TaskCompletionCardModel): string {
   return ''
 }
 
-export function TaskCompletionCard({ task, title }: TaskCompletionCardProps) {
-  if (task.structured_result?.schema_version === 1) return <StructuredResultCard result={task.structured_result} />
+export function TaskCompletionCard({ task, title, artifacts }: TaskCompletionCardProps) {
+  if (task.structured_result?.schema_version === 1) return <StructuredResultCard result={task.structured_result} artifacts={artifacts} />
   const status = task.status ?? (task.error ? 'error' : 'done')
   const isError = isErrorStatus(status) || Boolean(task.error)
   const isRunning = !isError && isRunningStatus(status)
@@ -116,7 +121,7 @@ export function TaskCompletionCard({ task, title }: TaskCompletionCardProps) {
     ? 'Running'
     : isError
       ? 'Failed'
-      : 'Complete'
+      : status === 'cancelled' ? 'Cancelled' : ['done', 'completed', 'succeeded'].includes(status) ? 'Complete' : 'Status unknown'
 
   return (
     <div
@@ -174,6 +179,7 @@ export function TaskCompletionCard({ task, title }: TaskCompletionCardProps) {
           </p>
         )}
 
+        {!task.structured_result && !isRunning && <p className="text-xs text-zinc-500">Checks: no structured verification recorded</p>}
         {/* Result / error panel. */}
         {!isRunning && error && (
           <div
@@ -194,7 +200,8 @@ export function TaskCompletionCard({ task, title }: TaskCompletionCardProps) {
             <span className="font-semibold uppercase tracking-wide text-[10px] text-zinc-500 block mb-0.5">
               Result
             </span>
-            {result}
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+            <MessageResources content={result} />
           </div>
         )}
       </div>

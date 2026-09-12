@@ -31,9 +31,14 @@ refuses stale card updates rather than replacing newer agent work.
 
 ## Chat and agents
 
-Mention `@whiteboard` in chat to tell Master to list the canvases, choose the
-relevant design, and read all nodes, details, and relationships. Permitted
-agents can use:
+Mention `@whiteboard` in chat to tell Master to list the canvases. Use
+`@whiteboard:<canvas_name>` to select an existing canvas explicitly; names with
+spaces are quoted automatically by autocomplete, for example
+`@whiteboard:"Payments architecture"`. The backend resolves the exact name,
+snapshots its complete structured design into the task, and supplies its canvas
+ID with an instruction to keep generated nodes and connections on that canvas.
+Missing or ambiguous names are refused instead of silently selecting or creating
+a different canvas. Permitted agents can use:
 
 - `whiteboard_list` to discover canvases and read a complete design.
 - `whiteboard_create_canvas` to start a design.

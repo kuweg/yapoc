@@ -43,11 +43,14 @@ function TokenSpan({ token, variant }: { token: ChatToken; variant: HighlightVar
       <button
         type="button"
         className="chat-hl-mention chat-hl-chip chat-hl-link"
-        title="Open the collaborative whiteboard"
-        onClick={() => useAppStore.getState().setActiveTab('whiteboard')}
+        title={target ? `Open Whiteboard canvas: ${target}` : 'Open the collaborative whiteboard'}
+        onClick={() => {
+          if (target) localStorage.setItem('yapoc-whiteboard-target', target)
+          useAppStore.getState().setActiveTab('whiteboard')
+        }}
       >
         <span aria-hidden="true">{subsystem.icon}</span>
-        {subsystem.label}
+        {target ? `${subsystem.label}: ${target}` : subsystem.label}
       </button>
     )
   }

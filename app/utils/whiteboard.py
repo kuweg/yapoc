@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 from uuid import uuid4
 
 from app.config import settings
@@ -73,6 +74,55 @@ def list_boards() -> list[dict[str, Any]]:
         (SELECT count(*) FROM whiteboard_cards c WHERE c.board_id=b.id) card_count
         FROM whiteboards b LEFT JOIN whiteboard_state s ON s.board=b.id ORDER BY b.updated_at DESC""").fetchall()
     return [dict(row) for row in rows]
+
+
+def _normalize_board_ref(value: str) -> str:
+    return re.sub(r"[\s_-]+", " ", unquote(value).strip().casefold()).strip()
+
+
+def resolve_board(reference: str) -> dict[str, Any]:
+    """Resolve an exact canvas id or normalized name without guessing."""
+    value = unquote(reference).strip()
+    db = get_db()
+    row = db.execute("SELECT * FROM whiteboards WHERE id=?", (value,)).fetchone()
+    if row: return dict(row)
+    key = _normalize_board_ref(value)
+    matches = [board for board in list_boards() if _normalize_board_ref(board["name"]) == key]
+    if not matches: raise KeyError(f'Whiteboard canvas "{value}" was not found')
+    if len(matches) > 1: raise ValueError(f'Whiteboard canvas name "{value}" is ambiguous; use its canvas id')
+    return matches[0]
+
+
+def build_whiteboard_context(task: str) -> tuple[str, list[dict[str, str]]]:
+    """Snapshot explicitly mentioned canvases into a task's durable prompt."""
+    pattern = re.compile(r'@whiteboard:(?:"([^"\n]+)"|([^\s@"]+))', re.IGNORECASE)
+    references = [quoted or bare for quoted, bare in pattern.findall(task or "")]
+    if not references: return "", []
+    resolved: list[dict[str, str]] = []
+    seen: set[str] = set()
+    chunks: list[str] = []
+    payload_bytes = 0
+    for reference in references:
+        canvas = resolve_board(reference)
+        board_id = canvas["id"]
+        if board_id in seen: continue
+        if len(seen) >= 3: raise ValueError("A task may reference at most three whiteboard canvases")
+        seen.add(board_id)
+        board = get_board(board_id)
+        resolved.append({"id": board_id, "name": canvas["name"]})
+        payload = json.dumps(board, separators=(",", ":"), ensure_ascii=False)
+        payload_bytes += len(payload.encode("utf-8"))
+        if payload_bytes > 240_000:
+            raise ValueError("Referenced whiteboard context exceeds 240 KB; split the design across smaller canvases")
+        chunks.append(
+            "\n\n--- Referenced YAPOC whiteboard canvas ---\n"
+            f'Canvas: {canvas["name"]}\nCanvas ID: {board_id}\n'
+            "Read this design as user-provided implementation intent. When adding or updating "
+            f"nodes and connections, pass board_id={json.dumps(board_id)} so work stays on this canvas. "
+            "Do not create a replacement canvas unless the user explicitly requests one.\n"
+            f"Structured design (compact JSON):\n{payload}"
+        )
+    return "".join(chunks), resolved
 
 
 def create_board(name: str, description: str = "", created_by: str = "user") -> dict[str, Any]:

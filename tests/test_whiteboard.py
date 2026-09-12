@@ -169,3 +169,48 @@ def test_invalid_edge_configuration_is_refused(isolated_db):
     edge = create_edge(source_id=first["id"], target_id=second["id"])
     with pytest.raises(ValueError, match="routing"):
         update_edge(edge["id"], revision=1, changes={"routing": "spiral"})
+
+
+def test_named_whiteboard_mention_snapshots_existing_canvas(isolated_db):
+    from app.utils.whiteboard import build_whiteboard_context, create_board, create_card
+
+    canvas = create_board("Payments architecture", "Source of truth")
+    create_card(board_id=canvas["id"], kind="service", title="Checkout API")
+    context, metadata = build_whiteboard_context('Implement @whiteboard:"Payments architecture"')
+    assert metadata == [{"id": canvas["id"], "name": "Payments architecture"}]
+    assert f"Canvas ID: {canvas['id']}" in context
+    assert '"title":"Checkout API"' in context
+    assert "Do not create a replacement canvas" in context
+
+    underscored, _ = build_whiteboard_context("Review @whiteboard:payments_architecture")
+    assert f"Canvas ID: {canvas['id']}" in underscored
+    with pytest.raises(KeyError, match="was not found"):
+        build_whiteboard_context("Review @whiteboard:unknown_canvas")
+
+
+def test_task_api_persists_named_whiteboard_snapshot(isolated_db, monkeypatch):
+    import json
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.backend.routers import tasks
+    from app.utils.whiteboard import create_board, create_card
+
+    canvas = create_board("Order flow")
+    create_card(board_id=canvas["id"], kind="condition", title="Paid?")
+    captured = {}
+
+    def enqueue(**kwargs):
+        captured.update(kwargs)
+        return {**kwargs, "status": "pending"}
+
+    monkeypatch.setattr(tasks, "create_queued_task", enqueue)
+    app = FastAPI()
+    app.include_router(tasks.router)
+    client = TestClient(app)
+    response = client.post("/task", json={"task": 'Build @whiteboard:"Order flow"'})
+    assert response.status_code == 200
+    assert '"title":"Paid?"' in captured["prompt"]
+    assert json.loads(captured["metadata"])["whiteboards"] == [{"id": canvas["id"], "name": "Order flow"}]
+
+    missing = client.post("/task", json={"task": "Build @whiteboard:missing"})
+    assert missing.status_code == 400

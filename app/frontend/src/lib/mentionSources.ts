@@ -3,6 +3,7 @@ import { getPlugins } from '../api/pluginsClient'
 import { getSkills } from '../api/skillsClient'
 import { listArtifacts } from '../artifacts/api'
 import { listNotes } from '../notes/api'
+import { listBoards } from '../whiteboard/api'
 import { MENTION_SUBSYSTEMS, type MentionKind, type MentionSources } from './mentions'
 
 /**
@@ -107,6 +108,18 @@ const SOURCES: Partial<Record<MentionKind, Source>> = {
         value: t.id,
         label: t.id.slice(0, 8),
         desc: [t.status, t.prompt?.slice(0, 60)].filter(Boolean).join(' · ') || 'Task',
+      })),
+  },
+  whiteboard: {
+    load: async () => {
+      const boards = await listBoards()
+      sources.whiteboards = boards.map((b) => ({ id: b.id, name: b.name, description: b.description }))
+    },
+    rows: () =>
+      (sources.whiteboards ?? []).map((b) => ({
+        value: b.name,
+        label: b.name,
+        desc: b.description?.slice(0, 70) || `Canvas ${b.id}`,
       })),
   },
 }

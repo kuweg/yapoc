@@ -67,6 +67,10 @@ tools:
   - whiteboard_list
   - whiteboard_add_card
   - whiteboard_update_card
+  - whiteboard_create_canvas
+  - whiteboard_connect
+  - whiteboard_apply_design
+  - whiteboard_export
   - image_read
   - send_telegram_message
   - send_telegram_media

@@ -218,7 +218,10 @@ from .chart import RenderChartTool, RenderChartImageTool
 from .image_gen import GenerateImageTool
 from .mermaid import RenderMermaidTool
 from .calendar_render import RenderCalendarTool
-from .whiteboard import WhiteboardAddCardTool, WhiteboardListTool, WhiteboardUpdateCardTool
+from .whiteboard import (WhiteboardAddCardTool, WhiteboardApplyDesignTool,
+                         WhiteboardConnectTool, WhiteboardCreateCanvasTool,
+                         WhiteboardExportTool, WhiteboardListTool,
+                         WhiteboardUpdateCardTool)
 from .git import (
     GitBranchTool,
     GitCommitTool,
@@ -293,6 +296,10 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "whiteboard_list": WhiteboardListTool,
     "whiteboard_add_card": WhiteboardAddCardTool,
     "whiteboard_update_card": WhiteboardUpdateCardTool,
+    "whiteboard_create_canvas": WhiteboardCreateCanvasTool,
+    "whiteboard_connect": WhiteboardConnectTool,
+    "whiteboard_apply_design": WhiteboardApplyDesignTool,
+    "whiteboard_export": WhiteboardExportTool,
     "git_status": GitStatusTool,
     "git_diff": GitDiffTool,
     "git_log": GitLogTool,
@@ -323,6 +330,10 @@ _AGENT_DIR_TOOLS = {
     "generate_image",
     "whiteboard_add_card",
     "whiteboard_update_card",
+    "whiteboard_create_canvas",
+    "whiteboard_connect",
+    "whiteboard_apply_design",
+    "whiteboard_export",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell

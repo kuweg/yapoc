@@ -153,6 +153,15 @@ def init_schema() -> None:
             updated_at  TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS whiteboards (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            created_by  TEXT NOT NULL DEFAULT 'user',
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS index_checkpoints (
             agent        TEXT NOT NULL,
             source       TEXT NOT NULL,
@@ -184,6 +193,13 @@ def init_schema() -> None:
         "ALTER TABLE tasks ADD COLUMN changed_files TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN checkpoint_sha TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN verification TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE whiteboard_cards ADD COLUMN board_id TEXT NOT NULL DEFAULT 'main'",
+        "ALTER TABLE whiteboard_cards ADD COLUMN details TEXT NOT NULL DEFAULT '{}'",
+        "ALTER TABLE whiteboard_cards ADD COLUMN width REAL NOT NULL DEFAULT 230",
+        "ALTER TABLE whiteboard_cards ADD COLUMN height REAL NOT NULL DEFAULT 160",
+        "ALTER TABLE whiteboard_edges ADD COLUMN board_id TEXT NOT NULL DEFAULT 'main'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN relationship TEXT NOT NULL DEFAULT 'related'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN style TEXT NOT NULL DEFAULT 'solid'",
     ):
         try:
             db.execute(statement)
@@ -193,6 +209,14 @@ def init_schema() -> None:
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_tier ON memory_entries(tier)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_layer ON memory_entries(layer)")
     db.execute("PRAGMA foreign_keys=ON")
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        """INSERT OR IGNORE INTO whiteboards(id, name, description, created_by, created_at, updated_at)
+           VALUES('main', 'System design', 'Shared architecture and design canvas', 'system', ?, ?)""",
+        (now, now),
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_whiteboard_cards_board ON whiteboard_cards(board_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_whiteboard_edges_board ON whiteboard_edges(board_id)")
 
     db.execute("""
         CREATE TABLE IF NOT EXISTS indexer_state (

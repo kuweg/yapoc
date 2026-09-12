@@ -1,91 +1,63 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { GitBranch, Link2, Plus, RefreshCw, Trash2, X } from 'lucide-react'
-import { createCard, createEdge, deleteCard, deleteEdge, getBoard, updateCard, type Board, type BoardCard, type CardColor, type CardKind } from './api'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Box, Braces, CircleUserRound, Cloud, Database, Download, FileBox, FileText, GitBranch, Layers3, Maximize2, Network, Plus, RefreshCw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { createBoard,createCard,createEdge,deleteBoard,deleteCard,deleteEdge,exportBoard,getBoard,listBoards,renameBoard,updateCard,type Board,type BoardCard,type CanvasInfo,type CardColor,type CardKind,type EdgeStyle,type Relationship } from './api'
 
-const EMPTY: Board = { revision: 0, updated_at: null, cards: [], edges: [] }
-const cardKinds: CardKind[] = ['note', 'decision', 'question', 'task', 'link', 'artifact']
-const colors: CardColor[] = ['amber', 'mint', 'blue', 'rose', 'violet']
+const TYPES:Array<{kind:CardKind;label:string;icon:typeof Box;color:CardColor}>=[
+  {kind:'actor',label:'Actor',icon:CircleUserRound,color:'violet'},{kind:'component',label:'Component',icon:Box,color:'blue'},
+  {kind:'service',label:'Service',icon:Cloud,color:'mint'},{kind:'api',label:'API',icon:Braces,color:'blue'},
+  {kind:'database',label:'Database',icon:Database,color:'amber'},{kind:'queue',label:'Queue',icon:Layers3,color:'violet'},
+  {kind:'event',label:'Event',icon:Network,color:'rose'},{kind:'interface',label:'Interface',icon:Braces,color:'mint'},
+  {kind:'module',label:'Module',icon:FileBox,color:'blue'},{kind:'external',label:'External',icon:Cloud,color:'rose'},
+  {kind:'decision',label:'Decision',icon:GitBranch,color:'amber'},{kind:'note',label:'Note',icon:FileText,color:'amber'},
+]
+const RELATIONSHIPS:Relationship[]=['calls','depends_on','reads','writes','emits','subscribes','contains','implements','extends','flows_to','blocks','related']
+const EMPTY:Board={canvas:{id:'main',name:'System design',description:'',created_by:'system',created_at:'',updated_at:''},revision:0,updated_at:null,cards:[],edges:[]}
+const label=(value:string)=>value.replace(/_/g,' ')
 
-function CardEditor({ card, position, onClose, onSave }: { card?: BoardCard; position?: {x:number;y:number}; onClose:()=>void; onSave:(value: {title:string;body:string;kind:CardKind;color:CardColor;x:number;y:number})=>Promise<void> }) {
-  const [title, setTitle] = useState(card?.title || '')
-  const [body, setBody] = useState(card?.body || '')
-  const [kind, setKind] = useState<CardKind>(card?.kind || 'note')
-  const [color, setColor] = useState<CardColor>(card?.color || 'amber')
-  const [busy, setBusy] = useState(false)
-  return <div className="whiteboard-modal" role="presentation" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}><form className="whiteboard-editor" onSubmit={async e => { e.preventDefault(); setBusy(true); try { await onSave({ title, body, kind, color, x: position?.x ?? card?.x ?? 80, y: position?.y ?? card?.y ?? 80 }); onClose() } finally { setBusy(false) } }}>
-    <header><div><strong>{card ? 'Edit card' : 'Add to the board'}</strong><span>Visible to you and your agents</span></div><button type="button" onClick={onClose} aria-label="Close"><X size={16}/></button></header>
-    <label>Title<input autoFocus required maxLength={120} value={title} onChange={e => setTitle(e.target.value)} placeholder="A clear, short thought"/></label>
-    <label>Details<textarea maxLength={4000} rows={6} value={body} onChange={e => setBody(e.target.value)} placeholder="Context, a URL, acceptance criteria…"/></label>
-    <div className="whiteboard-editor-row"><label>Type<select value={kind} onChange={e => setKind(e.target.value as CardKind)}>{cardKinds.map(x => <option key={x}>{x}</option>)}</select></label><fieldset><legend>Color</legend><div>{colors.map(x => <button key={x} type="button" className={`board-color is-${x}`} aria-label={x} aria-pressed={color === x} onClick={() => setColor(x)}/>)}</div></fieldset></div>
-    <footer><button type="button" onClick={onClose}>Cancel</button><button className="is-primary" disabled={busy || !title.trim()}>{busy ? 'Saving…' : 'Save card'}</button></footer>
+function parseDetails(text:string):Record<string,string>{const out:Record<string,string>={};for(const line of text.split('\n')){const at=line.indexOf(':');if(at>0)out[line.slice(0,at).trim()]=line.slice(at+1).trim()}return out}
+function detailsText(details:Record<string,unknown>){return Object.entries(details||{}).map(([k,v])=>`${k}: ${typeof v==='string'?v:JSON.stringify(v)}`).join('\n')}
+
+function CardEditor({card,kind,position,boardId,onClose,onSave}:{card?:BoardCard;kind?:CardKind;position?:{x:number;y:number};boardId:string;onClose:()=>void;onSave:(value:Partial<BoardCard>&Pick<BoardCard,'title'>)=>Promise<void>}){
+  const preset=TYPES.find(x=>x.kind===(card?.kind||kind));const [title,setTitle]=useState(card?.title||'');const [body,setBody]=useState(card?.body||'');const [type,setType]=useState<CardKind>(card?.kind||kind||'component');const [color,setColor]=useState<CardColor>(card?.color||preset?.color||'blue');const [details,setDetails]=useState(detailsText(card?.details||{}));const [busy,setBusy]=useState(false)
+  return <div className="whiteboard-modal" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><form className="whiteboard-editor" onSubmit={async e=>{e.preventDefault();setBusy(true);try{await onSave({title,body,kind:type,color,details:parseDetails(details),board_id:boardId,x:position?.x??card?.x??100,y:position?.y??card?.y??100});onClose()}finally{setBusy(false)}}}>
+    <header><div><strong>{card?'Edit design node':'Add design node'}</strong><span>Agents receive the type, description, and structured details.</span></div><button type="button" onClick={onClose}><X size={16}/></button></header>
+    <div className="wb-type-picker">{TYPES.map(({kind:k,label:l,icon:Icon,color:c})=><button type="button" key={k} aria-pressed={type===k} onClick={()=>{setType(k);if(!card)setColor(c)}}><Icon size={14}/><span>{l}</span></button>)}</div>
+    <label>Name<input autoFocus required maxLength={120} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Authentication service"/></label>
+    <label>Purpose and behavior<textarea rows={4} maxLength={4000} value={body} onChange={e=>setBody(e.target.value)} placeholder="What it owns, guarantees, and must not do…"/></label>
+    <label>Structured details <small>one key: value per line</small><textarea rows={4} value={details} onChange={e=>setDetails(e.target.value)} placeholder={'technology: FastAPI\nendpoint: POST /sessions\nSLO: p95 under 200 ms'}/></label>
+    <div className="whiteboard-editor-row"><fieldset><legend>Color</legend><div>{(['amber','mint','blue','rose','violet'] as CardColor[]).map(x=><button key={x} type="button" className={`board-color is-${x}`} aria-label={x} aria-pressed={color===x} onClick={()=>setColor(x)}/>)}</div></fieldset></div>
+    <footer><button type="button" onClick={onClose}>Cancel</button><button className="is-primary" disabled={busy||!title.trim()}>{busy?'Saving…':'Save node'}</button></footer>
   </form></div>
 }
 
-export function WhiteboardTab({ active }: { active: boolean }) {
-  const [board, setBoard] = useState<Board>(EMPTY)
-  const [error, setError] = useState('')
-  const [editor, setEditor] = useState<{card?: BoardCard; position?: {x:number;y:number}} | null>(null)
-  const [connecting, setConnecting] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const viewport = useRef<HTMLDivElement>(null)
-  const dragging = useRef<{ id:string; dx:number; dy:number; original:BoardCard } | null>(null)
+function CanvasDialog({canvas,onClose,onSaved,onDelete}:{canvas?:CanvasInfo;onClose:()=>void;onSaved:(canvas:CanvasInfo)=>void;onDelete?:()=>Promise<void>}){const[name,setName]=useState(canvas?.name||'');const[description,setDescription]=useState(canvas?.description||'');const[confirm,setConfirm]=useState(false);return <div className="whiteboard-modal"><form className="whiteboard-editor wb-small-dialog" onSubmit={async e=>{e.preventDefault();const saved=canvas?await renameBoard(canvas.id,name,description):await createBoard(name,description);onSaved(saved);onClose()}}><header><strong>{canvas?'Canvas settings':'New design canvas'}</strong><button type="button" onClick={onClose}><X size={16}/></button></header><label>Name<input autoFocus required value={name} onChange={e=>setName(e.target.value)} placeholder="Payments architecture"/></label><label>Design intent<textarea rows={4} value={description} onChange={e=>setDescription(e.target.value)} placeholder="What this design explains and its constraints"/></label><footer>{onDelete&&<button type="button" className="is-danger" onClick={async()=>{if(!confirm){setConfirm(true);return}await onDelete();onClose()}}>{confirm?'Confirm delete':'Delete canvas'}</button>}<button type="button" onClick={onClose}>Cancel</button><button className="is-primary">{canvas?'Save':'Create canvas'}</button></footer></form></div>}
 
-  const refresh = useCallback(async (quiet = false) => {
-    try { const next = await getBoard(); if (!dragging.current) setBoard(current => next.revision >= current.revision ? next : current); setError('') }
-    catch (e) { if (!quiet) setError(e instanceof Error ? e.message : 'Whiteboard unavailable') }
-  }, [])
-  useEffect(() => { if (!active) return; void refresh(); const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(true) }, 4000); return () => window.clearInterval(timer) }, [active, refresh])
+function ExportDialog({board,onClose}:{board:Board;onClose:()=>void}){const[format,setFormat]=useState<'markdown'|'mermaid'|'json'>('markdown');const[busy,setBusy]=useState('');const[result,setResult]=useState('');const run=async(destination:'download'|'notes'|'workspace'|'artifact',requestedFormat=format)=>{setBusy(destination);try{const r=await exportBoard(board.canvas.id,requestedFormat,destination);if(destination==='download'&&r.content){const url=URL.createObjectURL(new Blob([r.content],{type:r.mime}));const a=document.createElement('a');a.href=url;a.download=r.filename||'design';a.click();URL.revokeObjectURL(url);setResult(`Downloaded ${r.filename}`)}else setResult(r.reference||r.path||'Exported')}catch(e){setResult(e instanceof Error?e.message:'Export failed')}finally{setBusy('')}};return <div className="whiteboard-modal"><div className="whiteboard-editor wb-export"><header><div><strong>Export design</strong><span>Portable source plus YAPOC destinations</span></div><button onClick={onClose}><X size={16}/></button></header><label>Format<select value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="markdown">Markdown document + Mermaid</option><option value="mermaid">Mermaid diagram</option><option value="json">Structured YAPOC JSON</option></select></label><div className="wb-export-targets"><button onClick={()=>void run('download')}><Download/>Download<small>Save to this device</small></button><button onClick={()=>{setFormat('markdown');void run('notes','markdown')}}><FileText/>@notes<small>Create a reference note</small></button><button onClick={()=>void run('workspace')}><Save/>Workspace<small>app/projects/designs</small></button><button onClick={()=>void run('artifact')}><FileBox/>Artifacts<small>Versioned generated file</small></button></div>{busy&&<p>Exporting to {busy}…</p>}{result&&<p className="wb-export-result">{result}</p>}</div></div>}
 
-  const saveEditor = async (value: {title:string;body:string;kind:CardKind;color:CardColor;x:number;y:number}) => {
-    try {
-      if (editor?.card) { const saved = await updateCard(editor.card, value); setBoard(b => ({ ...b, cards: b.cards.map(c => c.id === saved.id ? saved : c) })) }
-      else { const saved = await createCard(value); setBoard(b => ({ ...b, cards: [...b.cards, saved] })) }
-      await refresh(true)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to save card'); throw e }
-  }
-  const chooseCard = async (card: BoardCard) => {
-    if (!connecting) { setEditor({ card }); return }
-    if (connecting === card.id) { setConnecting(null); return }
-    try { await createEdge(connecting, card.id); setConnecting(null); await refresh() } catch (e) { setError(e instanceof Error ? e.message : 'Unable to connect cards') }
-  }
-  const startDrag = (e: React.PointerEvent, card: BoardCard) => {
-    if ((e.target as HTMLElement).closest('button,a')) return
-    const rect = viewport.current?.getBoundingClientRect(); if (!rect) return
-    dragging.current = { id: card.id, dx: e.clientX - rect.left + (viewport.current?.scrollLeft || 0) - card.x, dy: e.clientY - rect.top + (viewport.current?.scrollTop || 0) - card.y, original: card }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-  const moveDrag = (e: React.PointerEvent) => {
-    const drag = dragging.current; const rect = viewport.current?.getBoundingClientRect(); if (!drag || !rect) return
-    const x = Math.max(12, Math.min(1660, e.clientX - rect.left + (viewport.current?.scrollLeft || 0) - drag.dx))
-    const y = Math.max(12, Math.min(980, e.clientY - rect.top + (viewport.current?.scrollTop || 0) - drag.dy))
-    setBoard(b => ({...b, cards:b.cards.map(c => c.id === drag.id ? {...c,x,y} : c)}))
-  }
-  const endDrag = async () => {
-    const drag = dragging.current; if (!drag) return
-    const moved = board.cards.find(c => c.id === drag.id); dragging.current = null
-    if (!moved || (moved.x === drag.original.x && moved.y === drag.original.y)) return
-    try { const saved = await updateCard(drag.original, {x:moved.x,y:moved.y}); setBoard(b => ({...b,cards:b.cards.map(c=>c.id===saved.id?saved:c)})) }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to move card'); await refresh(true) }
-  }
-  const addAtCenter = () => { const el=viewport.current; setEditor({ position:{x:(el?.scrollLeft||0)+(el?.clientWidth||700)/2-115,y:(el?.scrollTop||0)+(el?.clientHeight||500)/2-80} }) }
-
-  return <section className="whiteboard-tab">
-    <header className="whiteboard-header"><div><h1>Collaborative whiteboard</h1><p>A shared thinking space for you and every agent.</p></div><div className="whiteboard-presence"><span className="presence-dot"/><strong>{new Set(board.cards.map(c => c.created_by)).size || 1}</strong> collaborators</div><button onClick={() => void refresh()} title="Refresh board" aria-label="Refresh board"><RefreshCw size={15}/></button><button className="is-primary" onClick={addAtCenter}><Plus size={15}/> Add card</button></header>
-    {error && <div className="whiteboard-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-    {connecting && <div className="whiteboard-connect-banner"><GitBranch size={14}/> Select another card to connect <button onClick={() => setConnecting(null)}>Cancel</button></div>}
-    <div className="whiteboard-viewport" ref={viewport} onDoubleClick={e => { if (e.target !== e.currentTarget) return; const rect=e.currentTarget.getBoundingClientRect(); setEditor({position:{x:e.clientX-rect.left+e.currentTarget.scrollLeft,y:e.clientY-rect.top+e.currentTarget.scrollTop}}) }}>
-      <div className="whiteboard-canvas">
-        <svg className="whiteboard-edges" aria-hidden="true">{board.edges.map(edge => { const a=board.cards.find(c=>c.id===edge.source_id), b=board.cards.find(c=>c.id===edge.target_id); if(!a||!b)return null; return <g key={edge.id}><line x1={a.x+115} y1={a.y+85} x2={b.x+115} y2={b.y+85}/></g> })}</svg>
-        {board.cards.map(card => <article key={card.id} className={`board-card is-${card.color} ${connecting === card.id ? 'is-connecting' : ''}`} style={{left:card.x,top:card.y}} onPointerDown={e=>startDrag(e,card)} onPointerMove={moveDrag} onPointerUp={() => void endDrag()} onPointerCancel={() => void endDrag()}>
-          <header><span>{card.kind}</span><div><button onClick={e=>{e.stopPropagation();setConnecting(card.id)}} title="Connect card" aria-label={`Connect ${card.title}`}><Link2 size={13}/></button><button onClick={e=>{e.stopPropagation();setConfirmDelete(card.id)}} title="Delete card" aria-label={`Delete ${card.title}`}><Trash2 size={13}/></button></div></header>
-          <button className="board-card-content" onClick={() => void chooseCard(card)}><strong>{card.title}</strong>{card.body && <p>{card.body}</p>}</button>
-          <footer><span className="board-avatar">{card.created_by.slice(0,2).toUpperCase()}</span><span>{card.created_by}</span><time>{new Date(card.updated_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</time></footer>
-          {confirmDelete === card.id && <div className="board-delete-confirm"><span>Delete this card?</span><button onClick={async()=>{await deleteCard(card.id);setConfirmDelete(null);await refresh()}}>Delete</button><button onClick={()=>setConfirmDelete(null)}>Keep</button></div>}
-        </article>)}
-        {!board.cards.length && <button className="whiteboard-empty" onClick={addAtCenter}><Plus size={24}/><strong>Start the board</strong><span>Add a thought, question, task, or decision</span></button>}
-        {board.edges.map(edge => <button key={edge.id} className="board-edge-delete" style={{left:Math.max(0,((board.cards.find(c=>c.id===edge.source_id)?.x||0)+(board.cards.find(c=>c.id===edge.target_id)?.x||0))/2+105),top:Math.max(0,((board.cards.find(c=>c.id===edge.source_id)?.y||0)+(board.cards.find(c=>c.id===edge.target_id)?.y||0))/2+75)}} onClick={async()=>{await deleteEdge(edge.id);await refresh()}} title="Remove connection" aria-label="Remove connection">×</button>)}
-      </div>
-    </div>
-    {editor && <CardEditor card={editor.card} position={editor.position} onClose={()=>setEditor(null)} onSave={saveEditor}/>}
+export function WhiteboardTab({active}:{active:boolean}){
+  const[boards,setBoards]=useState<CanvasInfo[]>([]);const[boardId,setBoardId]=useState(()=>localStorage.getItem('yapoc-whiteboard')||'main');const[board,setBoard]=useState<Board>(EMPTY);const[error,setError]=useState('');const[editor,setEditor]=useState<{card?:BoardCard;kind?:CardKind;position?:{x:number;y:number}}|null>(null);const[canvasDialog,setCanvasDialog]=useState<'new'|'edit'|null>(null);const[exportOpen,setExportOpen]=useState(false);const[connecting,setConnecting]=useState<{source:string;relationship:Relationship;style:EdgeStyle}|null>(null);const[relationship,setRelationship]=useState<Relationship>('calls');const[edgeStyle,setEdgeStyle]=useState<EdgeStyle>('solid');const[confirmDelete,setConfirmDelete]=useState<string|null>(null);const[zoom,setZoom]=useState(1);const viewport=useRef<HTMLDivElement>(null);const dragging=useRef<{id:string;dx:number;dy:number;original:BoardCard}|null>(null)
+  const loadBoards=useCallback(async()=>{const items=await listBoards();setBoards(items);if(!items.some(x=>x.id===boardId)){setBoardId('main');localStorage.setItem('yapoc-whiteboard','main')}},[boardId])
+  const refresh=useCallback(async(quiet=false)=>{try{const next=await getBoard(boardId);if(!dragging.current)setBoard(current=>next.revision>=current.revision||current.canvas.id!==next.canvas.id?next:current);setError('')}catch(e){if(!quiet)setError(e instanceof Error?e.message:'Canvas unavailable')}},[boardId])
+  useEffect(()=>{if(!active)return;void loadBoards();void refresh();const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void refresh(true)},4000);return()=>window.clearInterval(timer)},[active,loadBoards,refresh])
+  const selectBoard=(id:string)=>{setBoardId(id);localStorage.setItem('yapoc-whiteboard',id);setBoard({...EMPTY,canvas:{...EMPTY.canvas,id}});setConnecting(null)}
+  const saveEditor=async(value:Partial<BoardCard>&Pick<BoardCard,'title'>)=>{if(editor?.card){const saved=await updateCard(editor.card,value);setBoard(b=>({...b,cards:b.cards.map(c=>c.id===saved.id?saved:c)}))}else{const saved=await createCard(value);setBoard(b=>({...b,cards:[...b.cards,saved]}))}await refresh(true)}
+  const chooseCard=async(card:BoardCard)=>{if(!connecting){setEditor({card});return}if(connecting.source===card.id){setConnecting(null);return}try{await createEdge({board_id:boardId,source_id:connecting.source,target_id:card.id,relationship:connecting.relationship,style:connecting.style,label:''});setConnecting(null);await refresh()}catch(e){setError(e instanceof Error?e.message:'Unable to connect nodes')}}
+  const startDrag=(e:React.PointerEvent,card:BoardCard)=>{if((e.target as HTMLElement).closest('button,a'))return;const rect=viewport.current?.getBoundingClientRect();if(!rect)return;dragging.current={id:card.id,dx:(e.clientX-rect.left+(viewport.current?.scrollLeft||0))/zoom-card.x,dy:(e.clientY-rect.top+(viewport.current?.scrollTop||0))/zoom-card.y,original:card};(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)}
+  const moveDrag=(e:React.PointerEvent)=>{const d=dragging.current,r=viewport.current?.getBoundingClientRect();if(!d||!r)return;const x=Math.max(8,Math.min(3600,(e.clientX-r.left+(viewport.current?.scrollLeft||0))/zoom-d.dx)),y=Math.max(8,Math.min(2200,(e.clientY-r.top+(viewport.current?.scrollTop||0))/zoom-d.dy));setBoard(b=>({...b,cards:b.cards.map(c=>c.id===d.id?{...c,x,y}:c)}))}
+  const endDrag=async()=>{const d=dragging.current;if(!d)return;const moved=board.cards.find(c=>c.id===d.id);dragging.current=null;if(!moved||(moved.x===d.original.x&&moved.y===d.original.y))return;try{const saved=await updateCard(d.original,{x:moved.x,y:moved.y});setBoard(b=>({...b,cards:b.cards.map(c=>c.id===saved.id?saved:c)}))}catch(e){setError(e instanceof Error?e.message:'Unable to move node');await refresh(true)}}
+  const add=(kind:CardKind)=>{const el=viewport.current;setEditor({kind,position:{x:((el?.scrollLeft||0)+(el?.clientWidth||800)/2)/zoom-115,y:((el?.scrollTop||0)+(el?.clientHeight||500)/2)/zoom-80}})}
+  const cardMap=useMemo(()=>new Map(board.cards.map(c=>[c.id,c])),[board.cards]);const savedAge=board.updated_at?Math.max(0,Math.round((Date.now()-Date.parse(board.updated_at))/1000)):0
+  return <section className="whiteboard-tab wb-designer">
+    <header className="whiteboard-header wb-designer-header"><div className="wb-canvas-title"><select value={boardId} onChange={e=>selectBoard(e.target.value)}>{boards.map(x=><option key={x.id} value={x.id}>{x.name} · {x.card_count??0}</option>)}</select><button onClick={()=>setCanvasDialog('edit')} title="Canvas settings">{board.canvas.name}</button><p>{board.canvas.description||'Describe a system visually, then let agents build from it.'}</p></div><div className="wb-save-state"><span/><strong>Saved</strong>{savedAge<60?` ${savedAge}s ago`:''}</div><button onClick={()=>setCanvasDialog('new')}><Plus size={14}/>Canvas</button><button onClick={()=>setExportOpen(true)}><Download size={14}/>Export</button><button onClick={()=>void refresh()}><RefreshCw size={14}/></button></header>
+    {error&&<div className="whiteboard-error">{error}<button onClick={()=>setError('')}>Dismiss</button></div>}
+    <div className="wb-designer-body"><aside className="wb-node-library"><strong>Architecture</strong><p>Drag-style nodes</p>{TYPES.map(({kind,label:txt,icon:Icon})=><button key={kind} onClick={()=>add(kind)}><Icon size={15}/><span>{txt}</span><Plus size={11}/></button>)}<div className="wb-library-tip"><strong>@whiteboard</strong><span>Reference this design from chat. Agents read its full schema.</span></div></aside>
+      <div className="wb-stage"><div className="wb-canvas-toolbar"><div><button onClick={()=>setZoom(z=>Math.max(.4,z-.1))}><ZoomOut size={14}/></button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom(z=>Math.min(1.6,z+.1))}><ZoomIn size={14}/></button><button onClick={()=>setZoom(.65)} title="Fit design"><Maximize2 size={14}/></button></div><label>Relationship<select value={relationship} onChange={e=>setRelationship(e.target.value as Relationship)}>{RELATIONSHIPS.map(x=><option key={x} value={x}>{label(x)}</option>)}</select></label><label>Line<select value={edgeStyle} onChange={e=>setEdgeStyle(e.target.value as EdgeStyle)}><option>solid</option><option>dashed</option><option>dotted</option></select></label></div>
+      {connecting&&<div className="whiteboard-connect-banner"><GitBranch size={14}/>Select a target for <strong>{label(connecting.relationship)}</strong><button onClick={()=>setConnecting(null)}>Cancel</button></div>}
+      <div className="whiteboard-viewport" ref={viewport} onDoubleClick={e=>{if(e.target!==e.currentTarget)return;const r=e.currentTarget.getBoundingClientRect();setEditor({kind:'component',position:{x:(e.clientX-r.left+e.currentTarget.scrollLeft)/zoom,y:(e.clientY-r.top+e.currentTarget.scrollTop)/zoom}})}}><div className="whiteboard-canvas" style={{transform:`scale(${zoom})`}}>
+        <svg className="whiteboard-edges">{board.edges.map(edge=>{const a=cardMap.get(edge.source_id),b=cardMap.get(edge.target_id);if(!a||!b)return null;return <g key={edge.id} className={`is-${edge.style}`}><defs><marker id={`arrow-${edge.id}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs><line x1={a.x+a.width/2} y1={a.y+a.height/2} x2={b.x+b.width/2} y2={b.y+b.height/2} markerEnd={`url(#arrow-${edge.id})`}/></g>})}</svg>
+        {board.edges.map(edge=>{const a=cardMap.get(edge.source_id),b=cardMap.get(edge.target_id);if(!a||!b)return null;return <button key={edge.id} className="wb-edge-label" style={{left:(a.x+b.x+a.width)/2,top:(a.y+b.y+a.height)/2}} onClick={async()=>{await deleteEdge(edge.id);await refresh()}} title="Remove relationship">{label(edge.relationship)} ×</button>})}
+        {board.cards.map(card=>{const TypeIcon=TYPES.find(x=>x.kind===card.kind)?.icon||Box;return <article key={card.id} className={`board-card is-${card.color} ${connecting?.source===card.id?'is-connecting':''} kind-${card.kind}`} style={{left:card.x,top:card.y,width:card.width,height:card.height}} onPointerDown={e=>startDrag(e,card)} onPointerMove={moveDrag} onPointerUp={()=>void endDrag()} onPointerCancel={()=>void endDrag()}><header><span><TypeIcon size={12}/>{label(card.kind)}</span><div><button onClick={e=>{e.stopPropagation();setConnecting({source:card.id,relationship,style:edgeStyle})}} title="Connect node"><GitBranch size={13}/></button><button onClick={e=>{e.stopPropagation();setConfirmDelete(card.id)}}><Trash2 size={13}/></button></div></header><button className="board-card-content" onClick={()=>void chooseCard(card)}><strong>{card.title}</strong>{card.body&&<p>{card.body}</p>}{Object.keys(card.details||{}).length>0&&<dl>{Object.entries(card.details).slice(0,3).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>)}</dl>}</button><footer><span className="board-avatar">{card.created_by.slice(0,2).toUpperCase()}</span><span>{card.created_by}</span><time>v{card.revision}</time></footer>{confirmDelete===card.id&&<div className="board-delete-confirm"><span>Delete this node?</span><button onClick={async()=>{await deleteCard(card.id);setConfirmDelete(null);await refresh()}}>Delete</button><button onClick={()=>setConfirmDelete(null)}>Keep</button></div>}</article>})}
+        {!board.cards.length&&<button className="whiteboard-empty" onClick={()=>add('component')}><Network size={27}/><strong>Design this system</strong><span>Add architecture nodes or ask an agent to generate the canvas.</span></button>}</div></div></div></div>
+    {editor&&<CardEditor card={editor.card} kind={editor.kind} position={editor.position} boardId={boardId} onClose={()=>setEditor(null)} onSave={saveEditor}/>} {canvasDialog&&<CanvasDialog canvas={canvasDialog==='edit'?board.canvas:undefined} onClose={()=>setCanvasDialog(null)} onSaved={c=>{void loadBoards();selectBoard(c.id)}} onDelete={canvasDialog==='edit'&&boardId!=='main'?async()=>{await deleteBoard(boardId);selectBoard('main');await loadBoards()}:undefined}/>}{exportOpen&&<ExportDialog board={board} onClose={()=>setExportOpen(false)}/>} {/* dialogs */}
   </section>
 }

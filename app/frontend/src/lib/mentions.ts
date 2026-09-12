@@ -128,7 +128,7 @@ export const MENTION_SUBSYSTEMS: MentionSubsystem[] = [
     label: 'Whiteboard',
     icon: '▦',
     desc: 'The shared collaborative whiteboard',
-    hint: 'the current shared collaborative whiteboard. Use whiteboard_list to read its cards and connections before answering or acting.',
+    hint: 'the shared architecture canvases. Use whiteboard_list to find the relevant canvas, then read its typed nodes, structured details, and relationships before answering or acting.',
     addressable: false,
   },
   {

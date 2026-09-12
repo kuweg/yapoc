@@ -41,6 +41,10 @@ tools:
   - whiteboard_list
   - whiteboard_add_card
   - whiteboard_update_card
+  - whiteboard_create_canvas
+  - whiteboard_connect
+  - whiteboard_apply_design
+  - whiteboard_export
   - delegate_task
   - search_negative_knowledge
   - execute_code

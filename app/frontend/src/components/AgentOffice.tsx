@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { AgentStatus } from '../api/types'
 import { getAgentColor, getAgentDisplayName } from '../lib/agentIdentity'
 import './agentOffice.css'
@@ -33,7 +33,7 @@ function RoomDetails() {
   </svg>
 }
 
-function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconnected: boolean; onOpen: (agent: AgentStatus) => void }) {
+export function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconnected: boolean; onOpen: (agent: AgentStatus) => void }) {
   const state = officeState(agent, disconnected)
   return <button className={`office-resident is-${state}`} onClick={() => onOpen(agent)}
     aria-label={`${agent.name}: ${labels[state]}. Open agent flow`} title={`${agent.name} · ${labels[state]}${agent.task_summary ? `\n${agent.task_summary}` : ''}`}>
@@ -72,7 +72,7 @@ function Resident({ agent, disconnected, onOpen }: { agent: AgentStatus; disconn
   </button>
 }
 
-export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentStatus[]; disconnected: boolean; onOpen: (agent: AgentStatus) => void }) {
+export function AgentOffice({ agents, disconnected, onOpen, lounge }: { agents: AgentStatus[]; disconnected: boolean; onOpen: (agent: AgentStatus) => void; lounge?:ReactNode }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [atmosphere, setAtmosphere] = useState(() => { try { return localStorage.getItem('yapoc-office-atmosphere') !== 'off' } catch { return true } })
   const states = agents.map(agent => officeState(agent, disconnected))
@@ -86,7 +86,7 @@ export function AgentOffice({ agents, disconnected, onOpen }: { agents: AgentSta
   return <div className={`agent-office ${atmosphere ? "has-atmosphere" : "quiet-office"} weather-${weather}`} aria-label="Agent building">
     <div className="office-atmosphere-controls"><span>{weatherLabels[weather]}</span><button aria-pressed={atmosphere} onClick={() => { setAtmosphere(!atmosphere); try { localStorage.setItem("yapoc-office-atmosphere", atmosphere ? "off" : "on") } catch { /* optional preference */ } }}>Atmosphere {atmosphere ? "on" : "off"}</button></div>
     {atmosphere && <div className="office-sky" aria-hidden="true"><span className="office-celestial" /><span className="office-cloud" /><span className="office-rain" /></div>}
-    <div className="office-roof"><span>YAPOC</span><span>AGENT HOUSE</span></div>
+    <div className="office-roof"><span>YAPOC</span><span>AGENT HOUSE</span></div>{lounge}
     {[...floors].sort(([a], [b]) => a === 'master' ? -1 : b === 'master' ? 1 : a.localeCompare(b)).map(([role, residents], index) => <section className={`office-floor room-${officeTheme(role)}`} key={role} data-room={officeTheme(role)} style={{ '--resident-color': getAgentColor(role) } as CSSProperties} aria-label={`${role} floor`}>
       <button className="office-floor-heading" aria-expanded={!collapsed.has(role)} onClick={() => setCollapsed(previous => {
         const next = new Set(previous); if (next.has(role)) next.delete(role); else next.add(role); return next

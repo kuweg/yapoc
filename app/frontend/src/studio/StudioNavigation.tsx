@@ -1,5 +1,5 @@
 import {
-  NotebookPen, BookOpen,
+  NotebookPen, BookOpen, Home,
   MessageSquare as ChatBubbleLeftRightIcon, Users as UsersIcon, ListTodo as ClipboardDocumentListIcon, ChartNoAxesCombined as ChartBarIcon,
   Activity as EyeIcon, GitBranch as ScaleIcon, BrainCircuit as CircleStackIcon, Archive as ArchiveBoxIcon, WandSparkles as PuzzlePieceIcon,
   History as ClockIcon, Radio as SignalIcon, Plus as PlusIcon, Images as Squares2X2Icon, FolderOpen as FolderOpenIcon, LayoutDashboard,
@@ -11,6 +11,7 @@ import type { useAppStore } from '../store/appStore'
 type Tab = ReturnType<typeof useAppStore.getState>['activeTab']
 export const NAV_SECTIONS: { title: string; items: { id: Tab; label: string; icon: typeof UsersIcon }[] }[] = [
   { title: 'Workspace', items: [
+    { id: 'home', label: 'Home', icon: Home },
     { id: 'chat', label: 'Conversation', icon: ChatBubbleLeftRightIcon },
     { id: 'agents', label: 'Agents', icon: UsersIcon },
     { id: 'tasks', label: 'Tasks', icon: ClipboardDocumentListIcon },

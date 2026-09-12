@@ -1,3 +1,4 @@
+import {useWorkspaceLayout} from '../studio/workspaceLayout'
 import {useEffect,useRef,useState,lazy,Suspense} from 'react'
 import {ArrowLeft,BookOpen,Upload,ChevronLeft,ChevronRight,Bookmark,PanelLeft,MessageCircle,Maximize,Highlighter,X} from 'lucide-react'
 import {request,uploadBook,type Book,type Section,type Annotation,type Turn} from './api'
@@ -20,7 +21,7 @@ export function BooksTab({active}:{active:boolean}){
   const reload=()=>request<Book[]>().then(setBooks).catch(e=>setError(e.message))
   useEffect(()=>{if(active)void reload()},[active])
   useEffect(()=>{
-    const navigate=(event:Event)=>{const {book_id,number}=(event as CustomEvent<{book_id:string;number:number}>).detail;void request<Book>(`/${encodeURIComponent(book_id)}`).then(book=>{setShelf(false);setOpened({...book,position:Math.max(1,Math.min(book.total,number)),offset:0})}).catch(e=>setError(e.message))}
+    const navigate=(event:Event)=>{const {book_id,number}=(event as CustomEvent<{book_id:string;number?:number}>).detail;void request<Book>(`/${encodeURIComponent(book_id)}`).then(book=>{setShelf(false);setOpened({...book,position:number===undefined?book.position:Math.max(1,Math.min(book.total,number)),offset:number===undefined?book.offset:0})}).catch(e=>setError(e.message))}
     window.addEventListener('yapoc:open-book',navigate)
     return()=>window.removeEventListener('yapoc:open-book',navigate)
   },[])
@@ -38,8 +39,11 @@ export function BooksTab({active}:{active:boolean}){
 }
 
 function Reader({initial,onBack}:{initial:Book;onBack:()=>void}){
+  const layout=useWorkspaceLayout(s=>s.layout),activeTab=useAppStore(s=>s.activeTab)
+  const splitReading=layout==='reading'&&(activeTab==='books'||activeTab==='notes')
   const[b,setBook]=useState(initial),[page,setPage]=useState(initial.position),[section,setSection]=useState<Section|null>(null),[toc,setToc]=useState<Section[]>([]),[annotations,setAnnotations]=useState<Annotation[]>([]),[turns,setTurns]=useState<Turn[]>([])
   const[theme,setTheme]=useState(String(initial.preferences.theme||'sepia')),[font,setFont]=useState(Number(initial.preferences.font||19)),[original,setOriginal]=useState(initial.status==='needs_ocr'||Boolean(initial.preferences.original_pdf)),[left,setLeft]=useState(false),[right,setRight]=useState(()=>window.matchMedia('(min-width: 701px)').matches),[focus,setFocus]=useState(false)
+  useEffect(()=>{if(splitReading)setRight(false)},[splitReading])
   const[selection,setSelection]=useState(''),[scope,setScope]=useState('current'),[start,setStart]=useState(initial.position),[end,setEnd]=useState(initial.position),[question,setQuestion]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[saved,setSaved]=useState('Saved'),[spoilers,setSpoilers]=useState(true),[search,setSearch]=useState(''),[results,setResults]=useState<(Section&{excerpt:string})[]>([]),[citation,setCitation]=useState('')
   const reader=useRef<HTMLDivElement>(null),saveTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),loadVersion=useRef(0)
   const[goal,setGoal]=useState(String(initial.preferences.goal||'Understand the main ideas')),[minutes,setMinutes]=useState(Number(initial.preferences.minutes||20))

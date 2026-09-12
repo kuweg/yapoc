@@ -49,7 +49,7 @@ def check(url):
                     expect(field).to_have_value('@book:"Reading Systems" ')
                 else:
                     page.wait_for_timeout(400)
-                    expect(page.get_by_role('option')).to_have_count(1)
+                    expect(page.get_by_role('listbox', name='Suggestions').get_by_role('option')).to_have_count(1)
                 field.press('Escape')
                 field.fill('Chat still works')
                 expect(field).to_have_value('Chat still works')

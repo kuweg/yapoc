@@ -7,6 +7,7 @@ import json
 import posixpath
 import re
 import zipfile
+import unicodedata
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -182,9 +183,25 @@ def knowledge_shelf(query='', offset=0):
     return {'items': [dict(r) for r in rows[:50]], 'has_more': len(rows)>50}
 
 
+def canonical_selection(text, selected):
+    """Map PDF.js spacing/ligatures back to an exact stored source passage."""
+    if not selected or selected in text: return selected
+    def normalized(value):
+        return ''.join(c for c in unicodedata.normalize('NFKC', value) if not c.isspace() and c != '\u00ad')
+    needle = normalized(selected)
+    offsets, characters = [], []
+    for index, character in enumerate(text):
+        part = normalized(character)
+        characters.append(part)
+        offsets.extend([index] * len(part))
+    at = ''.join(characters).find(needle) if needle else -1
+    if at < 0: raise HTTPException(400, 'Selected text does not match this page. Try a shorter passage or Text view.')
+    return text[offsets[at]:offsets[at+len(needle)-1]+1]
+
+
 def annotate(book_id, number, kind, quote, note, color):
     page = section(book_id, number)
-    if quote and quote not in page['text']: raise HTTPException(400, 'Selected text must belong to this reading location')
+    quote = canonical_selection(page['text'], quote)
     item = dict(id=uuid4().hex, book_id=book_id, section=number, kind=kind, quote=scrub(quote), note=scrub(note), color=color, created_at=now())
     with get_db() as db:
         db.execute('INSERT INTO book_annotations VALUES(?,?,?,?,?,?,?,?)', tuple(item.values()))
@@ -204,7 +221,8 @@ def passages(book_id, start, end, question='', selection='', spoiler_limit=None)
     if start > end: raise HTTPException(400, 'The range is beyond your spoiler boundary')
     rows = get_db().execute('SELECT * FROM book_sections WHERE book_id=? AND number BETWEEN ? AND ? ORDER BY number', (book_id, start, end)).fetchall()
     if selection:
-        if start != end or selection not in rows[0]['text']: raise HTTPException(400, 'Select text from the current reading location')
+        if start != end: raise HTTPException(400, 'Select text from one reading location')
+        selection = canonical_selection(rows[0]['text'], selection)
         return [{'number': start, 'label': rows[0]['label'], 'text': selection}]
     chunks = []
     terms = set(re.findall(r'\w{3,}', question.casefold()))

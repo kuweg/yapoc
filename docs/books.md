@@ -21,9 +21,17 @@ numbers, bookmarks and AI sources follow the visible location. Select text withi
 one page/chapter when highlighting or asking about a passage.
 
 Use the contents drawer, book search, previous/next buttons or location field.
-PDFs also offer an original-document view using the browser PDF viewer, including
-its zoom and layout controls. Use the YAPOC location controls to save page changes;
-the embedded browser viewer does not report internal page changes back to YAPOC.
+**Original PDF** preserves the original page layout in a locally bundled PDF.js
+viewer with selectable text, continuous scrolling, zoom and Fit width. Select a
+word or passage with the mouse to show book actions; right-click selected text
+also opens the book menu. Selections must stay within one page. Translation uses
+the assistant's From/To settings. Highlights are saved and drawn over the PDF.
+Page position and the original-view preference are saved automatically. Use
+**Open in browser** for the browser's full PDF controls (the YAPOC selection menu
+is unavailable there). Image-only scans still require OCR for text selection.
+Viewer fonts, character maps and codecs are served locally, with no CDN dependency.
+PDF.js and server extraction can differ in spacing or ligatures; the server maps
+those differences to an exact stored passage and rejects unmatched selections.
 Paper, sepia and dark themes, adjustable text size and full-screen focus are
 available. Select text in text view to highlight it or ask about it. Bookmarks
 and notes can be revisited from the drawer and exported as a reading journal.
@@ -121,3 +129,5 @@ Reading tool checks:
 `poetry run pytest -q tests/test_books.py tests/test_whiteboard.py tests/test_db.py`
 and `poetry run python scripts/check_reading_tools_browser.py` (running backend
 and frontend required; uses disposable fixtures and mocks AI responses).
+
+Original PDF browser check: `poetry run python scripts/check_pdf_reader_browser.py` (disposable fixture, mocked AI).

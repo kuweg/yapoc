@@ -208,3 +208,18 @@ async def test_reading_map_bad_response_does_not_create_canvas(library, monkeypa
         await book_maps.preview(b['id'], 1, 1)
     assert exc.value.status_code == 502
     assert len(whiteboard.list_boards()) == before
+
+
+def test_pdf_selection_spacing_ligatures_and_source_integrity(library):
+    original='An of\ufb01ce\nuses events. More text.'
+    assert books.canonical_selection(original,'office uses events.')=='of\ufb01ce\nuses events.'
+    assert books.canonical_selection('one\n two','one two')=='one\n two'
+    with pytest.raises(HTTPException): books.canonical_selection(original,'invented words')
+    with pytest.raises(HTTPException): books.canonical_selection(original,'   ')
+    b=books.import_book(epub(),'one.epub')
+    quote='Systems\ncommunicate through events.'
+    item=books.annotate(b['id'],1,'highlight',quote,'','amber')
+    assert item['quote']=='Systems communicate through events.'
+    evidence=books.passages(b['id'],1,1,selection=quote)
+    assert evidence[0]['text']=='Systems communicate through events.'
+    with pytest.raises(HTTPException): books.passages(b['id'],1,2,selection=quote)

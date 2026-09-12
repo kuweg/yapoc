@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { readFileSync, readdirSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 
 const backendPort = process.env.VITE_BACKEND_PORT ?? '8000'
 
@@ -50,8 +53,30 @@ function backendControlPlugin(): Plugin {
   }
 }
 
+// Keep fonts, character maps and PDF codecs local in development and builds.
+function pdfAssetsPlugin(): Plugin {
+  const root = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'))
+  const groups = ['cmaps', 'standard_fonts', 'wasm']
+  return {
+    name: 'local-pdf-assets',
+    configureServer(server) {
+      server.middlewares.use('/pdfjs-assets/', (req, res) => {
+        const path = (req.url || '').split('?')[0]
+        if (!/^(cmaps|standard_fonts|wasm)\/[\w.-]+$/.test(path)) { res.statusCode = 404; res.end(); return }
+        try { res.setHeader('Content-Type', path.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream'); res.end(readFileSync(join(root, path))) }
+        catch { res.statusCode = 404; res.end() }
+      })
+    },
+    generateBundle() {
+      for (const group of groups) for (const name of readdirSync(join(root, group))) {
+        this.emitFile({type: 'asset', fileName: `pdfjs-assets/${group}/${name}`, source: readFileSync(join(root, group, name))})
+      }
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), backendControlPlugin()],
+  plugins: [react(), tailwindcss(), backendControlPlugin(), pdfAssetsPlugin()],
   build: {
     rollupOptions: {
       output: {

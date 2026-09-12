@@ -33,7 +33,8 @@ class Question(BaseModel):
     selection: str = Field(default='', max_length=10000)
     action: Literal['ask','explain','summarize','quiz','guide','flashcards','connect','translate','example'] = 'ask'
     explanation_style: Literal['beginner','technical','analogy','worked_example'] = 'beginner'
-    language: str = Field(default='English', min_length=1, max_length=60)
+    language: str = Field(default='English', min_length=1, max_length=60, pattern=r'\S')
+    source_language: str = Field(default='auto', min_length=1, max_length=60, pattern=r'\S')
     avoid_spoilers: bool = True
 
 

@@ -91,7 +91,9 @@ and `npm --prefix app/frontend run build`. Backend restart is required.
 - **Passage actions:** select text within one page/chapter for a floating
   Explain / Translate / Example / Highlight / Ask / Save menu. The selection
   toolbar remains available if scrolling dismisses the bubble. Translation uses
-  the language field in the reading assistant. It uses the configured AI provider.
+  the **From** and **To** language fields in the reading assistant. From defaults
+  to **Auto-detect**; choose a suggestion or type any language in either field.
+  Both choices are saved per book; existing target-language preferences are preserved. It uses the configured AI provider.
 - **Explain differently:** Beginner, Technical, Analogy and Worked example control
   subsequent answers; choose a style and press Explain to reinterpret a passage.
   Style and translation language are saved per book. Illustrative analogies and

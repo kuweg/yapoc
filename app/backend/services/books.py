@@ -221,7 +221,7 @@ def passages(book_id, start, end, question='', selection='', spoiler_limit=None)
 
 
 async def ask(book_id, question, start, end, selection='', action='ask', avoid_spoilers=True,
-              explanation_style='beginner', language='English'):
+              explanation_style='beginner', language='English', source_language='auto'):
     from app.utils.adapters import AgentConfig, Message, get_adapter
     from app.utils.agent_settings import resolve_agent
     current = book(book_id)
@@ -233,7 +233,10 @@ async def ask(book_id, question, start, end, selection='', action='ask', avoid_s
         'guide': 'Introduce this section, explain prerequisites, suggest a short reading goal, and ask one reflection question. Do not reveal later material.',
         'flashcards': 'Create concise question-and-answer flashcards with source citations.',
         'connect': 'Explain connections between ideas supported by these excerpts.',
-        'translate': f'Translate the supplied passage into {language}. Preserve its meaning and cite its source.',
+        'translate': (f'Translate the supplied passage into {language.strip()}. '
+                      + ('Automatically detect the source language. ' if source_language.strip().casefold() in ('auto', 'auto-detect')
+                         else f'The source language is {source_language.strip()}. ')
+                      + 'Preserve its meaning and cite its source.'),
         'example': 'Give a small illustrative example of the passage. Label invented examples as illustrations, not quotations or facts from the book.',
         'concept_map': 'Return ONLY compact JSON with nodes and edges. Nodes: 3-8 objects with key, title, body, source_id (one current source ID such as S1). Edges: objects with source and target node keys and label describing their relationship. Each node body must cite its source as [S1]. Do not add markdown fences. Map only ideas supported by the sources.',
     }
@@ -263,7 +266,8 @@ async def ask(book_id, question, start, end, selection='', action='ask', avoid_s
     answer = re.sub(r'\[(S\d+)\]', lambda m: m[0] if m[1] in valid else '[unverified source]', answer)
     citations = [{'id': key, 'number': p['number'], 'label': p['label'], 'excerpt': p['text']} for key,p in valid.items() if f'[{key}]' in answer]
     item = dict(id=uuid4().hex, book_id=book_id, question=scrub(question or instructions[action]), answer=answer,
-                scope={'start': start, 'end': end, 'selection': selection, 'action': action, 'explanation_style': explanation_style}, citations=citations, created_at=now())
+                scope={'start': start, 'end': end, 'selection': selection, 'action': action, 'explanation_style': explanation_style,
+                       **({'source_language': source_language.strip(), 'language': language.strip()} if action == 'translate' else {})}, citations=citations, created_at=now())
     if action == 'concept_map': return item
     with get_db() as db:
         db.execute('INSERT INTO book_messages VALUES(?,?,?,?,?,?,?)', (item['id'], book_id, item['question'], answer, json.dumps(item['scope']), json.dumps(citations), item['created_at']))

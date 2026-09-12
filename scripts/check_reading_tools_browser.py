@@ -50,11 +50,12 @@ def check(continuous=False):
             page.get_by_role('toolbar',name='Passage actions').get_by_role('button',name='Explain',exact=True).click()
             expect(page.locator('.reading-turn')).to_have_count(1)
             assert asks[-1]['selection']==quote and asks[-1]['explanation_style']=='analogy'
-            page.get_by_role('textbox',name='Translation language').fill('Serbian')
+            page.get_by_role('combobox',name='Translation source language').fill('English')
+            page.get_by_role('combobox',name='Translation target language').fill('Serbian')
             select()
             page.get_by_role('toolbar',name='Passage actions').get_by_role('button',name='Translate',exact=True).click()
             expect(page.locator('.reading-turn')).to_have_count(2)
-            assert asks[-1]['language']=='Serbian' and asks[-1]['action']=='translate'
+            assert asks[-1]['source_language']=='English' and asks[-1]['language']=='Serbian' and asks[-1]['action']=='translate'
             select()
             page.get_by_role('toolbar',name='Passage actions').get_by_role('button',name='Highlight',exact=True).click()
             expect(page.get_by_role('button',name='Open annotated location 1')).to_be_visible()
@@ -80,6 +81,8 @@ def check(continuous=False):
             expect(page.locator('.knowledge-grid article')).to_have_count(1)
             page.get_by_role('button',name='Read source',exact=False).click()
             expect(page.get_by_role('spinbutton',name='Reading location')).to_have_value('1')
+            expect(page.get_by_role('combobox',name='Translation source language')).to_have_value('English')
+            expect(page.get_by_role('combobox',name='Translation target language')).to_have_value('Serbian')
             page.screenshot(path='/tmp/yapoc-reading-tools.png')
             page.set_viewport_size({'width':390,'height':844})
             if page.get_by_role('button',name='Close navigation',exact=True).is_visible():page.get_by_role('button',name='Close navigation',exact=True).click()

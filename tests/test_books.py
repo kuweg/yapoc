@@ -154,6 +154,17 @@ async def test_explanation_styles_and_translation(library, monkeypatch):
         assert turn['scope']['explanation_style'] == style
     await books.ask(book['id'], '', 1, 1, action='translate', language='Serbian')
     assert 'Serbian' in captured['user_message']
+    assert 'Automatically detect the source language' in captured['user_message']
+    result = library.post(f'/books/{book["id"]}/ask', json={
+        'start': 1, 'end': 1, 'action': 'translate', 'source_language': 'German', 'language': 'Serbian'})
+    assert result.status_code == 200
+    assert 'source language is German' in captured['user_message']
+    assert 'into Serbian' in captured['user_message']
+    assert result.json()['scope']['source_language'] == 'German'
+    assert result.json()['scope']['language'] == 'Serbian'
+    for field in ('language', 'source_language'):
+        assert library.post(f'/books/{book["id"]}/ask', json={
+            'start': 1, 'end': 1, 'action': 'translate', field: '   '}).status_code == 422
     assert library.post(f'/books/{book["id"]}/ask', json={'start':1,'end':1,'explanation_style':'unknown'}).status_code == 422
 
 

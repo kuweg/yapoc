@@ -1863,6 +1863,8 @@ body.sidebar-auto-railed aside {
   white-space: nowrap;
 }
 .chat-hl-chip[title] { cursor: help; }
+.chat-hl-link { border: 0; cursor: pointer; font: inherit; }
+.chat-hl-link:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
 
 /* ── Composer ───────────────────────────────────────────────────────────── */
 .composer-field { position: relative; display: grid; flex: 1 1 auto; min-width: 0; }

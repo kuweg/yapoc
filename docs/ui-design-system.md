@@ -21,6 +21,10 @@ agents add revisioned cards, connect related ideas and see each other's updates
 while the tab is active. Ctrl+K / Cmd+K opens the command palette with every
 navigation item.
 
+Typing `@whiteboard` in chat adds the shared board as turn context. Master is
+instructed to read the live board through `whiteboard_list`; the user's message
+keeps the short mention, rendered as a chip that opens the Whiteboard tab.
+
 ## Component hierarchy and layout
 
 ```text

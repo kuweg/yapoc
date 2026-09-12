@@ -23,6 +23,7 @@ export type MentionKind =
   | 'task'
   | 'cron'
   | 'memory'
+  | 'whiteboard'
   | 'repo'
 
 export interface MentionSubsystem {
@@ -119,6 +120,15 @@ export const MENTION_SUBSYSTEMS: MentionSubsystem[] = [
     icon: '🧠',
     desc: 'Agent memory and shared knowledge',
     hint: 'agent memory (MEMORY.MD) and the shared knowledge store.',
+    addressable: false,
+  },
+  {
+    kind: 'whiteboard',
+    plural: 'whiteboard',
+    label: 'Whiteboard',
+    icon: '▦',
+    desc: 'The shared collaborative whiteboard',
+    hint: 'the current shared collaborative whiteboard. Use whiteboard_list to read its cards and connections before answering or acting.',
     addressable: false,
   },
   {

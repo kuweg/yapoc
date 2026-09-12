@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { tokenizeChatText, type ChatToken } from '../lib/chatTokens'
 import { findCommand } from '../lib/chatCommands'
+import { useAppStore } from '../store/appStore'
 
 /**
  * Renders chat text with slash commands and `@` mentions coloured.
@@ -36,6 +37,19 @@ function TokenSpan({ token, variant }: { token: ChatToken; variant: HighlightVar
   const { subsystem, target } = token
   if (variant === 'overlay') {
     return <span className="chat-hl-mention">{token.text}</span>
+  }
+  if (subsystem.kind === 'whiteboard') {
+    return (
+      <button
+        type="button"
+        className="chat-hl-mention chat-hl-chip chat-hl-link"
+        title="Open the collaborative whiteboard"
+        onClick={() => useAppStore.getState().setActiveTab('whiteboard')}
+      >
+        <span aria-hidden="true">{subsystem.icon}</span>
+        {subsystem.label}
+      </button>
+    )
   }
   return (
     <span

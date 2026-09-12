@@ -1,3 +1,7 @@
+import {WorkspaceLayoutControls,WorkspaceDivider} from './studio/WorkspaceLayoutControls'
+import {WORKSPACE_LAYOUTS,useWorkspaceLayout} from './studio/workspaceLayout'
+import {ResumeHome} from './studio/ResumeHome'
+import './studio/workspaceFeatures.css'
 import { ParallelUniverses } from './components/ParallelUniverses'
 import { TaskProgressPanel } from './components/TaskProgress'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -48,8 +52,18 @@ import { NAV_SECTIONS, StudioNavigation } from './studio/StudioNavigation'
 function Workspace() {
   // Establish persistent WebSocket connection for real-time events
   useWebSocket()
+  const {layout,ratio,mobilePane,setPane,visit}=useWorkspaceLayout()
   const newSession = useSessionStore((s) => s.newSession)
   const tab = useAppStore((s) => s.activeTab)
+  const pair=WORKSPACE_LAYOUTS[layout].tabs
+  const split=pair.includes(tab)
+  const visible=(view:typeof tab)=>view===tab||(split&&pair.includes(view))
+  const previousTab = useRef(tab)
+  useEffect(() => {
+    if (previousTab.current !== tab && tab !== 'home') visit(tab)
+    previousTab.current = tab
+    if (split) setPane(pair.indexOf(tab) as 0 | 1)
+  }, [tab, split, layout, visit, setPane])
   const setTab = useAppStore((s) => s.setActiveTab)
   const openWindows = useWindowsStore((s) => s.windows)
   const closeWindow = useWindowsStore((s) => s.closeWindow)
@@ -89,7 +103,7 @@ function Workspace() {
     close: () => useArtifactsStore.getState().close(), content: <ArtifactsPanel /> })
   if (workspaceOpen) inspectors.push({ id: 'workspace', label: 'Workspace files', identity: true,
     close: () => useWorkspaceStore.getState().close(), content: <WorkspacePanel /> })
-  if (selectedFile) inspectors.push({ id: 'file', label: 'File preview', identity: selectedFile.path,
+  if (selectedFile && !visible('artifacts')) inspectors.push({ id: 'file', label: 'File preview', identity: selectedFile.path,
     close: () => useFileViewerStore.getState().closeFile(), content: <FileViewerPane /> })
 
   // Single render tree — all tabs stay mounted; inactive tabs are hidden via display:none
@@ -128,160 +142,135 @@ function Workspace() {
               <ConnectionStatus showAge={false} />
               <NotificationBell onClick={() => setNotificationsOpen(true)} />
               <ThemeToggle />
-              {tab === 'chat' && <button className="studio-icon-button studio-team-toggle" onClick={() => setTeamOpen(v => !v)}
+              {tab === 'chat' && !split && <button className="studio-icon-button studio-team-toggle" onClick={() => setTeamOpen(v => !v)}
                 title={teamOpen ? 'Hide agent team' : 'Show agent team'} aria-label={teamOpen ? 'Hide agent team' : 'Show agent team'} aria-pressed={teamOpen}><UsersIcon /></button>}
             </div>
           </header>
 
+      <WorkspaceLayoutControls />
+      <div className="workspace-deck" data-split={split} data-primary={pair[0]} data-secondary={pair[1]} data-mobile-pane={mobilePane} style={{'--workspace-ratio':`${ratio}%`} as React.CSSProperties}>
+      {split&&<WorkspaceDivider/>}
+      <div className="workspace-tab flex flex-col flex-1 overflow-hidden" data-tab="home" style={{display:tab==='home'?'flex':'none',minHeight:0}}><ResumeHome active={tab==='home'}/></div>
       {/* ── Chat tab content — always mounted, hidden when inactive ── */}
-      <div
-        className="flex flex-1 overflow-hidden"
-        style={{ display: tab === 'chat' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-1 overflow-hidden" data-tab="chat" style={{ display: visible('chat') ? 'flex' : 'none', minHeight: 0 }}
       >
         <main className="studio-conversation-layout flex-1 flex flex-row overflow-hidden relative" data-inspecting={inspectors.length > 0} style={{ minWidth: 0 }}>
           <div className="studio-conversation-content flex-1 min-w-0 h-full flex flex-col">
-            <TaskProgressPanel conversation active={tab === 'chat'} />
+            <TaskProgressPanel conversation active={visible('chat')} />
             <ParallelUniverses />
             <div className="flex-1 min-h-0"><ChatPanel /></div>
           </div>
           <StudioInspector panels={inspectors} focusId={selectedFlowAgent ? `flow-${selectedFlowAgent}` : undefined} focusVersion={flowFocusVersion} />
         </main>
-        {teamOpen && <button className="studio-team-scrim" aria-label="Close agent team" onClick={() => setTeamOpen(false)} />}
-        <div className="studio-team-slot" data-open={teamOpen}><AgentSidebar onClose={() => setTeamOpen(false)} /></div>
+        {teamOpen&&!split && <button className="studio-team-scrim" aria-label="Close agent team" onClick={() => setTeamOpen(false)} />}
+        <div className="studio-team-slot" data-open={teamOpen&&!split}><AgentSidebar onClose={() => setTeamOpen(false)} /></div>
       </div>
 
       {/* ── Agents tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'agents' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="agents" style={{ display: visible('agents') ? 'flex' : 'none', minHeight: 0 }}
       >
         <AgentDashboard />
       </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'artifacts' ? 'flex' : 'none', minHeight: 0 }}>
-        {tab === 'artifacts' && <ArtifactGalleryTab />}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="artifacts" style={{ display: visible('artifacts') ? 'flex' : 'none', minHeight: 0 }}>
+        {visible('artifacts') && <ArtifactGalleryTab />}
       </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'whiteboard' ? 'flex' : 'none', minHeight: 0 }}>
-        <WhiteboardTab active={tab === 'whiteboard'} />
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="whiteboard" style={{ display: visible('whiteboard') ? 'flex' : 'none', minHeight: 0 }}>
+        <WhiteboardTab active={visible('whiteboard')} />
       </div>
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'books' ? 'flex' : 'none', minHeight: 0 }}>
-        <BooksTab active={tab === 'books'} />
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="books" style={{ display: visible('books') ? 'flex' : 'none', minHeight: 0 }}>
+        <BooksTab active={visible('books')} />
       </div>
 
       {/* ── Memory Graph tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'graph' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="graph" style={{ display: visible('graph') ? 'flex' : 'none', minHeight: 0 }}
       >
         <MemoryGraphTab />
       </div>
 
       {/* ── Vault tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'vault' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="vault" style={{ display: visible('vault') ? 'flex' : 'none', minHeight: 0 }}
       >
         <VaultTab />
       </div>
 
       {/* ── Sessions tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'sessions' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="sessions" style={{ display: visible('sessions') ? 'flex' : 'none', minHeight: 0 }}
       >
         <SessionsPanel />
       </div>
 
       {/* ── Tasks tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'tasks' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="tasks" style={{ display: visible('tasks') ? 'flex' : 'none', minHeight: 0 }}
       >
         <TasksPanel active={tab === 'tasks'} />
       </div>
 
       {/* ── Channels tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'channels' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="channels" style={{ display: visible('channels') ? 'flex' : 'none', minHeight: 0 }}
       >
         <ChannelsDashboard />
       </div>
 
       {/* ── Insights tab — cost / trace / topology / errors ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'insights' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="insights" style={{ display: visible('insights') ? 'flex' : 'none', minHeight: 0 }}
       >
         {tab === 'insights' && <InsightsTab />}
       </div>
 
       {/* ── Observability tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'observability' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="observability" style={{ display: visible('observability') ? 'flex' : 'none', minHeight: 0 }}
       >
         <ObservabilityTab active={tab === 'observability'} />
       </div>
 
       {/* ── Concilium tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'concilium' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="concilium" style={{ display: visible('concilium') ? 'flex' : 'none', minHeight: 0 }}
       >
         <ConciliumTab />
       </div>
 
       {/* ── Skills tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'skills' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="skills" style={{ display: visible('skills') ? 'flex' : 'none', minHeight: 0 }}
       >
         <SkillsTab />
       </div>
 
       {/* ── GitHub tab ── */}
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'github' ? 'flex' : 'none', minHeight: 0 }}>
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="github" style={{ display: visible('github') ? 'flex' : 'none', minHeight: 0 }}>
         {tab === 'github' && <Suspense fallback={<div role="status">Loading GitHub…</div>}><GitHubTab /></Suspense>}
       </div>
 
       {/* ── MCP tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'mcp' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="mcp" style={{ display: visible('mcp') ? 'flex' : 'none', minHeight: 0 }}
       >
         <McpTab />
       </div>
 
       {/* ── Plugins tab ── */}
-      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'notes' ? 'flex' : 'none', minHeight: 0 }}>
-        <NotesTab />
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="notes" style={{ display: visible('notes') ? 'flex' : 'none', minHeight: 0 }}>
+        <NotesTab active={visible('notes')} />
       </div>
 
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'plugins' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="plugins" style={{ display: visible('plugins') ? 'flex' : 'none', minHeight: 0 }}
       >
         <PluginsTab />
       </div>
 
       {/* ── Cron tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'cron' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="cron" style={{ display: visible('cron') ? 'flex' : 'none', minHeight: 0 }}
       >
         <CronTab />
       </div>
 
       {/* ── Drive tab ── */}
-      <div
-        className="flex flex-col flex-1 overflow-hidden"
-        style={{ display: tab === 'drive' ? 'flex' : 'none', minHeight: 0 }}
+      <div className="flex flex-col flex-1 overflow-hidden" data-tab="drive" style={{ display: visible('drive') ? 'flex' : 'none', minHeight: 0 }}
       >
         <DriveTab />
       </div>
 
+        </div>
         </div>
       </div>
 

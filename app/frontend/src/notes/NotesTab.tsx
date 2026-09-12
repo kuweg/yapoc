@@ -14,7 +14,7 @@ const NotesGraph = lazy(() => import('./NotesGraph').then(module => ({ default: 
 import './notes.css'
 
 type Mode = 'preview' | 'edit' | 'split' | 'graph'
-export function NotesTab() {
+export function NotesTab({active}:{active?:boolean}) {
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [reading, setReading] = useState(false)
@@ -55,7 +55,7 @@ export function NotesTab() {
     } catch (e) { setError(String((e as Error).message)) }
     finally { setLoading(false) }
   }, [])
-  useEffect(() => { if (activeTab === 'notes') void refresh() }, [activeTab, refresh])
+  useEffect(() => { if (active??activeTab === 'notes') void refresh() }, [active, activeTab, refresh])
 
   const open = useCallback(async (id: string) => {
     setReading(true)

@@ -1,3 +1,4 @@
+import {ContextTray} from '../studio/ContextTray'
 import { useUniverseStore } from '../store/universeStore'
 import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo, useEffect, useLayoutEffect } from 'react'
 import { listUploads } from '../api/client'
@@ -406,6 +407,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           </div>
         )}
 
+        <ContextTray text={text} onRemove={(start,end)=>{setText(value=>value.slice(0,start)+value.slice(end));setCaret(start);setTrigger(null);setMenuDismissed(true);textareaRef.current?.focus()}}/>
         {menuOpen && trigger && (
           <ComposerSuggestions
             suggestions={trigger.suggestions}

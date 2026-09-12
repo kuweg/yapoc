@@ -1,3 +1,4 @@
+import {SharedAgentRoom} from '../studio/SharedAgentRoom'
 import { X as XMarkIcon } from 'lucide-react'
 import { useState } from 'react'
 import { AgentOffice, officeState } from './AgentOffice'
@@ -76,7 +77,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void }) {
         {(['office', 'list'] as const).map(mode => <button key={mode} aria-pressed={view === mode} onClick={() => { setView(mode); try { localStorage.setItem('yapoc-team-view', mode) } catch { /* private browsing */ } }}>{mode === 'office' ? 'Building' : 'List'}</button>)}
       </div>
       <div className="studio-team-list">
-        {view === 'office' ? <AgentOffice agents={ordered} disconnected={Boolean(error)} onOpen={agent => { setSelected(agent.name); useAgentChatStore.getState().setSelectedLogAgent(agent.name); if (window.matchMedia('(max-width: 1000px)').matches) onClose?.() }} /> : <>
+        {view === 'office' ? <AgentOffice lounge={<SharedAgentRoom agents={ordered} disconnected={Boolean(error)} onOpen={agent=>useAgentChatStore.getState().setSelectedLogAgent(agent.name)}/>} agents={ordered} disconnected={Boolean(error)} onOpen={agent => { setSelected(agent.name); useAgentChatStore.getState().setSelectedLogAgent(agent.name); if (window.matchMedia('(max-width: 1000px)').matches) onClose?.() }} /> : <>
 
         {ordered.map((agent) => (
           <AgentCard

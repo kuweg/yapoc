@@ -10,7 +10,7 @@ from urllib.parse import urljoin, urlsplit
 
 from fastapi import APIRouter, Query, Response
 
-router = APIRouter(prefix="/api/link-previews", tags=["previews"])
+router = APIRouter(prefix="/link-previews", tags=["previews"])
 _slots = asyncio.Semaphore(4)
 _cache: dict[str, tuple[float, dict]] = {}
 

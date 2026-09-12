@@ -2,7 +2,6 @@ import asyncio
 import socket
 
 import pytest
-
 from app.backend.routers import link_previews
 
 
@@ -56,3 +55,7 @@ def test_preview_failure_is_safe_and_cached(monkeypatch):
     assert asyncio.run(link_previews.preview("https://example.test")) == {}
     assert asyncio.run(link_previews.preview("https://example.test")) == {}
     assert calls == 1
+
+
+def test_router_uses_api_prefix_middleware_convention():
+    assert link_previews.router.prefix == "/link-previews"

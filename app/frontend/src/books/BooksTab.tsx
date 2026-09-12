@@ -17,6 +17,7 @@ const OriginalPdfReader=lazy(()=>import('./OriginalPdfReader'))
 export function BooksTab({active}:{active:boolean}){
   const[books,setBooks]=useState<Book[]>([]),[opened,setOpened]=useState<Book|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[query,setQuery]=useState(''),[filter,setFilter]=useState('all')
   const [shelf,setShelf]=useState(false)
+  useEffect(()=>{if(opened)localStorage.setItem('yapoc-current-book',opened.id)},[opened?.id])
   const input=useRef<HTMLInputElement>(null)
   const reload=()=>request<Book[]>().then(setBooks).catch(e=>setError(e.message))
   useEffect(()=>{if(active)void reload()},[active])

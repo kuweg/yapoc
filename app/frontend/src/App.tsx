@@ -1,3 +1,5 @@
+import {ProjectsTab} from './projects/ProjectsTab'
+import {useProjects} from './projects/store'
 import {WorkspaceLayoutControls,WorkspaceDivider} from './studio/WorkspaceLayoutControls'
 import {WORKSPACE_LAYOUTS,useWorkspaceLayout} from './studio/workspaceLayout'
 import {ResumeHome} from './studio/ResumeHome'
@@ -52,6 +54,7 @@ import { NAV_SECTIONS, StudioNavigation } from './studio/StudioNavigation'
 function Workspace() {
   // Establish persistent WebSocket connection for real-time events
   useWebSocket()
+  useEffect(()=>{void useProjects.getState().refresh().catch(()=>{})},[])
   const {layout,ratio,mobilePane,setPane,visit}=useWorkspaceLayout()
   const newSession = useSessionStore((s) => s.newSession)
   const tab = useAppStore((s) => s.activeTab)
@@ -151,6 +154,7 @@ function Workspace() {
       <div className="workspace-deck" data-split={split} data-primary={pair[0]} data-secondary={pair[1]} data-mobile-pane={mobilePane} style={{'--workspace-ratio':`${ratio}%`} as React.CSSProperties}>
       {split&&<WorkspaceDivider/>}
       <div className="workspace-tab flex flex-col flex-1 overflow-hidden" data-tab="home" style={{display:tab==='home'?'flex':'none',minHeight:0}}><ResumeHome active={tab==='home'}/></div>
+      <div data-tab="projects" style={{display:tab==='projects'?'flex':'none',minHeight:0,flex:1,overflow:'hidden'}}><ProjectsTab active={tab==='projects'}/></div>
       {/* ── Chat tab content — always mounted, hidden when inactive ── */}
       <div className="flex flex-1 overflow-hidden" data-tab="chat" style={{ display: visible('chat') ? 'flex' : 'none', minHeight: 0 }}
       >

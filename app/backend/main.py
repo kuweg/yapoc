@@ -1226,6 +1226,9 @@ app.include_router(whiteboard_router)
 from app.backend.routers.books import router as books_router
 app.include_router(books_router)
 
+from app.backend.routers.projects import router as projects_router
+app.include_router(projects_router)
+
 # Release installs serve the prebuilt UI without Node or a Vite process.
 from app.backend.dashboard import mount_dashboard
 mount_dashboard(app, settings.project_root / "app" / "frontend" / "dist")

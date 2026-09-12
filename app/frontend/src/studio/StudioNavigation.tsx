@@ -11,6 +11,7 @@ import type { useAppStore } from '../store/appStore'
 type Tab = ReturnType<typeof useAppStore.getState>['activeTab']
 export const NAV_SECTIONS: { title: string; items: { id: Tab; label: string; icon: typeof UsersIcon }[] }[] = [
   { title: 'Workspace', items: [
+    { id: 'projects', label: 'Projects', icon: FolderOpenIcon },
     { id: 'home', label: 'Home', icon: Home },
     { id: 'chat', label: 'Conversation', icon: ChatBubbleLeftRightIcon },
     { id: 'agents', label: 'Agents', icon: UsersIcon },

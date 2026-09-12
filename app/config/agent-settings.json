@@ -166,8 +166,8 @@
       ]
     },
     "builder": {
-      "adapter": "deepseek",
-      "model": "deepseek-v4-pro",
+      "adapter": "codex",
+      "model": "gpt-5.3-codex",
       "tools": [
         "delegate_task",
         "file_read",

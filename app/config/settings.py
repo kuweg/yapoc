@@ -231,7 +231,7 @@ class Settings(BaseSettings):
     cron_interval_minutes: int = 10  # Cron agent trigger frequency
     health_log_retention_days: int = 7  # HEALTH.MD entries older than this are pruned
     model_manager_interval_hours: int = 24  # Model Manager audit frequency
-    evaluator_interval_minutes: int = 30  # Scheduled self-evaluation cadence
+    evaluator_interval_minutes: int = 60  # Scheduled self-evaluation cadence (was 30; reduced per evaluator round 210 AUTO-FIX to cut ~$4.30/day re-reporting overhead)
     memory_max_age_days: int = 7  # Drop MEMORY.MD entries older than this on prune
 
     # ── MCP integration ────────────────────────────────────────────────────

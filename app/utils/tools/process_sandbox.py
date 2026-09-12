@@ -181,7 +181,7 @@ def command(root: Path, argv: list[str], *, forbidden=(), cwd: str = '.', bindin
     args += ['--setenv', 'npm_config_update_notifier', 'false',
              '--setenv', 'npm_config_cache', '/tmp/npm-cache',
              '--setenv', 'COREPACK_HOME', '/tmp/corepack', '--setenv', 'XDG_CACHE_HOME', '/tmp/cache',
-             '--setenv', 'NODE_OPTIONS', '--max-old-space-size=4096',
+             '--setenv', 'NODE_OPTIONS', '--jitless',
              '--setenv', 'PATH', f'{python_bin}:/run/javascript:/usr/bin:/bin',
              '--setenv', 'HOME', '/tmp', '--setenv', 'LANG', 'C.UTF-8',
              '--setenv', 'PYTHONDONTWRITEBYTECODE', '1',

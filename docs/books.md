@@ -14,6 +14,12 @@ labels are also displayed when present. EPUB locations follow the package spine
 (chapter order), with a saved relative scroll position inside the chapter. EPUB
 content is rendered as extracted text, never executed as uploaded HTML.
 
+Use the **Pages / Vertical scroll** sliding switch above the text to choose one
+location at a time or a continuous book. The mode and reading position are saved
+per book. Continuous mode loads text near the viewport as you read; page/chapter
+numbers, bookmarks and AI sources follow the visible location. Select text within
+one page/chapter when highlighting or asking about a passage.
+
 Use the contents drawer, book search, previous/next buttons or location field.
 PDFs also offer an original-document view using the browser PDF viewer, including
 its zoom and layout controls. Use the YAPOC location controls to save page changes;
@@ -23,6 +29,9 @@ available. Select text in text view to highlight it or ask about it. Bookmarks
 and notes can be revisited from the drawer and exported as a reading journal.
 
 ## Reading assistant
+
+The labeled **Open AI assistant / Hide AI assistant** button in the reader header
+always remains available, including on mobile, after closing the right panel.
 
 Choose current location, a range, entire book, or selected text. Questions use
 only excerpts from that scope. Spoiler protection defaults on and caps retrieval

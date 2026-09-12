@@ -24,6 +24,7 @@ export type MentionKind =
   | 'cron'
   | 'memory'
   | 'whiteboard'
+  | 'book'
   | 'repo'
 
 export interface MentionSubsystem {
@@ -41,6 +42,7 @@ export interface MentionSubsystem {
 }
 
 export const MENTION_SUBSYSTEMS: MentionSubsystem[] = [
+  {kind:'book',plural:'books',label:'Books',icon:'📚',desc:'Your reading library',hint:'the Books library. Use book_list to discover books and book_read for source passages. Retain source locations in your answer.',addressable:true},
   {
     kind: 'note',
     plural: 'notes',

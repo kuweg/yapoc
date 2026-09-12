@@ -1,5 +1,5 @@
 import {
-  NotebookPen,
+  NotebookPen, BookOpen,
   MessageSquare as ChatBubbleLeftRightIcon, Users as UsersIcon, ListTodo as ClipboardDocumentListIcon, ChartNoAxesCombined as ChartBarIcon,
   Activity as EyeIcon, GitBranch as ScaleIcon, BrainCircuit as CircleStackIcon, Archive as ArchiveBoxIcon, WandSparkles as PuzzlePieceIcon,
   History as ClockIcon, Radio as SignalIcon, Plus as PlusIcon, Images as Squares2X2Icon, FolderOpen as FolderOpenIcon, LayoutDashboard,
@@ -15,6 +15,7 @@ export const NAV_SECTIONS: { title: string; items: { id: Tab; label: string; ico
     { id: 'agents', label: 'Agents', icon: UsersIcon },
     { id: 'tasks', label: 'Tasks', icon: ClipboardDocumentListIcon },
     { id: 'notes', label: 'Notes', icon: NotebookPen },
+    { id: 'books', label: 'Books', icon: BookOpen },
     { id: 'cron', label: 'Cron', icon: ClockIcon },
     { id: 'artifacts', label: 'Artifacts', icon: Squares2X2Icon },
     { id: 'whiteboard', label: 'Whiteboard', icon: LayoutDashboard },

@@ -233,6 +233,9 @@ def init_schema() -> None:
     """)
     db.commit()
 
+    from app.backend.services.books import init_books_schema
+    init_books_schema(db)
+
 
 # ── Indexer state helpers ────────────────────────────────────────────────
 

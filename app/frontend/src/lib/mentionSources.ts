@@ -4,6 +4,7 @@ import { getSkills } from '../api/skillsClient'
 import { listArtifacts } from '../artifacts/api'
 import { listNotes } from '../notes/api'
 import { listBoards } from '../whiteboard/api'
+import { request as bookRequest, type Book } from '../books/api'
 import { MENTION_SUBSYSTEMS, type MentionKind, type MentionSources } from './mentions'
 
 /**
@@ -18,6 +19,7 @@ import { MENTION_SUBSYSTEMS, type MentionKind, type MentionSources } from './men
 const TTL_MS = 20_000
 
 const sources: MentionSources = {}
+let bookRows: Book[] = []
 const fetchedAt = new Map<MentionKind, number>()
 const inflight = new Map<MentionKind, Promise<boolean>>()
 
@@ -34,6 +36,10 @@ interface Source {
 }
 
 const SOURCES: Partial<Record<MentionKind, Source>> = {
+  book: {
+    load: async () => { bookRows = await bookRequest<Book[]>() },
+    rows: () => bookRows.map(b => ({value:b.title.includes('"')?b.id:b.title,label:b.title,desc:`${b.author} · ${b.position}/${b.total}`})),
+  },
   note: {
     load: async () => {
       const { notes } = await listNotes()

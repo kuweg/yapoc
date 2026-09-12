@@ -222,6 +222,7 @@ from .whiteboard import (WhiteboardAddCardTool, WhiteboardApplyDesignTool,
                          WhiteboardConnectTool, WhiteboardCreateCanvasTool,
                          WhiteboardExportTool, WhiteboardListTool,
                          WhiteboardUpdateCardTool, WhiteboardUpdateConnectionTool)
+from .books import BookListTool, BookReadTool
 from .git import (
     GitBranchTool,
     GitCommitTool,
@@ -294,6 +295,8 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "render_mermaid": RenderMermaidTool,
     "render_calendar": RenderCalendarTool,
     "whiteboard_list": WhiteboardListTool,
+    "book_list": BookListTool,
+    "book_read": BookReadTool,
     "whiteboard_add_card": WhiteboardAddCardTool,
     "whiteboard_update_card": WhiteboardUpdateCardTool,
     "whiteboard_create_canvas": WhiteboardCreateCanvasTool,

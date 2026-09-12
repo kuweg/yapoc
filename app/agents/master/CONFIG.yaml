@@ -65,6 +65,8 @@ tools:
   - learnings_append
   - shared_knowledge_append
   - whiteboard_list
+  - book_list
+  - book_read
   - whiteboard_add_card
   - whiteboard_update_card
   - whiteboard_create_canvas

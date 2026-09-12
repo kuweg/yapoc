@@ -15,6 +15,7 @@ import { useWorkspaceStore } from './store/workspaceStore'
 import { ArtifactsPanel } from './artifacts/ArtifactsPanel'
 import { ArtifactGalleryTab } from './artifacts/ArtifactGalleryTab'
 import { WhiteboardTab } from './whiteboard/WhiteboardTab'
+import { BooksTab } from './books/BooksTab'
 import { WorkspacePanel } from './components/WorkspacePanel'
 import { AgentDashboard } from './agent-status'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -163,6 +164,9 @@ function Workspace() {
 
       <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'whiteboard' ? 'flex' : 'none', minHeight: 0 }}>
         <WhiteboardTab active={tab === 'whiteboard'} />
+      </div>
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'books' ? 'flex' : 'none', minHeight: 0 }}>
+        <BooksTab active={tab === 'books'} />
       </div>
 
       {/* ── Memory Graph tab ── */}

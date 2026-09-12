@@ -25,6 +25,11 @@ def _build_whiteboard_context(task: str) -> tuple[str, list[dict[str, str]]]:
         raise HTTPException(400, detail) from exc
 
 
+def _book_context(task: str) -> str:
+    from app.backend.services.books import build_book_context
+    return build_book_context(task)
+
+
 def _parse_history(raw: list[dict] | None) -> list[Message] | None:
     if not raw:
         return None
@@ -81,7 +86,7 @@ async def submit_task(request: TaskRequest):
     metadata = json.dumps({"history": request.history, "notes": notes, "whiteboards": whiteboards})
     task = create_queued_task(
         id=task_id,
-        prompt=request.task + note_context + whiteboard_context,
+        prompt=request.task + note_context + whiteboard_context + _book_context(request.task),
         source=request.source or "ui",
         session_id=request.session_id or task_id,
         metadata=metadata,
@@ -196,7 +201,7 @@ async def submit_task_stream(request: TaskRequest):
         suffix, attachments = "", []
         if attachment_ids:
             suffix, attachments = build_attachment_injection(attachment_ids, owner="local")
-        row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context + whiteboard_context,
+        row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context + whiteboard_context + _book_context(request.task),
                                  source=request.source or "ui", session_id=session_id,
                                  metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "whiteboards": whiteboards, "transport": "sse"}))
     metadata = json.loads(row.get("metadata") or "{}")

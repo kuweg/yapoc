@@ -26,6 +26,16 @@ tools:
   - notes_append
   - search_memory
   - shared_knowledge_append
+  - whiteboard_list
+  - book_list
+  - book_read
+  - whiteboard_add_card
+  - whiteboard_update_card
+  - whiteboard_create_canvas
+  - whiteboard_connect
+  - whiteboard_update_connection
+  - whiteboard_apply_design
+  - whiteboard_export
   - health_log
   - notify_parent
   - spawn_agent

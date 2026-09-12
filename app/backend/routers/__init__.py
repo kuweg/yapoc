@@ -29,6 +29,7 @@ from .cron import router as cron_router
 from .drive_oauth import router as drive_oauth_router
 from .github import router as github_router
 from .link_previews import router as link_previews_router
+from .whiteboard import router as whiteboard_router
 
 __all__ = [
     "artifacts_router",
@@ -63,4 +64,5 @@ __all__ = [
     "drive_oauth_router",
     "github_router",
     "link_previews_router",
+    "whiteboard_router",
 ]

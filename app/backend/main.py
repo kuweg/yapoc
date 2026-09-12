@@ -43,6 +43,7 @@ from app.backend.routers import (
     notes_router,
     voice_router,
     webhook_router,
+    whiteboard_router,
 )
 from app.backend.websocket import websocket_endpoint
 from app.backend.message_bus import bus
@@ -1221,6 +1222,9 @@ app.include_router(pptx_router)
 app.include_router(cron_router)
 app.include_router(drive_oauth_router)
 app.include_router(link_previews_router)
+app.include_router(whiteboard_router)
+from app.backend.routers.books import router as books_router
+app.include_router(books_router)
 
 # Release installs serve the prebuilt UI without Node or a Vite process.
 from app.backend.dashboard import mount_dashboard

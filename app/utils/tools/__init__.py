@@ -218,6 +218,11 @@ from .chart import RenderChartTool, RenderChartImageTool
 from .image_gen import GenerateImageTool
 from .mermaid import RenderMermaidTool
 from .calendar_render import RenderCalendarTool
+from .whiteboard import (WhiteboardAddCardTool, WhiteboardApplyDesignTool,
+                         WhiteboardConnectTool, WhiteboardCreateCanvasTool,
+                         WhiteboardExportTool, WhiteboardListTool,
+                         WhiteboardUpdateCardTool, WhiteboardUpdateConnectionTool)
+from .books import BookListTool, BookReadTool
 from .git import (
     GitBranchTool,
     GitCommitTool,
@@ -289,6 +294,16 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "generate_image": GenerateImageTool,
     "render_mermaid": RenderMermaidTool,
     "render_calendar": RenderCalendarTool,
+    "whiteboard_list": WhiteboardListTool,
+    "book_list": BookListTool,
+    "book_read": BookReadTool,
+    "whiteboard_add_card": WhiteboardAddCardTool,
+    "whiteboard_update_card": WhiteboardUpdateCardTool,
+    "whiteboard_create_canvas": WhiteboardCreateCanvasTool,
+    "whiteboard_connect": WhiteboardConnectTool,
+    "whiteboard_update_connection": WhiteboardUpdateConnectionTool,
+    "whiteboard_apply_design": WhiteboardApplyDesignTool,
+    "whiteboard_export": WhiteboardExportTool,
     "git_status": GitStatusTool,
     "git_diff": GitDiffTool,
     "git_log": GitLogTool,
@@ -317,6 +332,13 @@ _AGENT_DIR_TOOLS = {
     # Artifact producers: they stamp the generating agent onto the record.
     "render_chart_image",
     "generate_image",
+    "whiteboard_add_card",
+    "whiteboard_update_card",
+    "whiteboard_create_canvas",
+    "whiteboard_connect",
+    "whiteboard_update_connection",
+    "whiteboard_apply_design",
+    "whiteboard_export",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell

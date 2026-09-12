@@ -46,11 +46,10 @@ Execute all due jobs. This is the most common task you receive.
 
 ### "memory-sweep"
 Triggered every ~20 turns to scan dialogue for durable facts.
-1. Read your NOTES.MD [config] block. Look for `turn_counter: N`.
-2. If counter >= 20 (or task explicitly says "memory-sweep"):
+1. Delegate the sweep to the librarian immediately — do NOT scan files yourself:
    - `spawn_agent(agent_name="librarian", task="[memory-sweep] Scan master MEMORY.MD for durable facts.", context="Recent dialogue completed. Extract user preferences, project decisions, reusable patterns.")`
    - `wait_for_agent(agent_name="librarian", timeout=120)`
-   - Reset NOTES.MD turn_counter to 0
+2. Reset NOTES.MD turn_counter to 0 (if present)
 3. Log sweep result to MEMORY.MD
 4. `notify_parent` with what librarian found
 

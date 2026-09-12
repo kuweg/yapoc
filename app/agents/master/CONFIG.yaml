@@ -64,6 +64,16 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
+  - whiteboard_list
+  - book_list
+  - book_read
+  - whiteboard_add_card
+  - whiteboard_update_card
+  - whiteboard_create_canvas
+  - whiteboard_connect
+  - whiteboard_update_connection
+  - whiteboard_apply_design
+  - whiteboard_export
   - image_read
   - send_telegram_message
   - send_telegram_media

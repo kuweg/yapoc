@@ -46,6 +46,8 @@ def test_init_schema_creates_tables(db_dir):
     assert "memory_entries" in tables
     assert "memory_fts" in tables
     assert "index_checkpoints" in tables
+    assert "whiteboard_cards" in tables
+    assert "whiteboard_edges" in tables
 
 
 def test_init_schema_idempotent(db_dir):

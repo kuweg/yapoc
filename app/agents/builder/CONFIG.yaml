@@ -28,6 +28,16 @@ tools:
   - file_delete
   - file_list
   - list_tools
+  - whiteboard_list
+  - book_list
+  - book_read
+  - whiteboard_add_card
+  - whiteboard_update_card
+  - whiteboard_create_canvas
+  - whiteboard_connect
+  - whiteboard_update_connection
+  - whiteboard_apply_design
+  - whiteboard_export
   - shell_exec
   - grep
   - search_negative_knowledge

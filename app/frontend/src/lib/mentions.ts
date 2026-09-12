@@ -23,6 +23,8 @@ export type MentionKind =
   | 'task'
   | 'cron'
   | 'memory'
+  | 'whiteboard'
+  | 'book'
   | 'repo'
 
 export interface MentionSubsystem {
@@ -40,6 +42,7 @@ export interface MentionSubsystem {
 }
 
 export const MENTION_SUBSYSTEMS: MentionSubsystem[] = [
+  {kind:'book',plural:'books',label:'Books',icon:'📚',desc:'Your reading library',hint:'the Books library. Use book_list to discover books and book_read for source passages. Retain source locations in your answer.',addressable:true},
   {
     kind: 'note',
     plural: 'notes',
@@ -122,6 +125,15 @@ export const MENTION_SUBSYSTEMS: MentionSubsystem[] = [
     addressable: false,
   },
   {
+    kind: 'whiteboard',
+    plural: 'whiteboard',
+    label: 'Whiteboard',
+    icon: '▦',
+    desc: 'The shared collaborative whiteboard',
+    hint: 'the shared architecture canvases. Use whiteboard_list to find the relevant canvas, then read its typed nodes, structured details, and relationships before answering or acting. Prefer @whiteboard:<canvas_name> when the intended canvas is known.',
+    addressable: true,
+  },
+  {
     kind: 'repo',
     plural: 'repo',
     label: 'Repository',
@@ -160,6 +172,7 @@ export function subsystemForKind(token: string): MentionSubsystem | undefined {
 
 /** Entities the resolver matches specific mentions against. */
 export interface MentionSources {
+  books?: Array<{ id: string; title: string; author: string; position: number; total: number }>
   uploads?: Attachment[]
   artifacts?: Artifact[]
   notes?: Array<{ id: string; title: string; excerpt?: string }>
@@ -167,6 +180,7 @@ export interface MentionSources {
   skills?: Array<{ name: string; summary?: string }>
   plugins?: Array<{ name: string; display_name?: string; description?: string; enabled?: boolean }>
   tasks?: Array<{ id: string; prompt?: string; status?: string }>
+  whiteboards?: Array<{ id: string; name: string; description?: string }>
 }
 
 export interface ResolvedMentions {
@@ -187,6 +201,7 @@ export interface ResolvedMentions {
   skillRefs: string[]
   pluginRefs: string[]
   taskRefs: string[]
+  whiteboardRefs: string[]
   /** Subsystems mentioned as a whole. */
   subsystems: MentionKind[]
   /** Specific mentions that matched nothing, for a composer warning. */
@@ -239,6 +254,7 @@ export function resolveMentions(
   const skillRefs: string[] = []
   const pluginRefs: string[] = []
   const taskRefs: string[] = []
+  const whiteboardRefs: string[] = []
   const subsystems: MentionKind[] = []
   const unresolved: Array<{ kind: MentionKind; query: string }> = []
 
@@ -289,8 +305,8 @@ export function resolveMentions(
     return `@note "${note.title}"`
   })
 
-  // Nothing server-side parses these, so the readable `@kind:name` token is
-  // kept in the text for master to act on.
+  // Most readable `@kind:name` tokens stay in the text for master to act on.
+  // `@whiteboard:name` is also resolved and snapshotted by the task API.
   const simpleKinds: Array<{
     kind: MentionKind
     names: () => string[]
@@ -300,11 +316,16 @@ export function resolveMentions(
     { kind: 'skill', names: () => (extra.skills ?? []).map((s) => s.name), collect: skillRefs },
     { kind: 'plugin', names: () => (extra.plugins ?? []).map((p) => p.name), collect: pluginRefs },
     { kind: 'task', names: () => (extra.tasks ?? []).map((t) => t.id), collect: taskRefs },
+    { kind: 'whiteboard', names: () => (extra.whiteboards ?? []).map((b) => b.name), collect: whiteboardRefs },
   ]
   for (const { kind, names, collect } of simpleKinds) {
     cleanedText = cleanedText.replace(new RegExp(`@${kind}:${TARGET}`, 'gi'), (token, quoted: string | undefined, bare: string | undefined) => {
       const query = quoted ?? bare ?? ''
-      const match = findByName(names().map((name) => ({ name })), query)?.name
+      const candidates = names().map((name) => ({ name }))
+      const normalizedQuery = query.trim().toLowerCase().replace(/[\s_-]+/g, ' ')
+      const match = kind === 'whiteboard'
+        ? candidates.find((item) => item.name.toLowerCase().replace(/[\s_-]+/g, ' ') === normalizedQuery)?.name
+        : findByName(candidates, query)?.name
       if (!match) {
         // Left literal: harmless in the prompt, and the list may simply not
         // have loaded. Recorded so the composer can flag it.
@@ -343,6 +364,7 @@ export function resolveMentions(
     skillRefs,
     pluginRefs,
     taskRefs,
+    whiteboardRefs,
     subsystems,
     unresolved,
   }

@@ -3,6 +3,8 @@ import { getPlugins } from '../api/pluginsClient'
 import { getSkills } from '../api/skillsClient'
 import { listArtifacts } from '../artifacts/api'
 import { listNotes } from '../notes/api'
+import { listBoards } from '../whiteboard/api'
+import { request as bookRequest, type Book } from '../books/api'
 import { MENTION_SUBSYSTEMS, type MentionKind, type MentionSources } from './mentions'
 
 /**
@@ -33,6 +35,20 @@ interface Source {
 }
 
 const SOURCES: Partial<Record<MentionKind, Source>> = {
+  book: {
+    load: async () => {
+      const books = await bookRequest<Book[]>()
+      // Validate before replacing the cache: a failed or malformed response
+      // must not turn the next autocomplete render into an application crash.
+      if (!Array.isArray(books)) throw new Error('Invalid book list')
+      sources.books = books.filter(b => b && typeof b.id === 'string' && typeof b.title === 'string')
+    },
+    rows: () => (sources.books ?? []).map(b => ({
+      value: b.title.includes('"') ? b.id : b.title,
+      label: b.title,
+      desc: `${b.author || 'Book'} · ${b.position}/${b.total}`,
+    })),
+  },
   note: {
     load: async () => {
       const { notes } = await listNotes()
@@ -107,6 +123,18 @@ const SOURCES: Partial<Record<MentionKind, Source>> = {
         value: t.id,
         label: t.id.slice(0, 8),
         desc: [t.status, t.prompt?.slice(0, 60)].filter(Boolean).join(' · ') || 'Task',
+      })),
+  },
+  whiteboard: {
+    load: async () => {
+      const boards = await listBoards()
+      sources.whiteboards = boards.map((b) => ({ id: b.id, name: b.name, description: b.description }))
+    },
+    rows: () =>
+      (sources.whiteboards ?? []).map((b) => ({
+        value: b.name,
+        label: b.name,
+        desc: b.description?.slice(0, 70) || `Canvas ${b.id}`,
       })),
   },
 }

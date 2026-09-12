@@ -13,6 +13,9 @@ import { useFileViewerStore } from './store/fileViewerStore'
 import { useArtifactsStore } from './store/artifactsStore'
 import { useWorkspaceStore } from './store/workspaceStore'
 import { ArtifactsPanel } from './artifacts/ArtifactsPanel'
+import { ArtifactGalleryTab } from './artifacts/ArtifactGalleryTab'
+import { WhiteboardTab } from './whiteboard/WhiteboardTab'
+import { BooksTab } from './books/BooksTab'
 import { WorkspacePanel } from './components/WorkspacePanel'
 import { AgentDashboard } from './agent-status'
 import { ThemeToggle } from './components/ThemeToggle'
@@ -111,8 +114,7 @@ function Workspace() {
       <div className="studio-body">
         <StudioNavigation expanded={sidebarExpanded} tab={tab}
           onToggle={() => setSidebarExpanded(v => !v)} onNavigate={navigate} onNew={startConversation}
-          artifactsOpen={artifactsOpen} workspaceOpen={workspaceOpen}
-          onArtifacts={() => { navigate('chat'); useArtifactsStore.getState().toggle() }}
+          workspaceOpen={workspaceOpen}
           onWorkspace={() => { navigate('chat'); useWorkspaceStore.getState().toggle() }} />
         <div className="studio-main">
           <header className="studio-header">
@@ -154,6 +156,17 @@ function Workspace() {
         style={{ display: tab === 'agents' ? 'flex' : 'none', minHeight: 0 }}
       >
         <AgentDashboard />
+      </div>
+
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'artifacts' ? 'flex' : 'none', minHeight: 0 }}>
+        {tab === 'artifacts' && <ArtifactGalleryTab />}
+      </div>
+
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'whiteboard' ? 'flex' : 'none', minHeight: 0 }}>
+        <WhiteboardTab active={tab === 'whiteboard'} />
+      </div>
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ display: tab === 'books' ? 'flex' : 'none', minHeight: 0 }}>
+        <BooksTab active={tab === 'books'} />
       </div>
 
       {/* ── Memory Graph tab ── */}

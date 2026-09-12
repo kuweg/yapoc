@@ -121,6 +121,47 @@ def init_schema() -> None:
         CREATE INDEX IF NOT EXISTS idx_tq_status  ON task_queue(status);
         CREATE INDEX IF NOT EXISTS idx_tq_session ON task_queue(session_id);
 
+        CREATE TABLE IF NOT EXISTS whiteboard_cards (
+            id          TEXT PRIMARY KEY,
+            kind        TEXT NOT NULL,
+            title       TEXT NOT NULL,
+            body        TEXT NOT NULL DEFAULT '',
+            color       TEXT NOT NULL DEFAULT 'amber',
+            x           REAL NOT NULL DEFAULT 80,
+            y           REAL NOT NULL DEFAULT 80,
+            created_by  TEXT NOT NULL DEFAULT 'user',
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL,
+            revision    INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS idx_whiteboard_cards_updated
+            ON whiteboard_cards(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS whiteboard_edges (
+            id          TEXT PRIMARY KEY,
+            source_id   TEXT NOT NULL REFERENCES whiteboard_cards(id) ON DELETE CASCADE,
+            target_id   TEXT NOT NULL REFERENCES whiteboard_cards(id) ON DELETE CASCADE,
+            label       TEXT NOT NULL DEFAULT '',
+            created_by  TEXT NOT NULL DEFAULT 'user',
+            created_at  TEXT NOT NULL,
+            UNIQUE(source_id, target_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS whiteboard_state (
+            board       TEXT PRIMARY KEY,
+            revision    INTEGER NOT NULL DEFAULT 0,
+            updated_at  TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS whiteboards (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            created_by  TEXT NOT NULL DEFAULT 'user',
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS index_checkpoints (
             agent        TEXT NOT NULL,
             source       TEXT NOT NULL,
@@ -152,6 +193,19 @@ def init_schema() -> None:
         "ALTER TABLE tasks ADD COLUMN changed_files TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN checkpoint_sha TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE tasks ADD COLUMN verification TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE whiteboard_cards ADD COLUMN board_id TEXT NOT NULL DEFAULT 'main'",
+        "ALTER TABLE whiteboard_cards ADD COLUMN details TEXT NOT NULL DEFAULT '{}'",
+        "ALTER TABLE whiteboard_cards ADD COLUMN width REAL NOT NULL DEFAULT 230",
+        "ALTER TABLE whiteboard_cards ADD COLUMN height REAL NOT NULL DEFAULT 160",
+        "ALTER TABLE whiteboard_edges ADD COLUMN board_id TEXT NOT NULL DEFAULT 'main'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN relationship TEXT NOT NULL DEFAULT 'related'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN style TEXT NOT NULL DEFAULT 'solid'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN direction TEXT NOT NULL DEFAULT 'forward'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN routing TEXT NOT NULL DEFAULT 'straight'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN color TEXT NOT NULL DEFAULT 'default'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN thickness REAL NOT NULL DEFAULT 2",
+        "ALTER TABLE whiteboard_edges ADD COLUMN revision INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE whiteboard_edges ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
     ):
         try:
             db.execute(statement)
@@ -160,6 +214,15 @@ def init_schema() -> None:
             pass  # column already exists
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_tier ON memory_entries(tier)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_layer ON memory_entries(layer)")
+    db.execute("PRAGMA foreign_keys=ON")
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        """INSERT OR IGNORE INTO whiteboards(id, name, description, created_by, created_at, updated_at)
+           VALUES('main', 'System design', 'Shared architecture and design canvas', 'system', ?, ?)""",
+        (now, now),
+    )
+    db.execute("CREATE INDEX IF NOT EXISTS idx_whiteboard_cards_board ON whiteboard_cards(board_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_whiteboard_edges_board ON whiteboard_edges(board_id)")
 
     db.execute("""
         CREATE TABLE IF NOT EXISTS indexer_state (
@@ -169,6 +232,9 @@ def init_schema() -> None:
         );
     """)
     db.commit()
+
+    from app.backend.services.books import init_books_schema
+    init_books_schema(db)
 
 
 # ── Indexer state helpers ────────────────────────────────────────────────

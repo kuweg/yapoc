@@ -16,6 +16,20 @@ from app.backend.services.task_progress import present_task
 router = APIRouter()
 
 
+def _build_whiteboard_context(task: str) -> tuple[str, list[dict[str, str]]]:
+    from app.utils.whiteboard import build_whiteboard_context
+    try:
+        return build_whiteboard_context(task)
+    except (KeyError, ValueError) as exc:
+        detail = exc.args[0] if isinstance(exc, KeyError) and exc.args else str(exc)
+        raise HTTPException(400, detail) from exc
+
+
+def _book_context(task: str) -> str:
+    from app.backend.services.books import build_book_context
+    return build_book_context(task)
+
+
 def _parse_history(raw: list[dict] | None) -> list[Message] | None:
     if not raw:
         return None
@@ -68,10 +82,11 @@ async def submit_task(request: TaskRequest):
     task_id = str(_uuid.uuid4())
     from app.backend.services.notes import build_note_context
     note_context, notes = build_note_context(request.task, request.note_ids)
-    metadata = json.dumps({"history": request.history, "notes": notes})
+    whiteboard_context, whiteboards = _build_whiteboard_context(request.task)
+    metadata = json.dumps({"history": request.history, "notes": notes, "whiteboards": whiteboards})
     task = create_queued_task(
         id=task_id,
-        prompt=request.task + note_context,
+        prompt=request.task + note_context + whiteboard_context + _book_context(request.task),
         source=request.source or "ui",
         session_id=request.session_id or task_id,
         metadata=metadata,
@@ -172,6 +187,7 @@ async def submit_task_stream(request: TaskRequest):
         from app.backend.services.notes import build_note_context
         from app.backend.services.uploads import build_attachment_injection, resolve_file_refs_in_text
         note_context, notes = build_note_context(request.task, request.note_ids)
+        whiteboard_context, whiteboards = _build_whiteboard_context(request.task)
         # Resolve attachment IDs from two sources: (1) the explicit `attachments`
         # list the frontend sends, and (2) any `@file:<id>` / `@file:<name>`
         # references embedded in the prompt text itself. The latter is a fallback
@@ -185,9 +201,9 @@ async def submit_task_stream(request: TaskRequest):
         suffix, attachments = "", []
         if attachment_ids:
             suffix, attachments = build_attachment_injection(attachment_ids, owner="local")
-        row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context,
+        row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context + whiteboard_context + _book_context(request.task),
                                  source=request.source or "ui", session_id=session_id,
-                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "transport": "sse"}))
+                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "whiteboards": whiteboards, "transport": "sse"}))
     metadata = json.loads(row.get("metadata") or "{}")
 
     async def event_generator():

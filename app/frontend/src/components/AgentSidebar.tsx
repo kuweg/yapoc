@@ -1,5 +1,7 @@
 import { X as XMarkIcon } from 'lucide-react'
 import { useState } from 'react'
+import { AgentOffice, officeState } from './AgentOffice'
+import { useAgentChatStore } from '../store/agentChatStore'
 import { AgentCard } from './AgentCard'
 import { useAgents } from '../hooks/useAgents'
 import { spawnAgent, killAgent } from '../api/client'
@@ -7,6 +9,7 @@ import { useWindowsStore } from '../store/windowsStore'
 
 export function AgentSidebar({ onClose }: { onClose?: () => void }) {
   const { agents, error, backendDown, refresh } = useAgents()
+  const [view, setView] = useState<'office' | 'list'>(() => { try { return localStorage.getItem('yapoc-team-view') === 'list' ? 'list' : 'office' } catch { return 'office' } })
   const [selected, setSelected] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const openAgentLog = useWindowsStore((s) => s.openAgentLog)
@@ -44,7 +47,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void }) {
     }
   }
 
-  const working = agents.filter(a => ['running', 'busy', 'spawning'].includes(a.status || a.process_state || '')).length
+  const working = agents.filter(a => officeState(a, Boolean(error)) === 'working').length
   const ordered = [...agents].sort((a, b) => {
     if (a.name === 'master') return -1
     if (b.name === 'master') return 1
@@ -68,8 +71,13 @@ export function AgentSidebar({ onClose }: { onClose?: () => void }) {
         </div>
       )}
 
-      <div className="studio-team-summary"><span className={backendDown ? 'is-offline' : ''} />{backendDown ? 'Waiting for connection' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agents working right now'}</div>
+      <div className="studio-team-summary"><span className={error ? 'is-offline' : ''} />{error ? 'Waiting for connection' : working ? `${working} agent${working === 1 ? '' : 's'} working` : 'No agents working right now'}</div>
+      <div className="office-view-switch" aria-label="Team view">
+        {(['office', 'list'] as const).map(mode => <button key={mode} aria-pressed={view === mode} onClick={() => { setView(mode); try { localStorage.setItem('yapoc-team-view', mode) } catch { /* private browsing */ } }}>{mode === 'office' ? 'Building' : 'List'}</button>)}
+      </div>
       <div className="studio-team-list">
+        {view === 'office' ? <AgentOffice agents={ordered} disconnected={Boolean(error)} onOpen={agent => { setSelected(agent.name); useAgentChatStore.getState().setSelectedLogAgent(agent.name); if (window.matchMedia('(max-width: 1000px)').matches) onClose?.() }} /> : <>
+
         {ordered.map((agent) => (
           <AgentCard
             key={agent.name}
@@ -81,6 +89,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void }) {
         {agents.length === 0 && (
           <p className="px-4 py-3 text-xs text-zinc-500 italic">No agents found</p>
         )}
+        </>}
       </div>
 
       <div className="studio-team-footer flex flex-col gap-2">
@@ -94,14 +103,14 @@ export function AgentSidebar({ onClose }: { onClose?: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={handleSpawn}
-            disabled={!selected}
+            disabled={!selected || selected.startsWith('universe_')}
             className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Start agent
           </button>
           <button
             onClick={handleKill}
-            disabled={!selected || selected === 'master'}
+            disabled={!selected || selected === 'master' || selected.startsWith('universe_')}
             title={selected === 'master' ? 'master runs the backend — cannot be killed' : undefined}
             className="flex-1 rounded border border-[#FFB633] bg-transparent px-2 py-1 text-xs text-[#FFB633] hover:bg-[#FFB633] hover:text-[#0a0a0a] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >

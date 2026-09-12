@@ -1,3 +1,4 @@
+import { MessageResources } from './MessageResources'
 import { memo, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
@@ -484,6 +485,7 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
           <HighlightedText text={displayContent} />
         </div>
         )}
+        <MessageResources content={displayContent} />
         {(onDelete || onEdit || displayContent) && (
           <div className="msg-actions mr-1">
             <CopyAction content={displayContent} />
@@ -582,7 +584,8 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
               </div>
             )}
           </div>
-          {!streaming && (
+          {!streaming && <MessageResources content={content} />}
+        {!streaming && (
             <div className="msg-actions">
               <SaveMessageNote content={content} />
               <CopyAction content={content} />
@@ -609,6 +612,7 @@ function MessageBubbleImpl({ role, content, parts, agentName, agentModel, onDele
             </ReactMarkdown>
           )}
         </div>
+        {!streaming && <MessageResources content={content} />}
         {!streaming && (
           <div className="msg-actions">
             <SaveMessageNote content={content} />

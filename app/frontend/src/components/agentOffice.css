@@ -1,0 +1,106 @@
+.office-view-switch { display:flex; margin:0 16px 12px; padding:3px; gap:3px; border:1px solid var(--color-border-muted); border-radius:8px; }
+.office-view-switch button { flex:1; padding:6px; font-size:12px; border-radius:5px; color:var(--color-text-muted); }
+.office-view-switch button[aria-pressed=true] { background:var(--color-bg-secondary); color:var(--color-accent); }
+.agent-office { padding:0 3px 14px; }
+.office-roof { display:flex; justify-content:space-between; align-items:center; padding:15px 12px 10px; border:1px solid #36524b; border-bottom:3px solid #426257; border-radius:0;box-shadow:inset 0 4px #4b6b59; background:#152922; color:#a7c9b7; font-size:10px; letter-spacing:2px; }
+.office-roof span:last-child {font-size:8px; letter-spacing:1px;opacity:.6}
+.office-floor {border-inline:4px solid #293d37;border-bottom:5px solid #293d37;background:#101e1c}
+.office-floor-heading {display:flex;align-items:center;gap:8px;width:100%;padding:9px 8px;font-size:11px;text-align:left;color:#bed1c8;background:#182923;text-transform:capitalize}
+.office-floor-number {font-size:9px;color:#77988b;font-variant-numeric:tabular-nums}
+.office-floor-count {margin-left:auto;font-size:9px;color:#83a093;text-transform:none}
+.office-apartment {position:relative;isolation:isolate;background:linear-gradient(0deg,#423b2c 0 33px,transparent 33px),repeating-linear-gradient(0deg,transparent 0 15px,#22352b 15px 16px),#182822;min-height:128px}
+.office-apartment:before {content:'';position:absolute;left:19%;right:19%;bottom:49px;height:14px;background:repeating-linear-gradient(90deg,transparent 0 9px,#b8996422 9px 11px),#70664a;border:3px solid #95815b;box-shadow:0 2px #211f19;z-index:-1;pointer-events:none}
+.office-room-details {position:absolute;inset:0;width:100%;height:110px;z-index:-1;pointer-events:none}
+.office-window {position:absolute;right:14px;top:10px;width:40px;height:43px;border:3px solid #395249;background:#1b3540;z-index:-1}
+.office-window:before {content:'';position:absolute;inset:-3px -7px;border-inline:6px solid #797157;border-bottom:3px solid #8a795b;box-shadow:0 3px #17251f}
+.office-window:after {content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 45%,#395249 45% 52%,transparent 52%),linear-gradient(0deg,transparent 45%,#395249 45% 52%,transparent 52%);box-shadow:inset 2px 2px #78959a25}
+.office-lamp {position:absolute;left:60%;top:0;width:25px;height:12px;border-radius:0;background:#cab578;border-bottom:3px solid #f3d990;box-shadow:0 10px 0 5px #deba5d09,0 24px 0 12px #deba5d06;z-index:-1;pointer-events:none}
+.office-residents {display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));align-items:end;padding:24px 5px 10px;gap:4px}
+.office-resident {min-width:0;padding:0 2px 3px;border-radius:0;text-align:center;color:#bdd0c5;transition:background .2s}
+.office-resident:hover,.office-resident:focus-visible {background:#80d6b418;outline:1px solid #80d6b4}
+.office-resident svg {width:100%;height:75px;max-width:80px;image-rendering:pixelated;margin:auto}
+.office-person-name,.office-person-state {display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.office-person-state {font-size:9px;color:#809c90;margin-top:2px}
+.is-attention .office-person-state {color:#f0bd69}
+.is-offline svg {opacity:.35;filter:grayscale(1)}
+.office-foundation {padding:12px 4px;text-align:center;font-size:9px;color:var(--color-text-muted)}
+.office-empty {padding:20px 8px;font-size:12px;color:var(--color-text-muted)}
+@media(prefers-reduced-motion:no-preference) {
+ .is-working .office-arm {animation:office-type .55s steps(2,end) infinite alternate;transform-origin:14px 14px}
+ .is-working .office-head {animation:office-nod 3s steps(2,end) infinite;transform-origin:12px 12px}
+ .is-working .office-screen {animation:office-code 1.8s steps(2) infinite}
+ .is-attention .office-arm {animation:office-wave 1s steps(2,end) infinite alternate;transform-origin:14px 14px}
+ @keyframes office-type {to{transform:translateY(-1px)}}
+ @keyframes office-nod {50%{transform:translateY(1px)}}
+ @keyframes office-wave {to{transform:translateY(-2px)}}
+ @keyframes office-code {50%{opacity:.4}}
+}
+
+.office-roof,.office-floor-heading,.office-person-name,.office-person-state {font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.office-floor {box-shadow:inset 2px 0 #3c5344,inset -2px 0 #3c5344}
+
+.office-residents .office-resident {width:100%}
+.office-universe-badge {display:block;margin:2px auto;padding:3px 7px;border:1px solid #557f71;font:10px monospace;color:#a7daca}
+
+.office-atmosphere-controls {display:flex;align-items:center;justify-content:space-between;gap:6px;padding:8px 2px;font:9px ui-monospace,monospace;color:var(--color-text-muted)}
+.office-atmosphere-controls button {padding:7px 5px;border:1px solid var(--color-border-muted);color:var(--color-text-primary)}
+.office-sky {height:35px;position:relative;overflow:hidden;background:#244346;border:1px solid #36524b;border-bottom:0}
+.office-celestial {position:absolute;right:28px;top:8px;width:12px;height:12px;background:#e5c47a;box-shadow:0 0 0 3px #d8b96022}
+.office-cloud {position:absolute;left:30px;top:12px;width:38px;height:8px;background:#9cb8ad;box-shadow:7px -5px #9cb8ad}
+.weather-night .office-sky {background:#182533}
+.weather-night .office-celestial {background:#c4ccc3;box-shadow:4px -3px #182533}
+.weather-night .office-cloud {height:2px;width:2px;background:#b4c5c1;box-shadow:28px -5px #b4c5c1,80px 8px #b4c5c1,120px -3px #b4c5c1}
+.weather-fog .office-sky,.weather-rain .office-sky {background:#303e44}
+.weather-fog .office-celestial,.weather-rain .office-celestial {display:none}
+.weather-fog .office-cloud {width:150px;opacity:.4;box-shadow:18px 9px #9cb8ad}
+.weather-rain .office-rain {position:absolute;inset:20px 0 0;background:repeating-linear-gradient(110deg,transparent 0 16px,#9bb9c166 17px 18px,transparent 19px 28px)}
+.office-specialty {position:absolute;inset:0;width:100%;height:110px;z-index:-1;pointer-events:none}
+.office-specialty {background:linear-gradient(var(--room-wall),var(--room-wall)) 12px 9px / 54px 34px no-repeat}
+.office-apartment {background:linear-gradient(0deg,var(--room-floor,#423b2c) 0 33px,transparent 33px),repeating-linear-gradient(0deg,transparent 0 15px,#ffffff04 15px 16px),var(--room-wall,#182822)}
+.room-study {--room-wall:#292632;--room-floor:#454034}
+.room-workshop {--room-wall:#233039;--room-floor:#3b4242}
+.room-library {--room-wall:#322c25;--room-floor:#4a3c30}
+.room-greenhouse {--room-wall:#233322;--room-floor:#43452f}
+.room-clinic {--room-wall:#243638;--room-floor:#3a4947}
+.room-studio {--room-wall:#342936;--room-floor:#494035}
+.office-pet {position:absolute;bottom:9px;left:9px;width:30px;height:20px;pointer-events:none;image-rendering:pixelated}
+.office-resident-slot {position:relative;isolation:isolate}
+.office-portal {position:absolute;z-index:-1;top:16px;left:calc(50% - 22px);width:44px;height:66px;border:3px solid #95d9c4;box-shadow:inset 0 0 0 3px #95d9c433,0 0 0 3px #95d9c422;clip-path:polygon(20% 0,80% 0,80% 8%,100% 8%,100% 92%,80% 92%,80% 100%,20% 100%,20% 92%,0 92%,0 8%,20% 8%);background:#34565388;pointer-events:none}
+.portal-b .office-portal {border-color:#bd9ee4;background:#65517b66;box-shadow:inset 0 0 0 3px #bd9ee433,0 0 0 3px #bd9ee422}
+.office-delivery {position:absolute;left:3px;top:45px;pointer-events:none;color:#efcea0;font-size:20px;opacity:0}
+@media(prefers-reduced-motion:no-preference) {
+ .has-atmosphere .office-pet:not(.is-sleeping) {animation:office-prowl 18s steps(10,end) infinite}
+ .has-atmosphere .office-pet-tail {animation:office-tail 2s steps(2,end) infinite alternate;transform-origin:4px 10px}
+ .has-atmosphere .office-portal {animation:office-portal-glow 3s steps(4,end) infinite alternate}
+ .has-atmosphere .office-delivery {animation:office-deliver 2.5s steps(14,end) 1}
+ .has-atmosphere.weather-rain .office-rain {animation:office-rainfall 1.5s steps(4,end) infinite}
+ @keyframes office-prowl {0%,25%,100%{transform:translateX(0)}50%,75%{transform:translateX(32px)}}
+ @keyframes office-tail {to{transform:rotate(-12deg)}}
+ @keyframes office-portal-glow {to{opacity:.45}}
+ @keyframes office-deliver {0%{opacity:0;transform:translateY(-25px)}15%,75%{opacity:1}85%,100%{opacity:0;transform:translate(50px,12px)}}
+ @keyframes office-rainfall {to{background-position:7px 12px}}
+}
+.quiet-office *, .quiet-office *:before,.quiet-office *:after {animation:none!important}
+
+/* Room silhouettes and materials differ as well as their palettes. */
+.room-library .office-window {width:29px;height:32px;right:20px}
+.room-greenhouse .office-window {width:76px;height:46px;right:11px;background:#476a60}
+.room-workshop .office-window {width:54px;height:28px;border-color:#66797b}
+.room-clinic .office-window {height:30px;background:#49646b}
+.room-studio .office-window {width:50px;height:35px;background:#55516c}
+.room-library .office-lamp {background:#a77551;left:63%}
+.room-clinic .office-lamp {width:52px;height:5px;background:#d6dfcf;box-shadow:0 10px 0 6px #d6dfcf09}
+.room-workshop .office-apartment:before {background:repeating-linear-gradient(90deg,#58666b 0 7px,#78816f 7px 9px);border-color:#8c947e}
+.room-clinic .office-apartment:before {background:#718e86;border-color:#9cae9b}
+.room-studio .office-apartment:before {background:repeating-linear-gradient(90deg,#826b85 0 15px,#879989 15px 30px);border-color:#a3949b}
+@media(prefers-reduced-motion:no-preference) {
+ .is-idle .office-blanket {animation:office-breathe 4s steps(2,end) infinite;transform-origin:19px 24px}
+ .is-idle .office-snooze {animation:office-dream 3s steps(4,end) infinite}
+ .is-waiting .office-head {animation:office-look 5s steps(2,end) infinite}
+ .is-waiting .office-clock-hand {animation:office-clock 8s steps(4,end) infinite;transform-origin:26.5px 10.5px}
+ .is-working .office-arm {animation-duration:.35s}
+ @keyframes office-breathe {50%{transform:translateY(-1px)}}
+ @keyframes office-dream {0%{opacity:.3;transform:translateY(1px)}70%{opacity:1}100%{opacity:.3;transform:translateY(-3px)}}
+ @keyframes office-look {40%,60%{transform:translateX(1px)}}
+ @keyframes office-clock {to{transform:rotate(360deg)}}
+}

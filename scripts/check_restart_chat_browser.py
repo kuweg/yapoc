@@ -24,6 +24,7 @@ async def check(dist: Path, screenshot: Path):
     worker.start()
     address = f'http://127.0.0.1:{server.server_port}'
     phase = 0
+    live_task_id = None
     sockets = []
     errors = []
     trace = []
@@ -46,13 +47,17 @@ async def check(dist: Path, screenshot: Path):
                      'source': 'cron', 'result': 'service work', 'metadata': '{"silent":true}'} for i in range(25)]
         return []
     async def api(route):
+        nonlocal live_task_id
         path = urlsplit(route.request.url).path
         if phase == 5 and path == '/api/task/stream' and route.request.method == 'POST':
             request = route.request.post_data_json
+            live_task_id = request['task_id']
             outcome = result(5)['structured_result']
             outcome['task_id'] = request['task_id']
+            outcome['artifacts'] = [{'id': 'artifact-1', 'type': 'text', 'name': 'report.md', 'url': '/api/artifacts/artifact-1/download'}]
+            answer = 'Live structured answer\n\n[Project page](https://example.com/docs)\n\n`data/generated/report.md`'
             wire = ''.join('data: ' + json.dumps(e) + '\n\n' for e in [
-                {'type': 'text', 'text': 'Live structured answer'}, {'type': 'task_result', 'result': outcome}]) + 'data: [DONE]\n\n'
+                {'type': 'text', 'text': answer}, {'type': 'task_result', 'result': outcome}]) + 'data: [DONE]\n\n'
             await route.fulfill(content_type='text/event-stream', body=wire)
             return
         if route.request.method not in {'GET', 'HEAD'}:
@@ -63,6 +68,13 @@ async def check(dist: Path, screenshot: Path):
         elif path in {'/api/health', '/api/ping'}: response = {'status': 'ok', 'uptime': 100}
         elif path == '/api/tasks': response = global_tasks()
         elif path == '/api/agents': response = []
+        elif path == '/api/link-previews': response = {'title': 'Example project', 'description': 'Preview metadata'}
+        elif path == '/api/artifacts': response = {'artifacts': ([{
+            'id': 'artifact-1', 'name': 'report.md', 'path': 'data/generated/report.md', 'kind': 'text',
+            'mime': 'text/markdown', 'size': 2048, 'sha256': 'fixture', 'version': 1,
+            'source_agent': 'master', 'source_task': live_task_id, 'source_session': 'chat-a',
+            'created_at': now, 'updated_at': now,
+        }] if phase == 5 and live_task_id else [])}
         else:
             # Unrelated panels should use their normal unavailable-data state,
             # not receive an incorrectly shaped successful mock response.
@@ -123,8 +135,10 @@ async def check(dist: Path, screenshot: Path):
             await expect(chat.get_by_text(result()['result'], exact=True)).to_have_count(1, timeout=15000)
             card = chat.get_by_test_id('structured-result-card')
             await expect(card).to_have_count(1)
-            await card.locator('summary').click()
+            await expect(card.get_by_text('Runtime outcome', exact=True)).to_have_count(0)
+            await card.get_by_role('button', name='Inspect changes').click()
             await expect(card.get_by_text('forecast.md', exact=True)).to_be_visible()
+            await card.locator('summary').click()
             await expect(card.get_by_role('link', name='View log')).to_have_attribute('href', '/api/tasks/resume-1/evidence/1')
             await expect(card.get_by_text('12 input tokens · 0 output tokens · Cost unknown', exact=True)).to_be_visible()
             await card.locator('summary').click()
@@ -186,7 +200,7 @@ async def check(dist: Path, screenshot: Path):
             await page.get_by_text('Verify task outcome', exact=True).click()
             task_card = page.get_by_test_id('structured-result-card').filter(visible=True)
             await expect(task_card).to_have_count(1)
-            await task_card.locator('summary').click()
+            await task_card.get_by_role('button', name='Inspect changes').click()
             await expect(task_card.get_by_text('forecast.md', exact=True)).to_be_visible()
             print('PASS: Tasks displays the same structured evidence card')
             phase = 5
@@ -195,8 +209,14 @@ async def check(dist: Path, screenshot: Path):
             await composer.fill('Run a structured task')
             await composer.press('Enter')
             await expect(chat.get_by_text('Live structured answer', exact=True)).to_be_visible()
+            resources = chat.get_by_label('Links and files').last
+            await expect(resources.get_by_text('Example project', exact=True)).to_be_visible()
             live_card = chat.get_by_test_id('structured-result-card').last
-            await live_card.locator('summary').click()
+            artifact = live_card.get_by_label('1 artifact from this task')
+            await expect(artifact.get_by_text('report.md', exact=True)).to_be_visible()
+            await expect(artifact.get_by_role('button', name='Preview', exact=True)).to_be_visible()
+            await expect(artifact.get_by_role('link', name='Download', exact=True)).to_be_visible()
+            await live_card.get_by_role('button', name='Inspect changes').click()
             await expect(live_card.get_by_text('forecast.md', exact=True)).to_be_visible()
             await page.reload()
             await expect(chat.get_by_text('Live structured answer', exact=True)).to_have_count(1)

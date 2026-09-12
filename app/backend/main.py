@@ -23,6 +23,7 @@ from app.backend.routers import (
     files_router,
     graph_router,
     health_router,
+    link_previews_router,
     memory_graph_router,
     mcp_router,
     mcp_servers_router,
@@ -1115,6 +1116,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         request_shutdown()
+        from app.backend.services.universes import shutdown as stop_universes
+        await stop_universes()
         dispatcher_task.cancel()
         from app.backend.dispatcher import stop_running_tasks
         await stop_running_tasks()
@@ -1185,6 +1188,8 @@ app.add_middleware(
 
 app.websocket("/ws")(websocket_endpoint)
 from app.backend.routers.github import router as github_router
+from app.backend.routers.universes import router as universes_router
+app.include_router(universes_router)
 app.include_router(github_router)
 app.include_router(health_router)
 app.include_router(tasks_router)
@@ -1215,6 +1220,7 @@ app.include_router(plugins_router)
 app.include_router(pptx_router)
 app.include_router(cron_router)
 app.include_router(drive_oauth_router)
+app.include_router(link_previews_router)
 
 # Release installs serve the prebuilt UI without Node or a Vite process.
 from app.backend.dashboard import mount_dashboard

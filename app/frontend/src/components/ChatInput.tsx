@@ -1,3 +1,4 @@
+import { useUniverseStore } from '../store/universeStore'
 import { forwardRef, useImperativeHandle, useRef, useState, useCallback, useMemo, useEffect, useLayoutEffect } from 'react'
 import { listUploads } from '../api/client'
 import type { Attachment } from '../api/types'
@@ -92,6 +93,7 @@ function isPdf(file: File): boolean {
  */
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
   function ChatInput({ onSubmit, disabled, placeholder }, ref) {
+    const [actionsOpen, setActionsOpen] = useState(false)
     const [text, setText] = useState('')
     const [caret, setCaret] = useState(0)
     const [trigger, setTrigger] = useState<TriggerMatch | null>(null)
@@ -414,15 +416,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         )}
 
         <div className="flex items-end gap-2">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
-            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-700 text-zinc-300 hover:bg-zinc-600 disabled:opacity-50 text-lg"
-            title="Attach files (drag-drop or paste too)"
-          >
-            +
-          </button>
+          <div className="relative">
+            <button type="button" aria-label="Composer actions" aria-expanded={actionsOpen} onClick={() => setActionsOpen(value => !value)} disabled={disabled} className="w-8 h-8 rounded-lg bg-zinc-700 text-zinc-300">+</button>
+            {actionsOpen && <div className="absolute bottom-10 left-0 z-50 w-56 rounded-lg border border-zinc-700 bg-zinc-900 p-1 shadow-xl" onKeyDown={e => { if (e.key === 'Escape') setActionsOpen(false) }}>
+              <button type="button" className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-zinc-800" onClick={() => { setActionsOpen(false); fileInputRef.current?.click() }}>Attach files</button>
+              <button type="button" className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-zinc-800" onClick={() => { setActionsOpen(false); useUniverseStore.getState().setup(text) }}>Try parallel approaches</button>
+            </div>}
+          </div>
           <div className={`composer-field ${highlighted ? '' : 'is-plain'}`}>
             {highlighted && (
               <div ref={overlayRef} className="composer-overlay" aria-hidden="true">

@@ -1464,8 +1464,8 @@ export function ChatPanel() {
                 } : undefined}
               />
             )}
-            {msg.role === 'assistant' && msg.taskCompletion?.structured_result && <TaskCompletionCard task={msg.taskCompletion} />}
-            {msg.role === 'assistant' && (
+            {msg.role === 'assistant' && msg.taskCompletion?.structured_result && <TaskCompletionCard task={msg.taskCompletion} artifacts={artifactsByTask.get(taskIdFromCompletionId(msg.completionId) ?? '')} />}
+            {msg.role === 'assistant' && !msg.taskCompletion?.structured_result && (
               <ArtifactStrip artifacts={artifactsByTask.get(taskIdFromCompletionId(msg.completionId) ?? '')} />
             )}
             {msg.role === 'assistant' && voiceEnabled && (

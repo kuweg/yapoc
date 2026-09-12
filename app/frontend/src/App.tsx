@@ -1,3 +1,4 @@
+import { ParallelUniverses } from './components/ParallelUniverses'
 import { TaskProgressPanel } from './components/TaskProgress'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useSessionStore } from './store/session'
@@ -138,6 +139,7 @@ function Workspace() {
         <main className="studio-conversation-layout flex-1 flex flex-row overflow-hidden relative" data-inspecting={inspectors.length > 0} style={{ minWidth: 0 }}>
           <div className="studio-conversation-content flex-1 min-w-0 h-full flex flex-col">
             <TaskProgressPanel conversation active={tab === 'chat'} />
+            <ParallelUniverses />
             <div className="flex-1 min-h-0"><ChatPanel /></div>
           </div>
           <StudioInspector panels={inspectors} focusId={selectedFlowAgent ? `flow-${selectedFlowAgent}` : undefined} focusVersion={flowFocusVersion} />

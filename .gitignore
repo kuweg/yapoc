@@ -27,48 +27,94 @@ env/
 Thumbs.db
 
 # ── Runtime data ─────────────────────────────────────────────────────────
-data/
+# "data/*" rather than "data/" so the .gitkeep negation below actually works:
+# git cannot re-include a file whose parent DIRECTORY is excluded.
+data/*
 !data/.gitkeep
+**/data/sessions/
+**/data/cron_runs.json
+**/data/spawn_registry.*
+**/data/poller_notified.*
+**/data/notification_queue.*
+**/data/notification_trace.jsonl
+**/data/tickets.*
+
+# Chat / conversation transcripts, wherever a runner decides to write them.
+**/sessions/
+**/events.jsonl
+**/compaction_facts.jsonl
+**/.outbox.jsonl
 
 # Redis snapshot (if running redis-server in repo dir)
 dump.rdb
 *.rdb
+
+# SQLite runtime databases (tickets, sessions, task state) — never source
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 
 # ── Frontend ─────────────────────────────────────────────────────────────
 app/frontend/node_modules/
 app/frontend/dist/
 app/frontend/.vite/
 app/frontend/tsconfig.tsbuildinfo
-node_modules/
 
-# ── Agent runtime state (ephemeral — not needed in repo) ─────────────────
-# Per-agent telemetry / append-only logs / live status:
-app/agents/*/TASK.MD
-app/agents/*/STATUS.json
-app/agents/*/RESULT.MD
-app/agents/*/ERROR.MD
-app/agents/*/CRASH.MD
-app/agents/*/OUTPUT.MD
-app/agents/*/HEALTH.MD
-app/agents/*/HEALTH_SUMMARY.MD
-app/agents/*/SERVER_CRASH.MD
-app/agents/*/SERVER_OUTPUT.MD
-app/agents/*/SERVER_RESTART.MD
-app/agents/*/MEMORY.MD
-app/agents/*/NOTES.MD
-app/agents/*/LIVE.MD
-app/agents/*/LEARNINGS.MD
-app/agents/*/GOALS.MD
-app/agents/*/RESUME.MD
-app/agents/*/MORNING_REPORT.md
-app/agents/*/MORNING_REPORT.MD
-app/agents/*/REPORT.MD
-app/agents/*/USAGE.json
-app/agents/*/COSTS.json
-app/agents/*/COSTS.lock
-app/agents/*/CHECKPOINT.json
-app/agents/security/AUDIT.MD
-app/agents/*/sessions/
+node_modules/
+**/dist/
+**/.vite/
+**/.vite.log
+*.tsbuildinfo
+.pnpm-store/
+
+# ── Agent runtime state (ephemeral — never source) ───────────────────────
+# These patterns are deliberately UNANCHORED: a pattern with no slash matches a
+# file of that name at ANY depth. The previous "app/agents/*/NAME" form only
+# matched one level down, which is how app/backend/app/memory/agents/**/MEMORY.MD
+# — a duplicate tree an agent created by mistake — reached git carrying real
+# chat transcripts. Agents create directories in places we do not predict, so
+# these rules key on the FILENAME, not on where it happens to live.
+#
+# Before adding a file here, check it is genuinely runtime state: PROMPT.MD,
+# CONFIG.yaml, SYSTEM.md, CLAUDE.md and agent.py are source and must stay tracked.
+MEMORY.MD
+MEMORY.md
+NOTES.MD
+NOTES.md
+LEARNINGS.MD
+LEARNINGS.md
+GOALS.MD
+RESUME.MD
+LIVE.MD
+TASK.MD
+STATUS.json
+RESULT.MD
+ERROR.MD
+CRASH.MD
+OUTPUT.MD
+HEALTH.MD
+HEALTH_SUMMARY.MD
+SERVER_CRASH.MD
+SERVER_OUTPUT.MD
+SERVER_RESTART.MD
+MORNING_REPORT.MD
+MORNING_REPORT.md
+REPORT.MD
+AUDIT.MD
+USAGE.json
+COSTS.json
+COSTS.lock
+CHECKPOINT.json
+
+# Agent-owned memory stores at any depth. The root store is app/memory/, but the
+# nested-duplicate incident proved a prefix-anchored rule is not enough.
+**/memory/agents/
+**/memory/user/
+**/memory/project/
+**/agents/shared/
+**/agents/concilium/
 
 # Supervisor log / shell scratch that slipped past the patterns above:
 app/agents/*/SUPERVISOR.MD
@@ -149,8 +195,17 @@ app/agents/concilium/
 # ── Personal notes ──────────────────────────────────────────────────────
 personal_notes_do_not_read.md
 
-# User and agent memory is local runtime state; never publish it.
-app/memory/
+# User and agent memory is local runtime state; never publish it. Listed as
+# "app/memory/*" so the .example.md templates below can be re-included — the
+# real PROFILE.md / KNOWLEDGE.md they are copied to stay ignored by the rules
+# above.
+app/memory/*
+!app/memory/project/
+!app/memory/user/
+app/memory/project/*
+app/memory/user/*
+!app/memory/project/*.example.md
+!app/memory/user/*.example.md
 
 # Local scratch, generated state, and accidental root artifacts.
 app/agents/*/.repl_history

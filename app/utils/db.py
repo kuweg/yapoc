@@ -200,6 +200,12 @@ def init_schema() -> None:
         "ALTER TABLE whiteboard_edges ADD COLUMN board_id TEXT NOT NULL DEFAULT 'main'",
         "ALTER TABLE whiteboard_edges ADD COLUMN relationship TEXT NOT NULL DEFAULT 'related'",
         "ALTER TABLE whiteboard_edges ADD COLUMN style TEXT NOT NULL DEFAULT 'solid'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN direction TEXT NOT NULL DEFAULT 'forward'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN routing TEXT NOT NULL DEFAULT 'straight'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN color TEXT NOT NULL DEFAULT 'default'",
+        "ALTER TABLE whiteboard_edges ADD COLUMN thickness REAL NOT NULL DEFAULT 2",
+        "ALTER TABLE whiteboard_edges ADD COLUMN revision INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE whiteboard_edges ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''",
     ):
         try:
             db.execute(statement)

@@ -11,14 +11,22 @@ machine-readable design before planning or implementation.
 Create a named canvas from **Whiteboard → + Canvas** and describe what the
 design explains. Add actors, components, services, APIs, databases, queues,
 events, interfaces, modules, external systems, decisions, or notes from the
-left palette. Each node supports prose plus `key: value` details for fields,
-endpoints, technologies, constraints, SLOs, ownership, or other contracts.
+left palette. The Logic section adds process, condition, start/end,
+input/output, document, data-store, subprocess, manual-input, preparation,
+connector, and delay shapes. These are semantic node types, so an agent can
+distinguish a branch condition from a service or passive document. Each node
+supports prose plus `key: value` details for fields, endpoints, technologies,
+constraints, SLOs, ownership, or other contracts.
 
-Choose a relationship and line style in the canvas toolbar, select the connect
-control on the source node, then select its target. Relationships are directed:
+Choose a relationship, direction, route, and line style in the canvas toolbar,
+select the connect control on the source node, then select its target. Direction
+can be forward, backward, bidirectional, or undirected. Click an edge label to
+edit its text, direction, straight/curved/right-angle route, line style, color,
+and thickness. Relationships include:
 `calls`, `depends_on`, `reads`, `writes`, `emits`, `subscribes`, `contains`,
 `implements`, `extends`, `flows_to`, `blocks`, and `related` retain distinct
-meaning in the data agents receive. The canvas saves after every mutation and
+meaning in the data agents receive. All edge settings are included in the data
+agents receive and in lossless JSON exports. The canvas saves after every mutation and
 refuses stale card updates rather than replacing newer agent work.
 
 ## Chat and agents
@@ -31,6 +39,7 @@ agents can use:
 - `whiteboard_create_canvas` to start a design.
 - `whiteboard_add_card` and `whiteboard_update_card` for individual nodes.
 - `whiteboard_connect` for typed relationships.
+- `whiteboard_update_connection` to refine direction, routing, labels, and style.
 - `whiteboard_apply_design` to generate or extend a whole graph from keyed
   nodes and edges.
 - `whiteboard_export` to publish a design into Notes, workspace files, or the

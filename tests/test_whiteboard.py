@@ -107,7 +107,7 @@ def test_portable_exports_and_workspace_destination(isolated_db, tmp_path, monke
     payload, _, _ = render_board(canvas["id"], "json")
     assert "```mermaid" in markdown and "Producer" in markdown
     assert "emits" in mermaid
-    assert __import__("json").loads(payload)["schema_version"] == 1
+    assert __import__("json").loads(payload)["schema_version"] == 2
     exported = export_board(canvas["id"], "markdown", "workspace", "master")
     assert exported["path"].startswith("app/projects/designs/")
     assert (tmp_path / exported["path"]).is_file()
@@ -131,3 +131,41 @@ def test_default_canvas_cannot_be_deleted(isolated_db):
     from app.utils.whiteboard import delete_board
     with pytest.raises(ValueError, match="default canvas"):
         delete_board("main")
+
+
+def test_logic_shapes_and_configurable_directed_edges(isolated_db):
+    from app.utils.whiteboard import create_card, create_edge, get_board, render_board, update_edge
+
+    condition = create_card(kind="condition", title="Payment accepted?")
+    process = create_card(kind="process", title="Create order", x=420)
+    edge = create_edge(
+        source_id=condition["id"], target_id=process["id"], relationship="flows_to",
+        label="yes", direction="both", routing="orthogonal", style="dotted",
+        color="mint", thickness=4,
+    )
+    assert edge["direction"] == "both"
+    assert edge["routing"] == "orthogonal"
+    assert edge["thickness"] == 4
+
+    saved = update_edge(edge["id"], revision=edge["revision"], changes={
+        "direction": "backward", "routing": "curved", "style": "dashed",
+        "color": "rose", "thickness": 3, "label": "retry",
+    })
+    assert saved and saved["revision"] == 2
+    assert saved["direction"] == "backward"
+    assert saved["label"] == "retry"
+    assert {card["kind"] for card in get_board()["cards"]} == {"condition", "process"}
+    mermaid, _, _ = render_board("main", "mermaid")
+    assert "<-.-" in mermaid
+
+
+def test_invalid_edge_configuration_is_refused(isolated_db):
+    from app.utils.whiteboard import create_card, create_edge, update_edge
+
+    first = create_card(kind="terminator", title="Start")
+    second = create_card(kind="document", title="Request")
+    with pytest.raises(ValueError, match="direction"):
+        create_edge(source_id=first["id"], target_id=second["id"], direction="sideways")
+    edge = create_edge(source_id=first["id"], target_id=second["id"])
+    with pytest.raises(ValueError, match="routing"):
+        update_edge(edge["id"], revision=1, changes={"routing": "spiral"})

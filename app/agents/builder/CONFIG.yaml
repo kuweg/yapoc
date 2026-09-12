@@ -33,6 +33,7 @@ tools:
   - whiteboard_update_card
   - whiteboard_create_canvas
   - whiteboard_connect
+  - whiteboard_update_connection
   - whiteboard_apply_design
   - whiteboard_export
   - shell_exec

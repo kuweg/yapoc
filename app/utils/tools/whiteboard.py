@@ -70,10 +70,32 @@ class WhiteboardConnectTool(_AgentTool):
         "board_id": {"type": "string", "default": "main"}, "source_id": {"type": "string"}, "target_id": {"type": "string"},
         "relationship": {"type": "string", "enum": RELATIONSHIPS}, "label": {"type": "string"},
         "style": {"type": "string", "enum": sorted(whiteboard.EDGE_STYLES)},
+        "direction": {"type": "string", "enum": sorted(whiteboard.EDGE_DIRECTIONS)},
+        "routing": {"type": "string", "enum": sorted(whiteboard.EDGE_ROUTINGS)},
+        "color": {"type": "string", "enum": sorted(whiteboard.EDGE_COLORS)},
+        "thickness": {"type": "number", "minimum": 1, "maximum": 6},
     }, "required": ["source_id", "target_id", "relationship"]}
     async def execute(self, **params: Any) -> str:
         values = dict(params); values["created_by"] = self._agent
         return self.compact(whiteboard.create_edge(**values))
+
+
+class WhiteboardUpdateConnectionTool(_AgentTool):
+    name = "whiteboard_update_connection"
+    description = "Update an existing connection's semantics, direction, route, label, color, or thickness using its current revision."
+    input_schema = {"type": "object", "properties": {
+        "edge_id": {"type": "string"}, "revision": {"type": "integer", "minimum": 1},
+        "relationship": {"type": "string", "enum": RELATIONSHIPS}, "label": {"type": "string"},
+        "style": {"type": "string", "enum": sorted(whiteboard.EDGE_STYLES)},
+        "direction": {"type": "string", "enum": sorted(whiteboard.EDGE_DIRECTIONS)},
+        "routing": {"type": "string", "enum": sorted(whiteboard.EDGE_ROUTINGS)},
+        "color": {"type": "string", "enum": sorted(whiteboard.EDGE_COLORS)},
+        "thickness": {"type": "number", "minimum": 1, "maximum": 6},
+    }, "required": ["edge_id", "revision"]}
+    async def execute(self, **params: Any) -> str:
+        changes = {key: params[key] for key in ("relationship", "label", "style", "direction", "routing", "color", "thickness") if key in params}
+        edge = whiteboard.update_edge(params["edge_id"], revision=int(params["revision"]), changes=changes)
+        return self.compact(edge) if edge else "Error: whiteboard connection not found"
 
 
 class WhiteboardApplyDesignTool(_AgentTool):
@@ -82,7 +104,7 @@ class WhiteboardApplyDesignTool(_AgentTool):
     input_schema = {"type": "object", "properties": {
         "board_id": {"type": "string", "default": "main"},
         "cards": {"type": "array", "maxItems": 100, "items": {"type": "object", "properties": {"key": {"type": "string"}, "title": {"type": "string"}, "kind": {"type": "string", "enum": KINDS}, "body": {"type": "string"}, "details": {"type": "object"}, "x": {"type": "number"}, "y": {"type": "number"}}, "required": ["key", "title", "kind"]}},
-        "edges": {"type": "array", "maxItems": 200, "items": {"type": "object", "properties": {"source": {"type": "string"}, "target": {"type": "string"}, "relationship": {"type": "string", "enum": RELATIONSHIPS}, "label": {"type": "string"}, "style": {"type": "string", "enum": sorted(whiteboard.EDGE_STYLES)}}, "required": ["source", "target", "relationship"]}},
+        "edges": {"type": "array", "maxItems": 200, "items": {"type": "object", "properties": {"source": {"type": "string"}, "target": {"type": "string"}, "relationship": {"type": "string", "enum": RELATIONSHIPS}, "label": {"type": "string"}, "style": {"type": "string", "enum": sorted(whiteboard.EDGE_STYLES)}, "direction": {"type": "string", "enum": sorted(whiteboard.EDGE_DIRECTIONS)}, "routing": {"type": "string", "enum": sorted(whiteboard.EDGE_ROUTINGS)}, "color": {"type": "string", "enum": sorted(whiteboard.EDGE_COLORS)}, "thickness": {"type": "number", "minimum": 1, "maximum": 6}}, "required": ["source", "target", "relationship"]}},
     }, "required": ["cards", "edges"]}
     async def execute(self, **params: Any) -> str:
         return self.compact(whiteboard.apply_design(params.get("board_id", "main"), params["cards"], params["edges"], self._agent, False))

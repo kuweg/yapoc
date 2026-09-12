@@ -221,7 +221,7 @@ from .calendar_render import RenderCalendarTool
 from .whiteboard import (WhiteboardAddCardTool, WhiteboardApplyDesignTool,
                          WhiteboardConnectTool, WhiteboardCreateCanvasTool,
                          WhiteboardExportTool, WhiteboardListTool,
-                         WhiteboardUpdateCardTool)
+                         WhiteboardUpdateCardTool, WhiteboardUpdateConnectionTool)
 from .git import (
     GitBranchTool,
     GitCommitTool,
@@ -298,6 +298,7 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "whiteboard_update_card": WhiteboardUpdateCardTool,
     "whiteboard_create_canvas": WhiteboardCreateCanvasTool,
     "whiteboard_connect": WhiteboardConnectTool,
+    "whiteboard_update_connection": WhiteboardUpdateConnectionTool,
     "whiteboard_apply_design": WhiteboardApplyDesignTool,
     "whiteboard_export": WhiteboardExportTool,
     "git_status": GitStatusTool,
@@ -332,6 +333,7 @@ _AGENT_DIR_TOOLS = {
     "whiteboard_update_card",
     "whiteboard_create_canvas",
     "whiteboard_connect",
+    "whiteboard_update_connection",
     "whiteboard_apply_design",
     "whiteboard_export",
 }

@@ -12,10 +12,19 @@ from app.config import settings
 from app.utils.db import get_db
 from app.utils.secrets import scrub
 
-KINDS = {"note", "decision", "question", "task", "link", "artifact", "actor", "component", "service", "api", "database", "queue", "event", "interface", "module", "boundary", "external"}
+KINDS = {
+    "note", "decision", "question", "task", "link", "artifact", "actor",
+    "component", "service", "api", "database", "queue", "event", "interface",
+    "module", "boundary", "external", "process", "condition", "terminator",
+    "input_output", "document", "data_store", "subprocess", "manual_input",
+    "preparation", "connector", "delay",
+}
 COLORS = {"amber", "mint", "blue", "rose", "violet"}
 RELATIONSHIPS = {"related", "depends_on", "calls", "reads", "writes", "emits", "subscribes", "contains", "implements", "extends", "blocks", "flows_to"}
 EDGE_STYLES = {"solid", "dashed", "dotted"}
+EDGE_DIRECTIONS = {"none", "forward", "backward", "both"}
+EDGE_ROUTINGS = {"straight", "curved", "orthogonal"}
+EDGE_COLORS = {"default", *COLORS}
 
 
 class WhiteboardConflictError(RuntimeError): pass
@@ -159,10 +168,13 @@ def delete_card(card_id: str) -> bool:
     return bool(cursor.rowcount)
 
 
-def create_edge(*, source_id: str, target_id: str, label: str = "", relationship: str = "related", style: str = "solid", board_id: str = "main", created_by: str = "user") -> dict[str, Any]:
+def create_edge(*, source_id: str, target_id: str, label: str = "", relationship: str = "related", style: str = "solid", direction: str = "forward", routing: str = "straight", color: str = "default", thickness: float = 2, board_id: str = "main", created_by: str = "user") -> dict[str, Any]:
     if source_id == target_id: raise ValueError("A card cannot connect to itself")
     if relationship not in RELATIONSHIPS: raise ValueError("Unsupported relationship")
     if style not in EDGE_STYLES: raise ValueError("Unsupported connection style")
+    if direction not in EDGE_DIRECTIONS: raise ValueError("Unsupported connection direction")
+    if routing not in EDGE_ROUTINGS: raise ValueError("Unsupported connection routing")
+    if color not in EDGE_COLORS: raise ValueError("Unsupported connection color")
     db = get_db(); rows = db.execute("SELECT id,board_id FROM whiteboard_cards WHERE id IN (?,?)", (source_id, target_id)).fetchall()
     if len(rows) != 2: raise KeyError("Card not found")
     actual_board = rows[0]["board_id"]
@@ -170,10 +182,45 @@ def create_edge(*, source_id: str, target_id: str, label: str = "", relationship
     edge_id, now = str(uuid4()), _now()
     try:
         with db:
-            db.execute("INSERT INTO whiteboard_edges(id,source_id,target_id,label,created_by,created_at,board_id,relationship,style) VALUES(?,?,?,?,?,?,?,?,?)", (edge_id, source_id, target_id, _clean(label, 80), _clean(created_by, 40) or "user", now, board_id, relationship, style)); _bump(db, board_id)
+            db.execute("""INSERT INTO whiteboard_edges(
+                id,source_id,target_id,label,created_by,created_at,board_id,relationship,
+                style,direction,routing,color,thickness,revision,updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)""", (
+                edge_id, source_id, target_id, _clean(label, 80),
+                _clean(created_by, 40) or "user", now, board_id, relationship,
+                style, direction, routing, color, max(1., min(float(thickness), 6.)), now,
+            )); _bump(db, board_id)
     except Exception as exc:
         if "UNIQUE constraint" in str(exc): raise ValueError("These cards are already connected") from exc
         raise
+    return dict(db.execute("SELECT * FROM whiteboard_edges WHERE id=?", (edge_id,)).fetchone())
+
+
+def update_edge(edge_id: str, *, revision: int, changes: dict[str, Any]) -> dict[str, Any] | None:
+    allowed = {"label", "relationship", "style", "direction", "routing", "color", "thickness"}
+    fields: dict[str, Any] = {}
+    enums = {
+        "relationship": RELATIONSHIPS, "style": EDGE_STYLES,
+        "direction": EDGE_DIRECTIONS, "routing": EDGE_ROUTINGS, "color": EDGE_COLORS,
+    }
+    for key, value in changes.items():
+        if key not in allowed or value is None: continue
+        if key == "label": fields[key] = _clean(value, 80)
+        elif key == "thickness": fields[key] = max(1., min(float(value), 6.))
+        else:
+            if value not in enums[key]: raise ValueError(f"Unsupported connection {key}")
+            fields[key] = value
+    db = get_db(); current = db.execute("SELECT board_id FROM whiteboard_edges WHERE id=?", (edge_id,)).fetchone()
+    if not current: return None
+    if not fields: return dict(db.execute("SELECT * FROM whiteboard_edges WHERE id=?", (edge_id,)).fetchone())
+    fields["updated_at"] = _now()
+    with db:
+        cursor = db.execute(
+            f"UPDATE whiteboard_edges SET {', '.join(f'{key}=?' for key in fields)},revision=revision+1 WHERE id=? AND revision=?",
+            (*fields.values(), edge_id, revision),
+        )
+        if not cursor.rowcount: raise WhiteboardConflictError("This connection changed elsewhere. Refresh and try again.")
+        _bump(db, current["board_id"])
     return dict(db.execute("SELECT * FROM whiteboard_edges WHERE id=?", (edge_id,)).fetchone())
 
 
@@ -194,20 +241,42 @@ def apply_design(board_id: str, cards: list[dict[str, Any]], edges: list[dict[st
         created = create_card(board_id=board_id, created_by=created_by, **{k: v for k, v in card.items() if k in {"kind", "title", "body", "color", "x", "y", "width", "height", "details"}}); ids[str(card.get("key") or index)] = created["id"]
     for edge in edges:
         source = ids.get(str(edge.get("source")), str(edge.get("source", ""))); target = ids.get(str(edge.get("target")), str(edge.get("target", "")))
-        create_edge(source_id=source, target_id=target, board_id=board_id, created_by=created_by, relationship=str(edge.get("relationship", "related")), label=str(edge.get("label", "")), style=str(edge.get("style", "solid")))
+        create_edge(
+            source_id=source, target_id=target, board_id=board_id, created_by=created_by,
+            relationship=str(edge.get("relationship", "related")), label=str(edge.get("label", "")),
+            style=str(edge.get("style", "solid")), direction=str(edge.get("direction", "forward")),
+            routing=str(edge.get("routing", "straight")), color=str(edge.get("color", "default")),
+            thickness=float(edge.get("thickness", 2)),
+        )
     return get_board(board_id)
 
 
 def render_board(board_id: str, format: str) -> tuple[str, str, str]:
     board = get_board(board_id); canvas, cards, edges = board["canvas"], board["cards"], board["edges"]; stem = _safe_id(canvas["name"])
     if format == "json":
-        payload = {"schema_version": 1, "canvas": {"name": canvas["name"], "description": canvas["description"]}, "cards": cards, "edges": edges}
+        payload = {"schema_version": 2, "canvas": {"name": canvas["name"], "description": canvas["description"]}, "cards": cards, "edges": edges}
         return json.dumps(payload, ensure_ascii=False, indent=2), f"{stem}.json", "application/json"
     lines = ["flowchart LR"]; node_ids = {card["id"]: f"n{i}" for i, card in enumerate(cards)}
     for card in cards:
-        title = card["title"].replace('"', "'").replace("\n", " "); lines.append(f'  {node_ids[card["id"]]}["{title}<br/><small>{card["kind"]}</small>"]')
+        title = card["title"].replace('"', "'").replace("\n", " ")
+        text = f'{title}<br/><small>{card["kind"]}</small>'
+        shape = {
+            "condition": f'{{"{text}"}}',
+            "terminator": f'(["{text}"])',
+            "connector": f'(("{text}"))',
+            "database": f'[("{text}")]',
+            "data_store": f'[("{text}")]',
+            "input_output": f'[/"{text}"/]',
+        }.get(card["kind"], f'["{text}"]')
+        lines.append(f'  {node_ids[card["id"]]}{shape}')
     for edge in edges:
-        label = (edge.get("label") or edge.get("relationship") or "related").replace('"', "'"); arrow = "-.->" if edge.get("style") in {"dashed", "dotted"} else "-->"; lines.append(f'  {node_ids[edge["source_id"]]} {arrow}|"{label}"| {node_ids[edge["target_id"]]}')
+        label = (edge.get("label") or edge.get("relationship") or "related").replace('"', "'")
+        direction = edge.get("direction", "forward")
+        if edge.get("style") in {"dashed", "dotted"}:
+            arrow = {"none": "-.-", "forward": "-.->", "backward": "<-.-", "both": "<-.->"}[direction]
+        else:
+            arrow = {"none": "---", "forward": "-->", "backward": "<--", "both": "<-->"}[direction]
+        lines.append(f'  {node_ids[edge["source_id"]]} {arrow}|"{label}"| {node_ids[edge["target_id"]]}')
     mermaid = "\n".join(lines) + "\n"
     if format == "mermaid": return mermaid, f"{stem}.mmd", "text/plain"
     if format != "markdown": raise ValueError("Format must be markdown, mermaid, or json")
@@ -216,7 +285,8 @@ def render_board(board_id: str, format: str) -> tuple[str, str, str]:
         content.extend([f'### {card["title"]}', f'**Type:** {card["kind"]} · **Owner:** {card["created_by"]}', "", card["body"] or "_No details_", ""])
         if card.get("details"): content.extend(["```json", json.dumps(card["details"], ensure_ascii=False, indent=2), "```", ""])
     content.extend(["## Relationships", ""]); by_id = {card["id"]: card["title"] for card in cards}
-    content.extend(f'- **{by_id.get(e["source_id"], "Unknown")}** —{e.get("relationship", "related")}→ **{by_id.get(e["target_id"], "Unknown")}**{f": {e["label"]}" if e.get("label") else ""}' for e in edges)
+    glyphs = {"none": "—", "forward": "→", "backward": "←", "both": "↔"}
+    content.extend(f'- **{by_id.get(e["source_id"], "Unknown")}** —{e.get("relationship", "related")}{glyphs.get(e.get("direction", "forward"), "→")} **{by_id.get(e["target_id"], "Unknown")}**{f": {e["label"]}" if e.get("label") else ""}' for e in edges)
     return "\n".join(content).strip() + "\n", f"{stem}.md", "text/markdown"
 
 

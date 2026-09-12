@@ -7,10 +7,13 @@ from pydantic import BaseModel, Field
 from app.utils import whiteboard
 
 router = APIRouter(prefix="/whiteboard", tags=["whiteboard"])
-Kind = Literal["note", "decision", "question", "task", "link", "artifact", "actor", "component", "service", "api", "database", "queue", "event", "interface", "module", "boundary", "external"]
+Kind = Literal["note", "decision", "question", "task", "link", "artifact", "actor", "component", "service", "api", "database", "queue", "event", "interface", "module", "boundary", "external", "process", "condition", "terminator", "input_output", "document", "data_store", "subprocess", "manual_input", "preparation", "connector", "delay"]
 Color = Literal["amber", "mint", "blue", "rose", "violet"]
 Relationship = Literal["related", "depends_on", "calls", "reads", "writes", "emits", "subscribes", "contains", "implements", "extends", "blocks", "flows_to"]
 EdgeStyle = Literal["solid", "dashed", "dotted"]
+EdgeDirection = Literal["none", "forward", "backward", "both"]
+EdgeRouting = Literal["straight", "curved", "orthogonal"]
+EdgeColor = Literal["default", "amber", "mint", "blue", "rose", "violet"]
 
 
 class BoardCreate(BaseModel):
@@ -56,6 +59,21 @@ class EdgeCreate(BaseModel):
     relationship: Relationship = "related"
     label: str = Field(default="", max_length=80)
     style: EdgeStyle = "solid"
+    direction: EdgeDirection = "forward"
+    routing: EdgeRouting = "straight"
+    color: EdgeColor = "default"
+    thickness: float = Field(default=2, ge=1, le=6)
+
+
+class EdgeUpdate(BaseModel):
+    revision: int = Field(ge=1)
+    relationship: Relationship | None = None
+    label: str | None = Field(default=None, max_length=80)
+    style: EdgeStyle | None = None
+    direction: EdgeDirection | None = None
+    routing: EdgeRouting | None = None
+    color: EdgeColor | None = None
+    thickness: float | None = Field(default=None, ge=1, le=6)
 
 
 class ExportRequest(BaseModel):
@@ -120,6 +138,15 @@ def remove_card(card_id: str):
 
 @router.post("/edges", status_code=201)
 def add_edge(payload: EdgeCreate): return _bad_request(lambda: whiteboard.create_edge(**payload.model_dump(), created_by="user"))
+
+
+@router.put("/edges/{edge_id}")
+def edit_edge(edge_id: str, payload: EdgeUpdate):
+    try: edge = whiteboard.update_edge(edge_id, revision=payload.revision, changes=payload.model_dump(exclude={"revision"}, exclude_none=True))
+    except whiteboard.WhiteboardConflictError as exc: raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc: raise HTTPException(400, str(exc)) from exc
+    if edge is None: raise HTTPException(404, "Connection not found")
+    return edge
 
 
 @router.delete("/edges/{edge_id}", status_code=204)

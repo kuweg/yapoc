@@ -218,6 +218,7 @@ from .chart import RenderChartTool, RenderChartImageTool
 from .image_gen import GenerateImageTool
 from .mermaid import RenderMermaidTool
 from .calendar_render import RenderCalendarTool
+from .whiteboard import WhiteboardAddCardTool, WhiteboardListTool, WhiteboardUpdateCardTool
 from .git import (
     GitBranchTool,
     GitCommitTool,
@@ -289,6 +290,9 @@ TOOL_REGISTRY: dict[str, type[BaseTool]] = {
     "generate_image": GenerateImageTool,
     "render_mermaid": RenderMermaidTool,
     "render_calendar": RenderCalendarTool,
+    "whiteboard_list": WhiteboardListTool,
+    "whiteboard_add_card": WhiteboardAddCardTool,
+    "whiteboard_update_card": WhiteboardUpdateCardTool,
     "git_status": GitStatusTool,
     "git_diff": GitDiffTool,
     "git_log": GitLogTool,
@@ -317,6 +321,8 @@ _AGENT_DIR_TOOLS = {
     # Artifact producers: they stamp the generating agent onto the record.
     "render_chart_image",
     "generate_image",
+    "whiteboard_add_card",
+    "whiteboard_update_card",
 }
 
 # Tools that receive a SandboxPolicy kwarg. Only file-mutating and shell

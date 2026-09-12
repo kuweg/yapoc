@@ -26,6 +26,9 @@ tools:
   - notes_append
   - search_memory
   - shared_knowledge_append
+  - whiteboard_list
+  - whiteboard_add_card
+  - whiteboard_update_card
   - health_log
   - notify_parent
   - spawn_agent

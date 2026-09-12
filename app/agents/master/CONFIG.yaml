@@ -64,6 +64,9 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
+  - whiteboard_list
+  - whiteboard_add_card
+  - whiteboard_update_card
   - image_read
   - send_telegram_message
   - send_telegram_media

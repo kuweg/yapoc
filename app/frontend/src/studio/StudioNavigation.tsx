@@ -2,7 +2,7 @@ import {
   NotebookPen,
   MessageSquare as ChatBubbleLeftRightIcon, Users as UsersIcon, ListTodo as ClipboardDocumentListIcon, ChartNoAxesCombined as ChartBarIcon,
   Activity as EyeIcon, GitBranch as ScaleIcon, BrainCircuit as CircleStackIcon, Archive as ArchiveBoxIcon, WandSparkles as PuzzlePieceIcon,
-  History as ClockIcon, Radio as SignalIcon, Plus as PlusIcon, PanelsTopLeft as Squares2X2Icon, FolderOpen as FolderOpenIcon,
+  History as ClockIcon, Radio as SignalIcon, Plus as PlusIcon, Images as Squares2X2Icon, FolderOpen as FolderOpenIcon, LayoutDashboard,
   Unplug as ServerIcon, Blocks as CubeIcon, PanelLeftClose as ChevronDoubleLeftIcon, PanelLeftOpen as ChevronDoubleRightIcon,
   HardDrive as HardDriveIcon, GitPullRequest,
 } from 'lucide-react'
@@ -16,6 +16,8 @@ export const NAV_SECTIONS: { title: string; items: { id: Tab; label: string; ico
     { id: 'tasks', label: 'Tasks', icon: ClipboardDocumentListIcon },
     { id: 'notes', label: 'Notes', icon: NotebookPen },
     { id: 'cron', label: 'Cron', icon: ClockIcon },
+    { id: 'artifacts', label: 'Artifacts', icon: Squares2X2Icon },
+    { id: 'whiteboard', label: 'Whiteboard', icon: LayoutDashboard },
   ] },
   { title: 'Intelligence', items: [
     { id: 'insights', label: 'Insights', icon: ChartBarIcon },
@@ -55,9 +57,7 @@ interface Props {
   onToggle: () => void
   onNavigate: (tab: Tab) => void
   onNew: () => void
-  onArtifacts: () => void
   onWorkspace: () => void
-  artifactsOpen: boolean
   workspaceOpen: boolean
 }
 
@@ -82,9 +82,6 @@ export function StudioNavigation(p: Props) {
             {p.tab === id && <span className="studio-nav-active studio-nav-copy" />}
           </button>)}
           {section.title === 'Workspace' && <div className="studio-workspace-links">
-        <button className="studio-nav-link" onClick={p.onArtifacts} aria-pressed={p.artifactsOpen} title="Artifacts" aria-label="Artifacts">
-          <Squares2X2Icon /><span className="studio-nav-copy">Artifacts</span>
-        </button>
         <button className="studio-nav-link" onClick={p.onWorkspace} aria-pressed={p.workspaceOpen} title="Workspace files" aria-label="Workspace files">
           <FolderOpenIcon /><span className="studio-nav-copy">Workspace files</span>
         </button>

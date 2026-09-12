@@ -44,6 +44,8 @@ tools:
   - health_log
   - notify_parent
   - shared_knowledge_append
+  - whiteboard_list
+  - whiteboard_add_card
   - learnings_append
   - git_status
   - git_diff

@@ -121,6 +121,38 @@ def init_schema() -> None:
         CREATE INDEX IF NOT EXISTS idx_tq_status  ON task_queue(status);
         CREATE INDEX IF NOT EXISTS idx_tq_session ON task_queue(session_id);
 
+        CREATE TABLE IF NOT EXISTS whiteboard_cards (
+            id          TEXT PRIMARY KEY,
+            kind        TEXT NOT NULL,
+            title       TEXT NOT NULL,
+            body        TEXT NOT NULL DEFAULT '',
+            color       TEXT NOT NULL DEFAULT 'amber',
+            x           REAL NOT NULL DEFAULT 80,
+            y           REAL NOT NULL DEFAULT 80,
+            created_by  TEXT NOT NULL DEFAULT 'user',
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL,
+            revision    INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS idx_whiteboard_cards_updated
+            ON whiteboard_cards(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS whiteboard_edges (
+            id          TEXT PRIMARY KEY,
+            source_id   TEXT NOT NULL REFERENCES whiteboard_cards(id) ON DELETE CASCADE,
+            target_id   TEXT NOT NULL REFERENCES whiteboard_cards(id) ON DELETE CASCADE,
+            label       TEXT NOT NULL DEFAULT '',
+            created_by  TEXT NOT NULL DEFAULT 'user',
+            created_at  TEXT NOT NULL,
+            UNIQUE(source_id, target_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS whiteboard_state (
+            board       TEXT PRIMARY KEY,
+            revision    INTEGER NOT NULL DEFAULT 0,
+            updated_at  TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS index_checkpoints (
             agent        TEXT NOT NULL,
             source       TEXT NOT NULL,
@@ -160,6 +192,7 @@ def init_schema() -> None:
             pass  # column already exists
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_tier ON memory_entries(tier)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_mem_layer ON memory_entries(layer)")
+    db.execute("PRAGMA foreign_keys=ON")
 
     db.execute("""
         CREATE TABLE IF NOT EXISTS indexer_state (

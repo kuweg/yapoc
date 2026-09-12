@@ -38,6 +38,9 @@ tools:
   - search_memory
   - learnings_append
   - shared_knowledge_append
+  - whiteboard_list
+  - whiteboard_add_card
+  - whiteboard_update_card
   - delegate_task
   - search_negative_knowledge
   - execute_code

@@ -8,15 +8,18 @@ YAPOC without relying on decorative effects or invented activity.
 
 | Navigation group | Destinations |
 | --- | --- |
-| Workspace | Conversation, Agents, Tasks, Artifacts, Workspace files |
+| Workspace | Conversation, Agents, Tasks, Notes, Cron, Artifacts, Whiteboard, Workspace files |
 | Intelligence | Insights, Observability, Concilium, Memory, Vault, Skills |
 | Connections | MCP servers, Plugins |
 | Communication | Conversations (history), Channels |
 
-New conversation is a persistent action above these groups. Artifacts and
-Workspace files open inspectors alongside the conversation; selecting either
-from another destination first returns to the conversation. Ctrl+K / Cmd+K
-opens the command palette, including these inspectors and all navigation items.
+New conversation is a persistent action above these groups. Artifacts opens a
+full gallery with type filters, provenance, image thumbnails, downloads and a
+side-by-side file preview. Workspace files remains an inspector alongside the
+conversation. Whiteboard is a shared spatial canvas: the user and permitted
+agents add revisioned cards, connect related ideas and see each other's updates
+while the tab is active. Ctrl+K / Cmd+K opens the command palette with every
+navigation item.
 
 ## Component hierarchy and layout
 
@@ -30,7 +33,7 @@ App / studio-shell
         StudioWelcome or conversation history
         ChatInput and voice/send controls
       Existing feature panels / MCP and plugin tables
-    StudioInspector — shared tabs for artifacts, workspace, agent flow, file preview
+    StudioInspector — shared tabs for workspace, agent flow, file preview
   AgentSidebar — Master first, actual team activity, agent controls
   LiveTopologyHUD — expandable system activity rail
   CommandPalette
@@ -85,6 +88,8 @@ then supporting metadata. Existing feature panels keep their domain controls.
 | New conversation | Three starter rows place an editable draft in the composer; they do not send it. |
 | Navigation selected | Accent foreground/background and `aria-current`; collapsed items retain accessible labels and tooltips. |
 | Inspector open | Sidebar action shows pressed state; closing preserves the conversation draft. |
+| Artifact selected | Gallery keeps its filters and opens the file preview alongside the grid. |
+| Whiteboard card conflict | A stale edit returns a conflict instead of replacing a newer agent edit. |
 | Integration loading | Labeled status with skeleton rows. |
 | Integration empty | Explanation and a direct add/reload action. |
 | Integration request failure | Error text and retry control. |

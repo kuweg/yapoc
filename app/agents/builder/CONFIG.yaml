@@ -28,6 +28,9 @@ tools:
   - file_delete
   - file_list
   - list_tools
+  - whiteboard_list
+  - whiteboard_add_card
+  - whiteboard_update_card
   - shell_exec
   - grep
   - search_negative_knowledge

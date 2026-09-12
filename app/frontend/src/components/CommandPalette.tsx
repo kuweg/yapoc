@@ -9,7 +9,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '../store/appStore'
 import { NAV_SECTIONS } from '../studio/StudioNavigation'
-import { useArtifactsStore } from '../store/artifactsStore'
 import { useWorkspaceStore } from '../store/workspaceStore'
 import { useThemeStore } from '../store/themeStore'
 import { useAgentChatStore } from '../store/agentChatStore'
@@ -99,7 +98,6 @@ export function CommandPalette() {
     }
 
     out.push(
-      { id: 'artifacts', label: 'Open Artifacts', group: 'Navigate', run: () => { setTab('chat'); useArtifactsStore.getState().setOpen(true) } },
       { id: 'workspace', label: 'Open Workspace files', group: 'Navigate', run: () => { setTab('chat'); useWorkspaceStore.getState().setOpen(true) } },
     )
 

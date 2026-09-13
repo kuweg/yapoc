@@ -10,7 +10,7 @@ From a source checkout:
 node installer/index.mjs --source .
 ```
 
-The installer asks for a master folder, an AI provider/key/model, and optional
+The installer asks for a master folder, an AI provider and API key, and optional
 Telegram pairing. It starts YAPOC, checks the dashboard and opens a browser.
 Re-running the command resumes installation or offers to keep existing settings.
 
@@ -31,8 +31,9 @@ Re-runs keep the existing extras unless `--extras` is supplied.
 ## OS-aware setup
 
 Setup prints the detected OS and architecture, then guides you through the
-working folder, runtime preparation, provider/API key, optional Telegram, and
-browser launch. `node install.mjs --check` checks Node/Docker prerequisites
+three dialogue steps: default folder, provider/API key, and optional Telegram.
+The provider menu displays the automatically selected starter model. Docker
+preparation runs after folder selection; browser launch runs after configuration. `node install.mjs --check` checks Node/Docker prerequisites
 without creating folders or asking for credentials (exit 1 when unavailable).
 
 On macOS, use `bash install.sh`. If Node is missing or too old and Homebrew is

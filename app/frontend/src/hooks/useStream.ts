@@ -26,13 +26,14 @@ export async function* streamTask(
   attachments?: string[],
   taskId: string = crypto.randomUUID(),
   noteIds: string[] = [],
+  projectContext: {project_id?:string;project_excluded?:string[]} = {},
 ): AsyncGenerator<StreamEvent> {
   let attempt = 0
   let afterSeq = 0
 
   while (true) {
     try {
-      for await (const event of _streamOnce(task, history, signal, sessionId, attachments, taskId, afterSeq, noteIds)) {
+      for await (const event of _streamOnce(task, history, signal, sessionId, attachments, taskId, afterSeq, noteIds, projectContext)) {
         const seq = (event as StreamEvent & { seq?: number }).seq
         if (seq !== undefined) {
           if (seq <= afterSeq) continue
@@ -103,6 +104,7 @@ async function* _streamOnce(
   taskId?: string,
   afterSeq = 0,
   noteIds: string[] = [],
+  projectContext: {project_id?:string;project_excluded?:string[]} = {},
 ): AsyncGenerator<StreamEvent> {
   const res = await fetch('/api/task/stream', {
     method: 'POST',
@@ -116,6 +118,7 @@ async function* _streamOnce(
       session_id: sessionId || undefined,
       attachments: attachments && attachments.length ? attachments : undefined,
       note_ids: noteIds,
+      ...projectContext,
     }),
     signal,
   })

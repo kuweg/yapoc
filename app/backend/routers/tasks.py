@@ -80,13 +80,15 @@ async def submit_task(request: TaskRequest):
     Poll GET /tasks/{task_id} for status/result, or subscribe via WebSocket.
     """
     task_id = str(_uuid.uuid4())
+    from app.backend.services.projects import build_context
+    project_context, project = build_context(request.project_id, request.session_id, request.project_excluded)
     from app.backend.services.notes import build_note_context
     note_context, notes = build_note_context(request.task, request.note_ids)
     whiteboard_context, whiteboards = _build_whiteboard_context(request.task)
-    metadata = json.dumps({"history": request.history, "notes": notes, "whiteboards": whiteboards})
+    metadata = json.dumps({"history": request.history, "notes": notes, "whiteboards": whiteboards, "project": project})
     task = create_queued_task(
         id=task_id,
-        prompt=request.task + note_context + whiteboard_context + _book_context(request.task),
+        prompt=request.task + project_context + note_context + whiteboard_context + _book_context(request.task),
         source=request.source or "ui",
         session_id=request.session_id or task_id,
         metadata=metadata,
@@ -184,6 +186,8 @@ async def submit_task_stream(request: TaskRequest):
     if row and row.get("session_id") != session_id:
         raise HTTPException(409, "Task ID belongs to another session")
     if not row:
+        from app.backend.services.projects import build_context
+        project_context, project = build_context(request.project_id, session_id, request.project_excluded)
         from app.backend.services.notes import build_note_context
         from app.backend.services.uploads import build_attachment_injection, resolve_file_refs_in_text
         note_context, notes = build_note_context(request.task, request.note_ids)
@@ -201,9 +205,9 @@ async def submit_task_stream(request: TaskRequest):
         suffix, attachments = "", []
         if attachment_ids:
             suffix, attachments = build_attachment_injection(attachment_ids, owner="local")
-        row = create_queued_task(id=task_id, prompt=request.task + suffix + note_context + whiteboard_context + _book_context(request.task),
+        row = create_queued_task(id=task_id, prompt=request.task + project_context + suffix + note_context + whiteboard_context + _book_context(request.task),
                                  source=request.source or "ui", session_id=session_id,
-                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "whiteboards": whiteboards, "transport": "sse"}))
+                                 metadata=json.dumps({"history": request.history, "attachments": attachments, "notes": notes, "whiteboards": whiteboards, "transport": "sse", "project": project}))
     metadata = json.loads(row.get("metadata") or "{}")
 
     async def event_generator():

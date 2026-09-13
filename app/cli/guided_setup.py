@@ -18,7 +18,7 @@ from rich.console import Console
 from app.config import settings
 from app.cli.init_wizard import (
     PROVIDER_DISPLAY, PROVIDER_ENV_KEY, _collect_credentials, _validate_loop,
-    _pick_model, _write_env, _ensure_data_dirs,
+    STARTER_MODELS, _write_env, _ensure_data_dirs,
 )
 
 console = Console()
@@ -89,26 +89,25 @@ def run_guided_setup() -> int:
             if choice.startswith("Keep"):
                 return 0
 
-        console.print("\n[bold]2/5 — Connect an allowed AI provider[/bold]")
+        console.print("\n[bold]2/3 — Choose your default AI provider[/bold]")
         # The initial guided release uses cloud providers; local endpoints in
         # containers need an explicit host address rather than localhost.
         providers = [p for p in PROVIDER_DISPLAY if p in PROVIDER_ENV_KEY and p != "lmstudio"]
         provider = questionary.select("Provider", choices=[
-            questionary.Choice(PROVIDER_DISPLAY[p], value=p) for p in providers
+            questionary.Choice(f"{PROVIDER_DISPLAY[p]} · {STARTER_MODELS[p][0]}", value=p) for p in providers
         ]).ask()
         if not provider:
             return 1
         key, base_url = _collect_credentials(provider)
-        if not key:
+        if key is None:
             return 1
         key = _validate_loop(provider, key, base_url, strict=True)
         if key is None:
             return 1
-        model = _pick_model(provider)
-        if not model:
-            return 1
+        model = STARTER_MODELS[provider][0]
+        console.print(f"Default model: {model}. You can change it later in the dashboard.", markup=False)
 
-        console.print("\n[bold]3/5 — Optional Telegram notifications[/bold]")
+        console.print("\n[bold]3/3 — Optional Telegram bot[/bold]")
         wants_telegram = questionary.confirm("Connect a Telegram bot?", default=False).ask()
         if wants_telegram is None:
             return 1
@@ -134,7 +133,7 @@ def run_guided_setup() -> int:
                     return 1
                 wants_telegram = action == "Retry"
 
-        console.print("\n[bold]4/5 — Save configuration and prepare YAPOC[/bold]")
+        console.print("\n[bold]Saving configuration and preparing YAPOC[/bold]")
         existing = dotenv_values(env_path, interpolate=False) if env_path.exists() else {}
         access_token = existing.get("BACKEND_API_TOKEN") or secrets.token_urlsafe(32)
         updates = {"BACKEND_API_TOKEN": access_token, "HOST": "0.0.0.0", "PORT": "8000",

@@ -41,7 +41,11 @@ async def check_provider(
             )
         if provider == "openrouter":
             return await _check_bearer(
-                "https://openrouter.ai/api/v1/models", api_key, timeout
+                "https://openrouter.ai/api/v1/key", api_key, timeout
+            )
+        if provider == "moonshot":
+            return await _check_bearer(
+                "https://api.moonshot.ai/v1/models", api_key, timeout
             )
         if provider == "google":
             return await _check_google(api_key, timeout)
@@ -126,6 +130,8 @@ def _provider_from_url(url: str) -> str:
         return "openai"
     if "deepseek.com" in url:
         return "deepseek"
+    if "moonshot.ai" in url:
+        return "moonshot"
     if "openrouter.ai" in url:
         return "openrouter"
     return "provider"

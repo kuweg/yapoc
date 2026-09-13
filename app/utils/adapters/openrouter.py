@@ -28,6 +28,7 @@ from .base import (
 )
 from .models import ALL_CONTEXT_WINDOWS
 from .normalize import normalize_to_openai
+from .termination import parse_tool_arguments, require_complete
 
 _OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 _OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
@@ -62,13 +63,38 @@ async def fetch_openrouter_models(api_key: str = "") -> list[dict[str, Any]]:
 
 def _get_context_window_from_cache(model_id: str) -> int:
     """Look up context window from cached models list, fall back to static catalog."""
-    if model_id in ALL_CONTEXT_WINDOWS:
-        return ALL_CONTEXT_WINDOWS[model_id]
     if _cached_models:
         for m in _cached_models:
             if m.get("id") == model_id:
-                return m.get("context_length", _DEFAULT_CONTEXT_WINDOW)
-    return _DEFAULT_CONTEXT_WINDOW
+                context = m.get("context_length")
+                if isinstance(context, int) and context > 0:
+                    return context
+    return ALL_CONTEXT_WINDOWS.get(model_id, _DEFAULT_CONTEXT_WINDOW)
+
+
+async def _stream_chunks(response: httpx.Response) -> AsyncIterator[dict[str, Any]]:
+    """Decode SSE frames, including comments and multi-line data fields."""
+    lines = response.aiter_lines()
+    data_lines: list[str] = []
+    while True:
+        try:
+            async with asyncio.timeout(180):
+                line = await anext(lines)
+        except StopAsyncIteration:
+            if not data_lines:
+                return
+            line = ""
+        if line.startswith("data:"):
+            data_lines.append(line[5:].removeprefix(" "))
+        elif not line and data_lines:
+            data = "\n".join(data_lines)
+            data_lines.clear()
+            if data.strip() == "[DONE]":
+                return
+            chunk = json.loads(data)
+            if chunk.get("error"):
+                raise RuntimeError(f"OpenRouter provider error: {chunk['error']}")
+            yield chunk
 
 
 class OpenRouterAdapter(BaseLLMAdapter):
@@ -80,7 +106,10 @@ class OpenRouterAdapter(BaseLLMAdapter):
         return _get_context_window_from_cache(self._config.model)
 
     def _headers(self) -> dict[str, str]:
+        if not self._api_key.strip():
+            raise ValueError("OPENROUTER_API_KEY is not configured")
         return {
+            "Content-Type": "application/json",
             "Authorization": f"Bearer {self._api_key}",
             "HTTP-Referer": "https://github.com/yapoc",
             "X-Title": "YAPOC",
@@ -137,7 +166,11 @@ class OpenRouterAdapter(BaseLLMAdapter):
             )
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            if data.get("error"):
+                raise RuntimeError(f"OpenRouter provider error: {data['error']}")
+            choice = data["choices"][0]
+            require_complete(choice.get("finish_reason"))
+            return choice["message"].get("content") or ""
 
     async def stream(
         self,
@@ -161,20 +194,16 @@ class OpenRouterAdapter(BaseLLMAdapter):
                 timeout=120,
             ) as response:
                 response.raise_for_status()
-                aiter_lines = response.aiter_lines()
-                while True:
-                    try:
-                        async with asyncio.timeout(180):
-                            line = await aiter_lines.__anext__()
-                    except StopAsyncIteration:
-                        break
-                    if line.startswith("data: ") and line != "data: [DONE]":
-                        chunk = json.loads(line[6:])
-                        choices = chunk.get("choices", [])
-                        if choices:
-                            delta = choices[0].get("delta", {})
-                            if text := delta.get("content"):
-                                yield text
+                finish_reason = None
+                async for chunk in _stream_chunks(response):
+                    choices = chunk.get("choices", [])
+                    if choices:
+                        if choices[0].get("finish_reason") is not None:
+                            finish_reason = choices[0]["finish_reason"]
+                        delta = choices[0].get("delta") or {}
+                        if text := delta.get("content"):
+                            yield text
+                require_complete(finish_reason)
 
     async def stream_with_tools(
         self,
@@ -209,7 +238,6 @@ class OpenRouterAdapter(BaseLLMAdapter):
         if openai_tools:
             payload["tools"] = openai_tools
 
-        from app.utils.adapters.termination import require_complete, parse_tool_arguments
         finish_reason = None
         streamed_text: list[str] = []
         t_start = time.perf_counter()
@@ -218,6 +246,8 @@ class OpenRouterAdapter(BaseLLMAdapter):
         tc_accum: dict[int, dict[str, Any]] = {}
         input_tokens = 0
         output_tokens = 0
+        cache_read_tokens = 0
+        cache_creation_tokens = 0
 
         async with httpx.AsyncClient() as client:
             async with client.stream(
@@ -228,24 +258,15 @@ class OpenRouterAdapter(BaseLLMAdapter):
                 timeout=300,
             ) as response:
                 response.raise_for_status()
-                aiter_lines = response.aiter_lines()
-                while True:
-                    try:
-                        async with asyncio.timeout(180):
-                            line = await aiter_lines.__anext__()
-                    except StopAsyncIteration:
-                        break
-                    if not line.startswith("data: ") or line == "data: [DONE]":
-                        continue
-                    chunk = json.loads(line[6:])
-                    if chunk.get("error"):
-                        raise RuntimeError(f"Provider stream error: {chunk['error']}")
-
+                async for chunk in _stream_chunks(response):
                     # Usage in final chunk
                     if chunk.get("usage"):
                         usage = chunk["usage"]
                         input_tokens = usage.get("prompt_tokens", 0)
                         output_tokens = usage.get("completion_tokens", 0)
+                        details = usage.get("prompt_tokens_details") or {}
+                        cache_read_tokens = details.get("cached_tokens", 0) or 0
+                        cache_creation_tokens = details.get("cache_write_tokens", 0) or 0
 
                     choices = chunk.get("choices", [])
                     if not choices:
@@ -253,7 +274,7 @@ class OpenRouterAdapter(BaseLLMAdapter):
 
                     if choices[0].get("finish_reason") is not None:
                         finish_reason = choices[0]["finish_reason"]
-                    delta = choices[0].get("delta", {})
+                    delta = choices[0].get("delta") or {}
 
                     # Text content
                     if text := delta.get("content"):
@@ -261,7 +282,7 @@ class OpenRouterAdapter(BaseLLMAdapter):
                         yield TextDelta(text)
 
                     # Tool call deltas (OpenAI streaming format)
-                    for tc_delta in delta.get("tool_calls", []):
+                    for tc_delta in (delta.get("tool_calls") or []):
                         idx = tc_delta["index"]
                         if idx not in tc_accum:
                             tc_accum[idx] = {
@@ -287,6 +308,8 @@ class OpenRouterAdapter(BaseLLMAdapter):
         for idx in sorted(tc_accum):
             acc = tc_accum[idx]
             arguments_str = "".join(acc["arguments_parts"])
+            if not acc["id"] or not acc["name"]:
+                raise RuntimeError("Incomplete provider response: missing tool call ID or name")
             arguments = parse_tool_arguments(arguments_str)
 
             tc = ToolCall(id=acc["id"], name=acc["name"], input=arguments)
@@ -306,6 +329,8 @@ class OpenRouterAdapter(BaseLLMAdapter):
             output_tokens=output_tokens,
             tokens_per_second=tps,
             context_window=self.context_window_size(),
+            cache_read_tokens=cache_read_tokens,
+            cache_creation_tokens=cache_creation_tokens,
         )
 
         stop_reason = "tool_use" if tool_calls else "end_turn"

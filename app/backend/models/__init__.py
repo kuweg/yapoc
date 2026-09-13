@@ -11,6 +11,8 @@ class TaskRequest(BaseModel):
     source: str | None = None  # "cli", "ui", "notification"
     session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
     attachments: list[str] | None = None  # uploaded attachment IDs (owner-scoped)
+    project_id: str | None = Field(default=None, max_length=128)
+    project_excluded: list[str] = Field(default_factory=list, max_length=81)
     note_ids: list[str] = Field(default_factory=list, max_length=12)
 
 

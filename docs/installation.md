@@ -5,7 +5,7 @@ To run directly with Docker Compose (without the Node launcher), follow the
 dashboard and backend and starts a separate Redis container.
 
 The guided installer supports **Linux, Windows and macOS through a Linux Docker
-runtime**. It asks for a master folder, a provider/key/model, optional Telegram
+runtime**. It asks for a master folder, a provider and API key, optional Telegram
 pairing, then starts YAPOC and opens the dashboard. No Python, Poetry, Redis or
 frontend build setup is required on the host.
 
@@ -70,7 +70,23 @@ management still require Unix APIs; native Windows backend execution is not
 supported. Linux-only systemd scripts are optional and are not used by the
 guided installer.
 
-## The five steps
+## The three dialogue steps
+
+The first question accepts Enter for the default folder. Runtime preparation
+(Docker checks and the initial build) happens between the folder and provider
+steps; progress is displayed while it runs. Telegram defaults to **No**.
+
+```text
+1/3 — Choose your default folder
+Where should YAPOC be installed? [~/YAPOC]:
+
+2/3 — Choose your default AI provider
+Provider: [select from the menu]
+Paste your provider API key: [hidden]
+
+3/3 — Optional Telegram bot
+Connect a Telegram bot? [y/N]
+```
 
 1. **Master folder.** Default: `~/YAPOC` (your user profile's `YAPOC` directory on
    Windows). Choose a dedicated folder. YAPOC may create, modify and delete files
@@ -78,9 +94,11 @@ guided installer.
    It also stores its application under `app/`, state under `data/`, and
    credentials in `.env` there. Existing reserved paths are rejected on a fresh
    install; unrelated projects can coexist. Never select an entire home or drive.
-2. **Allowed provider.** Select a cloud provider, paste its hidden API key, and
-   choose a model. Invalid credentials offer retry/cancel. A custom model ID can
-   be entered. Key validation does not guarantee that every model supports tools
+2. **Default provider and API key.** Select Anthropic, OpenAI, OpenAI Codex,
+   DeepSeek, OpenRouter, Google Gemini, or Moonshot AI, then paste its hidden
+   API key. The menu shows the starter model that will be selected automatically
+   (OpenRouter uses `openai/gpt-4o`). Change models later in the dashboard.
+   Invalid credentials offer retry/cancel. Key validation does not guarantee that every model supports tools
    or that the account has generation quota. Fresh agents use only the selected
    provider; developer fallback chains are removed.
 3. **Telegram, optional.** Create a dedicated bot with `@BotFather`, enter its
@@ -89,11 +107,14 @@ guided installer.
    lookup is needed. An existing webhook is left untouched and setup requests
    a dedicated bot. Failed pairing can be retried or skipped. The existing bot
    integration also permits your paired chat to interact with YAPOC.
-4. **Configure and run.** Settings are saved, Redis and the backend start, and
+
+After these answers, setup finishes automatically:
+
+- **Configure and run.** Settings are saved, Redis and the backend start, and
    the installer checks authenticated access and the built dashboard. The server
    is published on loopback only, using an available port from 8000–8099. Redis
    is not published to the host.
-5. **Open browser.** The dashboard opens with automatic local authentication.
+- **Open browser.** The dashboard opens with automatic local authentication.
    The access token is transferred in a URL fragment, immediately removed by the
    UI, and exchanged for the normal HTTP-only authentication cookie. It is not
    put in HTTP URLs or printed by the installer. If opening fails, setup prints

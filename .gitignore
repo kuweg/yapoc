@@ -269,3 +269,7 @@ app/frontend/.vite.log
 
 # pnpm content-addressable store — package cache, never source
 .pnpm-store/
+
+# Projects UI source is code; runtime project data remains under ignored data/.
+!app/frontend/src/projects/
+!app/frontend/src/projects/**

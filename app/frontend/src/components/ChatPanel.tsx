@@ -1,3 +1,5 @@
+import {ProjectContext} from '../projects/ProjectContext'
+import {projectSubmission,useProjects} from '../projects/store'
 import type { StructuredTaskResult } from '../api/types'
 import { StudioWelcome } from '../studio/StudioWelcome'
 import { createLiveUsage, type LiveUsage } from './liveUsage'
@@ -1136,6 +1138,7 @@ export function ChatPanel() {
   }, [pendingChatInput])
 
   const sendMessage = useCallback(async (rawText: string, files: File[] = [], referencedAttachmentIds: string[] = [], referencedNoteIds: string[] = [], rawDisplayText?: string) => {
+    const projectContext = projectSubmission(useSessionStore.getState().activeId)
     const text = rawText.trim()
     // Mentions are expanded for master but shown to the user as they typed them.
     const displayText = (rawDisplayText ?? rawText).trim()
@@ -1240,7 +1243,13 @@ export function ChatPanel() {
       // are one list, capped at the 12 the API accepts.
       const pinnedNoteIds = useSessionStore.getState().sessions.find(s => s.id === sessionId)?.noteContext?.map(n => n.id) ?? []
       const noteIds = [...new Set([...pinnedNoteIds, ...referencedNoteIds])].slice(0, 12)
-      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId, noteIds)) {
+      let projectAccepted = false
+      for await (const event of streamTask(text, apiHistory, controller.signal, sessionId, attachmentIds, runId, noteIds, projectContext)) {
+        if (!projectAccepted && projectContext.project_id && sessionId) {
+          projectAccepted = true
+          const state = useProjects.getState()
+          if (JSON.stringify(state.excluded[sessionId] || []) === JSON.stringify(projectContext.project_excluded || [])) useProjects.setState({excluded:{...state.excluded,[sessionId]:[]}})
+        }
         const liveUsage = updateLiveUsage(event)
         if (liveUsage) setUsage(liveUsage)
         if (event.type === 'task_result') {
@@ -1599,6 +1608,7 @@ export function ChatPanel() {
         {voiceError && (
           <div className="mb-2 text-xs text-red-400">{voiceError}</div>
         )}
+        <ProjectContext />
         <NoteContextBar />
         <div className="studio-composer-controls flex flex-wrap gap-2 items-end">
           <ChatInput

@@ -239,11 +239,11 @@ export async function main(args = process.argv.slice(2)) {
   }
   if (!process.stdin.isTTY) throw new Error('Run the installer in an interactive terminal. It never accepts API keys on the command line.');
   const host = hostInfo();
-  console.log(`\nYAPOC setup · ${host.name} (${host.arch})\nWorking folder → runtime → provider / API key → Telegram (optional) → ready`);
-  console.log('\n1/5 — Choose your working folder\nYour YAPOC app, settings and projects will live here. Agents can edit files in this folder.');
+  console.log(`\nYAPOC setup · ${host.name} (${host.arch})\nThree setup steps: folder → provider / API key → Telegram (optional)`);
+  console.log('\n1/3 — Choose your default folder\nYour YAPOC app, settings and projects will live here. Agents can edit files in this folder.');
   let workspace;
   while (!workspace) {
-    const input = requestedWorkspace || await question('Working folder', path.join(homedir(), 'YAPOC'));
+    const input = requestedWorkspace || await question('Where should YAPOC be installed?', path.join(homedir(), 'YAPOC'));
     try { workspace = resolveHostPath(input); }
     catch (error) {
       if (requestedWorkspace) throw error;
@@ -311,7 +311,7 @@ export async function main(args = process.argv.slice(2)) {
   if (!token) throw new Error('Setup did not save a valid browser access token. Reconfigure and retry.');
   console.log('Waiting for the backend and dashboard…');
   await waitReady(url, token);
-  console.log(`\n5/5 — YAPOC is ready at ${url}`);
+  console.log(`\nYAPOC is ready at ${url}`);
   if (!noBrowser && await openBrowser(`${url}/#setup-token=${encodeURIComponent(token)}`)) {
     console.log('Opened YAPOC in your browser.');
   } else {

@@ -6,5 +6,5 @@
   "engines": {"node": ">=22"},
   "bin": {"yapoc-install": "installer/index.mjs"},
   "files": ["installer/index.mjs", "installer/README.md"],
-  "scripts": {"check:installer": "node --check installer/index.mjs"}
+  "scripts": {"check:installer": "node --check install.mjs && node --check installer/index.mjs && node installer/validate.mjs"}
 }

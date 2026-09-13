@@ -121,10 +121,12 @@ The installer supports **Linux, Windows and macOS** using Node.js 22+ and Docker
 It guides you through:
 
 1. Choosing a master folder where YAPOC can work freely.
-2. Selecting an allowed AI provider and entering its API key.
+2. Selecting a cloud AI provider and entering its hidden API key; a starter model
+   is selected automatically (OpenRouter uses `openai/gpt-4o`).
 3. Optionally pairing a Telegram bot with your private chat.
-4. Configuring and starting YAPOC, including Redis and the built dashboard.
-5. Opening the browser after readiness checks pass.
+
+It then starts YAPOC, Redis, and the dashboard, and opens the browser after
+readiness checks pass.
 
 From this checkout:
 
@@ -146,7 +148,7 @@ npx --yes --package=github:kuweg/yapoc#feat/guided-installer yapoc-install --ref
 
 Python, Poetry and frontend build dependencies run inside the container. The
 host needs Docker running; setup explains how to retry if it is missing.
-The first build includes the ML dependencies and can download several gigabytes.
+The default build installs the lightweight core; ML dependencies are optional.
 
 See the **[installation guide](docs/installation.md)** for Linux/macOS `curl`,
 Windows PowerShell, prerequisites, folder permissions, Telegram pairing,

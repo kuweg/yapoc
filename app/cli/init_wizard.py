@@ -36,6 +36,7 @@ PROVIDER_DISPLAY: dict[str, str] = {
     "openai": "OpenAI              — GPT (cloud)",
     "deepseek": "DeepSeek            — deepseek-chat (cloud, cheap)",
     "openrouter": "OpenRouter          — multi-provider aggregator (cloud)",
+    "moonshot": "Moonshot AI         — Kimi (cloud)",
     "google": "Google Gemini       — Gemini (cloud)",
     "codex": "OpenAI Codex        — code-specialised (uses OPENAI_API_KEY)",
     "ollama": "Ollama              — local LLM server",
@@ -49,6 +50,7 @@ PROVIDER_ENV_KEY: dict[str, str] = {
     "deepseek": "DEEPSEEK_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "google": "GOOGLE_API_KEY",
+    "moonshot": "MOONSHOT_API_KEY",
     "lmstudio": "LMSTUDIO_API_KEY",
 }
 
@@ -70,7 +72,8 @@ STARTER_MODELS: dict[str, list[str]] = {
     "openai": ["gpt-5.4-mini", "gpt-5.4", "gpt-4.1-nano"],
     "codex": ["gpt-5.1-codex", "gpt-5.2"],
     "deepseek": ["deepseek-chat", "deepseek-v4-pro"],
-    "openrouter": ["anthropic/claude-sonnet-4-6", "openai/gpt-5.4-mini"],
+    "openrouter": ["openai/gpt-4o", "anthropic/claude-sonnet-4-6", "openai/gpt-5.4-mini"],
+    "moonshot": ["kimi-k2.6"],
     "google": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
     "ollama": ["llama3.1:8b", "qwen2.5-coder:32b"],
     "lmstudio": ["local-model"],
